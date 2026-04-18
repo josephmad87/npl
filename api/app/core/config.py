@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +22,18 @@ class Settings(BaseSettings):
     # Optional origin for absolute URLs returned after upload (e.g. https://api.example.com).
     # If unset, the upload handler uses the incoming request Host (fine for local dev).
     public_base_url: str | None = None
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: object) -> object:
+        """Heroku Postgres sets DATABASE_URL with postgres:// or postgresql:// without a driver."""
+        if not isinstance(value, str):
+            return value
+        if value.startswith("postgres://"):
+            return value.replace("postgres://", "postgresql+psycopg2://", 1)
+        if value.startswith("postgresql://") and not value.startswith("postgresql+"):
+            return value.replace("postgresql://", "postgresql+psycopg2://", 1)
+        return value
 
 
 @lru_cache
