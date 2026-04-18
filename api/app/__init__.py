@@ -1,0 +1,1 @@
+"""NPL FastAPI application package."""

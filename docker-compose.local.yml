@@ -1,0 +1,58 @@
+name: npl-local
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: npl
+    ports:
+      - "5432:5432"
+    volumes:
+      - npl_pgdata_local:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d npl"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/npl
+      SECRET_KEY: dev-docker-secret-change-me
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      # Same path works with the ./api bind mount (files live under api/data/media on the host).
+      MEDIA_ROOT: /app/data/media
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@npl.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-changeme}
+    volumes:
+      - ./api:/app
+    command: sh -c "alembic upgrade head && python scripts/seed_dev_user.py && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  admin:
+    image: node:22-bookworm-slim
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000/api/v1
+    volumes:
+      - ./admin:/app
+      # Bump name when deps change so stale volumes (missing lucide-react, @tiptap/*, etc.) are not reused
+      - admin_node_modules_v3:/app/node_modules
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+    depends_on:
+      - api
+
+volumes:
+  npl_pgdata_local:
+  admin_node_modules_v3:

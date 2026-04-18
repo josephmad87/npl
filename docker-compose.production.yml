@@ -1,0 +1,55 @@
+name: npl-production
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment or .env file}
+      POSTGRES_DB: ${POSTGRES_DB:-npl}
+    volumes:
+      - npl_pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${API_PUBLISH_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL (e.g. postgresql+psycopg2://postgres:...@db:5432/npl)}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-1}
+      # Persist uploads (logos, gallery, etc.) across image rebuilds (named volume → /data/media).
+      MEDIA_ROOT: /data/media
+      # Browser-reachable API origin for stored media URLs (no trailing slash), e.g. https://api.example.com
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+    volumes:
+      - npl_api_media:/data/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:?Set VITE_API_BASE_URL to the browser-reachable API prefix (e.g. https://api.example.com/api/v1)}
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_PUBLISH_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  npl_pgdata_prod:
+  npl_api_media:

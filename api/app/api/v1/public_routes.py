@@ -1,0 +1,310 @@
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import Select, or_, select
+from sqlalchemy.orm import Session, joinedload, selectinload
+
+from app.api.pagination import PageParams, paginate_select, to_paginated
+from app.db.session import get_db
+from app.models.article import Article
+from app.models.gallery import GalleryItem
+from app.models.league import League, Season, SeasonTeam
+from app.models.match import Match
+from app.models.player import Player
+from app.models.team import Team
+from app.schemas.articles import ArticleOut
+from app.schemas.gallery import GalleryItemOut
+from app.schemas.leagues import LeagueDetailPublicOut, LeagueOut
+from app.schemas.matches import MatchDetailOut
+from app.schemas.players import PlayerOut
+from app.schemas.seasons import SeasonPublicOut, SeasonSummaryOut
+from app.schemas.teams import TeamOut
+
+router = APIRouter(prefix="/public", tags=["public"])
+
+FIXTURE_STATUSES = ("scheduled", "live", "postponed")
+RESULT_STATUSES = ("completed",)
+
+
+def _published_article_filter(stmt: Select) -> Select:
+    now = datetime.now(timezone.utc)
+    return stmt.where(Article.status == "published").where(
+        or_(Article.published_at.is_(None), Article.published_at <= now),
+    )
+
+
+@router.get("/teams", response_model=dict)
+def list_teams(
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+    category: str | None = Query(default=None),
+    q: str | None = Query(default=None, description="Search name or slug"),
+) -> dict:
+    stmt = select(Team).where(Team.status == "active")
+    if category:
+        stmt = stmt.where(Team.category == category)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(or_(Team.name.ilike(like), Team.slug.ilike(like)))
+    stmt = stmt.order_by(Team.name)
+    rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
+    items = [TeamOut.model_validate(r) for r in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.get("/teams/{slug}", response_model=TeamOut)
+def get_team(slug: str, db: Session = Depends(get_db)) -> TeamOut:
+    team = db.scalar(select(Team).where(Team.slug == slug, Team.status == "active"))
+    if team is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "not_found", "message": "Team not found"})
+    return TeamOut.model_validate(team)
+
+
+@router.get("/players", response_model=dict)
+def list_players(
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+    team_id: int | None = Query(default=None),
+    category: str | None = Query(default=None),
+    role: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+) -> dict:
+    stmt = select(Player).where(Player.status == "active")
+    if team_id is not None:
+        stmt = stmt.where(Player.team_id == team_id)
+    if category:
+        stmt = stmt.where(Player.category == category)
+    if role:
+        stmt = stmt.where(Player.role == role)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(or_(Player.full_name.ilike(like), Player.slug.ilike(like)))
+    stmt = stmt.order_by(Player.full_name)
+    rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
+    items = [PlayerOut.model_validate(r) for r in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.get("/players/{slug}", response_model=PlayerOut)
+def get_player(slug: str, db: Session = Depends(get_db)) -> PlayerOut:
+    player = db.scalar(select(Player).where(Player.slug == slug, Player.status == "active"))
+    if player is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Player not found"})
+    return PlayerOut.model_validate(player)
+
+
+def _season_team_ids(db: Session, season_id: int) -> list[int]:
+    rows = db.scalars(select(SeasonTeam.team_id).where(SeasonTeam.season_id == season_id)).all()
+    return list(rows)
+
+
+@router.get("/leagues", response_model=dict)
+def list_leagues(
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+    category: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+) -> dict:
+    stmt = select(League)
+    if category:
+        stmt = stmt.where(League.category == category)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(or_(League.name.ilike(like), League.slug.ilike(like)))
+    stmt = stmt.order_by(League.name)
+    rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
+    items = [LeagueOut.model_validate(r) for r in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.get("/leagues/{slug}", response_model=LeagueDetailPublicOut)
+def get_league(slug: str, db: Session = Depends(get_db)) -> LeagueDetailPublicOut:
+    league = db.scalar(select(League).where(League.slug == slug))
+    if league is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "League not found"})
+    season_rows = db.scalars(
+        select(Season)
+        .where(Season.league_id == league.id, Season.status != "archived")
+        .order_by(Season.start_date.desc().nullslast(), Season.id.desc()),
+    ).all()
+    seasons = [SeasonSummaryOut.model_validate(s) for s in season_rows]
+    base = LeagueOut.model_validate(league).model_dump()
+    return LeagueDetailPublicOut.model_validate({**base, "seasons": seasons})
+
+
+@router.get("/leagues/{league_slug}/seasons", response_model=dict)
+def list_seasons_for_league(
+    league_slug: str,
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+) -> dict:
+    league = db.scalar(select(League).where(League.slug == league_slug))
+    if league is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "League not found"})
+    stmt = (
+        select(Season)
+        .where(Season.league_id == league.id, Season.status != "archived")
+        .order_by(Season.start_date.desc().nullslast(), Season.id.desc())
+    )
+    rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
+    items = [SeasonSummaryOut.model_validate(r) for r in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.get("/leagues/{league_slug}/seasons/{season_slug}", response_model=SeasonPublicOut)
+def get_season(league_slug: str, season_slug: str, db: Session = Depends(get_db)) -> SeasonPublicOut:
+    league = db.scalar(select(League).where(League.slug == league_slug))
+    if league is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "League not found"})
+    season = db.scalar(
+        select(Season).where(
+            Season.league_id == league.id,
+            Season.slug == season_slug,
+            Season.status != "archived",
+        ),
+    )
+    if season is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Season not found"})
+    base = SeasonSummaryOut.model_validate(season).model_dump()
+    return SeasonPublicOut.model_validate({**base, "team_ids": _season_team_ids(db, season.id)})
+
+
+@router.get("/fixtures", response_model=dict)
+def list_fixtures(
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+    season_id: int | None = Query(default=None),
+    league_id: int | None = Query(default=None),
+    team_id: int | None = Query(default=None),
+    category: str | None = Query(default=None),
+) -> dict:
+    stmt = (
+        select(Match)
+        .options(
+            joinedload(Match.home_team),
+            joinedload(Match.away_team),
+            joinedload(Match.season).joinedload(Season.league),
+            joinedload(Match.result),
+            selectinload(Match.player_stats),
+        )
+        .where(Match.status.in_(FIXTURE_STATUSES))
+    )
+    if season_id is not None:
+        stmt = stmt.where(Match.season_id == season_id)
+    if league_id is not None:
+        stmt = stmt.join(Season, Match.season_id == Season.id).where(Season.league_id == league_id)
+    if category:
+        stmt = stmt.where(Match.category == category)
+    if team_id is not None:
+        stmt = stmt.where(or_(Match.home_team_id == team_id, Match.away_team_id == team_id))
+    stmt = stmt.order_by(Match.match_date.asc().nullslast(), Match.id)
+    rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
+    items = [MatchDetailOut.model_validate(r) for r in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.get("/results", response_model=dict)
+def list_results(
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+    season_id: int | None = Query(default=None),
+    league_id: int | None = Query(default=None),
+    team_id: int | None = Query(default=None),
+    category: str | None = Query(default=None),
+) -> dict:
+    stmt = (
+        select(Match)
+        .options(
+            joinedload(Match.home_team),
+            joinedload(Match.away_team),
+            joinedload(Match.season).joinedload(Season.league),
+            joinedload(Match.result),
+            selectinload(Match.player_stats),
+        )
+        .where(Match.status.in_(RESULT_STATUSES))
+    )
+    if season_id is not None:
+        stmt = stmt.where(Match.season_id == season_id)
+    if league_id is not None:
+        stmt = stmt.join(Season, Match.season_id == Season.id).where(Season.league_id == league_id)
+    if category:
+        stmt = stmt.where(Match.category == category)
+    if team_id is not None:
+        stmt = stmt.where(or_(Match.home_team_id == team_id, Match.away_team_id == team_id))
+    stmt = stmt.order_by(Match.match_date.desc().nullslast(), Match.id.desc())
+    rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
+    items = [MatchDetailOut.model_validate(r) for r in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.get("/matches/{match_id}", response_model=MatchDetailOut)
+def get_match(match_id: int, db: Session = Depends(get_db)) -> MatchDetailOut:
+    m = db.scalar(
+        select(Match)
+        .options(
+            joinedload(Match.home_team),
+            joinedload(Match.away_team),
+            joinedload(Match.season).joinedload(Season.league),
+            joinedload(Match.result),
+            selectinload(Match.player_stats),
+        )
+        .where(Match.id == match_id),
+    )
+    if m is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    return MatchDetailOut.model_validate(m)
+
+
+@router.get("/news", response_model=dict)
+def list_news(
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+    category: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+) -> dict:
+    stmt = select(Article)
+    stmt = _published_article_filter(stmt)
+    if category:
+        stmt = stmt.where(Article.category == category)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(or_(Article.title.ilike(like), Article.slug.ilike(like), Article.excerpt.ilike(like)))
+    stmt = stmt.order_by(Article.published_at.desc().nullslast(), Article.created_at.desc())
+    rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
+    items = [ArticleOut.model_validate(r) for r in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.get("/news/{slug}", response_model=ArticleOut)
+def get_news(slug: str, db: Session = Depends(get_db)) -> ArticleOut:
+    stmt = select(Article).where(Article.slug == slug)
+    stmt = _published_article_filter(stmt)
+    article = db.scalar(stmt)
+    if article is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Article not found"})
+    return ArticleOut.model_validate(article)
+
+
+@router.get("/gallery", response_model=dict)
+def list_gallery(
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+    media_type: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+) -> dict:
+    stmt = select(GalleryItem).where(GalleryItem.status == "published")
+    if media_type:
+        stmt = stmt.where(GalleryItem.media_type == media_type)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                GalleryItem.title.ilike(like),
+                GalleryItem.description.ilike(like),
+                GalleryItem.slug.ilike(like),
+            ),
+        )
+    stmt = stmt.order_by(GalleryItem.created_at.desc())
+    rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
+    items = [GalleryItemOut.model_validate(r) for r in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
