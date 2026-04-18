@@ -1,0 +1,13 @@
+# Netlify: set "Base directory" to `admin` for this monorepo, or deploy this folder as the site root.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Client-side routing (TanStack Router): real files in `dist/` are still served first.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
