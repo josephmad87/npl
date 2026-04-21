@@ -1042,6 +1042,38 @@ button {
   }
 }
 
+.dashboard-match-panel {
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.dashboard-match-panel__tabs {
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.22rem;
+  margin: 0 0 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+}
+
+.dashboard-match-panel__tab {
+  border: none;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.dashboard-match-panel__tab.is-active {
+  background: rgba(255, 104, 32, 0.16);
+  color: var(--text);
+}
+
 .team-hub-win {
   color: var(--success);
   font-weight: 700;

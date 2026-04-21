@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
@@ -243,6 +243,8 @@ function DashboardHome() {
     },
     { accessorKey: 'venue', header: 'Venue' },
   ]
+  const [matchTab, setMatchTab] = useState<'fixtures' | 'results'>('fixtures')
+  const showingFixtures = matchTab === 'fixtures'
 
   const visibleModules = DASHBOARD_MODULES.filter((m) =>
     navVisibleForRole({ to: m.to, label: m.label, roles: m.roles }, session?.role),
@@ -289,11 +291,33 @@ function DashboardHome() {
         </div>
 
         {showMatchTables ? (
-          <div className="dashboard-match-tables">
-            <section className="team-hub-section team-hub-section--dashboard-split">
-              <div className="team-hub-section-head">
-                <div className="team-hub-section-head__lead">
-                  <h2 className="team-hub-section__title">Fixtures</h2>
+          <section className="team-hub-section dashboard-match-panel">
+            <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Match views">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={showingFixtures}
+                className={`dashboard-match-panel__tab${showingFixtures ? ' is-active' : ''}`}
+                onClick={() => setMatchTab('fixtures')}
+              >
+                Fixtures
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!showingFixtures}
+                className={`dashboard-match-panel__tab${!showingFixtures ? ' is-active' : ''}`}
+                onClick={() => setMatchTab('results')}
+              >
+                Results
+              </button>
+            </div>
+            <div className="team-hub-section-head">
+              <div className="team-hub-section-head__lead">
+                <h2 className="team-hub-section__title">
+                  {showingFixtures ? 'Fixtures' : 'Results'}
+                </h2>
+                {showingFixtures ? (
                   <SectionHintTip
                     ariaHelp="Upcoming and in-progress matches (everything not yet marked completed). Click a row to open the match hub."
                   >
@@ -302,56 +326,36 @@ function DashboardHome() {
                       <strong>completed</strong>). Click a row to open the match hub.
                     </span>
                   </SectionHintTip>
-                </div>
-                <Link to="/matches" className="btn-ghost btn--with-icon">
-                  All fixtures
-                  <ChevronRight size={18} strokeWidth={2} aria-hidden />
-                </Link>
-              </div>
-              <EntityTable
-                columns={fixtureColumns}
-                data={fixtureRows}
-                globalFilterPlaceholder="Search fixtures…"
-                onRowClick={(row) =>
-                  void navigate({
-                    to: '/matches/$matchId',
-                    params: { matchId: String(row.id) },
-                  })
-                }
-              />
-            </section>
-
-            <section className="team-hub-section team-hub-section--dashboard-split">
-              <div className="team-hub-section-head">
-                <div className="team-hub-section-head__lead">
-                  <h2 className="team-hub-section__title">Results</h2>
+                ) : (
                   <SectionHintTip
                     ariaHelp="Completed fixtures with score line or margin when the API has stored a MatchResult."
                   >
                     <span className="section-hint-tip__text">
-                      Completed fixtures with score line or margin when the API
-                      has stored a <strong>MatchResult</strong>.
+                      Completed fixtures with score line or margin when the API has
+                      stored a <strong>MatchResult</strong>.
                     </span>
                   </SectionHintTip>
-                </div>
-                <Link to="/matches" className="btn-ghost btn--with-icon">
-                  All matches
-                  <ChevronRight size={18} strokeWidth={2} aria-hidden />
-                </Link>
+                )}
               </div>
-              <EntityTable
-                columns={resultColumns}
-                data={resultRows}
-                globalFilterPlaceholder="Search results…"
-                onRowClick={(row) =>
-                  void navigate({
-                    to: '/matches/$matchId',
-                    params: { matchId: String(row.id) },
-                  })
-                }
-              />
-            </section>
-          </div>
+              <Link to="/matches" className="btn-ghost btn--with-icon">
+                {showingFixtures ? 'All fixtures' : 'All matches'}
+                <ChevronRight size={18} strokeWidth={2} aria-hidden />
+              </Link>
+            </div>
+            <EntityTable
+              columns={showingFixtures ? fixtureColumns : resultColumns}
+              data={showingFixtures ? fixtureRows : resultRows}
+              globalFilterPlaceholder={
+                showingFixtures ? 'Search fixtures…' : 'Search results…'
+              }
+              onRowClick={(row) =>
+                void navigate({
+                  to: '/matches/$matchId',
+                  params: { matchId: String(row.id) },
+                })
+              }
+            />
+          </section>
         ) : null}
       </>
     )
