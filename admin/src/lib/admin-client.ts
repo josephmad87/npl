@@ -1,5 +1,6 @@
 import { ApiError, apiFetch } from '@/lib/api'
 import type { Paginated, TokenResponse } from '@/lib/api-types'
+import { API_BASE } from '@/lib/api'
 import { clearSession, getSession, setSession } from '@/lib/session'
 
 export type MediaUploadKind =
@@ -127,7 +128,62 @@ export async function adminDelete(path: string): Promise<void> {
 export async function adminUploadMedia(
   file: File,
   kind: MediaUploadKind,
+  onProgress?: (percent: number) => void,
 ): Promise<MediaUploadResponse> {
+  if (onProgress) {
+    const token = readAccessToken()
+    if (!token) {
+      redirectToLoginPreservingReturn()
+      return pendingRedirect()
+    }
+    return new Promise<MediaUploadResponse>((resolve, reject) => {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('kind', kind)
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${API_BASE}/admin/uploads`)
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return
+        const pct = Math.max(
+          0,
+          Math.min(100, Math.round((event.loaded / event.total) * 100)),
+        )
+        onProgress(pct)
+      }
+      xhr.onerror = () => reject(new Error('Upload failed'))
+      xhr.onload = () => {
+        const text = xhr.responseText ?? ''
+        let json: unknown = null
+        try {
+          json = text ? (JSON.parse(text) as unknown) : null
+        } catch {
+          json = null
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && json) {
+          resolve(json as MediaUploadResponse)
+          return
+        }
+        if (xhr.status === 401) {
+          redirectToLoginPreservingReturn()
+          reject(new ApiError('Session expired', 401, null))
+          return
+        }
+        const body = (json ?? null) as { message?: unknown; detail?: unknown } | null
+        const detailMessage =
+          body && typeof body.detail === 'object' && body.detail && 'message' in body.detail
+            ? String((body.detail as { message: unknown }).message)
+            : null
+        const message =
+          detailMessage ??
+          (body && typeof body.message === 'string' ? body.message : null) ??
+          `Upload failed (${xhr.status})`
+        reject(new ApiError(message, xhr.status, null))
+      }
+      xhr.send(fd)
+    })
+  }
+
   const fd = new FormData()
   fd.append('file', file)
   fd.append('kind', kind)

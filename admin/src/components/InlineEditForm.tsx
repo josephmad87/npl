@@ -1,4 +1,4 @@
-import { Save, X } from 'lucide-react'
+import { Loader2, Save, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 export type InlineEditField = {
@@ -12,6 +12,9 @@ type InlineEditFormProps = {
   onSave: () => void
   onCancel: () => void
   error?: string | null
+  isSaving?: boolean
+  saveLabel?: string
+  savingLabel?: string
 }
 
 export function InlineEditForm({
@@ -19,6 +22,9 @@ export function InlineEditForm({
   onSave,
   onCancel,
   error,
+  isSaving = false,
+  saveLabel = 'Save changes',
+  savingLabel = 'Saving…',
 }: InlineEditFormProps) {
   return (
     <div
@@ -57,6 +63,7 @@ export function InlineEditForm({
           type="button"
           className="btn-ghost btn--with-icon"
           onClick={onCancel}
+          disabled={isSaving}
         >
           <X size={18} strokeWidth={2} aria-hidden />
           Cancel
@@ -65,9 +72,14 @@ export function InlineEditForm({
           type="button"
           className="btn-primary btn--with-icon"
           onClick={onSave}
+          disabled={isSaving}
         >
-          <Save size={18} strokeWidth={2} aria-hidden />
-          Save changes
+          {isSaving ? (
+            <Loader2 className="npl-icon-spin" size={18} strokeWidth={2} aria-hidden />
+          ) : (
+            <Save size={18} strokeWidth={2} aria-hidden />
+          )}
+          {isSaving ? savingLabel : saveLabel}
         </button>
       </div>
     </div>

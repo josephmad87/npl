@@ -14,6 +14,7 @@ import { DetailFields } from '@/components/DetailFields'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { parseDetailRouteSearch } from '@/lib/detail-route-search'
+import { resolveAdminMediaUrl } from '@/lib/media-url'
 
 export const Route = createFileRoute('/_shell/news/$articleId')({
   validateSearch: parseDetailRouteSearch,
@@ -34,6 +35,7 @@ function ArticleDetailPage() {
   const isEditing = mode === 'edit'
   const [saveError, setSaveError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [heroFailedFor, setHeroFailedFor] = useState<string | null>(null)
 
   const goView = () => {
     if (!article) return
@@ -102,6 +104,8 @@ function ArticleDetailPage() {
   }
 
   const safeBody = sanitizeArticleHtml(article.body ?? '')
+  const heroSrc = resolveAdminMediaUrl(article.featured_image_url)
+  const showHero = Boolean(heroSrc && heroFailedFor !== heroSrc)
 
   return (
     <>
@@ -136,12 +140,13 @@ function ArticleDetailPage() {
         />
       ) : (
         <>
-          {article.featured_image_url ? (
+          {showHero ? (
             <div className="article-view__hero">
               <img
-                src={article.featured_image_url}
+                src={heroSrc ?? ''}
                 alt=""
                 className="article-view__hero-img"
+                onError={() => setHeroFailedFor(heroSrc)}
               />
             </div>
           ) : null}

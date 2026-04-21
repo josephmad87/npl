@@ -5,13 +5,13 @@ import { useEffect, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { ArticleDto } from '@/lib/api-types'
 import { adminListAll } from '@/lib/admin-client'
-import { API_BASE } from '@/lib/api'
 import { CatalogFilterGrid } from '@/components/CatalogFilterGrid'
 import { EntityTable } from '@/components/EntityTable'
 import { ListViewModeSwitch } from '@/components/ListViewModeSwitch'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useListViewMode } from '@/hooks/useListViewMode'
+import { resolveAdminMediaUrl } from '@/lib/media-url'
 
 export const Route = createFileRoute('/_shell/news/')({
   component: NewsPage,
@@ -48,23 +48,8 @@ type NewsCardMediaProps = {
   fallbackText: string
 }
 
-function resolveMediaUrl(raw: string | null): string | null {
-  const t = raw?.trim() ?? ''
-  if (!t) return null
-  if (t.startsWith('http://') || t.startsWith('https://')) return t
-  if (t.startsWith('//')) return `${globalThis.location.protocol}${t}`
-  if (t.startsWith('/')) {
-    try {
-      return `${new URL(API_BASE).origin}${t}`
-    } catch {
-      return t
-    }
-  }
-  return t
-}
-
 function NewsCardMedia({ imageUrl, fallbackText }: NewsCardMediaProps) {
-  const resolvedUrl = resolveMediaUrl(imageUrl)
+  const resolvedUrl = resolveAdminMediaUrl(imageUrl)
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(
     resolvedUrl ? 'loading' : 'error',
   )

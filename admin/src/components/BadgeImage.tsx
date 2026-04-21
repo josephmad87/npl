@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import logoFallbackSrc from '@/assets/logo.jpeg'
+import { resolveAdminMediaUrl } from '@/lib/media-url'
 
 export function resolveBadgeSrc(url: string | null | undefined): string {
-  const t = url?.trim()
-  return t && t.length > 0 ? t : logoFallbackSrc
+  return resolveAdminMediaUrl(url) ?? logoFallbackSrc
 }
 
 type BadgeImageProps = Readonly<{
@@ -13,13 +14,18 @@ type BadgeImageProps = Readonly<{
 }>
 
 export function BadgeImage({ imageUrl, alt, size = 'md' }: BadgeImageProps) {
+  const resolvedSrc = resolveBadgeSrc(imageUrl)
+  const [failedFor, setFailedFor] = useState<string | null>(null)
+  const src = failedFor === resolvedSrc ? logoFallbackSrc : resolvedSrc
+
   return (
     <img
       className={`entity-badge entity-badge--${size}`}
-      src={resolveBadgeSrc(imageUrl)}
+      src={src}
       alt={alt}
       loading="lazy"
       decoding="async"
+      onError={() => setFailedFor(resolvedSrc)}
     />
   )
 }

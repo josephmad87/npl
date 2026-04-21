@@ -1,4 +1,4 @@
-import { FileVideo, ImagePlus, Link2, Loader2, X } from 'lucide-react'
+import { FileVideo, ImagePlus, Link2, X } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import {
   adminUploadMedia,
@@ -40,15 +40,17 @@ function resolveDisplayUrl(raw: string): string {
 
 function acceptHint(accept: string): string {
   if (accept.includes('video')) {
-    return 'Images or video — MP4, WebM, MOV, or common image types'
+    return 'Images or video — common JPG/PNG/WebP/AVIF/SVG and MP4/WebM/MOV/M4V/AVI/MKV formats'
   }
-  return 'JPEG, PNG, WebP, or GIF — up to the server limit'
+  return 'Common image formats (JPG, PNG, WebP, GIF, AVIF, SVG, TIFF, BMP, HEIC)'
 }
 
 function looksLikeImageUrl(text: string, imageOnly: boolean): boolean {
   if (!text.trim()) return false
   if (imageOnly) return true
-  return /\.(jpe?g|png|gif|webp)(\?|#|$)/i.test(text)
+  return /\.(jpe?g|png|gif|webp|avif|svg|bmp|tiff?|heic|heif)(\?|#|$)/i.test(
+    text,
+  )
 }
 
 /**
@@ -64,6 +66,7 @@ export function MediaUrlField({
 }: MediaUrlFieldProps) {
   const fileInputId = `${id}__file`
   const [busy, setBusy] = useState(false)
+  const [uploadPercent, setUploadPercent] = useState(0)
   const [localErr, setLocalErr] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [previewBroken, setPreviewBroken] = useState(false)
@@ -78,14 +81,17 @@ export function MediaUrlField({
     async (file: File) => {
       setLocalErr(null)
       setBusy(true)
+      setUploadPercent(0)
       setPreviewBroken(false)
       try {
-        const { url } = await adminUploadMedia(file, uploadKind)
+        const { url } = await adminUploadMedia(file, uploadKind, setUploadPercent)
+        setUploadPercent(100)
         onChange(url)
       } catch (err: unknown) {
         setLocalErr(err instanceof Error ? err.message : 'Upload failed')
       } finally {
         setBusy(false)
+        setUploadPercent(0)
       }
     },
     [onChange, uploadKind],
@@ -153,8 +159,15 @@ export function MediaUrlField({
         >
           {busy ? (
             <span className="media-url-field__drop-busy" aria-live="polite">
-              <Loader2 className="npl-icon-spin" size={28} strokeWidth={2} aria-hidden />
-              <span>Uploading…</span>
+              <span className="media-url-field__drop-progress-label">
+                Uploading… {uploadPercent}%
+              </span>
+              <span className="media-url-field__drop-progress-track" aria-hidden>
+                <span
+                  className="media-url-field__drop-progress-fill"
+                  style={{ width: `${uploadPercent}%` }}
+                />
+              </span>
             </span>
           ) : (
             <>

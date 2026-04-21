@@ -300,6 +300,9 @@ function LeagueDetailPage() {
                 alt=""
                 loading="eager"
                 decoding="async"
+                onError={(e) => {
+                  e.currentTarget.src = resolveBadgeSrc(null)
+                }}
               />
             </div>
             <div className="entity-detail-hero__body">

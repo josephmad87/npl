@@ -14,8 +14,10 @@ from app.core.config import Settings
 
 ALLOWED_KINDS = frozenset({"leagues", "teams", "players", "gallery", "news", "matches", "misc"})
 
-IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp"})
-VIDEO_EXTENSIONS = frozenset({".mp4", ".webm", ".mov"})
+IMAGE_EXTENSIONS = frozenset(
+    {".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".svg", ".bmp", ".tif", ".tiff", ".heic", ".heif"},
+)
+VIDEO_EXTENSIONS = frozenset({".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv", ".mpeg", ".mpg", ".ogv"})
 
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 MAX_VIDEO_BYTES = 120 * 1024 * 1024
@@ -102,12 +104,32 @@ def _extension_from_upload(filename: str | None, content_type: str | None) -> st
         return ".webp"
     if guessed == "image/gif":
         return ".gif"
+    if guessed == "image/avif":
+        return ".avif"
+    if guessed == "image/svg+xml":
+        return ".svg"
+    if guessed == "image/bmp":
+        return ".bmp"
+    if guessed == "image/tiff":
+        return ".tiff"
+    if guessed in {"image/heic", "image/heif"}:
+        return ".heic" if guessed == "image/heic" else ".heif"
     if guessed == "video/mp4":
         return ".mp4"
     if guessed == "video/webm":
         return ".webm"
     if guessed == "video/quicktime":
         return ".mov"
+    if guessed == "video/x-m4v":
+        return ".m4v"
+    if guessed == "video/x-msvideo":
+        return ".avi"
+    if guessed in {"video/x-matroska", "video/webm;codecs=vp9"}:
+        return ".mkv"
+    if guessed == "video/mpeg":
+        return ".mpeg"
+    if guessed == "video/ogg":
+        return ".ogv"
     if content_type:
         ct = content_type.split(";")[0].strip().lower()
         if ct == "image/jpeg":
@@ -118,12 +140,32 @@ def _extension_from_upload(filename: str | None, content_type: str | None) -> st
             return ".webp"
         if ct == "image/gif":
             return ".gif"
+        if ct == "image/avif":
+            return ".avif"
+        if ct == "image/svg+xml":
+            return ".svg"
+        if ct == "image/bmp":
+            return ".bmp"
+        if ct == "image/tiff":
+            return ".tiff"
+        if ct in {"image/heic", "image/heif"}:
+            return ".heic" if ct == "image/heic" else ".heif"
         if ct == "video/mp4":
             return ".mp4"
         if ct == "video/webm":
             return ".webm"
         if ct == "video/quicktime":
             return ".mov"
+        if ct == "video/x-m4v":
+            return ".m4v"
+        if ct == "video/x-msvideo":
+            return ".avi"
+        if ct == "video/x-matroska":
+            return ".mkv"
+        if ct == "video/mpeg":
+            return ".mpeg"
+        if ct == "video/ogg":
+            return ".ogv"
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail={"code": "validation", "message": "Unsupported or missing file extension"},

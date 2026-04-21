@@ -336,6 +336,9 @@ function PlayerDetailPage() {
                 alt=""
                 loading="eager"
                 decoding="async"
+                onError={(e) => {
+                  e.currentTarget.src = resolvePlayerPhotoSrc(null)
+                }}
               />
             </div>
             <div className="entity-detail-hero__body">

@@ -858,6 +858,22 @@ def admin_update_gallery(
     return item
 
 
+@router.delete("/gallery/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def admin_delete_gallery(
+    item_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> None:
+    item = db.get(GalleryItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Gallery item not found"})
+    title = item.title
+    db.delete(item)
+    db.commit()
+    write_audit(db, actor_user_id=actor.id, action="delete", entity_type="gallery_item", entity_id=item_id, summary=title)
+    db.commit()
+
+
 def _get_or_create_platform_settings(db: Session) -> PlatformSettings:
     row = db.get(PlatformSettings, 1)
     if row is None:

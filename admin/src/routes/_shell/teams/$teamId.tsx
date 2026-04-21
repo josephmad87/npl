@@ -28,6 +28,7 @@ import { PlayerAvatar } from '@/components/PlayerAvatar'
 import { SectionHintTip } from '@/components/SectionHintTip'
 import { StatusBadge } from '@/components/StatusBadge'
 import { parseDetailRouteSearch } from '@/lib/detail-route-search'
+import { resolveAdminMediaUrl } from '@/lib/media-url'
 import { matchResultSummaryLine } from '@/lib/match-winner'
 
 export const Route = createFileRoute('/_shell/teams/$teamId')({
@@ -38,9 +39,9 @@ export const Route = createFileRoute('/_shell/teams/$teamId')({
 const STATUSES = ['active', 'inactive'] as const
 
 function resolveTeamHeroSrc(team: TeamDto): string {
-  const cover = team.cover_image_url?.trim()
+  const cover = resolveAdminMediaUrl(team.cover_image_url)
   if (cover) return cover
-  const logo = team.logo_url?.trim()
+  const logo = resolveAdminMediaUrl(team.logo_url)
   if (logo) return logo
   return logoFallbackSrc
 }
@@ -435,6 +436,9 @@ function TeamDetailPage() {
                 alt=""
                 loading="eager"
                 decoding="async"
+                onError={(e) => {
+                  e.currentTarget.src = logoFallbackSrc
+                }}
               />
             </div>
             <div className="entity-detail-hero__body">

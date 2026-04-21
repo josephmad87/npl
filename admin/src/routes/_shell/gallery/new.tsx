@@ -13,7 +13,7 @@ export const Route = createFileRoute('/_shell/gallery/new')({
 })
 
 const TYPES = ['image', 'video'] as const
-const STATUSES = ['draft', 'published'] as const
+type GalleryStatus = 'draft' | 'published'
 
 function NewGalleryItemPage() {
   const navigate = useNavigate()
@@ -23,11 +23,13 @@ function NewGalleryItemPage() {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [mediaType, setMediaType] = useState<(typeof TYPES)[number]>('image')
   const [status, setStatus] =
-    useState<(typeof STATUSES)[number]>('draft')
+    useState<GalleryStatus>('draft')
   const [tagsText, setTagsText] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   const save = async () => {
+    if (isSaving) return
     const t = title.trim()
     const u = fileUrl?.trim() ?? ''
     if (!t) {
@@ -43,6 +45,7 @@ function NewGalleryItemPage() {
       .map((s) => s.trim())
       .filter(Boolean)
     setSaveError(null)
+    setIsSaving(true)
     try {
       const created = await adminPost<GalleryItemDto>('/admin/gallery', {
         title: t,
@@ -59,6 +62,8 @@ function NewGalleryItemPage() {
       })
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Create failed')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -74,6 +79,9 @@ function NewGalleryItemPage() {
       />
       <InlineEditForm
         error={saveError}
+        isSaving={isSaving}
+        saveLabel="Create item"
+        savingLabel="Creating…"
         onCancel={() => void navigate({ to: '/gallery' })}
         onSave={() => void save()}
         fields={[
@@ -86,6 +94,7 @@ function NewGalleryItemPage() {
                 className="inline-edit__control"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                disabled={isSaving}
               />
             ),
           },
@@ -96,9 +105,10 @@ function NewGalleryItemPage() {
               <MediaUrlField
                 id="file_url"
                 uploadKind="gallery"
-                accept="image/*,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.jpg,.jpeg,.png,.webp,.gif"
+                accept="image/*,video/mp4,video/webm,video/quicktime,video/x-m4v,video/x-msvideo,video/x-matroska,video/mpeg,video/ogg,.jpg,.jpeg,.png,.webp,.gif,.avif,.svg,.bmp,.tif,.tiff,.heic,.heif,.mp4,.webm,.mov,.m4v,.avi,.mkv,.mpeg,.mpg,.ogv"
                 value={fileUrl}
                 onChange={setFileUrl}
+                disabled={isSaving}
               />
             ),
           },
@@ -109,9 +119,10 @@ function NewGalleryItemPage() {
               <MediaUrlField
                 id="thumbnail_url"
                 uploadKind="gallery"
-                accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,image/bmp,image/tiff,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.gif,.avif,.svg,.bmp,.tif,.tiff,.heic,.heif"
                 value={thumbnailUrl}
                 onChange={setThumbnailUrl}
+                disabled={isSaving}
               />
             ),
           },
@@ -126,6 +137,7 @@ function NewGalleryItemPage() {
                 onChange={(e) =>
                   setMediaType(e.target.value as (typeof TYPES)[number])
                 }
+                disabled={isSaving}
               >
                 {TYPES.map((ty) => (
                   <option key={ty} value={ty}>
@@ -144,27 +156,50 @@ function NewGalleryItemPage() {
                 className="inline-edit__control"
                 value={tagsText}
                 onChange={(e) => setTagsText(e.target.value)}
+                disabled={isSaving}
               />
             ),
           },
           {
-            id: 'status',
-            label: 'Status',
+            id: 'publish',
+            label: 'Publish',
             control: (
-              <select
+              <label className="inline-check">
+                <input
+                  id="publish"
+                  type="checkbox"
+                  checked={status === 'published'}
+                  onChange={(e) =>
+                    setStatus(e.target.checked ? 'published' : 'draft')
+                  }
+                  disabled={isSaving}
+                />
+                <span>Published</span>
+              </label>
+            ),
+          },
+          {
+            id: 'status',
+            label: 'Status (read-only)',
+            control: (
+              <input
                 id="status"
                 className="inline-edit__control"
                 value={status}
-                onChange={(e) =>
-                  setStatus(e.target.value as (typeof STATUSES)[number])
-                }
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+                readOnly
+                aria-readonly
+                disabled
+              />
+            ),
+          },
+          {
+            id: 'media-format-help',
+            label: 'Supported formats',
+            control: (
+              <p className="muted" style={{ margin: 0 }}>
+                Images: JPG, JPEG, PNG, GIF, WebP, AVIF, SVG, BMP, TIFF, HEIC,
+                HEIF. Videos: MP4, WebM, MOV, M4V, AVI, MKV, MPEG, MPG, OGV.
+              </p>
             ),
           },
         ]}

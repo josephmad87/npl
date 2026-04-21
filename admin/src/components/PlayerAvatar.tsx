@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import playerPlaceholderSrc from '@/assets/player_avatar_placeholder.png'
+import { resolveAdminMediaUrl } from '@/lib/media-url'
 
 export function resolvePlayerPhotoSrc(url: string | null | undefined): string {
-  const t = url?.trim()
-  return t && t.length > 0 ? t : playerPlaceholderSrc
+  return resolveAdminMediaUrl(url) ?? playerPlaceholderSrc
 }
 
 type PlayerAvatarProps = Readonly<{
@@ -17,13 +18,18 @@ export function PlayerAvatar({
   alt,
   size = 'md',
 }: PlayerAvatarProps) {
+  const resolvedSrc = resolvePlayerPhotoSrc(profilePhotoUrl)
+  const [failedFor, setFailedFor] = useState<string | null>(null)
+  const src = failedFor === resolvedSrc ? playerPlaceholderSrc : resolvedSrc
+
   return (
     <img
       className={`player-avatar player-avatar--${size}`}
-      src={resolvePlayerPhotoSrc(profilePhotoUrl)}
+      src={src}
       alt={alt}
       loading="lazy"
       decoding="async"
+      onError={() => setFailedFor(resolvedSrc)}
     />
   )
 }
