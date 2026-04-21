@@ -83,33 +83,48 @@ function GalleryPage() {
               .join(' ')
           }
           searchPlaceholder="Search gallery…"
-          renderCard={(g) => (
-            <Link
-              to="/gallery/$galleryId"
-              params={{ galleryId: String(g.id) }}
-              className="entity-thumb-card"
-            >
-              <div className="entity-thumb-card__media">
-                <span
-                  className="entity-thumb-media-placeholder entity-thumb-media-placeholder--wide"
-                  aria-hidden
-                >
-                  {g.media_type?.toUpperCase() ?? 'MEDIA'}
-                </span>
-              </div>
-              <div className="entity-thumb-card__body">
-                <h3 className="entity-thumb-card__title">{g.title}</h3>
-                <p className="entity-thumb-card__meta muted">
-                  {g.tags_display}
-                  <br />
-                  {String(g.created_at).slice(0, 10)}
-                </p>
-              </div>
-              <div className="entity-thumb-card__footer">
-                <StatusBadge status={g.status as 'draft' | 'published'} />
-              </div>
-            </Link>
-          )}
+          renderCard={(g) => {
+            const mediaUrl =
+              g.thumbnail_url ??
+              (g.media_type?.toLowerCase() === 'image' ? g.file_url : null)
+
+            return (
+              <Link
+                to="/gallery/$galleryId"
+                params={{ galleryId: String(g.id) }}
+                className="entity-thumb-card entity-thumb-card--gallery"
+              >
+                <div className="entity-thumb-card__media entity-thumb-card__media--gallery">
+                  {mediaUrl ? (
+                    <img
+                      src={mediaUrl}
+                      alt=""
+                      className="entity-thumb-card__gallery-image"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span
+                      className="entity-thumb-media-placeholder entity-thumb-media-placeholder--wide"
+                      aria-hidden
+                    >
+                      {g.media_type?.toUpperCase() ?? 'MEDIA'}
+                    </span>
+                  )}
+                </div>
+                <div className="entity-thumb-card__body">
+                  <h3 className="entity-thumb-card__title">{g.title}</h3>
+                  <p className="entity-thumb-card__meta muted">
+                    {g.tags_display}
+                    <br />
+                    {String(g.created_at).slice(0, 10)}
+                  </p>
+                </div>
+                <div className="entity-thumb-card__footer">
+                  <StatusBadge status={g.status as 'draft' | 'published'} />
+                </div>
+              </Link>
+            )
+          }}
         />
       ) : (
         <EntityTable

@@ -1586,7 +1586,9 @@ button.entity-thumb-card {
 }
 
 .entity-thumb-card--team .entity-thumb-card__media--team,
-.entity-thumb-card--league .entity-thumb-card__media--league {
+.entity-thumb-card--league .entity-thumb-card__media--league,
+.entity-thumb-card--news .entity-thumb-card__media--news,
+.entity-thumb-card--gallery .entity-thumb-card__media--gallery {
   display: block;
   position: relative;
   width: 100%;
@@ -1608,6 +1610,26 @@ button.entity-thumb-card {
   border-radius: 0;
   border: none;
   object-fit: contain;
+}
+
+.entity-thumb-card--news .entity-thumb-card__media--news .entity-thumb-card__news-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.entity-thumb-card--gallery
+  .entity-thumb-card__media--gallery
+  .entity-thumb-card__gallery-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .entity-thumb-card__vs {

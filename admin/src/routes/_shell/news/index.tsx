@@ -89,12 +89,21 @@ function NewsPage() {
               <Link
                 to="/news/$articleId"
                 params={{ articleId: String(a.id) }}
-                className="entity-thumb-card"
+                className="entity-thumb-card entity-thumb-card--news"
               >
-                <div className="entity-thumb-card__media">
-                  <span className="entity-thumb-media-placeholder" aria-hidden>
-                    {letter}
-                  </span>
+                <div className="entity-thumb-card__media entity-thumb-card__media--news">
+                  {a.featured_image_url ? (
+                    <img
+                      src={a.featured_image_url}
+                      alt=""
+                      className="entity-thumb-card__news-image"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="entity-thumb-media-placeholder" aria-hidden>
+                      {letter}
+                    </span>
+                  )}
                 </div>
                 <div className="entity-thumb-card__body">
                   <h3 className="entity-thumb-card__title">{a.title}</h3>
