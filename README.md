@@ -1082,3 +1082,4 @@ After this SRS, the following documents should be created:
 8. Deployment and DevOps Specification
 9. QA Test Plan
 10. Cursor prompt pack for backend, website, and admin app generation
+
