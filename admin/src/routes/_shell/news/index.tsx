@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { ArticleDto } from '@/lib/api-types'
 import { adminListAll } from '@/lib/admin-client'
+import { API_BASE } from '@/lib/api'
 import { CatalogFilterGrid } from '@/components/CatalogFilterGrid'
 import { EntityTable } from '@/components/EntityTable'
 import { ListViewModeSwitch } from '@/components/ListViewModeSwitch'
@@ -40,6 +42,66 @@ const columns: ColumnDef<ArticleDto, unknown>[] = [
     cell: ({ getValue }) => String(getValue()).slice(0, 10),
   },
 ]
+
+type NewsCardMediaProps = {
+  imageUrl: string | null
+  fallbackText: string
+}
+
+function resolveMediaUrl(raw: string | null): string | null {
+  const t = raw?.trim() ?? ''
+  if (!t) return null
+  if (t.startsWith('http://') || t.startsWith('https://')) return t
+  if (t.startsWith('//')) return `${globalThis.location.protocol}${t}`
+  if (t.startsWith('/')) {
+    try {
+      return `${new URL(API_BASE).origin}${t}`
+    } catch {
+      return t
+    }
+  }
+  return t
+}
+
+function NewsCardMedia({ imageUrl, fallbackText }: NewsCardMediaProps) {
+  const resolvedUrl = resolveMediaUrl(imageUrl)
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(
+    resolvedUrl ? 'loading' : 'error',
+  )
+
+  useEffect(() => {
+    if (!resolvedUrl) return
+    let active = true
+    const img = new Image()
+    img.onload = () => {
+      if (active) setStatus('loaded')
+    }
+    img.onerror = () => {
+      if (active) setStatus('error')
+    }
+    img.src = resolvedUrl
+    return () => {
+      active = false
+    }
+  }, [resolvedUrl])
+
+  if (!resolvedUrl || status !== 'loaded') {
+    return (
+      <span className="entity-thumb-media-placeholder" aria-hidden>
+        {fallbackText}
+      </span>
+    )
+  }
+
+  return (
+    <img
+      src={resolvedUrl}
+      alt=""
+      className="entity-thumb-card__news-image"
+      loading="lazy"
+    />
+  )
+}
 
 function NewsPage() {
   const [mode, setMode] = useListViewMode('news')
@@ -92,18 +154,11 @@ function NewsPage() {
                 className="entity-thumb-card entity-thumb-card--news"
               >
                 <div className="entity-thumb-card__media entity-thumb-card__media--news">
-                  {a.featured_image_url ? (
-                    <img
-                      src={a.featured_image_url}
-                      alt=""
-                      className="entity-thumb-card__news-image"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <span className="entity-thumb-media-placeholder" aria-hidden>
-                      {letter}
-                    </span>
-                  )}
+                  <NewsCardMedia
+                    key={a.featured_image_url ?? 'no-image'}
+                    imageUrl={a.featured_image_url}
+                    fallbackText={letter}
+                  />
                 </div>
                 <div className="entity-thumb-card__body">
                   <h3 className="entity-thumb-card__title">{a.title}</h3>

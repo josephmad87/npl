@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import mimetypes
+from urllib import error as urlerror
+from urllib import request as urlrequest
 from pathlib import Path
 from uuid import uuid4
 
@@ -24,6 +26,67 @@ def _resolved_media_root(settings: Settings) -> Path:
     if not root.is_absolute():
         root = Path.cwd() / root
     return root
+
+
+def _is_supabase_enabled(settings: Settings) -> bool:
+    return bool(
+        (settings.supabase_url or "").strip()
+        and (settings.supabase_service_role_key or "").strip()
+        and (settings.supabase_storage_bucket or "").strip(),
+    )
+
+
+def _supabase_object_key(settings: Settings, *, kind: str, filename: str) -> str:
+    prefix = (settings.supabase_storage_prefix or "").strip().strip("/")
+    if prefix:
+        return f"{prefix}/{kind}/{filename}"
+    return f"{kind}/{filename}"
+
+
+def _upload_to_supabase(
+    settings: Settings,
+    *,
+    object_key: str,
+    raw: bytes,
+    content_type: str | None,
+) -> None:
+    base = (settings.supabase_url or "").strip().rstrip("/")
+    bucket = (settings.supabase_storage_bucket or "").strip()
+    token = (settings.supabase_service_role_key or "").strip()
+    endpoint = f"{base}/storage/v1/object/{bucket}/{object_key}"
+    req = urlrequest.Request(
+        endpoint,
+        data=raw,
+        method="POST",
+        headers={
+            "apikey": token,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": content_type or "application/octet-stream",
+            "x-upsert": "false",
+        },
+    )
+    try:
+        with urlrequest.urlopen(req):
+            return
+    except urlerror.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "storage_error",
+                "message": "Failed to upload file to Supabase Storage",
+                "provider_status": exc.code,
+                "provider_response": detail or None,
+            },
+        ) from exc
+    except urlerror.URLError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "storage_error",
+                "message": f"Could not reach Supabase Storage: {exc.reason}",
+            },
+        ) from exc
 
 
 def _extension_from_upload(filename: str | None, content_type: str | None) -> str:
@@ -120,6 +183,16 @@ def save_upload_file(settings: Settings, *, kind: str, file: UploadFile) -> str:
         )
 
     name = f"{uuid4().hex}{ext}"
+    if _is_supabase_enabled(settings):
+        storage_key = _supabase_object_key(settings, kind=kind, filename=name)
+        _upload_to_supabase(
+            settings,
+            object_key=storage_key,
+            raw=raw,
+            content_type=file.content_type,
+        )
+        return storage_key
+
     storage_key = f"files/{kind}/{name}"
     dest = _resolved_media_root(settings) / storage_key
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -129,6 +202,10 @@ def save_upload_file(settings: Settings, *, kind: str, file: UploadFile) -> str:
 
 def build_media_public_url(settings: Settings, request_base_url: str, storage_key: str) -> str:
     """Absolute browser URL for a stored object (``storage_key`` as returned by ``save_upload_file``)."""
+    if _is_supabase_enabled(settings):
+        base = (settings.supabase_url or "").strip().rstrip("/")
+        bucket = (settings.supabase_storage_bucket or "").strip()
+        return f"{base}/storage/v1/object/public/{bucket}/{storage_key}"
     path = f"{settings.api_v1_prefix}/media/{storage_key}"
     if settings.public_base_url:
         return f"{settings.public_base_url.rstrip('/')}{path}"

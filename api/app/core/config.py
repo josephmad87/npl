@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # Optional origin for absolute URLs returned after upload (e.g. https://api.example.com).
     # If unset, the upload handler uses the incoming request Host (fine for local dev).
     public_base_url: str | None = None
+    # Supabase Storage (optional). When all required values are set, uploads are stored in Supabase.
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+    supabase_storage_bucket: str | None = None
+    # Optional folder prefix inside the bucket (e.g. "npl"). Leave empty for bucket root.
+    supabase_storage_prefix: str = "uploads"
 
     @field_validator("database_url", mode="before")
     @classmethod

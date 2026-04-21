@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { GalleryItemDto } from '@/lib/api-types'
 import { adminListAll } from '@/lib/admin-client'
+import { API_BASE } from '@/lib/api'
 import { CatalogFilterGrid } from '@/components/CatalogFilterGrid'
 import { EntityTable } from '@/components/EntityTable'
 import { ListViewModeSwitch } from '@/components/ListViewModeSwitch'
@@ -17,6 +18,69 @@ export const Route = createFileRoute('/_shell/gallery/')({
 })
 
 type GalleryRow = GalleryItemDto & { tags_display: string }
+
+type GalleryCardMediaProps = {
+  mediaUrl: string | null
+  mediaType: string
+}
+
+function resolveMediaUrl(raw: string | null): string | null {
+  const t = raw?.trim() ?? ''
+  if (!t) return null
+  if (t.startsWith('http://') || t.startsWith('https://')) return t
+  if (t.startsWith('//')) return `${globalThis.location.protocol}${t}`
+  if (t.startsWith('/')) {
+    try {
+      return `${new URL(API_BASE).origin}${t}`
+    } catch {
+      return t
+    }
+  }
+  return t
+}
+
+function GalleryCardMedia({ mediaUrl, mediaType }: GalleryCardMediaProps) {
+  const resolvedUrl = resolveMediaUrl(mediaUrl)
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(
+    resolvedUrl ? 'loading' : 'error',
+  )
+
+  useEffect(() => {
+    if (!resolvedUrl) return
+    let active = true
+    const img = new Image()
+    img.onload = () => {
+      if (active) setStatus('loaded')
+    }
+    img.onerror = () => {
+      if (active) setStatus('error')
+    }
+    img.src = resolvedUrl
+    return () => {
+      active = false
+    }
+  }, [resolvedUrl])
+
+  if (!resolvedUrl || status !== 'loaded') {
+    return (
+      <span
+        className="entity-thumb-media-placeholder entity-thumb-media-placeholder--wide"
+        aria-hidden
+      >
+        {mediaType.toUpperCase()}
+      </span>
+    )
+  }
+
+  return (
+    <img
+      src={resolvedUrl}
+      alt=""
+      className="entity-thumb-card__gallery-image"
+      loading="lazy"
+    />
+  )
+}
 
 function GalleryPage() {
   const [mode, setMode] = useListViewMode('gallery')
@@ -95,21 +159,11 @@ function GalleryPage() {
                 className="entity-thumb-card entity-thumb-card--gallery"
               >
                 <div className="entity-thumb-card__media entity-thumb-card__media--gallery">
-                  {mediaUrl ? (
-                    <img
-                      src={mediaUrl}
-                      alt=""
-                      className="entity-thumb-card__gallery-image"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <span
-                      className="entity-thumb-media-placeholder entity-thumb-media-placeholder--wide"
-                      aria-hidden
-                    >
-                      {g.media_type?.toUpperCase() ?? 'MEDIA'}
-                    </span>
-                  )}
+                  <GalleryCardMedia
+                    key={mediaUrl ?? 'no-media'}
+                    mediaUrl={mediaUrl}
+                    mediaType={g.media_type ?? 'MEDIA'}
+                  />
                 </div>
                 <div className="entity-thumb-card__body">
                   <h3 className="entity-thumb-card__title">{g.title}</h3>
