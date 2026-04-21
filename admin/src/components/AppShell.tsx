@@ -4,7 +4,7 @@ import {
   useNavigate,
   useRouterState,
 } from '@tanstack/react-router'
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import nplLogoUrl from '@/assets/logo.jpeg'
 import { adminRouteIconForPath } from '@/lib/adminRouteIcons'
@@ -25,6 +25,9 @@ function readSidebarCollapsed(): boolean {
 export function AppShell() {
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isNavigating = useRouterState({
+    select: (s) => s.status === 'pending',
+  })
   const session = getSession()
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
@@ -225,6 +228,19 @@ export function AppShell() {
           </div>
         </header>
         <main className="app-shell__content">
+          {isNavigating ? (
+            <div className="app-shell__loading-overlay" role="status" aria-live="polite">
+              <div className="app-shell__loading-panel">
+                <Loader2
+                  className="npl-icon-spin app-shell__loading-spinner"
+                  size={26}
+                  strokeWidth={2}
+                  aria-hidden
+                />
+                <span>Opening…</span>
+              </div>
+            </div>
+          ) : null}
           <Outlet />
         </main>
       </div>

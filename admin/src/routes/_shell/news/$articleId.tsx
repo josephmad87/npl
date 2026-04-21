@@ -139,71 +139,75 @@ function ArticleDetailPage() {
           onSubmit={(v) => void save(v)}
         />
       ) : (
-        <>
-          {showHero ? (
-            <div className="article-view__hero">
-              <img
-                src={heroSrc ?? ''}
-                alt=""
-                className="article-view__hero-img"
-                onError={() => setHeroFailedFor(heroSrc)}
+        <div className="article-view-layout">
+          <div className="article-view-layout__main">
+            {showHero ? (
+              <div className="article-view__hero">
+                <img
+                  src={heroSrc ?? ''}
+                  alt=""
+                  className="article-view__hero-img"
+                  onError={() => setHeroFailedFor(heroSrc)}
+                />
+              </div>
+            ) : null}
+            {safeBody ? (
+              <section
+                className="article-view__body"
+                aria-label="Article body"
+                dangerouslySetInnerHTML={{ __html: safeBody }}
               />
-            </div>
-          ) : null}
-          <DetailFields
-            items={[
-              { label: 'Author', value: article.author_name ?? '—' },
-              { label: 'Category', value: article.category ?? '—' },
-              {
-                label: 'Tags',
-                value:
-                  (article.tags?.length ?? 0) > 0
-                    ? (article.tags ?? []).join(', ')
+            ) : (
+              <p className="muted article-view__empty">No body content yet.</p>
+            )}
+          </div>
+          <aside className="article-view-layout__sidebar" aria-label="Article metadata">
+            <DetailFields
+              items={[
+                { label: 'Author', value: article.author_name ?? '—' },
+                { label: 'Category', value: article.category ?? '—' },
+                {
+                  label: 'Tags',
+                  value:
+                    (article.tags?.length ?? 0) > 0
+                      ? (article.tags ?? []).join(', ')
+                      : '—',
+                },
+                {
+                  label: 'Updated',
+                  value: String(article.updated_at).slice(0, 19),
+                },
+                {
+                  label: 'Published',
+                  value: article.published_at
+                    ? String(article.published_at).slice(0, 19)
                     : '—',
-              },
-              {
-                label: 'Updated',
-                value: String(article.updated_at).slice(0, 19),
-              },
-              {
-                label: 'Published',
-                value: article.published_at
-                  ? String(article.published_at).slice(0, 19)
-                  : '—',
-              },
-              {
-                label: 'Status',
-                value: (
-                  <StatusBadge
-                    status={
-                      article.status as
-                        | 'draft'
-                        | 'scheduled'
-                        | 'published'
-                        | 'archived'
-                    }
-                  />
-                ),
-              },
-              { label: 'Slug', value: article.slug },
-              { label: 'SEO title', value: article.seo_title ?? '—' },
-              {
-                label: 'Meta description',
-                value: article.seo_description ?? '—',
-              },
-              { label: 'Excerpt', value: article.excerpt ?? '—' },
-            ]}
-          />
-          {safeBody ? (
-            <section
-              className="article-view__body"
-              aria-label="Article body"
-              dangerouslySetInnerHTML={{ __html: safeBody }}
+                },
+                {
+                  label: 'Status',
+                  value: (
+                    <StatusBadge
+                      status={
+                        article.status as
+                          | 'draft'
+                          | 'scheduled'
+                          | 'published'
+                          | 'archived'
+                      }
+                    />
+                  ),
+                },
+                { label: 'Slug', value: article.slug },
+                { label: 'SEO title', value: article.seo_title ?? '—' },
+                {
+                  label: 'Meta description',
+                  value: article.seo_description ?? '—',
+                },
+                { label: 'Excerpt', value: article.excerpt ?? '—' },
+              ]}
             />
-          ) : (
-            <p className="muted article-view__empty">No body content yet.</p>
-          )}
-        </>
+          </aside>
+        </div>
       )}
     </>
   )

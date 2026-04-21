@@ -420,11 +420,40 @@ button {
 }
 
 .app-shell__content {
+  position: relative;
   padding: 1.5rem 1.75rem 2.5rem;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.app-shell__loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 4, 28, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.app-shell__loading-panel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(28, 10, 66, 0.92);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+}
+
+.app-shell__loading-spinner {
+  color: var(--accent-mid);
 }
 
 .page-header {
@@ -677,12 +706,27 @@ button {
 }
 
 .match-readonly-result {
-  margin-top: 1.5rem;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1rem 1.15rem 1.25rem;
   box-shadow: var(--shadow);
+}
+
+.match-detail-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem 1.1rem;
+  align-items: start;
+}
+
+.match-detail-panels__left,
+.match-detail-panels__right {
+  min-width: 0;
+}
+
+.match-detail-panels__left .detail-panel {
+  max-width: none;
 }
 
 .match-readonly-result__h {
@@ -720,6 +764,12 @@ button {
 
 .match-readonly-result__summary strong {
   color: var(--text);
+}
+
+@media (max-width: 1080px) {
+  .match-detail-panels {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Team / player / league detail — horizontal summary card (view mode) */
@@ -1816,6 +1866,9 @@ table.data-table td {
   padding: 0.65rem 0.85rem;
   text-align: left;
   border-bottom: 1px solid var(--border);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 table.data-table th {
@@ -1878,6 +1931,9 @@ table.data-table tbody tr.data-table__row--clickable:hover {
   min-width: 0;
   font-size: 0.95rem;
   text-align: right;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .detail-panel__value .table-cell-with-badge {
@@ -2357,6 +2413,25 @@ table.data-table button.sort {
   margin-bottom: 1.25rem;
 }
 
+.article-view-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.article-view-layout__main {
+  min-width: 0;
+}
+
+.article-view-layout__sidebar {
+  min-width: 0;
+}
+
+.article-view-layout__sidebar .detail-panel {
+  max-width: none;
+}
+
 .article-view__hero-img {
   width: 100%;
   max-height: 22rem;
@@ -2414,6 +2489,10 @@ video.article-view__hero-img {
 }
 
 @media (max-width: 960px) {
+  .article-view-layout {
+    grid-template-columns: 1fr;
+  }
+
   .article-editor {
     grid-template-columns: 1fr;
   }
