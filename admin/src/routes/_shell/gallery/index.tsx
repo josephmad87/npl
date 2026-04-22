@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useListViewMode } from '@/hooks/useListViewMode'
 import { resolveAdminMediaUrl } from '@/lib/media-url'
+import { getYouTubeThumbnailUrl, getYouTubeVideoId } from '@/lib/video-url'
 
 export const Route = createFileRoute('/_shell/gallery/')({
   component: GalleryPage,
@@ -22,17 +23,21 @@ type GalleryRow = GalleryItemDto & { tags_display: string }
 type GalleryCardMediaProps = {
   mediaUrl: string | null
   mediaType: string
+  renderAsVideo: boolean
 }
 
-function GalleryCardMedia({ mediaUrl, mediaType }: GalleryCardMediaProps) {
+function GalleryCardMedia({
+  mediaUrl,
+  mediaType,
+  renderAsVideo,
+}: GalleryCardMediaProps) {
   const resolvedUrl = resolveAdminMediaUrl(mediaUrl)
-  const isVideo = mediaType.trim().toLowerCase() === 'video'
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(
-    resolvedUrl ? (isVideo ? 'loaded' : 'loading') : 'error',
+    resolvedUrl ? (renderAsVideo ? 'loaded' : 'loading') : 'error',
   )
 
   useEffect(() => {
-    if (!resolvedUrl || isVideo) return
+    if (!resolvedUrl || renderAsVideo) return
     let active = true
     const img = new Image()
     img.onload = () => {
@@ -45,9 +50,13 @@ function GalleryCardMedia({ mediaUrl, mediaType }: GalleryCardMediaProps) {
     return () => {
       active = false
     }
-  }, [resolvedUrl, isVideo])
+  }, [resolvedUrl, renderAsVideo])
 
-  if (!resolvedUrl || status === 'error' || (!isVideo && status !== 'loaded')) {
+  if (
+    !resolvedUrl ||
+    status === 'error' ||
+    (!renderAsVideo && status !== 'loaded')
+  ) {
     return (
       <span
         className="entity-thumb-media-placeholder entity-thumb-media-placeholder--wide"
@@ -58,7 +67,7 @@ function GalleryCardMedia({ mediaUrl, mediaType }: GalleryCardMediaProps) {
     )
   }
 
-  if (isVideo) {
+  if (renderAsVideo) {
     return (
       <video
         src={resolvedUrl}
@@ -147,7 +156,17 @@ function GalleryPage() {
           }
           searchPlaceholder="Search gallery…"
           renderCard={(g) => {
-            const mediaUrl = g.thumbnail_url ?? g.file_url
+            const mediaType = g.media_type?.trim().toLowerCase() ?? 'media'
+            const resolvedThumb = resolveAdminMediaUrl(g.thumbnail_url)
+            const resolvedFile = resolveAdminMediaUrl(g.file_url)
+            const youtubeId =
+              mediaType === 'video' ? getYouTubeVideoId(resolvedFile) : null
+            const youtubeThumb = youtubeId
+              ? getYouTubeThumbnailUrl(youtubeId)
+              : null
+            const mediaUrl = resolvedThumb ?? youtubeThumb ?? resolvedFile
+            const renderAsVideo =
+              mediaType === 'video' && !resolvedThumb && !youtubeThumb
 
             return (
               <Link
@@ -160,6 +179,7 @@ function GalleryPage() {
                     key={mediaUrl ?? 'no-media'}
                     mediaUrl={mediaUrl}
                     mediaType={g.media_type ?? 'MEDIA'}
+                    renderAsVideo={renderAsVideo}
                   />
                 </div>
                 <div className="entity-thumb-card__body">

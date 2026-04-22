@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { parseDetailRouteSearch } from '@/lib/detail-route-search'
 import { resolveAdminMediaUrl } from '@/lib/media-url'
+import { getYouTubeEmbedUrl, getYouTubeThumbnailUrl, getYouTubeVideoId } from '@/lib/video-url'
 export const Route = createFileRoute('/_shell/gallery/$galleryId')({
   validateSearch: parseDetailRouteSearch,
   component: GalleryDetailPage,
@@ -126,6 +127,14 @@ function GalleryDetailPage() {
       </>
     )
   }
+  const resolvedThumb = resolveAdminMediaUrl(item.thumbnail_url)
+  const resolvedFile = resolveAdminMediaUrl(item.file_url)
+  const youtubeId =
+    item.media_type?.trim().toLowerCase() === 'video'
+      ? getYouTubeVideoId(resolvedFile)
+      : null
+  const youtubeThumb = youtubeId ? getYouTubeThumbnailUrl(youtubeId) : null
+  const resolvedPreview = resolvedThumb ?? youtubeThumb ?? resolvedFile
 
   return (
     <>
@@ -302,25 +311,32 @@ function GalleryDetailPage() {
         />
       ) : (
         <>
-          {resolveAdminMediaUrl(item.thumbnail_url ?? item.file_url) &&
-          heroFailedFor !== resolveAdminMediaUrl(item.thumbnail_url ?? item.file_url) ? (
+          {resolvedPreview && heroFailedFor !== resolvedPreview ? (
             <div className="article-view__hero">
-              {item.media_type === 'video' ? (
+              {item.media_type === 'video' && youtubeId ? (
+                <iframe
+                  src={getYouTubeEmbedUrl(youtubeId)}
+                  className="article-view__hero-embed"
+                  title={`${item.title} video`}
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              ) : item.media_type === 'video' ? (
                 <video
-                  src={resolveAdminMediaUrl(item.file_url) ?? undefined}
+                  src={resolvedFile ?? undefined}
                   controls
                   preload="metadata"
                   className="article-view__hero-img"
+                  onError={() => setHeroFailedFor(resolvedFile)}
                 />
               ) : (
                 <img
-                  src={resolveAdminMediaUrl(item.thumbnail_url ?? item.file_url) ?? ''}
+                  src={resolvedPreview}
                   alt=""
                   className="article-view__hero-img"
                   onError={() =>
-                    setHeroFailedFor(
-                      resolveAdminMediaUrl(item.thumbnail_url ?? item.file_url),
-                    )
+                    setHeroFailedFor(resolvedPreview)
                   }
                 />
               )}

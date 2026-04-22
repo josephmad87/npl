@@ -2488,6 +2488,14 @@ video.article-view__hero-img {
   background: #000;
 }
 
+.article-view__hero-embed {
+  width: 100%;
+  height: min(22rem, 56vw);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #000;
+}
+
 .article-view__body {
   max-width: 720px;
   margin-top: 1.5rem;
