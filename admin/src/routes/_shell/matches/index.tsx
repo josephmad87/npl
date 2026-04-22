@@ -1,9 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
-import type { MatchDto, TeamDto } from '@/lib/api-types'
+import type { LeagueDto, MatchDto, SeasonDto, TeamDto } from '@/lib/api-types'
 import { adminListAll } from '@/lib/admin-client'
 import { BadgeImage } from '@/components/BadgeImage'
 import { MatchTableTeamCell } from '@/components/MatchTableTeamCell'
@@ -25,6 +25,8 @@ type MatchRow = MatchDto & {
   home_logo_url: string | null
   away_logo_url: string | null
   when_display: string
+  season_name: string
+  league_name: string
 }
 
 function formatWhen(m: MatchDto): string {
@@ -36,7 +38,10 @@ function formatWhen(m: MatchDto): string {
 function MatchesPage() {
   const [mode, setMode] = useListViewMode('matches')
   const navigate = useNavigate()
-  const [teamsQ, matchesQ] = useQueries({
+  const [selectedLeagueId, setSelectedLeagueId] = useState<number | null>(null)
+  const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(null)
+
+  const [teamsQ, matchesQ, seasonsQ, leaguesQ] = useQueries({
     queries: [
       {
         queryKey: ['admin', 'teams'],
@@ -46,16 +51,33 @@ function MatchesPage() {
         queryKey: ['admin', 'matches'],
         queryFn: () => adminListAll<MatchDto>('/admin/matches'),
       },
+      {
+        queryKey: ['admin', 'seasons', 'all'],
+        queryFn: () => adminListAll<SeasonDto>('/admin/seasons'),
+      },
+      {
+        queryKey: ['admin', 'leagues'],
+        queryFn: () => adminListAll<LeagueDto>('/admin/leagues'),
+      },
     ],
   })
 
   const rows = useMemo((): MatchRow[] => {
+    const seasonById = new Map(
+      (seasonsQ.data ?? []).map((s) => [s.id, s] as const),
+    )
+    const leagueById = new Map(
+      (leaguesQ.data ?? []).map((l) => [l.id, l] as const),
+    )
     const teamById = new Map(
       (teamsQ.data ?? []).map((t) => [t.id, t] as const),
     )
     return (matchesQ.data ?? []).map((m) => {
       const home = teamById.get(m.home_team_id)
       const away = teamById.get(m.away_team_id)
+      const season = m.season_id != null ? seasonById.get(m.season_id) : undefined
+      const league =
+        season != null ? leagueById.get(season.league_id) : undefined
       return {
         ...m,
         home_name: home?.name ?? `#${m.home_team_id}`,
@@ -63,12 +85,30 @@ function MatchesPage() {
         home_logo_url: home?.logo_url ?? null,
         away_logo_url: away?.logo_url ?? null,
         when_display: formatWhen(m),
+        season_name: season?.name ?? '—',
+        league_name: league?.name ?? '—',
       }
     })
-  }, [teamsQ.data, matchesQ.data])
+  }, [teamsQ.data, matchesQ.data, seasonsQ.data, leaguesQ.data])
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (selectedSeasonId != null) return r.season_id === selectedSeasonId
+      if (selectedLeagueId == null) return true
+      const season = (seasonsQ.data ?? []).find((s) => s.id === r.season_id)
+      return season?.league_id === selectedLeagueId
+    })
+  }, [rows, selectedLeagueId, selectedSeasonId, seasonsQ.data])
+
+  const seasonsForLeague = useMemo(() => {
+    if (selectedLeagueId == null) return seasonsQ.data ?? []
+    return (seasonsQ.data ?? []).filter((s) => s.league_id === selectedLeagueId)
+  }, [selectedLeagueId, seasonsQ.data])
 
   const columns: ColumnDef<MatchRow, unknown>[] = [
     { accessorKey: 'when_display', header: 'When' },
+    { accessorKey: 'league_name', header: 'League' },
+    { accessorKey: 'season_name', header: 'Season' },
     {
       accessorKey: 'home_name',
       header: 'Home',
@@ -115,8 +155,9 @@ function MatchesPage() {
     },
   ]
 
-  const loading = teamsQ.isLoading || matchesQ.isLoading
-  const err = teamsQ.error ?? matchesQ.error
+  const loading =
+    teamsQ.isLoading || matchesQ.isLoading || seasonsQ.isLoading || leaguesQ.isLoading
+  const err = teamsQ.error ?? matchesQ.error ?? seasonsQ.error ?? leaguesQ.error
 
   return (
     <>
@@ -134,6 +175,38 @@ function MatchesPage() {
       {!loading && !err ? (
         <div className="catalog-page-toolbar">
           <ListViewModeSwitch value={mode} onChange={setMode} />
+          <div className="catalog-filters-inline">
+            <select
+              className="inline-edit__control catalog-filter-select"
+              value={selectedLeagueId ?? ''}
+              onChange={(e) => {
+                const next = e.target.value ? Number(e.target.value) : null
+                setSelectedLeagueId(next)
+                setSelectedSeasonId(null)
+              }}
+            >
+              <option value="">All leagues</option>
+              {(leaguesQ.data ?? []).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="inline-edit__control catalog-filter-select"
+              value={selectedSeasonId ?? ''}
+              onChange={(e) =>
+                setSelectedSeasonId(e.target.value ? Number(e.target.value) : null)
+              }
+            >
+              <option value="">All seasons</option>
+              {seasonsForLeague.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       ) : null}
       {loading ? (
@@ -142,11 +215,13 @@ function MatchesPage() {
         <p className="login-error">{err.message}</p>
       ) : mode === 'cards' ? (
         <CatalogFilterGrid
-          items={rows}
+          items={filteredRows}
           getKey={(r) => r.id}
           getSearchText={(r) =>
             [
               r.when_display,
+              r.league_name,
+              r.season_name,
               r.home_name,
               r.away_name,
               r.venue,
@@ -237,7 +312,7 @@ function MatchesPage() {
       ) : (
         <EntityTable
           columns={columns}
-          data={rows}
+          data={filteredRows}
           globalFilterPlaceholder="Search fixtures…"
           onRowClick={(row) =>
             void navigate({

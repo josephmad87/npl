@@ -107,7 +107,19 @@ function GalleryPage() {
 
   const columns: ColumnDef<GalleryRow, unknown>[] = [
     { accessorKey: 'title', header: 'Title' },
-    { accessorKey: 'media_type', header: 'Type' },
+    {
+      accessorKey: 'media_type',
+      header: 'Type',
+      cell: ({ getValue }) => {
+        const mediaType = String(getValue() ?? '').trim().toLowerCase()
+        const isVideo = mediaType === 'video'
+        return (
+          <span className={`badge ${isVideo ? 'badge--media-video' : 'badge--media-image'}`}>
+            {isVideo ? 'Video' : 'Image'}
+          </span>
+        )
+      },
+    },
     { accessorKey: 'tags_display', header: 'Tags' },
     {
       accessorKey: 'status',
@@ -191,9 +203,17 @@ function GalleryPage() {
                   </p>
                 </div>
                 <div className="entity-thumb-card__footer">
-                  {g.media_type?.trim().toLowerCase() === 'video' ? (
-                    <span className="badge">Video</span>
-                  ) : null}
+                  <span
+                    className={`badge ${
+                      g.media_type?.trim().toLowerCase() === 'video'
+                        ? 'badge--media-video'
+                        : 'badge--media-image'
+                    }`}
+                  >
+                    {g.media_type?.trim().toLowerCase() === 'video'
+                      ? 'Video'
+                      : 'Image'}
+                  </span>
                   <StatusBadge status={g.status as 'draft' | 'published'} />
                 </div>
               </Link>
