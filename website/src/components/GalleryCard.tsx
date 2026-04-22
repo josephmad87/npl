@@ -1,4 +1,6 @@
+import { extractYouTubeVideoId } from '../lib/youtube'
 import { resolveMediaUrl } from '../lib/publicApi'
+import { YouTubeThumbnail } from './YouTubeThumbnail'
 
 type GalleryItem = {
   id: number
@@ -15,12 +17,20 @@ export function GalleryCard({
   item: GalleryItem
   onOpen?: (item: GalleryItem) => void
 }) {
-  const image = resolveMediaUrl(item.thumbnail_url ?? item.file_url)
+  const ytId = extractYouTubeVideoId(item.file_url) ?? extractYouTubeVideoId(item.thumbnail_url ?? null)
+  const resolvedThumb = resolveMediaUrl(item.thumbnail_url ?? item.file_url)
+
   return (
     <button type="button" className="ui-gallery-card" onClick={() => onOpen?.(item)}>
-      {image ? <img src={image} alt={item.title} /> : <div className="ui-gallery-card-placeholder" />}
+      {ytId ? (
+        <YouTubeThumbnail videoId={ytId} alt={item.title} />
+      ) : resolvedThumb ? (
+        <img src={resolvedThumb} alt={item.title} loading="lazy" decoding="async" />
+      ) : (
+        <div className="ui-gallery-card-placeholder" />
+      )}
       <div>
-        <p>{item.media_type}</p>
+        <p>{ytId ? 'YouTube' : item.media_type}</p>
         <h3>{item.title}</h3>
       </div>
     </button>

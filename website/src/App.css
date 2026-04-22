@@ -609,6 +609,18 @@
   margin: 0.85rem 0;
 }
 
+.article-body iframe {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: 0;
+  border-radius: 0.65rem;
+  margin: 0.85rem 0;
+  display: block;
+  background: #000;
+}
+
 .article-empty {
   margin: 0;
   padding: 1.5rem 2rem 1.8rem;
@@ -935,10 +947,51 @@
 }
 
 .lightbox-modal-content {
+  position: relative;
   max-width: min(100%, 900px);
   background: var(--color-surface);
   border-radius: 1rem;
   padding: 1rem;
+}
+
+.lightbox-modal-close {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 2;
+  border: 0;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--color-surface);
+  background: color-mix(in srgb, var(--color-primary) 88%, transparent);
+}
+
+.lightbox-modal-close:hover {
+  opacity: 0.92;
+}
+
+.lightbox-youtube-embed {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 0.65rem;
+  display: block;
+  background: #000;
+}
+
+.lightbox-native-video {
+  width: 100%;
+  border-radius: 0.65rem;
+  background: #000;
+}
+
+.lightbox-modal-title {
+  margin: 0.75rem 0 0;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .lightbox-modal-content img,

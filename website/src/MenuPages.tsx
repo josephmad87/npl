@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { ErrorNotice } from './components/ErrorNotice'
 import { GalleryCard } from './components/GalleryCard'
+import { GalleryLightbox } from './components/GalleryLightbox'
 import { MatchCard } from './components/MatchCard'
 import { NewsCard } from './components/NewsCard'
 import { PageHero } from './components/PageHero'
@@ -247,18 +248,7 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
           ))}
         </div>
       </section>
-      {active ? (
-        <div className="lightbox-modal" role="dialog" aria-modal="true" onClick={() => setActive(null)}>
-          <div className="lightbox-modal-content" onClick={(e) => e.stopPropagation()}>
-            {active.media_type === 'video' ? (
-              <video src={resolveMediaUrl(active.file_url) ?? ''} controls autoPlay />
-            ) : (
-              <img src={resolveMediaUrl(active.file_url) ?? ''} alt={active.title} />
-            )}
-            <p>{active.title}</p>
-          </div>
-        </div>
-      ) : null}
+      <GalleryLightbox active={active} onClose={() => setActive(null)} />
     </main>
   )
 }

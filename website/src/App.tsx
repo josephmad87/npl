@@ -5,6 +5,7 @@ import './App.css'
 import { EmptyState } from './components/EmptyState'
 import { ExpandingNewsTiles } from './components/ExpandingNewsTiles'
 import { GalleryCard } from './components/GalleryCard'
+import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
 import { MatchCard } from './components/MatchCard'
 import { NewsCard } from './components/NewsCard'
 import { SectionHeader } from './components/SectionHeader'
@@ -12,13 +13,7 @@ import { TeamCard } from './components/TeamCard'
 import { useLatestResults, useRecentNews, useTeamsMap, useUpcomingFixtures } from './lib/hooks'
 import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
-type GalleryItem = {
-  id: number
-  title: string
-  media_type: string
-  file_url: string
-  thumbnail_url: string | null
-}
+type GalleryItem = GalleryLightboxItem
 
 function App() {
   const { data: newsArticles = [] } = useRecentNews(12)
@@ -31,6 +26,7 @@ function App() {
     retry: 1,
   })
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
+  const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
 
   const heroSlides = useMemo(
     () =>
@@ -149,10 +145,12 @@ function App() {
         <SectionHeader title="Gallery Preview" linkTo="/gallery" />
         <div className="home-grid home-grid--gallery">
           {gallery.map((item) => (
-            <GalleryCard key={item.id} item={item} />
+            <GalleryCard key={item.id} item={item} onOpen={setGalleryActive} />
           ))}
         </div>
       </section>
+
+      <GalleryLightbox active={galleryActive} onClose={() => setGalleryActive(null)} />
     </main>
   )
 }
