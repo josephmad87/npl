@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import type { RefObject } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { formatMatchDate, formatNewsHighlightsDate } from '../lib/formatters'
 import type { ArticleLite } from '../lib/hooks'
@@ -62,11 +63,17 @@ function articleMatchesFilter(article: ArticleLite, filterId: string): boolean {
   return true
 }
 
-function HomeNewsCarouselTrack({ articles }: { articles: ArticleLite[] }) {
+function HomeNewsCarouselTrack({
+  articles,
+  scrollRef,
+}: {
+  articles: ArticleLite[]
+  scrollRef: RefObject<HTMLDivElement | null>
+}) {
   const [activePanelIndex, setActivePanelIndex] = useState(0)
 
   return (
-    <div className="home-news-carousel__track">
+    <div ref={scrollRef} className="home-news-carousel__track">
       {articles.map((article, idx) => {
         const img = resolveMediaUrl(article.featured_image_url)
         const metaBits = [article.category ?? 'News', formatMatchDate(article.published_at)].filter(Boolean)
@@ -112,6 +119,7 @@ function HomeNewsCarouselTrack({ articles }: { articles: ArticleLite[] }) {
 
 export function HomeNewsCarousel({ articles }: { articles: ArticleLite[] }) {
   const [activeFilter, setActiveFilter] = useState('all')
+  const scrollerRef = useRef<HTMLDivElement>(null)
 
   const filterOptions = useMemo(() => buildFilterOptions(articles), [articles])
 
@@ -124,6 +132,15 @@ export function HomeNewsCarousel({ articles }: { articles: ArticleLite[] }) {
     const list = articles.filter((a) => articleMatchesFilter(a, effectiveFilter))
     return [...list].sort(sortByPublishedDesc)
   }, [articles, effectiveFilter])
+
+  const scrollBy = useCallback((direction: -1 | 1) => {
+    const el = scrollerRef.current
+    if (!el) return
+    const card = el.querySelector<HTMLElement>('.home-news-carousel__card')
+    const gap = 12
+    const step = card ? card.getBoundingClientRect().width + gap : Math.min(el.clientWidth * 0.75, 360)
+    el.scrollBy({ left: direction * step, behavior: 'smooth' })
+  }, [])
 
   const subtitle = `${formatNewsHighlightsDate()} News Highlights`
 
@@ -154,12 +171,30 @@ export function HomeNewsCarousel({ articles }: { articles: ArticleLite[] }) {
             </button>
           ))}
         </div>
+        <div className="home-news-carousel__nav">
+          <button
+            type="button"
+            className="home-news-carousel__nav-btn"
+            aria-label="Scroll news left"
+            onClick={() => scrollBy(-1)}
+          >
+            <span aria-hidden="true">‹</span>
+          </button>
+          <button
+            type="button"
+            className="home-news-carousel__nav-btn"
+            aria-label="Scroll news right"
+            onClick={() => scrollBy(1)}
+          >
+            <span aria-hidden="true">›</span>
+          </button>
+        </div>
       </div>
 
       {filteredArticles.length === 0 ? (
         <p className="home-news-carousel__empty">No articles match this filter.</p>
       ) : (
-        <HomeNewsCarouselTrack key={effectiveFilter} articles={filteredArticles} />
+        <HomeNewsCarouselTrack key={effectiveFilter} articles={filteredArticles} scrollRef={scrollerRef} />
       )}
 
       <p className="home-news-carousel__footer-link">
