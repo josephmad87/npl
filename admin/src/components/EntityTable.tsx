@@ -16,6 +16,7 @@ type EntityTableProps<T> = {
   columns: ColumnDef<T, unknown>[]
   data: T[]
   globalFilterPlaceholder?: string
+  hideToolbar?: boolean
   /** When set, each body row opens the detail view (click or Enter / Space). */
   onRowClick?: (row: T) => void
 }
@@ -24,6 +25,7 @@ export function EntityTable<T>({
   columns,
   data,
   globalFilterPlaceholder = 'Search…',
+  hideToolbar = false,
   onRowClick,
 }: EntityTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([])
@@ -52,18 +54,20 @@ export function EntityTable<T>({
 
   return (
     <div className="table-wrap">
-      <div className="table-toolbar">
-        <input
-          type="search"
-          value={globalFilter ?? ''}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-          placeholder={globalFilterPlaceholder}
-          aria-label="Filter table"
-        />
-        <span className="muted" style={{ fontSize: '0.82rem' }}>
-          {total} row{total === 1 ? '' : 's'}
-        </span>
-      </div>
+      {hideToolbar ? null : (
+        <div className="table-toolbar">
+          <input
+            type="search"
+            value={globalFilter ?? ''}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            placeholder={globalFilterPlaceholder}
+            aria-label="Filter table"
+          />
+          <span className="muted" style={{ fontSize: '0.82rem' }}>
+            {total} row{total === 1 ? '' : 's'}
+          </span>
+        </div>
+      )}
       <div className="table-scroll">
         <table className="data-table">
           <thead>

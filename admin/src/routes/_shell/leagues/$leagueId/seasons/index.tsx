@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -43,6 +44,7 @@ function SeasonsIndexPage() {
   const { leagueId } = Route.useParams()
   const lid = Number(leagueId)
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState('')
 
   const leaguesQ = useQuery({
     queryKey: ['admin', 'leagues'],
@@ -58,7 +60,25 @@ function SeasonsIndexPage() {
   const league = leaguesQ.data?.find((l) => l.id === lid)
   const loading = leaguesQ.isLoading || seasonsQ.isLoading
   const err = leaguesQ.error ?? seasonsQ.error
-  const seasons = seasonsQ.data ?? []
+  const queryFilteredSeasons = useMemo(() => {
+    const source = seasonsQ.data ?? []
+    const needle = searchQuery.trim().toLowerCase()
+    if (!needle) return source
+    return source.filter((s) =>
+      [
+        s.name,
+        s.slug,
+        s.start_date,
+        s.end_date,
+        s.status,
+        String(s.team_ids?.length ?? 0),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(needle),
+    )
+  }, [seasonsQ.data, searchQuery])
 
   if (!Number.isFinite(lid)) {
     return <p className="login-error">Invalid league.</p>
@@ -88,17 +108,27 @@ function SeasonsIndexPage() {
           </BackNavLink>
         }
       />
-      {!loading && !err && league ? (
+      {!loading && !err && league && mode === 'table' ? (
         <div
           className={
-            mode === 'cards'
-              ? 'catalog-page-toolbar'
-              : 'catalog-page-toolbar catalog-page-toolbar--split'
+            'catalog-page-toolbar catalog-page-toolbar--split'
           }
         >
-          {mode !== 'cards' ? (
-            <ListViewModeSwitch value={mode} onChange={setMode} />
-          ) : null}
+          <div className="catalog-browse" style={{ marginTop: 0 }}>
+            <div className="catalog-toolbar">
+              <div className="catalog-toolbar__leading">
+                <ListViewModeSwitch value={mode} onChange={setMode} />
+              </div>
+              <input
+                type="search"
+                className="catalog-toolbar__search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search seasons…"
+                aria-label="Filter results"
+              />
+            </div>
+          </div>
           <Link
             to="/leagues/$leagueId/seasons/new"
             params={{ leagueId: String(lid) }}
@@ -117,7 +147,7 @@ function SeasonsIndexPage() {
         <p className="login-error">League not found.</p>
       ) : mode === 'cards' ? (
         <CatalogFilterGrid
-          items={seasons}
+          items={queryFilteredSeasons}
           getKey={(s) => s.id}
           getSearchText={(s) =>
             [
@@ -135,6 +165,8 @@ function SeasonsIndexPage() {
           toolbarLeading={
             <ListViewModeSwitch value={mode} onChange={setMode} />
           }
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
           renderCard={(s) => (
             <Link
               to="/leagues/$leagueId/seasons/$seasonId"
@@ -164,8 +196,8 @@ function SeasonsIndexPage() {
       ) : (
         <EntityTable
           columns={columns}
-          data={seasons}
-          globalFilterPlaceholder="Search seasons…"
+          data={queryFilteredSeasons}
+          hideToolbar
           onRowClick={(row) =>
             void navigate({
               to: '/leagues/$leagueId/seasons/$seasonId',

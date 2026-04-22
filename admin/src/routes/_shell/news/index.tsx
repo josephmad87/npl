@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { ArticleDto } from '@/lib/api-types'
 import { adminListAll } from '@/lib/admin-client'
@@ -91,12 +91,25 @@ function NewsCardMedia({ imageUrl, fallbackText }: NewsCardMediaProps) {
 function NewsPage() {
   const [mode, setMode] = useListViewMode('news')
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState('')
   const q = useQuery({
     queryKey: ['admin', 'news'],
     queryFn: () => adminListAll<ArticleDto>('/admin/news'),
   })
 
   const data = q.data ?? []
+  const queryFilteredData = useMemo(() => {
+    const source = q.data ?? []
+    const needle = searchQuery.trim().toLowerCase()
+    if (!needle) return source
+    return source.filter((r) =>
+      [r.title, r.slug, r.category, r.author_name, r.status, r.updated_at]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(needle),
+    )
+  }, [q.data, searchQuery])
 
   return (
     <>
@@ -111,9 +124,21 @@ function NewsPage() {
           </Link>
         }
       />
-      {!q.isLoading && !q.isError && mode !== 'cards' ? (
-        <div className="catalog-page-toolbar">
-          <ListViewModeSwitch value={mode} onChange={setMode} />
+      {!q.isLoading && !q.isError && mode === 'table' ? (
+        <div className="catalog-browse">
+          <div className="catalog-toolbar">
+            <div className="catalog-toolbar__leading">
+              <ListViewModeSwitch value={mode} onChange={setMode} />
+            </div>
+            <input
+              type="search"
+              className="catalog-toolbar__search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search articles…"
+              aria-label="Filter results"
+            />
+          </div>
         </div>
       ) : null}
       {q.isLoading ? (
@@ -133,6 +158,8 @@ function NewsPage() {
           toolbarLeading={
             <ListViewModeSwitch value={mode} onChange={setMode} />
           }
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
           renderCard={(a) => {
             const letter = (a.title?.trim().charAt(0) ?? '?').toUpperCase()
             return (
@@ -175,8 +202,8 @@ function NewsPage() {
       ) : (
         <EntityTable
           columns={columns}
-          data={data}
-          globalFilterPlaceholder="Search articles…"
+          data={queryFilteredData}
+          hideToolbar
           onRowClick={(row) =>
             void navigate({
               to: '/news/$articleId',

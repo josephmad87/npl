@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
@@ -26,6 +26,8 @@ type PlayerRow = PlayerDto & {
 function PlayersPage() {
   const [mode, setMode] = useListViewMode('players')
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
   const [teamsQ, playersQ] = useQueries({
     queries: [
       {
@@ -52,6 +54,46 @@ function PlayersPage() {
       }
     })
   }, [teamsQ.data, playersQ.data])
+  const teamFilteredRows = useMemo(() => {
+    if (selectedTeamId == null) return rows
+    return rows.filter((r) => r.team_id === selectedTeamId)
+  }, [rows, selectedTeamId])
+  const queryFilteredRows = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase()
+    if (!needle) return teamFilteredRows
+    return teamFilteredRows.filter((r) =>
+      [
+        r.full_name,
+        r.team_name,
+        r.category,
+        r.role,
+        String(r.jersey_number ?? ''),
+        r.status,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(needle),
+    )
+  }, [teamFilteredRows, searchQuery])
+  const toolbarFilters = (
+    <div className="catalog-filters-inline">
+      <select
+        className="inline-edit__control catalog-filter-select"
+        value={selectedTeamId ?? ''}
+        onChange={(e) =>
+          setSelectedTeamId(e.target.value ? Number(e.target.value) : null)
+        }
+      >
+        <option value="">All teams</option>
+        {(teamsQ.data ?? []).map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
 
   const columns: ColumnDef<PlayerRow, unknown>[] = [
     {
@@ -106,9 +148,22 @@ function PlayersPage() {
           </Link>
         }
       />
-      {!loading && !err && mode !== 'cards' ? (
-        <div className="catalog-page-toolbar">
-          <ListViewModeSwitch value={mode} onChange={setMode} />
+      {!loading && !err && mode === 'table' ? (
+        <div className="catalog-browse">
+          <div className="catalog-toolbar">
+            <div className="catalog-toolbar__leading">
+              <ListViewModeSwitch value={mode} onChange={setMode} />
+            </div>
+            <input
+              type="search"
+              className="catalog-toolbar__search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search players…"
+              aria-label="Filter results"
+            />
+            <div className="catalog-toolbar__extras">{toolbarFilters}</div>
+          </div>
         </div>
       ) : null}
       {loading ? (
@@ -117,7 +172,7 @@ function PlayersPage() {
         <p className="login-error">{err.message}</p>
       ) : mode === 'cards' ? (
         <CatalogFilterGrid
-          items={rows}
+          items={teamFilteredRows}
           getKey={(r) => r.id}
           getSearchText={(r) =>
             [
@@ -135,6 +190,9 @@ function PlayersPage() {
           toolbarLeading={
             <ListViewModeSwitch value={mode} onChange={setMode} />
           }
+          toolbarExtras={toolbarFilters}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
           renderCard={(p) => (
             <Link
               to="/players/$playerId"
@@ -171,8 +229,8 @@ function PlayersPage() {
       ) : (
         <EntityTable
           columns={columns}
-          data={rows}
-          globalFilterPlaceholder="Search players…"
+          data={queryFilteredRows}
+          hideToolbar
           onRowClick={(row) =>
             void navigate({
               to: '/players/$playerId',

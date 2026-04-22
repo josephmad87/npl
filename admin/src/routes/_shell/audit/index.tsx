@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { AuditLogDto } from '@/lib/api-types'
@@ -21,6 +22,7 @@ type AuditRow = AuditLogDto & {
 function AuditPage() {
   const [mode, setMode] = useListViewMode('audit', 'table')
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState('')
   const q = useQuery({
     queryKey: ['admin', 'audit-logs'],
     queryFn: () => adminListAll<AuditLogDto>('/admin/audit-logs'),
@@ -31,6 +33,17 @@ function AuditPage() {
     actor_display: e.actor_email ?? (e.actor_user_id != null ? `#${e.actor_user_id}` : '—'),
     at_short: String(e.created_at).replace('T', ' ').slice(0, 19),
   }))
+  const queryFilteredRows = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase()
+    if (!needle) return rows
+    return rows.filter((r) =>
+      [r.at_short, r.actor_display, r.action, r.entity_type, r.entity_id, r.summary]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(needle),
+    )
+  }, [rows, searchQuery])
 
   const columns: ColumnDef<AuditRow, unknown>[] = [
     { accessorKey: 'at_short', header: 'When' },
@@ -48,9 +61,21 @@ function AuditPage() {
         descriptionAsTooltip
         description="GET /admin/audit-logs. Cards group each entry for quick scanning; table view stays best for dense review."
       />
-      {!q.isLoading && !q.isError && mode !== 'cards' ? (
-        <div className="catalog-page-toolbar">
-          <ListViewModeSwitch value={mode} onChange={setMode} />
+      {!q.isLoading && !q.isError && mode === 'table' ? (
+        <div className="catalog-browse">
+          <div className="catalog-toolbar">
+            <div className="catalog-toolbar__leading">
+              <ListViewModeSwitch value={mode} onChange={setMode} />
+            </div>
+            <input
+              type="search"
+              className="catalog-toolbar__search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search audit entries…"
+              aria-label="Filter results"
+            />
+          </div>
         </div>
       ) : null}
       {q.isLoading ? (
@@ -77,6 +102,8 @@ function AuditPage() {
           toolbarLeading={
             <ListViewModeSwitch value={mode} onChange={setMode} />
           }
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
           renderCard={(e) => (
             <button
               type="button"
@@ -116,8 +143,8 @@ function AuditPage() {
       ) : (
         <EntityTable
           columns={columns}
-          data={rows}
-          globalFilterPlaceholder="Search audit entries…"
+          data={queryFilteredRows}
+          hideToolbar
           onRowClick={(row) =>
             void navigate({
               to: '/audit/$auditId',

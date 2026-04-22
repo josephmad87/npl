@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQueries } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
-import type { TeamDto } from '@/lib/api-types'
+import type { LeagueDto, SeasonDto, TeamDto } from '@/lib/api-types'
 import { adminListAll } from '@/lib/admin-client'
 import { BadgeImage } from '@/components/BadgeImage'
 import { CatalogFilterGrid } from '@/components/CatalogFilterGrid'
@@ -43,12 +44,71 @@ const columns: ColumnDef<TeamDto, unknown>[] = [
 function TeamsPage() {
   const [mode, setMode] = useListViewMode('teams')
   const navigate = useNavigate()
-  const q = useQuery({
-    queryKey: ['admin', 'teams'],
-    queryFn: () => adminListAll<TeamDto>('/admin/teams'),
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedLeagueId, setSelectedLeagueId] = useState<number | null>(null)
+  const [teamsQ, seasonsQ, leaguesQ] = useQueries({
+    queries: [
+      {
+        queryKey: ['admin', 'teams'],
+        queryFn: () => adminListAll<TeamDto>('/admin/teams'),
+      },
+      {
+        queryKey: ['admin', 'seasons', 'all'],
+        queryFn: () => adminListAll<SeasonDto>('/admin/seasons'),
+      },
+      {
+        queryKey: ['admin', 'leagues'],
+        queryFn: () => adminListAll<LeagueDto>('/admin/leagues'),
+      },
+    ],
   })
 
-  const data = q.data ?? []
+  const teamLeagueIds = useMemo(() => {
+    const map = new Map<number, Set<number>>()
+    for (const s of seasonsQ.data ?? []) {
+      for (const tid of s.team_ids ?? []) {
+        const bucket = map.get(tid) ?? new Set<number>()
+        bucket.add(s.league_id)
+        map.set(tid, bucket)
+      }
+    }
+    return map
+  }, [seasonsQ.data])
+  const leagueFilteredData = useMemo(() => {
+    const source = teamsQ.data ?? []
+    if (selectedLeagueId == null) return source
+    return source.filter((t) => teamLeagueIds.get(t.id)?.has(selectedLeagueId))
+  }, [teamsQ.data, selectedLeagueId, teamLeagueIds])
+  const queryFilteredData = useMemo(() => {
+    const source = leagueFilteredData
+    const needle = searchQuery.trim().toLowerCase()
+    if (!needle) return source
+    return source.filter((r) =>
+      [r.name, r.short_name, r.category, r.home_ground, r.status]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(needle),
+    )
+  }, [leagueFilteredData, searchQuery])
+  const toolbarFilters = (
+    <div className="catalog-filters-inline">
+      <select
+        className="inline-edit__control catalog-filter-select"
+        value={selectedLeagueId ?? ''}
+        onChange={(e) =>
+          setSelectedLeagueId(e.target.value ? Number(e.target.value) : null)
+        }
+      >
+        <option value="">All leagues</option>
+        {(leaguesQ.data ?? []).map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
 
   return (
     <>
@@ -63,18 +123,39 @@ function TeamsPage() {
           </Link>
         }
       />
-      {!q.isLoading && !q.isError && mode !== 'cards' ? (
-        <div className="catalog-page-toolbar">
-          <ListViewModeSwitch value={mode} onChange={setMode} />
+      {!teamsQ.isLoading &&
+      !seasonsQ.isLoading &&
+      !leaguesQ.isLoading &&
+      !teamsQ.isError &&
+      !seasonsQ.isError &&
+      !leaguesQ.isError &&
+      mode === 'table' ? (
+        <div className="catalog-browse">
+          <div className="catalog-toolbar">
+            <div className="catalog-toolbar__leading">
+              <ListViewModeSwitch value={mode} onChange={setMode} />
+            </div>
+            <input
+              type="search"
+              className="catalog-toolbar__search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search teams…"
+              aria-label="Filter results"
+            />
+            <div className="catalog-toolbar__extras">{toolbarFilters}</div>
+          </div>
         </div>
       ) : null}
-      {q.isLoading ? (
+      {teamsQ.isLoading || seasonsQ.isLoading || leaguesQ.isLoading ? (
         <p className="muted">Loading…</p>
-      ) : q.isError ? (
-        <p className="login-error">{q.error.message}</p>
+      ) : teamsQ.isError || seasonsQ.isError || leaguesQ.isError ? (
+        <p className="login-error">
+          {(teamsQ.error ?? seasonsQ.error ?? leaguesQ.error)?.message}
+        </p>
       ) : mode === 'cards' ? (
         <CatalogFilterGrid
-          items={data}
+          items={leagueFilteredData}
           getKey={(r) => r.id}
           getSearchText={(r) =>
             [r.name, r.short_name, r.category, r.home_ground, r.status]
@@ -85,6 +166,9 @@ function TeamsPage() {
           toolbarLeading={
             <ListViewModeSwitch value={mode} onChange={setMode} />
           }
+          toolbarExtras={toolbarFilters}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
           renderCard={(team) => (
             <Link
               to="/teams/$teamId"
@@ -112,8 +196,8 @@ function TeamsPage() {
       ) : (
         <EntityTable
           columns={columns}
-          data={data}
-          globalFilterPlaceholder="Search teams…"
+          data={queryFilteredData}
+          hideToolbar
           onRowClick={(row) =>
             void navigate({
               to: '/teams/$teamId',

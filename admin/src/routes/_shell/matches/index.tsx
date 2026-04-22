@@ -38,6 +38,7 @@ function formatWhen(m: MatchDto): string {
 function MatchesPage() {
   const [mode, setMode] = useListViewMode('matches')
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedLeagueId, setSelectedLeagueId] = useState<number | null>(null)
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(null)
 
@@ -100,6 +101,27 @@ function MatchesPage() {
     })
   }, [rows, selectedLeagueId, selectedSeasonId, seasonsQ.data])
 
+  const queryFilteredRows = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase()
+    if (!needle) return filteredRows
+    return filteredRows.filter((r) =>
+      [
+        r.when_display,
+        r.league_name,
+        r.season_name,
+        r.home_name,
+        r.away_name,
+        r.venue,
+        r.status,
+        matchResultSummaryLine(r),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(needle),
+    )
+  }, [filteredRows, searchQuery])
+
   const seasonsForLeague = useMemo(() => {
     if (selectedLeagueId == null) return seasonsQ.data ?? []
     return (seasonsQ.data ?? []).filter((s) => s.league_id === selectedLeagueId)
@@ -158,6 +180,40 @@ function MatchesPage() {
   const loading =
     teamsQ.isLoading || matchesQ.isLoading || seasonsQ.isLoading || leaguesQ.isLoading
   const err = teamsQ.error ?? matchesQ.error ?? seasonsQ.error ?? leaguesQ.error
+  const toolbarFilters = (
+    <div className="catalog-filters-inline">
+      <select
+        className="inline-edit__control catalog-filter-select"
+        value={selectedLeagueId ?? ''}
+        onChange={(e) => {
+          const next = e.target.value ? Number(e.target.value) : null
+          setSelectedLeagueId(next)
+          setSelectedSeasonId(null)
+        }}
+      >
+        <option value="">All leagues</option>
+        {(leaguesQ.data ?? []).map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.name}
+          </option>
+        ))}
+      </select>
+      <select
+        className="inline-edit__control catalog-filter-select"
+        value={selectedSeasonId ?? ''}
+        onChange={(e) =>
+          setSelectedSeasonId(e.target.value ? Number(e.target.value) : null)
+        }
+      >
+        <option value="">All seasons</option>
+        {seasonsForLeague.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
 
   return (
     <>
@@ -172,9 +228,22 @@ function MatchesPage() {
           </Link>
         }
       />
-      {!loading && !err && mode !== 'cards' ? (
-        <div className="catalog-page-toolbar">
-          <ListViewModeSwitch value={mode} onChange={setMode} />
+      {!loading && !err && mode === 'table' ? (
+        <div className="catalog-browse">
+          <div className="catalog-toolbar">
+            <div className="catalog-toolbar__leading">
+              <ListViewModeSwitch value={mode} onChange={setMode} />
+            </div>
+            <input
+              type="search"
+              className="catalog-toolbar__search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search fixtures…"
+              aria-label="Filter results"
+            />
+            <div className="catalog-toolbar__extras">{toolbarFilters}</div>
+          </div>
         </div>
       ) : null}
       {loading ? (
@@ -183,7 +252,7 @@ function MatchesPage() {
         <p className="login-error">{err.message}</p>
       ) : mode === 'cards' ? (
         <CatalogFilterGrid
-          items={filteredRows}
+          items={queryFilteredRows}
           getKey={(r) => r.id}
           getSearchText={(r) =>
             [
@@ -203,40 +272,9 @@ function MatchesPage() {
           toolbarLeading={
             <ListViewModeSwitch value={mode} onChange={setMode} />
           }
-          toolbarExtras={
-            <div className="catalog-filters-inline">
-              <select
-                className="inline-edit__control catalog-filter-select"
-                value={selectedLeagueId ?? ''}
-                onChange={(e) => {
-                  const next = e.target.value ? Number(e.target.value) : null
-                  setSelectedLeagueId(next)
-                  setSelectedSeasonId(null)
-                }}
-              >
-                <option value="">All leagues</option>
-                {(leaguesQ.data ?? []).map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="inline-edit__control catalog-filter-select"
-                value={selectedSeasonId ?? ''}
-                onChange={(e) =>
-                  setSelectedSeasonId(e.target.value ? Number(e.target.value) : null)
-                }
-              >
-                <option value="">All seasons</option>
-                {seasonsForLeague.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          }
+          toolbarExtras={toolbarFilters}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
           renderCard={(m) => {
             const winner = matchWinnerSide(m)
             const scoreline = matchResultSummaryLine(m)
@@ -317,8 +355,8 @@ function MatchesPage() {
       ) : (
         <EntityTable
           columns={columns}
-          data={filteredRows}
-          globalFilterPlaceholder="Search fixtures…"
+          data={queryFilteredRows}
+          hideToolbar
           onRowClick={(row) =>
             void navigate({
               to: '/matches/$matchId',

@@ -93,6 +93,10 @@ function GalleryCardMedia({
 function GalleryPage() {
   const [mode, setMode] = useListViewMode('gallery')
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedMediaType, setSelectedMediaType] = useState<
+    'all' | 'image' | 'video'
+  >('all')
   const q = useQuery({
     queryKey: ['admin', 'gallery'],
     queryFn: () => adminListAll<GalleryItemDto>('/admin/gallery'),
@@ -104,6 +108,40 @@ function GalleryPage() {
       tags_display: (g.tags ?? []).join(', ') || '—',
     }))
   }, [q.data])
+  const mediaTypeFilteredRows = useMemo(() => {
+    if (selectedMediaType === 'all') return rows
+    return rows.filter(
+      (r) => (r.media_type?.trim().toLowerCase() ?? '') === selectedMediaType,
+    )
+  }, [rows, selectedMediaType])
+  const queryFilteredRows = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase()
+    if (!needle) return mediaTypeFilteredRows
+    return mediaTypeFilteredRows.filter((r) =>
+      [r.title, r.media_type, r.tags_display, r.status, r.created_at]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(needle),
+    )
+  }, [mediaTypeFilteredRows, searchQuery])
+  const toolbarFilters = (
+    <div className="catalog-filters-inline">
+      <select
+        className="inline-edit__control catalog-filter-select"
+        value={selectedMediaType}
+        onChange={(e) =>
+          setSelectedMediaType(
+            (e.target.value as 'all' | 'image' | 'video') ?? 'all',
+          )
+        }
+      >
+        <option value="all">All media</option>
+        <option value="image">Images</option>
+        <option value="video">Videos</option>
+      </select>
+    </div>
+  )
 
   const columns: ColumnDef<GalleryRow, unknown>[] = [
     { accessorKey: 'title', header: 'Title' },
@@ -148,9 +186,22 @@ function GalleryPage() {
           </Link>
         }
       />
-      {!q.isLoading && !q.isError && mode !== 'cards' ? (
-        <div className="catalog-page-toolbar">
-          <ListViewModeSwitch value={mode} onChange={setMode} />
+      {!q.isLoading && !q.isError && mode === 'table' ? (
+        <div className="catalog-browse">
+          <div className="catalog-toolbar">
+            <div className="catalog-toolbar__leading">
+              <ListViewModeSwitch value={mode} onChange={setMode} />
+            </div>
+            <input
+              type="search"
+              className="catalog-toolbar__search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search gallery…"
+              aria-label="Filter results"
+            />
+            <div className="catalog-toolbar__extras">{toolbarFilters}</div>
+          </div>
         </div>
       ) : null}
       {q.isLoading ? (
@@ -159,7 +210,7 @@ function GalleryPage() {
         <p className="login-error">{q.error.message}</p>
       ) : mode === 'cards' ? (
         <CatalogFilterGrid
-          items={rows}
+          items={mediaTypeFilteredRows}
           getKey={(r) => r.id}
           getSearchText={(r) =>
             [r.title, r.media_type, r.tags_display, r.status, r.created_at]
@@ -170,6 +221,9 @@ function GalleryPage() {
           toolbarLeading={
             <ListViewModeSwitch value={mode} onChange={setMode} />
           }
+          toolbarExtras={toolbarFilters}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
           renderCard={(g) => {
             const mediaType = g.media_type?.trim().toLowerCase() ?? 'media'
             const resolvedThumb = resolveAdminMediaUrl(g.thumbnail_url)
@@ -226,8 +280,8 @@ function GalleryPage() {
       ) : (
         <EntityTable
           columns={columns}
-          data={rows}
-          globalFilterPlaceholder="Search gallery…"
+          data={queryFilteredRows}
+          hideToolbar
           onRowClick={(row) =>
             void navigate({
               to: '/gallery/$galleryId',

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -53,12 +54,25 @@ const columns: ColumnDef<UserDto, unknown>[] = [
 function UsersPage() {
   const [mode, setMode] = useListViewMode('users')
   const navigate = useNavigate()
+  const [searchQuery, setSearchQuery] = useState('')
   const q = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: () => adminListAll<UserDto>('/admin/users'),
   })
 
   const data = q.data ?? []
+  const queryFilteredData = useMemo(() => {
+    const source = q.data ?? []
+    const needle = searchQuery.trim().toLowerCase()
+    if (!needle) return source
+    return source.filter((r) =>
+      [r.full_name, r.email, r.role, String(r.is_active), r.created_at]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(needle),
+    )
+  }, [q.data, searchQuery])
 
   return (
     <>
@@ -73,9 +87,21 @@ function UsersPage() {
           </Link>
         }
       />
-      {!q.isLoading && !q.isError && mode !== 'cards' ? (
-        <div className="catalog-page-toolbar">
-          <ListViewModeSwitch value={mode} onChange={setMode} />
+      {!q.isLoading && !q.isError && mode === 'table' ? (
+        <div className="catalog-browse">
+          <div className="catalog-toolbar">
+            <div className="catalog-toolbar__leading">
+              <ListViewModeSwitch value={mode} onChange={setMode} />
+            </div>
+            <input
+              type="search"
+              className="catalog-toolbar__search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search users…"
+              aria-label="Filter results"
+            />
+          </div>
         </div>
       ) : null}
       {q.isLoading ? (
@@ -95,6 +121,8 @@ function UsersPage() {
           toolbarLeading={
             <ListViewModeSwitch value={mode} onChange={setMode} />
           }
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
           renderCard={(u) => (
             <Link
               to="/users/$userId"
@@ -125,8 +153,8 @@ function UsersPage() {
       ) : (
         <EntityTable
           columns={columns}
-          data={data}
-          globalFilterPlaceholder="Search users…"
+          data={queryFilteredData}
+          hideToolbar
           onRowClick={(row) =>
             void navigate({
               to: '/users/$userId',

@@ -8,6 +8,8 @@ type CatalogFilterGridProps<T> = {
   emptyMessage?: string
   toolbarLeading?: ReactNode
   toolbarExtras?: ReactNode
+  query?: string
+  onQueryChange?: (next: string) => void
   renderCard: (item: T) => ReactNode
 }
 
@@ -19,9 +21,13 @@ export function CatalogFilterGrid<T>({
   emptyMessage = 'Nothing matches that filter.',
   toolbarLeading,
   toolbarExtras,
+  query,
+  onQueryChange,
   renderCard,
 }: CatalogFilterGridProps<T>) {
-  const [q, setQ] = useState('')
+  const [internalQ, setInternalQ] = useState('')
+  const q = query ?? internalQ
+  const setQ = onQueryChange ?? setInternalQ
   const needle = q.trim().toLowerCase()
   const filtered = useMemo(() => {
     if (!needle) return items
