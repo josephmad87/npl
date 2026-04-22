@@ -169,7 +169,7 @@ export function ArticleEditorForm({
           </label>
           <select
             id="article-status"
-            className="inline-edit__control article-editor__control"
+            className="inline-edit__control article-editor__control article-editor__select"
             value={status}
             onChange={(e) =>
               setStatus(e.target.value as (typeof STATUSES)[number])
@@ -177,10 +177,19 @@ export function ArticleEditorForm({
           >
             {STATUSES.map((st) => (
               <option key={st} value={st}>
-                {st}
+                {st.charAt(0).toUpperCase() + st.slice(1)}
               </option>
             ))}
           </select>
+          <label className="article-editor__label" htmlFor="article-category">
+            Competition category
+          </label>
+          <CompetitionCategorySelect
+            id="article-category"
+            className="inline-edit__control article-editor__control article-editor__select"
+            value={category}
+            onChange={setCategory}
+          />
           <div className="article-editor__panel-actions">
             <button
               type="button"
@@ -224,15 +233,6 @@ export function ArticleEditorForm({
             value={authorName}
             onChange={(e) => setAuthorName(e.target.value)}
             autoComplete="name"
-          />
-          <label className="article-editor__label" htmlFor="article-category">
-            Competition category
-          </label>
-          <CompetitionCategorySelect
-            id="article-category"
-            className="inline-edit__control article-editor__control"
-            value={category}
-            onChange={setCategory}
           />
         </div>
 

@@ -2498,6 +2498,18 @@ table.data-table button.sort {
   box-sizing: border-box;
 }
 
+/* Native selects in the article sidebar: full width + visible chevron (inline-edit__control defaults to margin-left: auto). */
+.article-editor__panel select.article-editor__select {
+  margin-left: 0;
+  max-width: 100%;
+  appearance: none;
+  padding-inline: 0.65rem 2.15rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23c4b8e0' d='M1.41 0 6 4.58 10.59 0 12 1.41l-6 6-6-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 0.65rem auto;
+}
+
 .article-editor__textarea {
   resize: vertical;
   min-height: 4.5rem;
