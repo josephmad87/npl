@@ -22,11 +22,11 @@ def upgrade() -> None:
     for table in _TABLES:
         op.execute(
             f"UPDATE {table} SET category = 'mens' "
-            f"WHERE lower(trim(category)) IN ('men', 'man'))"
+            f"WHERE lower(trim(category)) IN ('men', 'man')"
         )
         op.execute(
             f"UPDATE {table} SET category = 'women' "
-            f"WHERE lower(trim(category)) IN ('ladies', 'lady', 'woman', 'womens', 'women'))"
+            f"WHERE lower(trim(category)) IN ('ladies', 'lady', 'woman', 'womens', 'women')"
         )
         op.execute(
             f"UPDATE {table} SET category = 'youth' "
