@@ -4,6 +4,7 @@ import { ClipboardList, SquarePen, Table2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { LeagueDto, MatchDto, PlayerDto, SeasonDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPatch } from '@/lib/admin-client'
+import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { BadgeImage } from '@/components/BadgeImage'
 import { MatchResultEditor } from '@/components/MatchResultEditor'
@@ -17,6 +18,7 @@ import { MediaUrlField } from '@/components/MediaUrlField'
 import { PageHeader } from '@/components/PageHeader'
 import { SectionHintTip } from '@/components/SectionHintTip'
 import { StatusBadge } from '@/components/StatusBadge'
+import { normalizeCompetitionCategory } from '@/lib/competitionCategories'
 import { parseDetailRouteSearch } from '@/lib/detail-route-search'
 import { matchResultSummaryLine, matchWinnerSide } from '@/lib/match-winner'
 
@@ -115,7 +117,7 @@ function MatchDetailPage() {
 
   const beginEdit = () => {
     if (!match) return
-    setPatch({})
+    setPatch({ category: normalizeCompetitionCategory(match.category) })
     setSaveError(null)
     void navigate({
       to: '/matches/$matchId',
@@ -380,13 +382,11 @@ function MatchDetailPage() {
               id: 'category',
               label: 'Category',
               control: (
-                <input
+                <CompetitionCategorySelect
                   id="category"
                   className="inline-edit__control"
-                  value={merged.category}
-                  onChange={(e) =>
-                    setPatch((p) => ({ ...p, category: e.target.value }))
-                  }
+                  value={normalizeCompetitionCategory(merged.category)}
+                  onChange={(next) => setPatch((p) => ({ ...p, category: next }))}
                 />
               ),
             },

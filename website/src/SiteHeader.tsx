@@ -23,7 +23,7 @@ type ApiSeason = {
   slug: string
 }
 
-type NavTeamCategory = 'men' | 'ladies' | 'youth'
+type NavTeamCategory = 'mens' | 'women' | 'youth'
 
 /** Matches `/public/teams?category=` — exact team.category values used across the site */
 function teamsForNavCategory(teams: ApiTeam[], category: NavTeamCategory, limit = 6): ApiTeam[] {
@@ -103,8 +103,8 @@ export function SiteHeader() {
     }
   }, [mobileNavOpen])
 
-  const menNavTeams = useMemo(() => teamsForNavCategory(teams, 'men'), [teams])
-  const ladiesNavTeams = useMemo(() => teamsForNavCategory(teams, 'ladies'), [teams])
+  const mensNavTeams = useMemo(() => teamsForNavCategory(teams, 'mens'), [teams])
+  const womenNavTeams = useMemo(() => teamsForNavCategory(teams, 'women'), [teams])
   const youthNavTeams = useMemo(() => teamsForNavCategory(teams, 'youth'), [teams])
 
   const seasonLinks =
@@ -194,7 +194,7 @@ export function SiteHeader() {
                     </Link>
                   ))}
                   <p className="site-header-mobile__group-label">Teams</p>
-                  {menNavTeams.map((team) => (
+                  {mensNavTeams.map((team) => (
                     <Link key={`m-drawer-team-${team.id}`} to="/mens/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {team.name}
                     </Link>
@@ -209,20 +209,20 @@ export function SiteHeader() {
               </details>
 
               <details className="site-header-mobile__details">
-                <summary className="site-header-mobile__summary">Ladies</summary>
+                <summary className="site-header-mobile__summary">Women</summary>
                 <div className="site-header-mobile__panel">
-                  <Link to="/ladies" className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
-                    Ladies overview
+                  <Link to="/women" className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                    Women overview
                   </Link>
-                  <Link to="/ladies/fixtures" className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                  <Link to="/women/fixtures" className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                     Fixtures
                   </Link>
-                  <Link to="/ladies/results" className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                  <Link to="/women/results" className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                     Results
                   </Link>
                   <p className="site-header-mobile__group-label">Teams</p>
-                  {ladiesNavTeams.map((team) => (
-                    <Link key={`l-drawer-team-${team.id}`} to="/ladies/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                  {womenNavTeams.map((team) => (
+                    <Link key={`l-drawer-team-${team.id}`} to="/women/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {team.name}
                     </Link>
                   ))}
@@ -299,7 +299,7 @@ export function SiteHeader() {
                 </div>
                 <div className="dropdown-group">
                   <span>Teams</span>
-                  {menNavTeams.map((team) => (
+                  {mensNavTeams.map((team) => (
                     <Link key={`mens-team-${team.id}`} to="/mens/teams" search={{ teamSlug: team.slug }}>
                       {team.name}
                     </Link>
@@ -317,14 +317,14 @@ export function SiteHeader() {
             </div>
 
             <div className="menu-item">
-              <Link to="/ladies">Ladies</Link>
+              <Link to="/women">Women</Link>
               <div className="dropdown">
-                <Link to="/ladies/fixtures">Fixtures</Link>
-                <Link to="/ladies/results">Results</Link>
+                <Link to="/women/fixtures">Fixtures</Link>
+                <Link to="/women/results">Results</Link>
                 <div className="dropdown-group">
                   <span>Teams</span>
-                  {ladiesNavTeams.map((team) => (
-                    <Link key={`ladies-team-${team.id}`} to="/ladies/teams" search={{ teamSlug: team.slug }}>
+                  {womenNavTeams.map((team) => (
+                    <Link key={`women-team-${team.id}`} to="/women/teams" search={{ teamSlug: team.slug }}>
                       {team.name}
                     </Link>
                   ))}

@@ -18,6 +18,7 @@ import type {
   TeamDto,
 } from '@/lib/api-types'
 import logoFallbackSrc from '@/assets/logo.jpeg'
+import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { adminListAll, adminPatch } from '@/lib/admin-client'
 import { BadgeImage } from '@/components/BadgeImage'
@@ -29,6 +30,7 @@ import { SectionHintTip } from '@/components/SectionHintTip'
 import { StatusBadge } from '@/components/StatusBadge'
 import { parseDetailRouteSearch } from '@/lib/detail-route-search'
 import { resolveAdminMediaUrl } from '@/lib/media-url'
+import { normalizeCompetitionCategory } from '@/lib/competitionCategories'
 import { matchResultSummaryLine } from '@/lib/match-winner'
 
 export const Route = createFileRoute('/_shell/teams/$teamId')({
@@ -193,7 +195,7 @@ function TeamDetailPage() {
 
   const beginEdit = () => {
     if (!team) return
-    setPatch({})
+    setPatch({ category: normalizeCompetitionCategory(team.category) })
     setSaveError(null)
     void navigate({
       to: '/teams/$teamId',
@@ -378,13 +380,11 @@ function TeamDetailPage() {
               id: 'category',
               label: 'Category',
               control: (
-                <input
+                <CompetitionCategorySelect
                   id="category"
                   className="inline-edit__control"
-                  value={merged.category}
-                  onChange={(e) =>
-                    setPatch((p) => ({ ...p, category: e.target.value }))
-                  }
+                  value={normalizeCompetitionCategory(merged.category)}
+                  onChange={(next) => setPatch((p) => ({ ...p, category: next }))}
                 />
               ),
             },

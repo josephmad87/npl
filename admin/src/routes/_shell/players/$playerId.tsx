@@ -8,6 +8,7 @@ import type {
   TeamDto,
 } from '@/lib/api-types'
 import { adminGet, adminListAll, adminPatch } from '@/lib/admin-client'
+import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { BadgeImage } from '@/components/BadgeImage'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -16,6 +17,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { PlayerAvatar, resolvePlayerPhotoSrc } from '@/components/PlayerAvatar'
 import { SectionHintTip } from '@/components/SectionHintTip'
 import { StatusBadge } from '@/components/StatusBadge'
+import { normalizeCompetitionCategory } from '@/lib/competitionCategories'
 import { parseDetailRouteSearch } from '@/lib/detail-route-search'
 
 export const Route = createFileRoute('/_shell/players/$playerId')({
@@ -104,7 +106,7 @@ function PlayerDetailPage() {
 
   const beginEdit = () => {
     if (!player) return
-    setPatch({})
+    setPatch({ category: normalizeCompetitionCategory(player.category) })
     setSaveError(null)
     void navigate({
       to: '/players/$playerId',
@@ -372,13 +374,11 @@ function PlayerDetailPage() {
               id: 'category',
               label: 'Category',
               control: (
-                <input
+                <CompetitionCategorySelect
                   id="category"
                   className="inline-edit__control"
-                  value={merged.category}
-                  onChange={(e) =>
-                    setPatch((p) => ({ ...p, category: e.target.value }))
-                  }
+                  value={normalizeCompetitionCategory(merged.category)}
+                  onChange={(next) => setPatch((p) => ({ ...p, category: next }))}
                 />
               ),
             },

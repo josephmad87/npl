@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react'
 import type { LeagueDto, SeasonDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPatch } from '@/lib/admin-client'
 import { BadgeImage, resolveBadgeSrc } from '@/components/BadgeImage'
+import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { EntityTable } from '@/components/EntityTable'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -19,6 +20,7 @@ import { MediaUrlField } from '@/components/MediaUrlField'
 import { PageHeader } from '@/components/PageHeader'
 import { SectionHintTip } from '@/components/SectionHintTip'
 import { StatusBadge } from '@/components/StatusBadge'
+import { normalizeCompetitionCategory } from '@/lib/competitionCategories'
 import { parseDetailRouteSearch } from '@/lib/detail-route-search'
 
 export const Route = createFileRoute('/_shell/leagues/$leagueId')({
@@ -110,7 +112,7 @@ function LeagueDetailPage() {
 
   const beginEdit = () => {
     if (!league) return
-    setPatch({})
+    setPatch({ category: normalizeCompetitionCategory(league.category) })
     setSaveError(null)
     void navigate({
       to: '/leagues/$leagueId',
@@ -243,13 +245,11 @@ function LeagueDetailPage() {
               id: 'category',
               label: 'Category',
               control: (
-                <input
+                <CompetitionCategorySelect
                   id="category"
                   className="inline-edit__control"
-                  value={merged.category}
-                  onChange={(e) =>
-                    setPatch((p) => ({ ...p, category: e.target.value }))
-                  }
+                  value={normalizeCompetitionCategory(merged.category)}
+                  onChange={(next) => setPatch((p) => ({ ...p, category: next }))}
                 />
               ),
             },

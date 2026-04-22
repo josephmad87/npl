@@ -1,4 +1,4 @@
-export type Division = 'men' | 'women' | 'youth'
+export type Division = 'mens' | 'women' | 'youth'
 
 export type TeamRow = {
   id: string
@@ -92,7 +92,7 @@ export const MOCK_TEAMS: TeamRow[] = [
     id: 't1',
     name: 'Harare Hurricanes',
     slug: 'harare-hurricanes',
-    division: 'men',
+    division: 'mens',
     shortName: 'HH',
     status: 'active',
     homeGround: 'Harare Sports Club',
@@ -101,7 +101,7 @@ export const MOCK_TEAMS: TeamRow[] = [
     id: 't2',
     name: 'Bulawayo Blaze',
     slug: 'bulawayo-blaze',
-    division: 'men',
+    division: 'mens',
     shortName: 'BB',
     status: 'active',
     homeGround: 'Queens Sports Club',
@@ -132,7 +132,7 @@ export const MOCK_PLAYERS: PlayerRow[] = [
     fullName: 'Tinashe Kamunhukamwe',
     slug: 'tinashe-kamunhukamwe',
     team: 'Harare Hurricanes',
-    division: 'men',
+    division: 'mens',
     role: 'Batsman',
     jersey: 7,
     status: 'active',
@@ -142,7 +142,7 @@ export const MOCK_PLAYERS: PlayerRow[] = [
     fullName: 'Wessly Madhevere',
     slug: 'wessly-madhevere',
     team: 'Harare Hurricanes',
-    division: 'men',
+    division: 'mens',
     role: 'All-rounder',
     jersey: 3,
     status: 'active',
@@ -162,7 +162,7 @@ export const MOCK_PLAYERS: PlayerRow[] = [
     fullName: 'Milton Shumba',
     slug: 'milton-shumba',
     team: 'Bulawayo Blaze',
-    division: 'men',
+    division: 'mens',
     role: 'Batsman',
     jersey: 18,
     status: 'injured',
@@ -174,7 +174,7 @@ export const MOCK_LEAGUES: LeagueRow[] = [
     id: 'l1',
     name: 'NPL Premier',
     slug: 'npl-premier-2026',
-    division: 'men',
+    division: 'mens',
     season: '2026',
     status: 'active',
     start: '2026-03-01',
@@ -206,7 +206,7 @@ export const MOCK_MATCHES: MatchRow[] = [
   {
     id: 'm1',
     league: 'NPL Premier',
-    division: 'men',
+    division: 'mens',
     home: 'Harare Hurricanes',
     away: 'Bulawayo Blaze',
     venue: 'Harare Sports Club',
@@ -226,7 +226,7 @@ export const MOCK_MATCHES: MatchRow[] = [
   {
     id: 'm3',
     league: 'NPL Premier',
-    division: 'men',
+    division: 'mens',
     home: 'Bulawayo Blaze',
     away: 'Harare Hurricanes',
     venue: 'Queens Sports Club',

@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { TeamDto } from '@/lib/api-types'
 import { adminPost } from '@/lib/admin-client'
+import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
@@ -19,7 +20,7 @@ function NewTeamPage() {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
-  const [category, setCategory] = useState('men')
+  const [category, setCategory] = useState('mens')
   const [shortName, setShortName] = useState('')
   const [homeGround, setHomeGround] = useState('')
   const [status, setStatus] = useState<(typeof STATUSES)[number]>('active')
@@ -106,13 +107,13 @@ function NewTeamPage() {
           },
           {
             id: 'category',
-            label: 'Category (e.g. men, women, u19)',
+            label: 'Category',
             control: (
-              <input
+              <CompetitionCategorySelect
                 id="category"
                 className="inline-edit__control"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={setCategory}
               />
             ),
           },

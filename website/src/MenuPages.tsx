@@ -273,7 +273,7 @@ function AboutPageImpl() {
   return (
     <main className="container">
       <section className="menu-page">
-        <PageHero title="About Zimbabwe Cricket NPL" subtitle="Domestic excellence across Mens, Ladies and Youth competitions." />
+        <PageHero title="About Zimbabwe Cricket NPL" subtitle="Domestic excellence across Mens, Women and Youth competitions." />
         <div className="menu-list">
           <article className="menu-list-item">
             <h2>Teams</h2>
@@ -297,16 +297,16 @@ function AboutPageImpl() {
   )
 }
 
-export const MensPage = () => <CategoryHomePage category="men" />
-export const MensFixturesPage = () => <FixturesResultsPage category="men" mode="fixtures" />
-export const MensResultsPage = () => <FixturesResultsPage category="men" mode="results" />
+export const MensPage = () => <CategoryHomePage category="mens" />
+export const MensFixturesPage = () => <FixturesResultsPage category="mens" mode="fixtures" />
+export const MensResultsPage = () => <FixturesResultsPage category="mens" mode="results" />
 export const MensSeasonsPage = () => <SeasonsListPage />
-export const MensTeamsPage = () => <TeamsListPage category="men" />
+export const MensTeamsPage = () => <TeamsListPage category="mens" />
 
-export const LadiesPage = () => <CategoryHomePage category="ladies" />
-export const LadiesFixturesPage = () => <FixturesResultsPage category="ladies" mode="fixtures" />
-export const LadiesResultsPage = () => <FixturesResultsPage category="ladies" mode="results" />
-export const LadiesTeamsPage = () => <TeamsListPage category="ladies" />
+export const WomenPage = () => <CategoryHomePage category="women" />
+export const WomenFixturesPage = () => <FixturesResultsPage category="women" mode="fixtures" />
+export const WomenResultsPage = () => <FixturesResultsPage category="women" mode="results" />
+export const WomenTeamsPage = () => <TeamsListPage category="women" />
 
 export const YouthPage = () => <CategoryHomePage category="youth" />
 export const YouthFixturesPage = () => <FixturesResultsPage category="youth" mode="fixtures" />

@@ -4,6 +4,7 @@ import { Plus, Trophy } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { LeagueDto, MatchDto, SeasonDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPost } from '@/lib/admin-client'
+import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
@@ -39,7 +40,7 @@ function NewMatchPage() {
   })
 
   const [seasonId, setSeasonId] = useState<number | null>(null)
-  const [category, setCategory] = useState('men')
+  const [category, setCategory] = useState('mens')
   const [homeTeamId, setHomeTeamId] = useState<number | null>(null)
   const [awayTeamId, setAwayTeamId] = useState<number | null>(null)
   const [venue, setVenue] = useState('')
@@ -192,11 +193,11 @@ function NewMatchPage() {
             id: 'category',
             label: 'Category',
             control: (
-              <input
+              <CompetitionCategorySelect
                 id="category"
                 className="inline-edit__control"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={setCategory}
               />
             ),
           },

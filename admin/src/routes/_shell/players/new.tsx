@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import type { PlayerDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPost } from '@/lib/admin-client'
+import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
@@ -26,7 +27,7 @@ function NewPlayerPage() {
   const [fullName, setFullName] = useState('')
   const [slug, setSlug] = useState('')
   const [teamId, setTeamId] = useState<number | null>(null)
-  const [category, setCategory] = useState('men')
+  const [category, setCategory] = useState('mens')
   const [role, setRole] = useState('')
   const [jerseyNumber, setJerseyNumber] = useState('')
   const [status, setStatus] = useState<(typeof STATUSES)[number]>('active')
@@ -164,11 +165,11 @@ function NewPlayerPage() {
             id: 'category',
             label: 'Category',
             control: (
-              <input
+              <CompetitionCategorySelect
                 id="category"
                 className="inline-edit__control"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={setCategory}
               />
             ),
           },

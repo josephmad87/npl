@@ -1,4 +1,4 @@
-import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router'
 import App from './App'
 import {
   AboutUsPage,
@@ -6,10 +6,6 @@ import {
   GalleryImagesPage,
   GalleryPage,
   GalleryVideoPage,
-  LadiesFixturesPage,
-  LadiesPage,
-  LadiesResultsPage,
-  LadiesTeamsPage,
   MensFixturesPage,
   MensPage,
   MensResultsPage,
@@ -17,6 +13,10 @@ import {
   MensTeamsPage,
   NewsPage,
   ResultsPage,
+  WomenFixturesPage,
+  WomenPage,
+  WomenResultsPage,
+  WomenTeamsPage,
   YouthFixturesPage,
   YouthPage,
   YouthResultsPage,
@@ -65,21 +65,50 @@ const mensTeamsRoute = createRoute({
   component: MensTeamsPage,
 })
 
-const ladiesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/ladies', component: LadiesPage })
-const ladiesFixturesRoute = createRoute({
+const ladiesToWomenRoot = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/ladies',
+  beforeLoad: () => {
+    throw redirect({ to: '/women', replace: true })
+  },
+})
+const ladiesToWomenFixtures = createRoute({
   getParentRoute: () => rootRoute,
   path: '/ladies/fixtures',
-  component: LadiesFixturesPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/women/fixtures', replace: true })
+  },
 })
-const ladiesResultsRoute = createRoute({
+const ladiesToWomenResults = createRoute({
   getParentRoute: () => rootRoute,
   path: '/ladies/results',
-  component: LadiesResultsPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/women/results', replace: true })
+  },
 })
-const ladiesTeamsRoute = createRoute({
+const ladiesToWomenTeams = createRoute({
   getParentRoute: () => rootRoute,
   path: '/ladies/teams',
-  component: LadiesTeamsPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/women/teams', replace: true })
+  },
+})
+
+const womenRoute = createRoute({ getParentRoute: () => rootRoute, path: '/women', component: WomenPage })
+const womenFixturesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/women/fixtures',
+  component: WomenFixturesPage,
+})
+const womenResultsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/women/results',
+  component: WomenResultsPage,
+})
+const womenTeamsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/women/teams',
+  component: WomenTeamsPage,
 })
 
 const youthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/youth', component: YouthPage })
@@ -162,10 +191,14 @@ const routeTree = rootRoute.addChildren([
   mensResultsRoute,
   mensSeasonsRoute,
   mensTeamsRoute,
-  ladiesRoute,
-  ladiesFixturesRoute,
-  ladiesResultsRoute,
-  ladiesTeamsRoute,
+  ladiesToWomenRoot,
+  ladiesToWomenFixtures,
+  ladiesToWomenResults,
+  ladiesToWomenTeams,
+  womenRoute,
+  womenFixturesRoute,
+  womenResultsRoute,
+  womenTeamsRoute,
   youthRoute,
   youthFixturesRoute,
   youthResultsRoute,

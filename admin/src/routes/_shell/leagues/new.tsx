@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { LeagueDto } from '@/lib/api-types'
 import { adminPost } from '@/lib/admin-client'
+import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
@@ -17,7 +18,7 @@ function NewLeaguePage() {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
-  const [category, setCategory] = useState('men')
+  const [category, setCategory] = useState('mens')
   const [description, setDescription] = useState('')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [bannerUrl, setBannerUrl] = useState<string | null>(null)
@@ -102,11 +103,11 @@ function NewLeaguePage() {
             id: 'category',
             label: 'Category',
             control: (
-              <input
+              <CompetitionCategorySelect
                 id="category"
                 className="inline-edit__control"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={setCategory}
               />
             ),
           },
