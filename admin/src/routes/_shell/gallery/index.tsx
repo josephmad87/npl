@@ -191,6 +191,9 @@ function GalleryPage() {
                   </p>
                 </div>
                 <div className="entity-thumb-card__footer">
+                  {g.media_type?.trim().toLowerCase() === 'video' ? (
+                    <span className="badge">Video</span>
+                  ) : null}
                   <StatusBadge status={g.status as 'draft' | 'published'} />
                 </div>
               </Link>
