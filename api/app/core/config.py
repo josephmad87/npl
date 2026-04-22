@@ -14,12 +14,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
     algorithm: str = "HS256"
-    # Comma-separated browser origins. Production must set real admin/public origins.
-    # If empty (e.g. CORS_ORIGINS= in .env), main.py still falls back to local Vite defaults.
-    cors_origins: str = (
-        "http://localhost:5173,http://127.0.0.1:5173,"
-        "http://localhost:5174,http://127.0.0.1:5174"
-    )
+    # Comma-separated browser origins. Set this in .env / environment.
+    cors_origins: str = ""
     # Uploaded media (logos, gallery, etc.). Use an absolute path in Docker and mount a volume there.
     media_root: str = "data/media"
     # Optional origin for absolute URLs returned after upload (e.g. https://api.example.com).

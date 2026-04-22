@@ -13,8 +13,13 @@ type ApiNewsArticle = {
   category: string | null
 }
 
-const getApiBaseUrl = () =>
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000/api/v1'
+const getApiBaseUrl = () => {
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
+  if (!baseUrl) {
+    throw new Error('Missing VITE_API_BASE_URL. Set it in website/.env')
+  }
+  return baseUrl.replace(/\/+$/, '')
+}
 
 const resolveMediaUrl = (raw: string | null | undefined): string | null => {
   const value = raw?.trim() ?? ''

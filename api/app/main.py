@@ -12,14 +12,6 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-# When CORS_ORIGINS is unset or empty (common in .env templates), still allow local Vite admin.
-_DEFAULT_BROWSER_ORIGINS = (
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-)
-
 app = FastAPI(
     title=settings.app_name,
     description="Zimbabwe Cricket NPL CMS API (from SRS).",
@@ -30,11 +22,10 @@ app = FastAPI(
 )
 
 _cors = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
-_allow_origins = list(_cors) if _cors else list(_DEFAULT_BROWSER_ORIGINS)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allow_origins,
+    allow_origins=list(_cors),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

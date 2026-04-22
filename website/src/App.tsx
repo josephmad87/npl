@@ -34,8 +34,13 @@ const fetchStandings = async (): Promise<TeamStat[]> => {
   ])
 }
 
-const getApiBaseUrl = () =>
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000/api/v1'
+const getApiBaseUrl = () => {
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
+  if (!baseUrl) {
+    throw new Error('Missing VITE_API_BASE_URL. Set it in website/.env')
+  }
+  return baseUrl.replace(/\/+$/, '')
+}
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(`${getApiBaseUrl()}${path}`)
