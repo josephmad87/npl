@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { formatMatchDate, formatNewsHighlightsDate } from '../lib/formatters'
 import type { ArticleLite } from '../lib/hooks'
@@ -62,9 +62,56 @@ function articleMatchesFilter(article: ArticleLite, filterId: string): boolean {
   return true
 }
 
+function HomeNewsCarouselTrack({ articles }: { articles: ArticleLite[] }) {
+  const [activePanelIndex, setActivePanelIndex] = useState(0)
+
+  return (
+    <div className="home-news-carousel__track">
+      {articles.map((article, idx) => {
+        const img = resolveMediaUrl(article.featured_image_url)
+        const metaBits = [article.category ?? 'News', formatMatchDate(article.published_at)].filter(Boolean)
+        const excerpt = article.excerpt?.trim() ?? ''
+        const clip = excerpt.length > 120 ? `${excerpt.slice(0, 117)}…` : excerpt
+
+        return (
+          <article
+            key={article.id}
+            className={`home-news-carousel__card${idx === activePanelIndex ? ' is-active' : ''}`}
+            onMouseEnter={() => setActivePanelIndex(idx)}
+          >
+            <Link
+              to="/news/$slug"
+              params={{ slug: article.slug }}
+              className="home-news-carousel__card-link"
+              onFocus={() => setActivePanelIndex(idx)}
+            >
+              <div
+                className="home-news-carousel__card-bg"
+                style={
+                  img
+                    ? {
+                        backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.82) 100%), url(${img})`,
+                      }
+                    : undefined
+                }
+              >
+                <div className="home-news-carousel__card-body">
+                  <h3 className="home-news-carousel__card-title">{article.title}</h3>
+                  <p className="home-news-carousel__card-meta">{metaBits.join(' · ')}</p>
+                  {clip ? <p className="home-news-carousel__card-excerpt">{clip}</p> : null}
+                  <span className="home-news-carousel__readmore">Read more</span>
+                </div>
+              </div>
+            </Link>
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
 export function HomeNewsCarousel({ articles }: { articles: ArticleLite[] }) {
   const [activeFilter, setActiveFilter] = useState('all')
-  const scrollerRef = useRef<HTMLDivElement>(null)
 
   const filterOptions = useMemo(() => buildFilterOptions(articles), [articles])
 
@@ -77,15 +124,6 @@ export function HomeNewsCarousel({ articles }: { articles: ArticleLite[] }) {
     const list = articles.filter((a) => articleMatchesFilter(a, effectiveFilter))
     return [...list].sort(sortByPublishedDesc)
   }, [articles, effectiveFilter])
-
-  const scrollBy = useCallback((direction: -1 | 1) => {
-    const el = scrollerRef.current
-    if (!el) return
-    const firstCard = el.querySelector<HTMLElement>('.home-news-carousel__card')
-    const gap = 16
-    const step = firstCard ? firstCard.offsetWidth + gap : Math.min(el.clientWidth * 0.82, 360)
-    el.scrollBy({ left: direction * step, behavior: 'smooth' })
-  }, [])
 
   const subtitle = `${formatNewsHighlightsDate()} News Highlights`
 
@@ -116,65 +154,12 @@ export function HomeNewsCarousel({ articles }: { articles: ArticleLite[] }) {
             </button>
           ))}
         </div>
-        <div className="home-news-carousel__nav">
-          <button
-            type="button"
-            className="home-news-carousel__nav-btn"
-            aria-label="Scroll news left"
-            onClick={() => scrollBy(-1)}
-          >
-            <span aria-hidden="true">‹</span>
-          </button>
-          <button
-            type="button"
-            className="home-news-carousel__nav-btn"
-            aria-label="Scroll news right"
-            onClick={() => scrollBy(1)}
-          >
-            <span aria-hidden="true">›</span>
-          </button>
-        </div>
       </div>
 
       {filteredArticles.length === 0 ? (
         <p className="home-news-carousel__empty">No articles match this filter.</p>
       ) : (
-        <div ref={scrollerRef} className="home-news-carousel__track">
-          {filteredArticles.map((article) => {
-            const img = resolveMediaUrl(article.featured_image_url)
-            const metaBits = [article.category ?? 'News', formatMatchDate(article.published_at)].filter(Boolean)
-            const excerpt = article.excerpt?.trim() ?? ''
-            const clip = excerpt.length > 120 ? `${excerpt.slice(0, 117)}…` : excerpt
-
-            return (
-              <article key={article.id} className="home-news-carousel__card">
-                <Link
-                  to="/news/$slug"
-                  params={{ slug: article.slug }}
-                  className="home-news-carousel__card-link"
-                >
-                  <div
-                    className="home-news-carousel__card-bg"
-                    style={
-                      img
-                        ? {
-                            backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.82) 100%), url(${img})`,
-                          }
-                        : undefined
-                    }
-                  >
-                    <div className="home-news-carousel__card-body">
-                      <h3 className="home-news-carousel__card-title">{article.title}</h3>
-                      <p className="home-news-carousel__card-meta">{metaBits.join(' · ')}</p>
-                      {clip ? <p className="home-news-carousel__card-excerpt">{clip}</p> : null}
-                      <span className="home-news-carousel__readmore">Read more</span>
-                    </div>
-                  </div>
-                </Link>
-              </article>
-            )
-          })}
-        </div>
+        <HomeNewsCarouselTrack key={effectiveFilter} articles={filteredArticles} />
       )}
 
       <p className="home-news-carousel__footer-link">

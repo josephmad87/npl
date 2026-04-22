@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import './App.css'
 import { EmptyState } from './components/EmptyState'
-import { ExpandingNewsTiles } from './components/ExpandingNewsTiles'
 import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
 import { MatchCard } from './components/MatchCard'
@@ -101,7 +100,7 @@ function App() {
         )}
       </section>
 
-      <ExpandingNewsTiles articles={newsArticles.slice(0, 6)} />
+      <HomeNewsCarousel articles={newsArticles} />
 
       <section className="home-section">
         <SectionHeader title="Upcoming Fixtures" linkTo="/fixtures" />
@@ -124,8 +123,6 @@ function App() {
       </section>
 
       <FeaturedTeamsCarousel teams={teams.slice(0, 16)} />
-
-      <HomeNewsCarousel articles={newsArticles} />
 
       <section className="home-section">
         <SectionHeader title="Gallery Preview" linkTo="/gallery" />
