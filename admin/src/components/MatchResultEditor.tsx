@@ -365,7 +365,7 @@ export function MatchResultEditor({
                 <th>St</th>
                 <th>RO</th>
                 <th>Notes</th>
-                <th aria-label="Remove row" />
+                <th className="match-stats-table__remove-col" aria-label="Remove row" />
               </tr>
             </thead>
             <tbody>
@@ -562,10 +562,10 @@ export function MatchResultEditor({
                       }
                     />
                   </td>
-                  <td>
+                  <td className="match-stats-table__remove-col">
                     <button
                       type="button"
-                      className="btn-ghost btn--with-icon"
+                      className="btn-ghost btn--with-icon match-stats-table__remove-btn"
                       onClick={() => removeRow(row.key)}
                     >
                       <Trash2 size={16} strokeWidth={2} aria-hidden />

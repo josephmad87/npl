@@ -558,6 +558,34 @@ button {
   gap: 0.55rem 1rem;
 }
 
+.page-header--match .page-header__top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.65rem 1rem;
+  align-items: start;
+}
+
+.page-header--match .page-header__intro {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.55rem;
+}
+
+.page-header--match .page-header__titles,
+.page-header--match .page-header__title-row {
+  justify-content: center;
+  text-align: center;
+}
+
+.page-header--match .page-header__actions {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+
 .player-avatar {
   width: 36px;
   height: 36px;
@@ -703,6 +731,18 @@ button {
   width: 18rem;
   font-size: 0.85rem;
   padding: 0.45rem 0.55rem;
+}
+
+.match-stats-table__remove-col {
+  min-width: 7.5rem;
+  width: 8rem;
+  text-align: center;
+}
+
+.match-stats-table__remove-btn {
+  white-space: nowrap;
+  min-width: 6.75rem;
+  justify-content: center;
 }
 
 .match-readonly-result {
@@ -2140,7 +2180,7 @@ table.data-table tbody tr.data-table__row--clickable:hover {
 }
 
 .inline-edit__control {
-  width: 100%;
+  width: min(100%, 420px);
   max-width: 420px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -2148,10 +2188,52 @@ table.data-table tbody tr.data-table__row--clickable:hover {
   padding: 0.55rem 0.65rem;
   color: var(--text);
   font: inherit;
+  text-align: left;
+  margin-left: auto;
+  display: block;
 }
 
 select.inline-edit__control {
   cursor: pointer;
+}
+
+.inline-edit-form__row {
+  align-items: center;
+}
+
+.inline-edit-form {
+  margin-inline: auto;
+}
+
+.inline-edit-form__value {
+  display: flex;
+  justify-content: flex-end;
+  text-align: left;
+}
+
+.inline-edit-form__value .media-url-field {
+  margin-left: auto;
+}
+
+.inline-edit-form__actions {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: 1.15rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 920px) {
+  .inline-edit-form__row {
+    align-items: stretch;
+  }
+
+  .inline-edit-form__value {
+    justify-content: stretch;
+  }
+
+  .inline-edit__control {
+    margin-left: 0;
+  }
 }
 
 table.data-table button.sort {
@@ -2763,8 +2845,8 @@ video.article-view__hero-img {
 .media-url-field {
   display: grid;
   gap: 0.75rem;
-  width: 100%;
-  max-width: min(36rem, 100%);
+  width: min(100%, 420px);
+  max-width: 420px;
 }
 
 .media-url-field__top {

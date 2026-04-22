@@ -237,6 +237,7 @@ function MatchDetailPage() {
   return (
     <>
       <PageHeader
+        className="page-header--match"
         title={title}
         description={headerDescParts.join(' · ')}
         media={

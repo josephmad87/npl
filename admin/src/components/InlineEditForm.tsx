@@ -28,22 +28,18 @@ export function InlineEditForm({
 }: InlineEditFormProps) {
   return (
     <div
-      className="detail-panel"
+      className="detail-panel inline-edit-form"
       style={{ paddingTop: '1rem' }}
       onKeyDown={(e) => {
         if (e.key === 'Escape') onCancel()
       }}
     >
       {fields.map((f) => (
-        <div
-          key={f.id}
-          className="detail-panel__row"
-          style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
-        >
+        <div key={f.id} className="detail-panel__row inline-edit-form__row">
           <label className="detail-panel__label" htmlFor={f.id}>
             {f.label}
           </label>
-          <div className="detail-panel__value">{f.control}</div>
+          <div className="detail-panel__value inline-edit-form__value">{f.control}</div>
         </div>
       ))}
       {error ? (
@@ -51,14 +47,7 @@ export function InlineEditForm({
           {error}
         </p>
       ) : null}
-      <div
-        style={{
-          display: 'flex',
-          gap: '0.65rem',
-          marginTop: '1.15rem',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="inline-edit-form__actions">
         <button
           type="button"
           className="btn-ghost btn--with-icon"

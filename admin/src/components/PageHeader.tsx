@@ -12,6 +12,7 @@ type PageHeaderProps = {
   media?: ReactNode
   /** Shown inline after the title (e.g. help tooltip). */
   titleAccessory?: ReactNode
+  className?: string
 }
 
 export function PageHeader({
@@ -21,6 +22,7 @@ export function PageHeader({
   actions,
   media,
   titleAccessory,
+  className,
 }: PageHeaderProps) {
   const descriptionTip =
     descriptionAsTooltip && description ? (
@@ -38,7 +40,7 @@ export function PageHeader({
     ) : null
 
   return (
-    <header className="page-header">
+    <header className={`page-header${className ? ` ${className}` : ''}`}>
       <div className="page-header__top">
         <div className="page-header__intro">
           {media}
