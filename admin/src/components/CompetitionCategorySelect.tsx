@@ -1,4 +1,7 @@
-import { COMPETITION_CATEGORY_OPTIONS } from '../lib/competitionCategories'
+import {
+  COMPETITION_CATEGORY_OPTIONS,
+  type CompetitionCategoryValue,
+} from '../lib/competitionCategories'
 
 export function CompetitionCategorySelect({
   id,
@@ -8,11 +11,16 @@ export function CompetitionCategorySelect({
 }: {
   id: string
   className?: string
-  value: string
-  onChange: (next: string) => void
+  value: CompetitionCategoryValue
+  onChange: (next: CompetitionCategoryValue) => void
 }) {
   return (
-    <select id={id} className={className} value={value} onChange={(e) => onChange(e.target.value)}>
+    <select
+      id={id}
+      className={className}
+      value={value}
+      onChange={(e) => onChange(e.target.value as CompetitionCategoryValue)}
+    >
       {COMPETITION_CATEGORY_OPTIONS.map((opt) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}

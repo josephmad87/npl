@@ -44,7 +44,7 @@ function CategoryHomePage({ category }: { category: string }) {
   const { map: teamsMap } = useTeamsMap()
   const { data: fixtures = [] } = useUpcomingFixtures(category, 4)
   const { data: results = [] } = useLatestResults(category, 4)
-  const { data: news = [] } = useRecentNews(4)
+  const { data: news = [] } = useRecentNews(4, category)
 
   return (
     <main className="container">

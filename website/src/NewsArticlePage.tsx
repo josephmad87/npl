@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
+import { parseArticleCompetitionCategory } from './lib/competitionCategories'
+import { formatCategoryLabel } from './lib/formatters'
 import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type ApiNewsArticle = {
@@ -18,8 +20,9 @@ async function fetchNewsArticle(slug: string): Promise<ApiNewsArticle> {
   return fetchJson<ApiNewsArticle>(`/public/news/${slug}`)
 }
 
-async function fetchRecentNews(): Promise<ApiNewsArticle[]> {
-  const payload = await fetchJson<unknown>('/public/news?page=1&page_size=8')
+async function fetchRecentNews(category?: string | null): Promise<ApiNewsArticle[]> {
+  const suffix = category ? `&category=${encodeURIComponent(category)}` : ''
+  const payload = await fetchJson<unknown>(`/public/news?page=1&page_size=8${suffix}`)
   return extractList<ApiNewsArticle>(payload)
 }
 
@@ -40,14 +43,18 @@ export default function NewsArticlePage() {
     queryFn: () => fetchNewsArticle(slug),
     retry: 1,
   })
+  const relatedCategory = article ? parseArticleCompetitionCategory(article.category) : null
   const { data: recentNews = [] } = useQuery({
-    queryKey: ['public-recent-news'],
-    queryFn: fetchRecentNews,
+    queryKey: ['public-recent-news', relatedCategory ?? 'all'],
+    queryFn: () => fetchRecentNews(relatedCategory),
+    enabled: Boolean(article),
     retry: 1,
   })
 
   const heroImage = resolveMediaUrl(article?.featured_image_url)
   const sidebarNews = recentNews.filter((item) => item.slug !== slug).slice(0, 5)
+  const categoryLine =
+    article?.category?.trim() ? formatCategoryLabel(article.category) : null
 
   return (
     <main className="container">
@@ -66,7 +73,7 @@ export default function NewsArticlePage() {
               <div className="article-hero">
                 <img src={heroImage} alt={article.title} />
                 <header className="article-hero-overlay">
-                  {article.category ? <p className="article-category">{article.category}</p> : null}
+                  {categoryLine ? <p className="article-category">{categoryLine}</p> : null}
                   <h1>{article.title}</h1>
                   <p className="article-meta">
                     By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at)}
@@ -76,7 +83,7 @@ export default function NewsArticlePage() {
               </div>
             ) : (
               <header className="article-header">
-                {article.category ? <p className="article-category">{article.category}</p> : null}
+                {categoryLine ? <p className="article-category">{categoryLine}</p> : null}
                 <h1>{article.title}</h1>
                 <p className="article-meta">
                   By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at)}
@@ -90,8 +97,11 @@ export default function NewsArticlePage() {
               ) : (
                 <p className="article-empty">Full story coming soon.</p>
               )}
-              <aside className="article-sidebar" aria-label="Recent news">
-                <h3>Recent News</h3>
+              <aside
+                className="article-sidebar"
+                aria-label={relatedCategory ? 'Related news' : 'Recent news'}
+              >
+                <h3>{relatedCategory ? 'Related News' : 'Recent News'}</h3>
                 <div className="article-sidebar-list">
                   {sidebarNews.map((item) => {
                     const thumb = resolveMediaUrl(item.featured_image_url)

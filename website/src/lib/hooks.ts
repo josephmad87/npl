@@ -116,11 +116,12 @@ export function useLeaguesMap() {
   return { ...query, map }
 }
 
-export function useRecentNews(limit = 6) {
+export function useRecentNews(limit = 6, category?: string) {
+  const suffix = category ? `&category=${encodeURIComponent(category)}` : ''
   return useQuery({
-    queryKey: ['recent-news', limit],
+    queryKey: ['recent-news', limit, category ?? 'all'],
     queryFn: async () => {
-      const payload = await fetchJson<unknown>(`/public/news?page=1&page_size=${limit}`)
+      const payload = await fetchJson<unknown>(`/public/news?page=1&page_size=${limit}${suffix}`)
       return extractList<ArticleLite>(payload)
     },
     retry: 1,

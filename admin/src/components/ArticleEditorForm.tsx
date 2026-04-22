@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Save, X } from 'lucide-react'
 import type { ArticleDto } from '@/lib/api-types'
+import {
+  type CompetitionCategoryValue,
+  normalizeCompetitionCategory,
+} from '@/lib/competitionCategories'
+import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { MediaUrlField } from '@/components/MediaUrlField'
 import { RichTextEditor } from '@/components/RichTextEditor'
 
@@ -14,7 +19,7 @@ export type ArticleEditorValues = {
   featured_image_url: string | null
   author_name: string | null
   status: (typeof STATUSES)[number]
-  category: string | null
+  category: CompetitionCategoryValue
   tags: string[] | null
   seo_title: string | null
   seo_description: string | null
@@ -38,7 +43,7 @@ function emptyArticleValues(): ArticleEditorValues {
     featured_image_url: null,
     author_name: null,
     status: 'draft',
-    category: null,
+    category: 'mens',
     tags: null,
     seo_title: null,
     seo_description: null,
@@ -54,7 +59,7 @@ function fromArticle(a: ArticleDto): ArticleEditorValues {
     featured_image_url: a.featured_image_url,
     author_name: a.author_name,
     status: STATUSES.find((s) => s === a.status) ?? 'draft',
-    category: a.category,
+    category: normalizeCompetitionCategory(a.category),
     tags: a.tags,
     seo_title: a.seo_title,
     seo_description: a.seo_description,
@@ -85,9 +90,6 @@ export function ArticleEditorForm({
   )
 
   const [localError, setLocalError] = useState<string | null>(null)
-  useEffect(() => {
-    if (error) setLocalError(null)
-  }, [error])
 
   const [title, setTitle] = useState(initial.title)
   const [slug, setSlug] = useState(initial.slug)
@@ -97,7 +99,7 @@ export function ArticleEditorForm({
     initial.featured_image_url ?? '',
   )
   const [authorName, setAuthorName] = useState(initial.author_name ?? '')
-  const [category, setCategory] = useState(initial.category ?? '')
+  const [category, setCategory] = useState<CompetitionCategoryValue>(initial.category)
   const [status, setStatus] = useState<(typeof STATUSES)[number]>(initial.status)
   const [tagsInput, setTagsInput] = useState(tagsToInput(initial.tags))
   const [seoTitle, setSeoTitle] = useState(initial.seo_title ?? '')
@@ -122,7 +124,7 @@ export function ArticleEditorForm({
       featured_image_url: featuredImageUrl.trim() || null,
       author_name: authorName.trim() || null,
       status,
-      category: category.trim() || null,
+      category: normalizeCompetitionCategory(category),
       tags: parseTagsInput(tagsInput),
       seo_title: seoTitle.trim() || null,
       seo_description: seoDescription.trim() || null,
@@ -224,14 +226,13 @@ export function ArticleEditorForm({
             autoComplete="name"
           />
           <label className="article-editor__label" htmlFor="article-category">
-            Category
+            Competition category
           </label>
-          <input
+          <CompetitionCategorySelect
             id="article-category"
             className="inline-edit__control article-editor__control"
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            autoComplete="off"
+            onChange={setCategory}
           />
         </div>
 

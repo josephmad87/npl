@@ -19,11 +19,17 @@ export function formatDateRange(start: string | null | undefined, end: string | 
 
 const COMPETITION_LABELS: Record<string, string> = {
   mens: 'Mens',
+  men: 'Mens',
+  man: 'Mens',
   women: 'Women',
+  ladies: 'Women',
+  lady: 'Women',
+  woman: 'Women',
+  womens: 'Women',
   youth: 'Youth',
 }
 
-/** Human label for team/league/match/player competition category */
+/** Human label for team/league/match/player/article competition category */
 export function formatCategoryLabel(category: string | null | undefined): string {
   if (!category) return 'General'
   const c = category.trim().toLowerCase()

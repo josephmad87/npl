@@ -66,6 +66,7 @@ function NewArticlePage() {
         }
       />
       <ArticleEditorForm
+        key="new-article"
         mode="create"
         article={null}
         error={saveError}

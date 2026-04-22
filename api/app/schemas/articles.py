@@ -1,8 +1,11 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMModel
+
+CompetitionArticleCategory = Literal["mens", "women", "youth"]
 
 
 class ArticleBase(BaseModel):
@@ -22,7 +25,7 @@ class ArticleBase(BaseModel):
 
 
 class ArticleCreate(ArticleBase):
-    pass
+    category: CompetitionArticleCategory = "mens"
 
 
 class ArticleUpdate(BaseModel):
@@ -33,7 +36,7 @@ class ArticleUpdate(BaseModel):
     featured_image_url: str | None = None
     author_name: str | None = None
     status: str | None = None
-    category: str | None = None
+    category: CompetitionArticleCategory | None = None
     tags: list[str] | None = None
     seo_title: str | None = None
     seo_description: str | None = None
