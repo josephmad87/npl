@@ -175,38 +175,6 @@ function MatchesPage() {
       {!loading && !err ? (
         <div className="catalog-page-toolbar">
           <ListViewModeSwitch value={mode} onChange={setMode} />
-          <div className="catalog-filters-inline">
-            <select
-              className="inline-edit__control catalog-filter-select"
-              value={selectedLeagueId ?? ''}
-              onChange={(e) => {
-                const next = e.target.value ? Number(e.target.value) : null
-                setSelectedLeagueId(next)
-                setSelectedSeasonId(null)
-              }}
-            >
-              <option value="">All leagues</option>
-              {(leaguesQ.data ?? []).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="inline-edit__control catalog-filter-select"
-              value={selectedSeasonId ?? ''}
-              onChange={(e) =>
-                setSelectedSeasonId(e.target.value ? Number(e.target.value) : null)
-              }
-            >
-              <option value="">All seasons</option>
-              {seasonsForLeague.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
       ) : null}
       {loading ? (
@@ -232,6 +200,40 @@ function MatchesPage() {
               .join(' ')
           }
           searchPlaceholder="Search fixtures…"
+          toolbarExtras={
+            <div className="catalog-filters-inline">
+              <select
+                className="inline-edit__control catalog-filter-select"
+                value={selectedLeagueId ?? ''}
+                onChange={(e) => {
+                  const next = e.target.value ? Number(e.target.value) : null
+                  setSelectedLeagueId(next)
+                  setSelectedSeasonId(null)
+                }}
+              >
+                <option value="">All leagues</option>
+                {(leaguesQ.data ?? []).map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="inline-edit__control catalog-filter-select"
+                value={selectedSeasonId ?? ''}
+                onChange={(e) =>
+                  setSelectedSeasonId(e.target.value ? Number(e.target.value) : null)
+                }
+              >
+                <option value="">All seasons</option>
+                {seasonsForLeague.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          }
           renderCard={(m) => {
             const winner = matchWinnerSide(m)
             const scoreline = matchResultSummaryLine(m)
