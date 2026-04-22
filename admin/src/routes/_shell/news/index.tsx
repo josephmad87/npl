@@ -111,7 +111,7 @@ function NewsPage() {
           </Link>
         }
       />
-      {!q.isLoading && !q.isError ? (
+      {!q.isLoading && !q.isError && mode !== 'cards' ? (
         <div className="catalog-page-toolbar">
           <ListViewModeSwitch value={mode} onChange={setMode} />
         </div>
@@ -130,6 +130,9 @@ function NewsPage() {
               .join(' ')
           }
           searchPlaceholder="Search articles…"
+          toolbarLeading={
+            <ListViewModeSwitch value={mode} onChange={setMode} />
+          }
           renderCard={(a) => {
             const letter = (a.title?.trim().charAt(0) ?? '?').toUpperCase()
             return (

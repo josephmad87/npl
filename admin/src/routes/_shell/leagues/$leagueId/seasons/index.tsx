@@ -17,7 +17,7 @@ export const Route = createFileRoute('/_shell/leagues/$leagueId/seasons/')({
   component: SeasonsIndexPage,
 })
 
-const STATUSES = ['upcoming', 'active', 'completed', 'archived'] as const
+type SeasonStatus = 'upcoming' | 'active' | 'completed' | 'archived'
 
 const columns: ColumnDef<SeasonDto, unknown>[] = [
   { accessorKey: 'name', header: 'Season' },
@@ -28,9 +28,7 @@ const columns: ColumnDef<SeasonDto, unknown>[] = [
     accessorKey: 'status',
     header: 'Status',
     cell: ({ getValue }) => (
-      <StatusBadge
-        status={getValue() as (typeof STATUSES)[number]}
-      />
+      <StatusBadge status={getValue() as SeasonStatus} />
     ),
   },
   {
@@ -91,8 +89,16 @@ function SeasonsIndexPage() {
         }
       />
       {!loading && !err && league ? (
-        <div className="catalog-page-toolbar catalog-page-toolbar--split">
-          <ListViewModeSwitch value={mode} onChange={setMode} />
+        <div
+          className={
+            mode === 'cards'
+              ? 'catalog-page-toolbar'
+              : 'catalog-page-toolbar catalog-page-toolbar--split'
+          }
+        >
+          {mode !== 'cards' ? (
+            <ListViewModeSwitch value={mode} onChange={setMode} />
+          ) : null}
           <Link
             to="/leagues/$leagueId/seasons/new"
             params={{ leagueId: String(lid) }}
@@ -126,6 +132,9 @@ function SeasonsIndexPage() {
               .join(' ')
           }
           searchPlaceholder="Search seasons…"
+          toolbarLeading={
+            <ListViewModeSwitch value={mode} onChange={setMode} />
+          }
           renderCard={(s) => (
             <Link
               to="/leagues/$leagueId/seasons/$seasonId"
@@ -147,9 +156,7 @@ function SeasonsIndexPage() {
                 </p>
               </div>
               <div className="entity-thumb-card__footer">
-                <StatusBadge
-                  status={s.status as (typeof STATUSES)[number]}
-                />
+                <StatusBadge status={s.status as SeasonStatus} />
               </div>
             </Link>
           )}

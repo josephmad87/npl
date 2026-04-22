@@ -48,7 +48,7 @@ function AuditPage() {
         descriptionAsTooltip
         description="GET /admin/audit-logs. Cards group each entry for quick scanning; table view stays best for dense review."
       />
-      {!q.isLoading && !q.isError ? (
+      {!q.isLoading && !q.isError && mode !== 'cards' ? (
         <div className="catalog-page-toolbar">
           <ListViewModeSwitch value={mode} onChange={setMode} />
         </div>
@@ -74,6 +74,9 @@ function AuditPage() {
               .join(' ')
           }
           searchPlaceholder="Search audit entries…"
+          toolbarLeading={
+            <ListViewModeSwitch value={mode} onChange={setMode} />
+          }
           renderCard={(e) => (
             <button
               type="button"

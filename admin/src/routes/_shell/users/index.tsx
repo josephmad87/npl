@@ -73,7 +73,7 @@ function UsersPage() {
           </Link>
         }
       />
-      {!q.isLoading && !q.isError ? (
+      {!q.isLoading && !q.isError && mode !== 'cards' ? (
         <div className="catalog-page-toolbar">
           <ListViewModeSwitch value={mode} onChange={setMode} />
         </div>
@@ -92,6 +92,9 @@ function UsersPage() {
               .join(' ')
           }
           searchPlaceholder="Search users…"
+          toolbarLeading={
+            <ListViewModeSwitch value={mode} onChange={setMode} />
+          }
           renderCard={(u) => (
             <Link
               to="/users/$userId"

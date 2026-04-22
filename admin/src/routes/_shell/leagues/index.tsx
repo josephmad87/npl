@@ -62,7 +62,7 @@ function LeaguesPage() {
           </Link>
         }
       />
-      {!q.isLoading && !q.isError ? (
+      {!q.isLoading && !q.isError && mode !== 'cards' ? (
         <div className="catalog-page-toolbar">
           <ListViewModeSwitch value={mode} onChange={setMode} />
         </div>
@@ -79,6 +79,9 @@ function LeaguesPage() {
             [r.name, r.slug, r.category, r.description].filter(Boolean).join(' ')
           }
           searchPlaceholder="Search leagues…"
+          toolbarLeading={
+            <ListViewModeSwitch value={mode} onChange={setMode} />
+          }
           renderCard={(league) => (
             <Link
               to="/leagues/$leagueId"

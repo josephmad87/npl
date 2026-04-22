@@ -172,7 +172,7 @@ function MatchesPage() {
           </Link>
         }
       />
-      {!loading && !err ? (
+      {!loading && !err && mode !== 'cards' ? (
         <div className="catalog-page-toolbar">
           <ListViewModeSwitch value={mode} onChange={setMode} />
         </div>
@@ -200,6 +200,9 @@ function MatchesPage() {
               .join(' ')
           }
           searchPlaceholder="Search fixtures…"
+          toolbarLeading={
+            <ListViewModeSwitch value={mode} onChange={setMode} />
+          }
           toolbarExtras={
             <div className="catalog-filters-inline">
               <select

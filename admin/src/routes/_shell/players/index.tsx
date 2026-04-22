@@ -106,7 +106,7 @@ function PlayersPage() {
           </Link>
         }
       />
-      {!loading && !err ? (
+      {!loading && !err && mode !== 'cards' ? (
         <div className="catalog-page-toolbar">
           <ListViewModeSwitch value={mode} onChange={setMode} />
         </div>
@@ -132,6 +132,9 @@ function PlayersPage() {
               .join(' ')
           }
           searchPlaceholder="Search players…"
+          toolbarLeading={
+            <ListViewModeSwitch value={mode} onChange={setMode} />
+          }
           renderCard={(p) => (
             <Link
               to="/players/$playerId"

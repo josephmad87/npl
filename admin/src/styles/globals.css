@@ -1451,7 +1451,7 @@ button {
 }
 
 .catalog-filter-select {
-  min-width: 180px;
+  min-width: 160px;
 }
 
 @media (max-width: 900px) {
@@ -1532,16 +1532,20 @@ button {
 
 .catalog-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
   margin-bottom: 1rem;
 }
 
+.catalog-toolbar__leading {
+  flex: 0 0 auto;
+}
+
 .catalog-toolbar__search {
-  flex: 1;
-  min-width: 260px;
-  max-width: 32rem;
+  flex: 1 1 220px;
+  min-width: 180px;
+  max-width: none;
   padding: 0.55rem 0.75rem;
   border-radius: var(--radius);
   border: 1px solid var(--border);
@@ -1553,19 +1557,28 @@ button {
 .catalog-toolbar__extras {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.catalog-toolbar__count {
-  font-size: 0.82rem;
-  margin-left: auto;
+  gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 @media (max-width: 900px) {
-  .catalog-toolbar__count {
+  .catalog-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .catalog-toolbar__search {
+    order: 2;
     width: 100%;
-    margin-left: 0;
+  }
+
+  .catalog-toolbar__extras {
+    order: 3;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .catalog-filter-select {
+    min-width: 140px;
   }
 }
 

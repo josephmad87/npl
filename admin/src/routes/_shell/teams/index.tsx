@@ -63,7 +63,7 @@ function TeamsPage() {
           </Link>
         }
       />
-      {!q.isLoading && !q.isError ? (
+      {!q.isLoading && !q.isError && mode !== 'cards' ? (
         <div className="catalog-page-toolbar">
           <ListViewModeSwitch value={mode} onChange={setMode} />
         </div>
@@ -82,6 +82,9 @@ function TeamsPage() {
               .join(' ')
           }
           searchPlaceholder="Search teams…"
+          toolbarLeading={
+            <ListViewModeSwitch value={mode} onChange={setMode} />
+          }
           renderCard={(team) => (
             <Link
               to="/teams/$teamId"

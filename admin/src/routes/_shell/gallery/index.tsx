@@ -148,7 +148,7 @@ function GalleryPage() {
           </Link>
         }
       />
-      {!q.isLoading && !q.isError ? (
+      {!q.isLoading && !q.isError && mode !== 'cards' ? (
         <div className="catalog-page-toolbar">
           <ListViewModeSwitch value={mode} onChange={setMode} />
         </div>
@@ -167,6 +167,9 @@ function GalleryPage() {
               .join(' ')
           }
           searchPlaceholder="Search gallery…"
+          toolbarLeading={
+            <ListViewModeSwitch value={mode} onChange={setMode} />
+          }
           renderCard={(g) => {
             const mediaType = g.media_type?.trim().toLowerCase() ?? 'media'
             const resolvedThumb = resolveAdminMediaUrl(g.thumbnail_url)

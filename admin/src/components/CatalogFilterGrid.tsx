@@ -6,6 +6,7 @@ type CatalogFilterGridProps<T> = {
   getSearchText: (item: T) => string
   searchPlaceholder?: string
   emptyMessage?: string
+  toolbarLeading?: ReactNode
   toolbarExtras?: ReactNode
   renderCard: (item: T) => ReactNode
 }
@@ -16,6 +17,7 @@ export function CatalogFilterGrid<T>({
   getSearchText,
   searchPlaceholder = 'Search…',
   emptyMessage = 'Nothing matches that filter.',
+  toolbarLeading,
   toolbarExtras,
   renderCard,
 }: CatalogFilterGridProps<T>) {
@@ -31,6 +33,9 @@ export function CatalogFilterGrid<T>({
   return (
     <div className="catalog-browse">
       <div className="catalog-toolbar">
+        {toolbarLeading ? (
+          <div className="catalog-toolbar__leading">{toolbarLeading}</div>
+        ) : null}
         <input
           type="search"
           className="catalog-toolbar__search"
@@ -42,9 +47,6 @@ export function CatalogFilterGrid<T>({
         {toolbarExtras ? (
           <div className="catalog-toolbar__extras">{toolbarExtras}</div>
         ) : null}
-        <span className="muted catalog-toolbar__count">
-          {filtered.length} of {items.length}
-        </span>
       </div>
       <div className="catalog-grid">
         {filtered.length === 0 ? (
