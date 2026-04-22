@@ -9,7 +9,7 @@ import {
   UserPlus,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type {
   LeagueDto,
   MatchDto,
@@ -37,6 +37,7 @@ export const Route = createFileRoute('/_shell/teams/$teamId')({
 })
 
 const STATUSES = ['active', 'inactive'] as const
+type TeamDetailTab = 'rosters' | 'fixtures' | 'completed' | 'players'
 
 function resolveTeamHeroSrc(team: TeamDto): string {
   const cover = resolveAdminMediaUrl(team.cover_image_url)
@@ -54,6 +55,7 @@ function TeamDetailPage() {
   const queryClient = useQueryClient()
   const [pickLeagueId, setPickLeagueId] = useState<number | ''>('')
   const [pickSeasonId, setPickSeasonId] = useState<number | ''>('')
+  const [activeTab, setActiveTab] = useState<TeamDetailTab>('rosters')
   const [rosterError, setRosterError] = useState<string | null>(null)
   const [rosterBusy, setRosterBusy] = useState(false)
 
@@ -139,10 +141,6 @@ function TeamDetailPage() {
     () => matches.filter((m) => m.status === 'completed'),
     [matches],
   )
-
-  useEffect(() => {
-    setPickSeasonId('')
-  }, [pickLeagueId])
 
   const addTeamToSeasonRoster = useCallback(async () => {
     if (pickSeasonId === '' || !Number.isFinite(Number(pickSeasonId))) {
@@ -519,6 +517,48 @@ function TeamDetailPage() {
           </section>
 
           <section className="team-hub-section">
+            <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Team detail sections">
+              <button
+                type="button"
+                className={`dashboard-match-panel__tab${activeTab === 'rosters' ? ' is-active' : ''}`}
+                onClick={() => setActiveTab('rosters')}
+                role="tab"
+                aria-selected={activeTab === 'rosters'}
+              >
+                Leagues & season rosters
+              </button>
+              <button
+                type="button"
+                className={`dashboard-match-panel__tab${activeTab === 'fixtures' ? ' is-active' : ''}`}
+                onClick={() => setActiveTab('fixtures')}
+                role="tab"
+                aria-selected={activeTab === 'fixtures'}
+              >
+                Fixtures & results
+              </button>
+              <button
+                type="button"
+                className={`dashboard-match-panel__tab${activeTab === 'completed' ? ' is-active' : ''}`}
+                onClick={() => setActiveTab('completed')}
+                role="tab"
+                aria-selected={activeTab === 'completed'}
+              >
+                Completed results ({completedMatches.length})
+              </button>
+              <button
+                type="button"
+                className={`dashboard-match-panel__tab${activeTab === 'players' ? ' is-active' : ''}`}
+                onClick={() => setActiveTab('players')}
+                role="tab"
+                aria-selected={activeTab === 'players'}
+              >
+                Players ({players.length})
+              </button>
+            </div>
+          </section>
+
+          {activeTab === 'rosters' ? (
+            <section className="team-hub-section">
             <div className="team-hub-section-head">
               <div className="team-hub-section-head__lead">
                 <h2 className="team-hub-section__title">
@@ -616,9 +656,12 @@ function TeamDetailPage() {
                     className="inline-edit__control"
                     value={pickLeagueId === '' ? '' : String(pickLeagueId)}
                     onChange={(e) =>
-                      setPickLeagueId(
-                        e.target.value === '' ? '' : Number(e.target.value),
-                      )
+                      {
+                        setPickLeagueId(
+                          e.target.value === '' ? '' : Number(e.target.value),
+                        )
+                        setPickSeasonId('')
+                      }
                     }
                   >
                     <option value="">— Select league —</option>
@@ -670,9 +713,11 @@ function TeamDetailPage() {
                 </button>
               </div>
             </div>
-          </section>
+            </section>
+          ) : null}
 
-          <section className="team-hub-section">
+          {activeTab === 'fixtures' ? (
+            <section className="team-hub-section">
             <div className="team-hub-section-head">
               <div className="team-hub-section-head__lead">
                 <h2 className="team-hub-section__title">Fixtures & results</h2>
@@ -796,9 +841,11 @@ function TeamDetailPage() {
                 </div>
               </div>
             )}
-          </section>
+            </section>
+          ) : null}
 
-          <section className="team-hub-section">
+          {activeTab === 'completed' ? (
+            <section className="team-hub-section">
             <h2 className="team-hub-section__title">
               Completed results ({completedMatches.length})
             </h2>
@@ -874,9 +921,11 @@ function TeamDetailPage() {
                 </div>
               </div>
             )}
-          </section>
+            </section>
+          ) : null}
 
-          <section className="team-hub-section">
+          {activeTab === 'players' ? (
+            <section className="team-hub-section">
             <h2 className="team-hub-section__title">
               Players ({players.length})
             </h2>
@@ -944,7 +993,8 @@ function TeamDetailPage() {
                 </div>
               </div>
             )}
-          </section>
+            </section>
+          ) : null}
         </>
       )}
     </>
