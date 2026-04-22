@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { extractList, fetchJson } from './lib/publicApi'
@@ -25,12 +25,6 @@ type ApiSeason = {
 
 type NavTeamCategory = 'mens' | 'women' | 'youth'
 
-/** Matches `/public/teams?category=` — exact team.category values used across the site */
-function teamsForNavCategory(teams: ApiTeam[], category: NavTeamCategory, limit = 6): ApiTeam[] {
-  const key = category.toLowerCase()
-  return teams.filter((t) => (t.category ?? '').trim().toLowerCase() === key).slice(0, limit)
-}
-
 type HeaderSeason = {
   id: number
   name: string
@@ -38,8 +32,10 @@ type HeaderSeason = {
   leagueSlug: string
 }
 
-const fetchTeams = async () => {
-  const payload = await fetchJson<unknown>('/public/teams?page=1&page_size=100')
+async function fetchTeamsForCategory(category: NavTeamCategory): Promise<ApiTeam[]> {
+  const payload = await fetchJson<unknown>(
+    `/public/teams?page=1&page_size=100&category=${encodeURIComponent(category)}`,
+  )
   return extractList<ApiTeam>(payload)
 }
 
@@ -73,9 +69,19 @@ async function fetchSeasonsForLeagues(leagues: ApiLeague[]): Promise<HeaderSeaso
 
 export function SiteHeader() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const { data: teams = [] } = useQuery({
-    queryKey: ['header-teams'],
-    queryFn: fetchTeams,
+  const { data: mensNavTeams = [] } = useQuery({
+    queryKey: ['header-teams', 'mens'],
+    queryFn: () => fetchTeamsForCategory('mens'),
+    retry: 1,
+  })
+  const { data: womenNavTeams = [] } = useQuery({
+    queryKey: ['header-teams', 'women'],
+    queryFn: () => fetchTeamsForCategory('women'),
+    retry: 1,
+  })
+  const { data: youthNavTeams = [] } = useQuery({
+    queryKey: ['header-teams', 'youth'],
+    queryFn: () => fetchTeamsForCategory('youth'),
     retry: 1,
   })
   const { data: mensLeagues = [] } = useQuery({
@@ -127,10 +133,6 @@ export function SiteHeader() {
       document.body.style.overflow = prevOverflow
     }
   }, [mobileNavOpen])
-
-  const mensNavTeams = useMemo(() => teamsForNavCategory(teams, 'mens'), [teams])
-  const womenNavTeams = useMemo(() => teamsForNavCategory(teams, 'women'), [teams])
-  const youthNavTeams = useMemo(() => teamsForNavCategory(teams, 'youth'), [teams])
 
   const fallbackSeason: HeaderSeason = {
     id: -1,
