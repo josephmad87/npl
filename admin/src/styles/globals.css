@@ -711,22 +711,26 @@ button {
   border-radius: var(--radius);
   padding: 1rem 1.15rem 1.25rem;
   box-shadow: var(--shadow);
+  height: 100%;
 }
 
 .match-detail-panels {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem 1.1rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .match-detail-panels__left,
 .match-detail-panels__right {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .match-detail-panels__left .detail-panel {
   max-width: none;
+  height: 100%;
 }
 
 .match-readonly-result__h {

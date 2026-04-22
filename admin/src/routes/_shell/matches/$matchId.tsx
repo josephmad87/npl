@@ -95,6 +95,7 @@ function MatchDetailPage() {
 
   const isEditing = mode === 'edit'
   const isResultMode = mode === 'result'
+  const [scorecardSide, setScorecardSide] = useState<'home' | 'away'>('home')
   const [patch, setPatch] = useState<Partial<MatchDto>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -191,6 +192,16 @@ function MatchDetailPage() {
     playersQ.error
   const teamOptions = teamsQ.data ?? []
   const seasonOptions = seasonsQ.data ?? []
+  const playerStats = useMemo(() => match?.player_stats ?? [], [match?.player_stats])
+  const scorecardRows = useMemo(
+    () =>
+      playerStats.filter((s) =>
+        scorecardSide === 'home'
+          ? s.team_id === (match?.home_team_id ?? -1)
+          : s.team_id === (match?.away_team_id ?? -1),
+      ),
+    [playerStats, scorecardSide, match?.home_team_id, match?.away_team_id],
+  )
 
   if (loading) {
     return <p className="muted">Loading…</p>
@@ -222,7 +233,6 @@ function MatchDetailPage() {
   if (resultScoreline) headerDescParts.push(resultScoreline)
 
   const headerWinner = matchWinnerSide(match)
-  const playerStats = match.player_stats ?? []
 
   return (
     <>
@@ -651,6 +661,26 @@ function MatchDetailPage() {
                 </span>
               </SectionHintTip>
             </div>
+            <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Scorecard side">
+              <button
+                type="button"
+                className={`dashboard-match-panel__tab${scorecardSide === 'home' ? ' is-active' : ''}`}
+                onClick={() => setScorecardSide('home')}
+                role="tab"
+                aria-selected={scorecardSide === 'home'}
+              >
+                {homeName ?? 'Home'}
+              </button>
+              <button
+                type="button"
+                className={`dashboard-match-panel__tab${scorecardSide === 'away' ? ' is-active' : ''}`}
+                onClick={() => setScorecardSide('away')}
+                role="tab"
+                aria-selected={scorecardSide === 'away'}
+              >
+                {awayName ?? 'Away'}
+              </button>
+            </div>
           </div>
           {playerStats.length > 0 ? (
             <div className="table-wrap">
@@ -676,7 +706,7 @@ function MatchDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {playerStats.map((s) => (
+                    {scorecardRows.map((s) => (
                       <tr key={s.id}>
                         <td>{playerById.get(s.player_id) ?? `#${s.player_id}`}</td>
                         <td>
@@ -707,6 +737,11 @@ function MatchDetailPage() {
             </div>
           ) : (
             <p className="muted">No per-player rows yet.</p>
+          )}
+          {playerStats.length > 0 && scorecardRows.length === 0 ? (
+            <p className="muted">No scorecard rows for this side yet.</p>
+          ) : (
+            null
           )}
         </section>
         </>
