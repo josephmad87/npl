@@ -26,7 +26,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/npl
       SECRET_KEY: dev-docker-secret-change-me
-      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174
       # Same path works with the ./api bind mount (files live under api/data/media on the host).
       MEDIA_ROOT: /app/data/media
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@npl.local}

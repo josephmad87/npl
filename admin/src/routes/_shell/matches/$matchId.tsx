@@ -199,7 +199,12 @@ function MatchDetailPage() {
         scorecardSide === 'home'
           ? s.team_id === (match?.home_team_id ?? -1)
           : s.team_id === (match?.away_team_id ?? -1),
-      ),
+      )
+      .sort((a, b) => {
+        const runsDelta = (b.runs ?? 0) - (a.runs ?? 0)
+        if (runsDelta !== 0) return runsDelta
+        return (a.balls_faced ?? 0) - (b.balls_faced ?? 0)
+      }),
     [playerStats, scorecardSide, match?.home_team_id, match?.away_team_id],
   )
 

@@ -2,8 +2,19 @@
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #111827;
-  background-color: #ffffff;
+  color: #fcfcfc;
+  background-color: #340f78;
+  --color-primary: #340f78;
+  --color-primary-alt: #39198b;
+  --color-accent: #4d18b5;
+  --color-highlight: #ff5e20;
+  --color-highlight-soft: #fea733;
+  --color-surface: #fcfcfc;
+  --color-secondary: #f6c242;
+  --color-danger: #a9182c;
+  --color-text: #1f1640;
+  --color-muted: #6f6792;
+  --color-border: #ddd5f3;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -19,8 +30,15 @@
 body {
   margin: 0;
   min-width: 320px;
+  background:
+    linear-gradient(
+      120deg,
+      var(--color-primary) 0%,
+      var(--color-primary-alt) 35%,
+      var(--color-accent) 100%
+    );
 }
 
 a {
-  color: #2563eb;
+  color: var(--color-highlight);
 }
