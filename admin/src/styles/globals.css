@@ -854,6 +854,17 @@ button {
   background: #f4f4f5;
 }
 
+/* Team crest / logo — neutral panel, no crop */
+.entity-detail-hero__media--logo {
+  background: #fff;
+}
+
+.entity-detail-hero--team .entity-detail-hero__media--logo {
+  flex: 1 1 19rem;
+  max-width: min(46%, 26rem);
+  min-width: 12.5rem;
+}
+
 .entity-detail-hero__media img {
   position: absolute;
   inset: 0;
@@ -869,11 +880,22 @@ button {
   background: #f4f4f5;
 }
 
+.entity-detail-hero__media--logo img {
+  object-fit: contain;
+  object-position: center;
+  padding: 0.5rem 0.65rem;
+  background: #fff;
+}
+
 @media (max-width: 640px) {
   .entity-detail-hero__media {
     max-width: none;
     flex-basis: 100%;
     min-height: 11rem;
+  }
+
+  .entity-detail-hero--team .entity-detail-hero__media--logo {
+    max-width: none;
   }
 }
 

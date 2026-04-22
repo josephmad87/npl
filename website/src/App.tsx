@@ -7,16 +7,16 @@ import { ExpandingNewsTiles } from './components/ExpandingNewsTiles'
 import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
 import { MatchCard } from './components/MatchCard'
-import { NewsCard } from './components/NewsCard'
+import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
-import { TeamCard } from './components/TeamCard'
+import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { useLatestResults, useRecentNews, useTeamsMap, useUpcomingFixtures } from './lib/hooks'
 import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type GalleryItem = GalleryLightboxItem
 
 function App() {
-  const { data: newsArticles = [] } = useRecentNews(12)
+  const { data: newsArticles = [] } = useRecentNews(36)
   const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 6)
   const { data: latestResults = [] } = useLatestResults(undefined, 6)
   const { data: teams = [], map: teamsMap } = useTeamsMap()
@@ -123,23 +123,9 @@ function App() {
         {latestResults.length === 0 ? <EmptyState title="No results published yet" /> : null}
       </section>
 
-      <section className="home-section">
-        <SectionHeader title="Featured Teams" linkTo="/mens/teams" />
-        <div className="home-grid home-grid--teams">
-          {teams.slice(0, 8).map((team) => (
-            <TeamCard key={team.id} team={team} />
-          ))}
-        </div>
-      </section>
+      <FeaturedTeamsCarousel teams={teams.slice(0, 16)} />
 
-      <section className="home-section">
-        <SectionHeader title="Latest News" linkTo="/news" linkSearch={{ q: '' }} />
-        <div className="home-grid home-grid--news">
-          {newsArticles.slice(0, 6).map((article) => (
-            <NewsCard key={article.id} article={article} />
-          ))}
-        </div>
-      </section>
+      <HomeNewsCarousel articles={newsArticles} />
 
       <section className="home-section">
         <SectionHeader title="Gallery Preview" linkTo="/gallery" />

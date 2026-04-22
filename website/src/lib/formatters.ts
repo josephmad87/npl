@@ -33,3 +33,12 @@ export function toTimeShort(value: string | null | undefined): string {
     minute: '2-digit',
   }).format(date)
 }
+
+/** e.g. "Apr 22, 2026" for section subtitles */
+export function formatNewsHighlightsDate(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-ZW', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
+}

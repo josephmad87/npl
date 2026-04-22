@@ -430,10 +430,10 @@ function TeamDetailPage() {
       ) : (
         <>
           <article
-            className="entity-detail-hero"
+            className="entity-detail-hero entity-detail-hero--team"
             aria-label={`${team.name} profile banner`}
           >
-            <div className="entity-detail-hero__media">
+            <div className="entity-detail-hero__media entity-detail-hero__media--logo">
               <img
                 src={resolveTeamHeroSrc(team)}
                 alt=""

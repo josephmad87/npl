@@ -44,6 +44,7 @@ export type ArticleLite = {
   excerpt?: string | null
   featured_image_url?: string | null
   category?: string | null
+  tags?: string[] | null
   published_at?: string | null
 }
 
