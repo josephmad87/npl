@@ -222,6 +222,7 @@ function MatchDetailPage() {
   if (resultScoreline) headerDescParts.push(resultScoreline)
 
   const headerWinner = matchWinnerSide(match)
+  const playerStats = match.player_stats ?? []
 
   return (
     <>
@@ -492,6 +493,7 @@ function MatchDetailPage() {
           ]}
         />
       ) : (
+        <>
         <div className="match-detail-panels">
           <div className="match-detail-panels__left">
             <DetailFields
@@ -560,7 +562,7 @@ function MatchDetailPage() {
             />
           </div>
           <div className="match-detail-panels__right">
-            {match.result != null || (match.player_stats?.length ?? 0) > 0 ? (
+            {match.result != null || playerStats.length > 0 ? (
               <section className="match-readonly-result">
                 <div className="match-readonly-result__head">
                   <h2 className="match-readonly-result__h">Result & player stats</h2>
@@ -622,62 +624,6 @@ function MatchDetailPage() {
                     ) : null}
                   </div>
                 ) : null}
-                {(match.player_stats?.length ?? 0) > 0 ? (
-                  <div className="table-scroll match-stats-scroll">
-                    <table className="data-table match-stats-table">
-                      <thead>
-                        <tr>
-                          <th>Player</th>
-                          <th>Side</th>
-                          <th>R</th>
-                          <th>BF</th>
-                          <th>4s</th>
-                          <th>6s</th>
-                          <th>How out</th>
-                          <th>Ov</th>
-                          <th>M</th>
-                          <th>Conc</th>
-                          <th>W</th>
-                          <th>Ct</th>
-                          <th>St</th>
-                          <th>RO</th>
-                          <th>Notes</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(match.player_stats ?? []).map((s) => (
-                          <tr key={s.id}>
-                            <td>
-                              {playerById.get(s.player_id) ?? `#${s.player_id}`}
-                            </td>
-                            <td>
-                              {s.team_id === match.home_team_id
-                                ? (homeName ?? 'Home')
-                                : s.team_id === match.away_team_id
-                                  ? (awayName ?? 'Away')
-                                  : `#${s.team_id}`}
-                            </td>
-                            <td>{s.runs}</td>
-                            <td>{s.balls_faced}</td>
-                            <td>{s.fours}</td>
-                            <td>{s.sixes}</td>
-                            <td>{s.dismissal ?? '—'}</td>
-                            <td>{s.overs != null && s.overs !== '' ? String(s.overs) : '—'}</td>
-                            <td>{s.maidens}</td>
-                            <td>{s.runs_conceded}</td>
-                            <td>{s.wickets}</td>
-                            <td>{s.catches}</td>
-                            <td>{s.stumpings}</td>
-                            <td>{s.run_outs}</td>
-                            <td>{s.notes ?? '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="muted">No per-player rows yet.</p>
-                )}
               </section>
             ) : (
               <p className="muted match-readonly-empty-hint">
@@ -694,6 +640,76 @@ function MatchDetailPage() {
             )}
           </div>
         </div>
+        <section className="team-hub-section">
+          <div className="team-hub-section-head">
+            <div className="team-hub-section-head__lead">
+              <h2 className="team-hub-section__title">Scorecard</h2>
+              <SectionHintTip ariaHelp="Per-player scorecard rows for this fixture. The first column stays visible while remaining columns scroll horizontally.">
+                <span className="section-hint-tip__text">
+                  Per-player scorecard rows for this fixture. The first column
+                  stays visible while remaining columns scroll horizontally.
+                </span>
+              </SectionHintTip>
+            </div>
+          </div>
+          {playerStats.length > 0 ? (
+            <div className="table-wrap">
+              <div className="table-scroll table-scroll--sticky-first match-stats-scroll">
+                <table className="data-table data-table--sticky-first data-table--no-wrap match-stats-table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Side</th>
+                      <th>R</th>
+                      <th>BF</th>
+                      <th>4s</th>
+                      <th>6s</th>
+                      <th>How out</th>
+                      <th>Ov</th>
+                      <th>M</th>
+                      <th>Conc</th>
+                      <th>W</th>
+                      <th>Ct</th>
+                      <th>St</th>
+                      <th>RO</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {playerStats.map((s) => (
+                      <tr key={s.id}>
+                        <td>{playerById.get(s.player_id) ?? `#${s.player_id}`}</td>
+                        <td>
+                          {s.team_id === match.home_team_id
+                            ? (homeName ?? 'Home')
+                            : s.team_id === match.away_team_id
+                              ? (awayName ?? 'Away')
+                              : `#${s.team_id}`}
+                        </td>
+                        <td>{s.runs}</td>
+                        <td>{s.balls_faced}</td>
+                        <td>{s.fours}</td>
+                        <td>{s.sixes}</td>
+                        <td>{s.dismissal ?? '—'}</td>
+                        <td>{s.overs != null && s.overs !== '' ? String(s.overs) : '—'}</td>
+                        <td>{s.maidens}</td>
+                        <td>{s.runs_conceded}</td>
+                        <td>{s.wickets}</td>
+                        <td>{s.catches}</td>
+                        <td>{s.stumpings}</td>
+                        <td>{s.run_outs}</td>
+                        <td>{s.notes ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <p className="muted">No per-player rows yet.</p>
+          )}
+        </section>
+        </>
       )}
     </>
   )

@@ -25,9 +25,24 @@ export const Route = createFileRoute('/_shell/players/$playerId')({
 
 const STATUSES = ['active', 'inactive', 'injured'] as const
 
-function fmtNum(n: number | null | undefined): string {
+function fmtRate(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return '—'
-  return String(n)
+  return n.toFixed(2)
+}
+
+function oversToBalls(overs: string | number | null | undefined): number {
+  if (overs == null) return 0
+  const raw = String(overs).trim()
+  if (!raw) return 0
+  if (!raw.includes('.')) {
+    const whole = Number(raw)
+    return Number.isFinite(whole) ? whole * 6 : 0
+  }
+  const [wholePart, fracPart = '0'] = raw.split('.')
+  const whole = Number(wholePart)
+  const balls = Number(fracPart.slice(0, 1))
+  if (!Number.isFinite(whole) || !Number.isFinite(balls)) return 0
+  return whole * 6 + Math.max(0, Math.min(5, balls))
 }
 
 function PlayerDetailPage() {
@@ -129,6 +144,111 @@ function PlayerDetailPage() {
   const loading =
     teamsQ.isLoading || playersQ.isLoading || perfQ.isLoading
   const err = teamsQ.error ?? playersQ.error ?? perfQ.error
+  const teamOptions = teamsQ.data ?? []
+  const appearances = perfQ.data ?? []
+  const scorecardCount = appearances.length
+  const careerByLeague = useMemo(() => {
+    const source = perfQ.data ?? []
+    type LeagueStats = {
+      league: string
+      matchIds: Set<number>
+      runs: number
+      ballsFaced: number
+      outs: number
+      highestScore: number
+      wickets: number
+      runsConceded: number
+      bowlingBalls: number
+      catches: number
+      stumpings: number
+      potm: number
+      bestWickets: number
+      bestRunsConceded: number | null
+    }
+
+    const byLeague = new Map<string, LeagueStats>()
+    for (const row of source) {
+      const leagueLabel = row.league_name ?? 'Unknown league'
+      const next =
+        byLeague.get(leagueLabel) ??
+        {
+          league: leagueLabel,
+          matchIds: new Set<number>(),
+          runs: 0,
+          ballsFaced: 0,
+          outs: 0,
+          highestScore: 0,
+          wickets: 0,
+          runsConceded: 0,
+          bowlingBalls: 0,
+          catches: 0,
+          stumpings: 0,
+          potm: 0,
+          bestWickets: 0,
+          bestRunsConceded: null,
+        }
+
+      next.matchIds.add(row.match_id)
+      next.runs += row.runs ?? 0
+      next.ballsFaced += row.balls_faced ?? 0
+      next.highestScore = Math.max(next.highestScore, row.runs ?? 0)
+      next.wickets += row.wickets ?? 0
+      next.runsConceded += row.runs_conceded ?? 0
+      next.bowlingBalls += oversToBalls(row.overs)
+      next.catches += row.catches ?? 0
+      next.stumpings += row.stumpings ?? 0
+
+      const dismissal = (row.dismissal ?? '').trim().toLowerCase()
+      if (dismissal && dismissal !== 'not out' && dismissal !== 'retired hurt') {
+        next.outs += 1
+      }
+
+      const wkts = row.wickets ?? 0
+      const conceded = row.runs_conceded ?? 0
+      const isBetterBest =
+        wkts > next.bestWickets ||
+        (wkts === next.bestWickets &&
+          wkts > 0 &&
+          (next.bestRunsConceded == null || conceded < next.bestRunsConceded))
+      if (isBetterBest) {
+        next.bestWickets = wkts
+        next.bestRunsConceded = conceded
+      }
+
+      byLeague.set(leagueLabel, next)
+    }
+
+    return [...byLeague.values()]
+      .sort((a, b) => a.league.localeCompare(b.league))
+      .map((s) => {
+        const matches = s.matchIds.size
+        const battingAverage = s.outs > 0 ? s.runs / s.outs : null
+        const strikeRate = s.ballsFaced > 0 ? (s.runs / s.ballsFaced) * 100 : null
+        const bowlingAverage = s.wickets > 0 ? s.runsConceded / s.wickets : null
+        const economy =
+          s.bowlingBalls > 0 ? (s.runsConceded * 6) / s.bowlingBalls : null
+        const best =
+          s.bestWickets > 0 && s.bestRunsConceded != null
+            ? `${s.bestWickets}/${s.bestRunsConceded}`
+            : '—'
+
+        return {
+          league: s.league,
+          matches,
+          runs: s.runs,
+          battingAverage,
+          strikeRate,
+          highestScore: s.highestScore,
+          wickets: s.wickets,
+          bowlingAverage,
+          economy,
+          best,
+          catches: s.catches,
+          stumpings: s.stumpings,
+          potm: s.potm,
+        }
+      })
+  }, [perfQ.data])
 
   if (loading) {
     return <p className="muted">Loading…</p>
@@ -144,11 +264,6 @@ function PlayerDetailPage() {
       </>
     )
   }
-
-  const teamOptions = teamsQ.data ?? []
-  const appearances = perfQ.data ?? []
-  const mp = player.matches_played ?? 0
-  const scorecardCount = appearances.length
 
   return (
     <>
@@ -433,24 +548,22 @@ function PlayerDetailPage() {
                   Career record (player profile)
                 </h2>
                 <SectionHintTip
-                  ariaHelp={`Totals stored on the player row. Scorecard appearances (${scorecardCount}) come from entered match results; they may differ from matches played (${mp}) until stats are aligned.`}
+                  ariaHelp={`Calculated from scorecard rows in the match log. One row per league where this player appears. Current scorecard lines: ${scorecardCount}.`}
                 >
                   <span className="section-hint-tip__text">
-                    Totals stored on the player row.{' '}
-                    <strong>Scorecard appearances</strong> ({scorecardCount})
-                    come from entered match results; they may differ from{' '}
-                    <strong>matches played</strong> ({mp}) until stats are
-                    aligned.
+                    Calculated from entered scorecard rows, grouped by league.
+                    One row represents the player's record within that league.
                   </span>
                 </SectionHintTip>
               </div>
             </div>
             <div className="table-wrap">
-              <div className="table-scroll">
-                <table className="data-table">
+              <div className="table-scroll table-scroll--sticky-first">
+                <table className="data-table data-table--sticky-first">
                   <thead>
                     <tr>
-                      <th>Matches (record)</th>
+                      <th>League</th>
+                      <th>Matches</th>
                       <th>Runs</th>
                       <th>Avg</th>
                       <th>SR</th>
@@ -465,20 +578,31 @@ function PlayerDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td>{mp}</td>
-                      <td>{fmtNum(player.runs_scored)}</td>
-                      <td>{fmtNum(player.batting_average ?? undefined)}</td>
-                      <td>{fmtNum(player.strike_rate ?? undefined)}</td>
-                      <td>{fmtNum(player.highest_score ?? undefined)}</td>
-                      <td>{fmtNum(player.wickets_taken)}</td>
-                      <td>{fmtNum(player.bowling_average ?? undefined)}</td>
-                      <td>{fmtNum(player.economy_rate ?? undefined)}</td>
-                      <td>{player.best_bowling ?? '—'}</td>
-                      <td>{fmtNum(player.catches)}</td>
-                      <td>{fmtNum(player.stumpings)}</td>
-                      <td>{fmtNum(player.player_of_match_awards)}</td>
-                    </tr>
+                    {careerByLeague.length === 0 ? (
+                      <tr>
+                        <td colSpan={13} className="muted">
+                          No scorecard rows yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      careerByLeague.map((row) => (
+                        <tr key={row.league}>
+                          <td>{row.league}</td>
+                          <td>{row.matches}</td>
+                          <td>{row.runs}</td>
+                          <td>{fmtRate(row.battingAverage)}</td>
+                          <td>{fmtRate(row.strikeRate)}</td>
+                          <td>{row.highestScore}</td>
+                          <td>{row.wickets}</td>
+                          <td>{fmtRate(row.bowlingAverage)}</td>
+                          <td>{fmtRate(row.economy)}</td>
+                          <td>{row.best}</td>
+                          <td>{row.catches}</td>
+                          <td>{row.stumpings}</td>
+                          <td>{row.potm}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -508,8 +632,8 @@ function PlayerDetailPage() {
               </p>
             ) : (
               <div className="table-wrap">
-                <div className="table-scroll match-stats-scroll">
-                  <table className="data-table match-stats-table">
+                <div className="table-scroll table-scroll--sticky-first match-stats-scroll">
+                  <table className="data-table data-table--sticky-first match-stats-table">
                     <thead>
                       <tr>
                         <th>Date</th>
