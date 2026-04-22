@@ -172,8 +172,9 @@ export function SiteHeader() {
             </div>
           </div>
 
-          <Link to="/news">News</Link>
-          <Link to="/center">Center</Link>
+          <Link to="/news" search={{ q: '' }}>
+            News
+          </Link>
           <div className="menu-item">
             <Link to="/gallery">Gallery</Link>
             <div className="dropdown">

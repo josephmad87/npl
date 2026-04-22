@@ -1,0 +1,35 @@
+export function formatMatchDate(value: string | null | undefined): string {
+  if (!value) return 'TBD'
+  const date = new Date(value)
+  if (Number.isNaN(date.valueOf())) return value
+  return new Intl.DateTimeFormat('en-ZW', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
+}
+
+export function formatDateRange(start: string | null | undefined, end: string | null | undefined): string {
+  const from = formatMatchDate(start)
+  const to = formatMatchDate(end)
+  if (!start && !end) return 'Dates to be confirmed'
+  return `${from} - ${to}`
+}
+
+export function formatCategoryLabel(category: string | null | undefined): string {
+  if (!category) return 'General'
+  const c = category.trim().toLowerCase()
+  if (!c) return 'General'
+  return c.charAt(0).toUpperCase() + c.slice(1)
+}
+
+export function toTimeShort(value: string | null | undefined): string {
+  if (!value) return 'TBD'
+  const date = new Date(value)
+  if (Number.isNaN(date.valueOf())) return value
+  return new Intl.DateTimeFormat('en-ZW', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}

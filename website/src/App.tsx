@@ -1,73 +1,33 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import {
-  createColumnHelper,
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-} from '@tanstack/react-table'
 import './App.css'
+import { EmptyState } from './components/EmptyState'
+import { ExpandingNewsTiles } from './components/ExpandingNewsTiles'
+import { GalleryCard } from './components/GalleryCard'
+import { MatchCard } from './components/MatchCard'
+import { NewsCard } from './components/NewsCard'
+import { SectionHeader } from './components/SectionHeader'
+import { TeamCard } from './components/TeamCard'
+import { useLatestResults, useRecentNews, useTeamsMap, useUpcomingFixtures } from './lib/hooks'
 import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
-type TeamStat = {
-  team: string
-  played: number
-  points: number
-  netRunRate: number
-}
-
-type ApiNewsArticle = {
+type GalleryItem = {
   id: number
   title: string
-  slug: string
-  excerpt: string | null
-  featured_image_url: string | null
-  published_at: string | null
+  media_type: string
+  file_url: string
+  thumbnail_url: string | null
 }
-
-const fetchStandings = async (): Promise<TeamStat[]> => {
-  return Promise.resolve([
-    { team: 'Eagles', played: 8, points: 14, netRunRate: 1.24 },
-    { team: 'Rhinos', played: 8, points: 12, netRunRate: 0.8 },
-    { team: 'Lions', played: 8, points: 10, netRunRate: 0.31 },
-    { team: 'Panthers', played: 8, points: 8, netRunRate: -0.15 },
-  ])
-}
-
-const fetchNewsArticles = async (): Promise<ApiNewsArticle[]> => {
-  const payload = await fetchJson<unknown>('/public/news?page=1&page_size=6')
-  return extractList<ApiNewsArticle>(payload)
-}
-
-const columnHelper = createColumnHelper<TeamStat>()
-const columns = [
-  columnHelper.accessor('team', {
-    header: 'Team',
-    cell: (info) => info.getValue(),
-  }),
-  columnHelper.accessor('played', {
-    header: 'Played',
-    cell: (info) => info.getValue(),
-  }),
-  columnHelper.accessor('points', {
-    header: 'Points',
-    cell: (info) => info.getValue(),
-  }),
-  columnHelper.accessor('netRunRate', {
-    header: 'NRR',
-    cell: (info) => info.getValue().toFixed(2),
-  }),
-]
 
 function App() {
-  const { data = [], isLoading, isError } = useQuery({
-    queryKey: ['standings'],
-    queryFn: fetchStandings,
-  })
-  const { data: newsArticles = [] } = useQuery({
-    queryKey: ['public-news'],
-    queryFn: fetchNewsArticles,
+  const { data: newsArticles = [] } = useRecentNews(12)
+  const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 6)
+  const { data: latestResults = [] } = useLatestResults(undefined, 6)
+  const { data: teams = [], map: teamsMap } = useTeamsMap()
+  const { data: gallery = [] } = useQuery({
+    queryKey: ['home-gallery'],
+    queryFn: async () => extractList<GalleryItem>(await fetchJson<unknown>('/public/gallery?page=1&page_size=6')),
     retry: 1,
   })
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
@@ -82,10 +42,6 @@ function App() {
   )
 
   useEffect(() => {
-    setActiveSlideIndex(0)
-  }, [heroSlides.length])
-
-  useEffect(() => {
     if (heroSlides.length < 2) return
 
     const timer = globalThis.setInterval(() => {
@@ -94,12 +50,7 @@ function App() {
 
     return () => globalThis.clearInterval(timer)
   }, [heroSlides.length])
-
-  const table = useReactTable({
-    data,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  })
+  const currentSlideIndex = heroSlides.length > 0 ? activeSlideIndex % heroSlides.length : 0
 
   return (
     <main className="container">
@@ -107,7 +58,7 @@ function App() {
         {heroSlides.length > 0 ? (
           <>
             {heroSlides.map((slide, index) => {
-              const isActive = index === activeSlideIndex
+              const isActive = index === currentSlideIndex
               return (
                 <article
                   key={slide.id}
@@ -134,7 +85,7 @@ function App() {
                   <button
                     key={slide.id}
                     type="button"
-                    className={`hero-carousel-dot${index === activeSlideIndex ? ' is-active' : ''}`}
+                    className={`hero-carousel-dot${index === currentSlideIndex ? ' is-active' : ''}`}
                     onClick={() => setActiveSlideIndex(index)}
                   >
                     <span className="sr-only">Show slide {index + 1}</span>
@@ -154,64 +105,54 @@ function App() {
         )}
       </section>
 
-      <section className="quick-stats" aria-label="League highlights">
-        <article className="stat-card">
-          <h2>Total Matches</h2>
-          <p>32</p>
-        </article>
-        <article className="stat-card">
-          <h2>Top Team</h2>
-          <p>Eagles</p>
-        </article>
-        <article className="stat-card stat-card-danger">
-          <h2>Upset Alert</h2>
-          <p>Rhinos vs Lions</p>
-        </article>
+      <ExpandingNewsTiles articles={newsArticles.slice(0, 6)} />
+
+      <section className="home-section">
+        <SectionHeader title="Upcoming Fixtures" linkTo="/fixtures" />
+        <div className="home-grid home-grid--matches">
+          {upcomingFixtures.map((match) => (
+            <MatchCard key={match.id} match={match} teamsMap={teamsMap} />
+          ))}
+        </div>
+        {upcomingFixtures.length === 0 ? <EmptyState title="No upcoming fixtures yet" /> : null}
       </section>
 
-      <div className="actions">
-        <button type="button" className="btn btn-primary">
-          View Full Table
-        </button>
-        <button type="button" className="btn btn-secondary">
-          Download Fixtures
-        </button>
-      </div>
+      <section className="home-section">
+        <SectionHeader title="Latest Results" linkTo="/results" />
+        <div className="home-grid home-grid--matches">
+          {latestResults.map((match) => (
+            <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode="result" />
+          ))}
+        </div>
+        {latestResults.length === 0 ? <EmptyState title="No results published yet" /> : null}
+      </section>
 
-      {isLoading ? <p>Loading standings...</p> : null}
-      {isError ? <p>Could not load standings.</p> : null}
+      <section className="home-section">
+        <SectionHeader title="Featured Teams" linkTo="/mens/teams" />
+        <div className="home-grid home-grid--teams">
+          {teams.slice(0, 8).map((team) => (
+            <TeamCard key={team.id} team={team} />
+          ))}
+        </div>
+      </section>
 
-      {!isLoading && !isError ? (
-        <table>
-          <thead>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <th key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map((row) => (
-              <tr key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : null}
+      <section className="home-section">
+        <SectionHeader title="Latest News" linkTo="/news" linkSearch={{ q: '' }} />
+        <div className="home-grid home-grid--news">
+          {newsArticles.slice(0, 6).map((article) => (
+            <NewsCard key={article.id} article={article} />
+          ))}
+        </div>
+      </section>
+
+      <section className="home-section">
+        <SectionHeader title="Gallery Preview" linkTo="/gallery" />
+        <div className="home-grid home-grid--gallery">
+          {gallery.map((item) => (
+            <GalleryCard key={item.id} item={item} />
+          ))}
+        </div>
+      </section>
     </main>
   )
 }

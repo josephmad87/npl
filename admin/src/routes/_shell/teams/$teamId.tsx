@@ -38,6 +38,7 @@ export const Route = createFileRoute('/_shell/teams/$teamId')({
 
 const STATUSES = ['active', 'inactive'] as const
 type TeamDetailTab = 'rosters' | 'fixtures' | 'completed' | 'players'
+const TEAM_TAB_ROWS = 10
 
 function resolveTeamHeroSrc(team: TeamDto): string {
   const cover = resolveAdminMediaUrl(team.cover_image_url)
@@ -141,6 +142,10 @@ function TeamDetailPage() {
     () => matches.filter((m) => m.status === 'completed'),
     [matches],
   )
+  const rosterRows = seasonsWithRoster.slice(0, TEAM_TAB_ROWS)
+  const fixtureRows = matches.slice(0, TEAM_TAB_ROWS)
+  const completedRows = completedMatches.slice(0, TEAM_TAB_ROWS)
+  const playerRows = players.slice(0, TEAM_TAB_ROWS)
 
   const addTeamToSeasonRoster = useCallback(async () => {
     if (pickSeasonId === '' || !Number.isFinite(Number(pickSeasonId))) {
@@ -590,7 +595,7 @@ function TeamDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {seasonsWithRoster.map(({ season, league }) => (
+                      {rosterRows.map(({ season, league }) => (
                         <tr key={season.id}>
                           <td>
                             {league ? (
@@ -746,7 +751,7 @@ function TeamDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {matches.map((m) => {
+                      {fixtureRows.map((m) => {
                         const home = m.home_team_id === tid
                         const oppId = home ? m.away_team_id : m.home_team_id
                         const oppName =
@@ -865,7 +870,7 @@ function TeamDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {completedMatches.map((m) => {
+                      {completedRows.map((m) => {
                         const home = m.home_team_id === tid
                         const oppId = home ? m.away_team_id : m.home_team_id
                         const oppName =
@@ -951,7 +956,7 @@ function TeamDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {players.map((p) => (
+                      {playerRows.map((p) => (
                         <tr key={p.id}>
                           <td>
                             <Link

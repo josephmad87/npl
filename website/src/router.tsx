@@ -2,7 +2,7 @@ import { createRootRoute, createRoute, createRouter } from '@tanstack/react-rout
 import App from './App'
 import {
   AboutUsPage,
-  CenterPage,
+  FixturesPage,
   GalleryImagesPage,
   GalleryPage,
   GalleryVideoPage,
@@ -16,11 +16,13 @@ import {
   MensSeasonsPage,
   MensTeamsPage,
   NewsPage,
+  ResultsPage,
   YouthFixturesPage,
   YouthPage,
   YouthResultsPage,
   YouthTeamsPage,
 } from './MenuPages'
+import MatchDetailPage from './MatchDetailPage'
 import { LeagueDetailPage, SeasonDetailPage, TeamDetailPage } from './EntityDetailPages'
 import NewsArticlePage from './NewsArticlePage'
 import { RootLayout } from './RootLayout'
@@ -97,8 +99,14 @@ const youthTeamsRoute = createRoute({
   component: YouthTeamsPage,
 })
 
-const newsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/news', component: NewsPage })
-const centerRoute = createRoute({ getParentRoute: () => rootRoute, path: '/center', component: CenterPage })
+const newsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/news',
+  component: NewsPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === 'string' ? search.q : '',
+  }),
+})
 const galleryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/gallery', component: GalleryPage })
 const galleryImagesRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -130,6 +138,21 @@ const seasonDetailRoute = createRoute({
   path: '/leagues/$leagueSlug/seasons/$seasonSlug',
   component: SeasonDetailPage,
 })
+const matchDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/matches/$matchId',
+  component: MatchDetailPage,
+})
+const fixturesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/fixtures',
+  component: FixturesPage,
+})
+const resultsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/results',
+  component: ResultsPage,
+})
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -148,7 +171,6 @@ const routeTree = rootRoute.addChildren([
   youthResultsRoute,
   youthTeamsRoute,
   newsRoute,
-  centerRoute,
   galleryRoute,
   galleryImagesRoute,
   galleryVideoRoute,
@@ -156,6 +178,9 @@ const routeTree = rootRoute.addChildren([
   teamDetailRoute,
   leagueDetailRoute,
   seasonDetailRoute,
+  matchDetailRoute,
+  fixturesRoute,
+  resultsRoute,
 ])
 
 export const router = createRouter({

@@ -1,93 +1,110 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
+import { ErrorNotice } from './components/ErrorNotice'
+import { GalleryCard } from './components/GalleryCard'
+import { MatchCard } from './components/MatchCard'
+import { NewsCard } from './components/NewsCard'
+import { PageHero } from './components/PageHero'
+import { SectionHeader } from './components/SectionHeader'
+import { Spinner } from './components/Spinner'
+import { TeamCard } from './components/TeamCard'
+import { formatCategoryLabel, formatDateRange } from './lib/formatters'
+import {
+  type ArticleLite,
+  type MatchLite,
+  type SeasonLite,
+  type TeamLite,
+  useLatestResults,
+  useLeaguesMap,
+  useRecentNews,
+  useTeamsMap,
+  useUpcomingFixtures,
+} from './lib/hooks'
 import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
-type PageConfig = {
+type GalleryItem = {
+  id: number
   title: string
-  subtitle: string
-  endpoint: string
-  highlightParam?: string
+  media_type: string
+  file_url: string
+  thumbnail_url?: string | null
 }
 
-function listFromPayload(payload: unknown): Array<Record<string, unknown>> {
-  return extractList<Record<string, unknown>>(payload)
-}
-
-function itemTitle(item: Record<string, unknown>): string {
-  return (
-    (item.title as string | undefined) ??
-    (item.name as string | undefined) ??
-    (item.full_name as string | undefined) ??
-    (item.slug as string | undefined) ??
-    'Untitled'
-  )
-}
-
-function itemMeta(item: Record<string, unknown>): string {
-  const bits = [
-    item.category as string | undefined,
-    item.status as string | undefined,
-    item.match_date as string | undefined,
-  ].filter(Boolean)
-  return bits.join(' • ')
-}
-
-function itemThumb(item: Record<string, unknown>): string | null {
-  return resolveMediaUrl(
-    (item.featured_image_url as string | undefined) ??
-      (item.thumbnail_url as string | undefined) ??
-      (item.file_url as string | undefined) ??
-      (item.cover_image_url as string | undefined) ??
-      null,
-  )
-}
-
-function PublicListPage({ title, subtitle, endpoint, highlightParam }: PageConfig) {
-  const { data = [], isLoading, isError } = useQuery({
-    queryKey: ['menu-page', endpoint],
-    queryFn: async () => listFromPayload(await fetchJson<unknown>(endpoint)),
+function CategoryHomePage({ category }: { category: string }) {
+  const categoryLabel = formatCategoryLabel(category)
+  const { data: teams = [] } = useQuery({
+    queryKey: ['category-teams', category],
+    queryFn: async () =>
+      extractList<TeamLite>(await fetchJson<unknown>(`/public/teams?page=1&page_size=20&category=${category}`)),
     retry: 1,
   })
-  const highlightedSlug =
-    highlightParam && typeof globalThis !== 'undefined'
-      ? new URLSearchParams(globalThis.location.search).get(highlightParam)
-      : null
+  const { map: teamsMap } = useTeamsMap()
+  const { data: fixtures = [] } = useUpcomingFixtures(category, 4)
+  const { data: results = [] } = useLatestResults(category, 4)
+  const { data: news = [] } = useRecentNews(4)
+
+  return (
+    <main className="container">
+      <PageHero title={`${categoryLabel} Cricket`} subtitle={`Follow the ${categoryLabel.toLowerCase()} competition`} />
+      <section className="home-section">
+        <SectionHeader title={`${categoryLabel} Teams`} linkTo={`/${category}/teams`} />
+        <div className="home-grid home-grid--teams">
+          {teams.slice(0, 6).map((team) => (
+            <TeamCard key={team.id} team={team} />
+          ))}
+        </div>
+      </section>
+      <section className="home-section">
+        <SectionHeader title="Upcoming Fixtures" linkTo={`/${category}/fixtures`} />
+        <div className="home-grid home-grid--matches">
+          {fixtures.map((match) => (
+            <MatchCard key={match.id} match={match} teamsMap={teamsMap} />
+          ))}
+        </div>
+      </section>
+      <section className="home-section">
+        <SectionHeader title="Latest Results" linkTo={`/${category}/results`} />
+        <div className="home-grid home-grid--matches">
+          {results.map((match) => (
+            <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode="result" />
+          ))}
+        </div>
+      </section>
+      <section className="home-section">
+        <SectionHeader title="Related News" linkTo="/news" linkSearch={{ q: '' }} />
+        <div className="home-grid home-grid--news">
+          {news.map((article) => (
+            <NewsCard key={article.id} article={article} />
+          ))}
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fixtures' | 'results' }) {
+  const endpoint = mode === 'fixtures' ? '/public/fixtures' : '/public/results'
+  const suffix = category ? `&category=${category}` : ''
+  const { data = [], isLoading, isError } = useQuery({
+    queryKey: [endpoint, category ?? 'all'],
+    queryFn: async () => extractList<MatchLite>(await fetchJson<unknown>(`${endpoint}?page=1&page_size=30${suffix}`)),
+    retry: 1,
+  })
+  const { map: teamsMap } = useTeamsMap()
+  const title = `${category ? `${formatCategoryLabel(category)} ` : ''}${mode === 'fixtures' ? 'Fixtures' : 'Results'}`
 
   return (
     <main className="container">
       <section className="menu-page">
-        <header className="menu-page-header">
-          <h1>{title}</h1>
-          <p>{subtitle}</p>
-        </header>
-
-        {isLoading ? <p>Loading...</p> : null}
-        {isError ? <p>Could not load content.</p> : null}
-
+        <PageHero title={title} subtitle="Live API feed" />
+        {isLoading ? <Spinner /> : null}
+        {isError ? <ErrorNotice /> : null}
         {!isLoading && !isError ? (
-          <div className="menu-list">
-            {data.map((item, idx) => {
-              const titleText = itemTitle(item)
-              const slug = item.slug as string | undefined
-              const thumb = itemThumb(item)
-              const meta = itemMeta(item)
-              const isActive = highlightedSlug && slug ? highlightedSlug === slug : false
-              return (
-                <article key={`${slug ?? titleText}-${idx}`} className={`menu-list-item${isActive ? ' is-active' : ''}`}>
-                  {thumb ? <img src={thumb} alt={titleText} /> : <div className="menu-list-thumb-placeholder" />}
-                  <div>
-                    {slug && endpoint.includes('/public/news') ? (
-                      <Link to="/news/$slug" params={{ slug }} className="menu-list-link">
-                        {titleText}
-                      </Link>
-                    ) : (
-                      <h2>{titleText}</h2>
-                    )}
-                    {meta ? <p>{meta}</p> : null}
-                  </div>
-                </article>
-              )
-            })}
+          <div className="home-grid home-grid--matches">
+            {data.map((match) => (
+              <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode={mode === 'fixtures' ? 'fixture' : 'result'} />
+            ))}
           </div>
         ) : null}
       </section>
@@ -95,83 +112,221 @@ function PublicListPage({ title, subtitle, endpoint, highlightParam }: PageConfi
   )
 }
 
-export const MensPage = () => (
-  <PublicListPage title="Mens" subtitle="Active mens teams." endpoint="/public/teams?category=men&page_size=20" />
-)
-export const MensFixturesPage = () => (
-  <PublicListPage title="Mens Fixtures" subtitle="Upcoming mens fixtures." endpoint="/public/fixtures?category=men&page_size=20" />
-)
-export const MensResultsPage = () => (
-  <PublicListPage title="Mens Results" subtitle="Latest mens results." endpoint="/public/results?category=men&page_size=20" />
-)
-export const MensSeasonsPage = () => (
-  <PublicListPage
-    title="Mens Seasons"
-    subtitle="League seasons."
-    endpoint="/public/leagues?page_size=20"
-    highlightParam="leagueSlug"
-  />
-)
-export const MensTeamsPage = () => (
-  <PublicListPage
-    title="Mens Teams"
-    subtitle="Mens team listings."
-    endpoint="/public/teams?category=men&page_size=30"
-    highlightParam="teamSlug"
-  />
-)
+function TeamsListPage({ category }: { category: string }) {
+  const { data = [], isLoading, isError } = useQuery({
+    queryKey: ['teams-list', category],
+    queryFn: async () =>
+      extractList<TeamLite>(await fetchJson<unknown>(`/public/teams?page=1&page_size=50&category=${category}`)),
+    retry: 1,
+  })
+  const highlightedSlug = new URLSearchParams(globalThis.location.search).get('teamSlug')
 
-export const LadiesPage = () => (
-  <PublicListPage title="Ladies" subtitle="Active ladies teams." endpoint="/public/teams?category=ladies&page_size=20" />
-)
-export const LadiesFixturesPage = () => (
-  <PublicListPage title="Ladies Fixtures" subtitle="Upcoming ladies fixtures." endpoint="/public/fixtures?category=ladies&page_size=20" />
-)
-export const LadiesResultsPage = () => (
-  <PublicListPage title="Ladies Results" subtitle="Latest ladies results." endpoint="/public/results?category=ladies&page_size=20" />
-)
-export const LadiesTeamsPage = () => (
-  <PublicListPage
-    title="Ladies Teams"
-    subtitle="Ladies team listings."
-    endpoint="/public/teams?category=ladies&page_size=30"
-    highlightParam="teamSlug"
-  />
-)
+  return (
+    <main className="container">
+      <section className="menu-page">
+        <PageHero title={`${formatCategoryLabel(category)} Teams`} subtitle="Squads, venues and leadership" />
+        {isLoading ? <Spinner /> : null}
+        {isError ? <ErrorNotice /> : null}
+        <div className="home-grid home-grid--teams">
+          {data.map((team) => (
+            <div key={team.id} className={highlightedSlug === team.slug ? 'menu-list-item is-active' : ''}>
+              <TeamCard team={team} />
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  )
+}
 
-export const YouthPage = () => (
-  <PublicListPage title="Youth" subtitle="Active youth teams." endpoint="/public/teams?category=youth&page_size=20" />
-)
-export const YouthFixturesPage = () => (
-  <PublicListPage title="Youth Fixtures" subtitle="Upcoming youth fixtures." endpoint="/public/fixtures?category=youth&page_size=20" />
-)
-export const YouthResultsPage = () => (
-  <PublicListPage title="Youth Results" subtitle="Latest youth results." endpoint="/public/results?category=youth&page_size=20" />
-)
-export const YouthTeamsPage = () => (
-  <PublicListPage
-    title="Youth Teams"
-    subtitle="Youth team listings."
-    endpoint="/public/teams?category=youth&page_size=30"
-    highlightParam="teamSlug"
-  />
-)
+function SeasonsListPage() {
+  const { data: leagues = [] } = useQuery({
+    queryKey: ['mens-leagues'],
+    queryFn: async () => extractList<{ id: number; slug: string; name: string }>(await fetchJson<unknown>('/public/leagues?page=1&page_size=20')),
+    retry: 1,
+  })
+  const { map: leaguesMap } = useLeaguesMap()
+  const { data: seasons = [], isLoading, isError } = useQuery({
+    queryKey: ['all-seasons-expanded', leagues.map((l) => l.slug).join(',')],
+    queryFn: async () => {
+      const sets = await Promise.all(
+        leagues.map(async (league) =>
+          extractList<SeasonLite>(
+            await fetchJson<unknown>(`/public/leagues/${league.slug}/seasons?page=1&page_size=30`),
+          ).map((s) => ({ ...s, leagueSlug: league.slug })),
+        ),
+      )
+      return sets.flat() as Array<SeasonLite & { leagueSlug: string }>
+    },
+    enabled: leagues.length > 0,
+    retry: 1,
+  })
+  const highlightedLeague = new URLSearchParams(globalThis.location.search).get('leagueSlug')
 
-export const NewsPage = () => (
-  <PublicListPage title="News" subtitle="Latest published news." endpoint="/public/news?page_size=20" />
-)
-export const CenterPage = () => (
-  <PublicListPage title="Center" subtitle="Player center." endpoint="/public/players?page_size=20" />
-)
-export const GalleryPage = () => (
-  <PublicListPage title="Gallery" subtitle="All published media." endpoint="/public/gallery?page_size=20" />
-)
-export const GalleryImagesPage = () => (
-  <PublicListPage title="Gallery Images" subtitle="Published image gallery." endpoint="/public/gallery?media_type=image&page_size=20" />
-)
-export const GalleryVideoPage = () => (
-  <PublicListPage title="Gallery Video" subtitle="Published video gallery." endpoint="/public/gallery?media_type=video&page_size=20" />
-)
-export const AboutUsPage = () => (
-  <PublicListPage title="About Us" subtitle="League overview and context." endpoint="/public/leagues?page_size=20" />
-)
+  return (
+    <main className="container">
+      <section className="menu-page">
+        <PageHero title="Mens Seasons" subtitle="Browse by league and season" />
+        {isLoading ? <Spinner /> : null}
+        {isError ? <ErrorNotice /> : null}
+        <div className="menu-list">
+          {seasons.map((season) => {
+            const league = Object.values(leaguesMap).find((l) => l.slug === season.leagueSlug)
+            return (
+              <article key={`${season.leagueSlug}-${season.id}`} className={`menu-list-item${highlightedLeague === season.leagueSlug ? ' is-active' : ''}`}>
+                <div>
+                  <Link
+                    to="/leagues/$leagueSlug/seasons/$seasonSlug"
+                    params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
+                    className="menu-list-link"
+                  >
+                    {season.name}
+                  </Link>
+                  <p>{league?.name ?? season.leagueSlug} • {formatDateRange(season.start_date ?? null, season.end_date ?? null)}</p>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function NewsListPage() {
+  const { q } = useSearch({ from: '/news' })
+  const navigate = useNavigate({ from: '/news' })
+  const trimmed = q.trim()
+  const qParam = trimmed ? `&q=${encodeURIComponent(trimmed)}` : ''
+  const { data: news = [], isLoading, isError } = useQuery({
+    queryKey: ['news-list', trimmed],
+    queryFn: async () => extractList<ArticleLite>(await fetchJson<unknown>(`/public/news?page=1&page_size=20${qParam}`)),
+    retry: 1,
+  })
+
+  return (
+    <main className="container">
+      <section className="menu-page">
+        <PageHero title="News" subtitle="Latest updates and reports" imageUrl={resolveMediaUrl(news[0]?.featured_image_url)} />
+        <input
+          className="menu-search-input"
+          placeholder="Search news"
+          value={q}
+          onChange={(e) => navigate({ search: { q: e.target.value }, replace: true })}
+        />
+        {isLoading ? <Spinner /> : null}
+        {isError ? <ErrorNotice /> : null}
+        <div className="home-grid home-grid--news">
+          {news.map((article) => (
+            <NewsCard key={article.id} article={article} />
+          ))}
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
+  const filter = mediaType ? `&media_type=${mediaType}` : ''
+  const { data = [], isLoading, isError } = useQuery({
+    queryKey: ['gallery-page', mediaType ?? 'all'],
+    queryFn: async () => extractList<GalleryItem>(await fetchJson<unknown>(`/public/gallery?page=1&page_size=40${filter}`)),
+    retry: 1,
+  })
+  const [active, setActive] = useState<GalleryItem | null>(null)
+
+  return (
+    <main className="container">
+      <section className="menu-page">
+        <PageHero title={mediaType ? `Gallery ${formatCategoryLabel(mediaType)}` : 'Gallery'} subtitle="Images and videos from NPL" />
+        {isLoading ? <Spinner /> : null}
+        {isError ? <ErrorNotice /> : null}
+        <div className="home-grid home-grid--gallery">
+          {data.map((item) => (
+            <GalleryCard key={item.id} item={item} onOpen={setActive} />
+          ))}
+        </div>
+      </section>
+      {active ? (
+        <div className="lightbox-modal" role="dialog" aria-modal="true" onClick={() => setActive(null)}>
+          <div className="lightbox-modal-content" onClick={(e) => e.stopPropagation()}>
+            {active.media_type === 'video' ? (
+              <video src={resolveMediaUrl(active.file_url) ?? ''} controls autoPlay />
+            ) : (
+              <img src={resolveMediaUrl(active.file_url) ?? ''} alt={active.title} />
+            )}
+            <p>{active.title}</p>
+          </div>
+        </div>
+      ) : null}
+    </main>
+  )
+}
+
+function AboutPageImpl() {
+  const teamsQ = useQuery({
+    queryKey: ['about-teams'],
+    queryFn: () => fetchJson<{ total?: number }>('/public/teams?page=1&page_size=1'),
+    retry: 1,
+  })
+  const leaguesQ = useQuery({
+    queryKey: ['about-leagues'],
+    queryFn: () => fetchJson<{ total?: number }>('/public/leagues?page=1&page_size=1'),
+    retry: 1,
+  })
+  const newsQ = useQuery({
+    queryKey: ['about-news'],
+    queryFn: () => fetchJson<{ total?: number }>('/public/news?page=1&page_size=1'),
+    retry: 1,
+  })
+
+  return (
+    <main className="container">
+      <section className="menu-page">
+        <PageHero title="About Zimbabwe Cricket NPL" subtitle="Domestic excellence across Mens, Ladies and Youth competitions." />
+        <div className="menu-list">
+          <article className="menu-list-item">
+            <h2>Teams</h2>
+            <p>{teamsQ.data?.total ?? 0}</p>
+          </article>
+          <article className="menu-list-item">
+            <h2>Leagues</h2>
+            <p>{leaguesQ.data?.total ?? 0}</p>
+          </article>
+          <article className="menu-list-item">
+            <h2>Published News</h2>
+            <p>{newsQ.data?.total ?? 0}</p>
+          </article>
+          <article className="menu-list-item">
+            <h2>Contact</h2>
+            <p>media@npl.co.zw</p>
+          </article>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+export const MensPage = () => <CategoryHomePage category="men" />
+export const MensFixturesPage = () => <FixturesResultsPage category="men" mode="fixtures" />
+export const MensResultsPage = () => <FixturesResultsPage category="men" mode="results" />
+export const MensSeasonsPage = () => <SeasonsListPage />
+export const MensTeamsPage = () => <TeamsListPage category="men" />
+
+export const LadiesPage = () => <CategoryHomePage category="ladies" />
+export const LadiesFixturesPage = () => <FixturesResultsPage category="ladies" mode="fixtures" />
+export const LadiesResultsPage = () => <FixturesResultsPage category="ladies" mode="results" />
+export const LadiesTeamsPage = () => <TeamsListPage category="ladies" />
+
+export const YouthPage = () => <CategoryHomePage category="youth" />
+export const YouthFixturesPage = () => <FixturesResultsPage category="youth" mode="fixtures" />
+export const YouthResultsPage = () => <FixturesResultsPage category="youth" mode="results" />
+export const YouthTeamsPage = () => <TeamsListPage category="youth" />
+
+export const NewsPage = () => <NewsListPage />
+export const GalleryPage = () => <GalleryPageImpl />
+export const GalleryImagesPage = () => <GalleryPageImpl mediaType="image" />
+export const GalleryVideoPage = () => <GalleryPageImpl mediaType="video" />
+export const AboutUsPage = () => <AboutPageImpl />
+export const FixturesPage = () => <FixturesResultsPage mode="fixtures" />
+export const ResultsPage = () => <FixturesResultsPage mode="results" />
