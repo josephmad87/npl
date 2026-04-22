@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
+import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type ApiNewsArticle = {
   id: number
@@ -13,53 +14,12 @@ type ApiNewsArticle = {
   category: string | null
 }
 
-const getApiBaseUrl = () => {
-  const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
-  if (!baseUrl) {
-    throw new Error('Missing VITE_API_BASE_URL. Set it in website/.env')
-  }
-  return baseUrl.replace(/\/+$/, '')
-}
-
-const resolveMediaUrl = (raw: string | null | undefined): string | null => {
-  const value = raw?.trim() ?? ''
-  if (!value) return null
-  if (value.startsWith('http://') || value.startsWith('https://')) return value
-  if (value.startsWith('//')) return `${globalThis.location.protocol}${value}`
-  if (value.startsWith('/')) {
-    try {
-      return `${new URL(getApiBaseUrl()).origin}${value}`
-    } catch {
-      return value
-    }
-  }
-  return value
-}
-
 async function fetchNewsArticle(slug: string): Promise<ApiNewsArticle> {
-  const response = await fetch(`${getApiBaseUrl()}/public/news/${slug}`)
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`)
-  }
-  return (await response.json()) as ApiNewsArticle
-}
-
-function extractList<T>(payload: unknown): T[] {
-  if (Array.isArray(payload)) return payload as T[]
-  if (payload && typeof payload === 'object') {
-    const bag = payload as Record<string, unknown>
-    const list = bag.items ?? bag.data ?? bag.results
-    if (Array.isArray(list)) return list as T[]
-  }
-  return []
+  return fetchJson<ApiNewsArticle>(`/public/news/${slug}`)
 }
 
 async function fetchRecentNews(): Promise<ApiNewsArticle[]> {
-  const response = await fetch(`${getApiBaseUrl()}/public/news?page=1&page_size=8`)
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`)
-  }
-  const payload = (await response.json()) as unknown
+  const payload = await fetchJson<unknown>('/public/news?page=1&page_size=8')
   return extractList<ApiNewsArticle>(payload)
 }
 
@@ -92,7 +52,12 @@ export default function NewsArticlePage() {
   return (
     <main className="container">
       <section className="article-page">
-        {isLoading ? <p>Loading article...</p> : null}
+        {isLoading ? (
+          <div className="article-loading" role="status" aria-live="polite" aria-label="Loading article">
+            <span className="article-loading-spinner" />
+            <p>Loading article...</p>
+          </div>
+        ) : null}
         {isError ? <p>Could not load this news article.</p> : null}
 
         {!isLoading && !isError && article ? (
