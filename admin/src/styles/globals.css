@@ -922,6 +922,44 @@ button {
   margin-bottom: 1rem;
 }
 
+.league-team-carousel {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+  scroll-snap-type: x proximity;
+}
+
+.league-team-carousel__item {
+  min-width: 170px;
+  max-width: 170px;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(
+    160deg,
+    var(--bg-elevated) 0%,
+    var(--bg-panel) 100%
+  );
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  scroll-snap-align: start;
+}
+
+.league-team-carousel__name {
+  font-weight: 600;
+  font-family: var(--font-display);
+  line-height: 1.25;
+}
+
+.league-team-carousel__meta {
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
 .team-hub-section-head__lead {
   display: flex;
   flex-wrap: wrap;
@@ -1757,6 +1795,12 @@ button.entity-thumb-card {
 .entity-thumb-card--team .entity-thumb-card__media--team .entity-badge {
   padding: 0.35rem;
   background: #fff;
+}
+
+.entity-thumb-card--league .entity-thumb-card__media--league {
+  aspect-ratio: 16 / 7;
+  min-height: 6rem;
+  max-height: 8.25rem;
 }
 
 .entity-thumb-card--news .entity-thumb-card__media--news .entity-thumb-card__news-image {

@@ -8,8 +8,8 @@ import {
 } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
 import { CalendarDays, Plus, SquarePen } from 'lucide-react'
-import { useState } from 'react'
-import type { LeagueDto, SeasonDto } from '@/lib/api-types'
+import { useMemo, useState } from 'react'
+import type { LeagueDto, SeasonDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPatch } from '@/lib/admin-client'
 import { BadgeImage, resolveBadgeSrc } from '@/components/BadgeImage'
 import { BackNavLink } from '@/components/BackNavLink'
@@ -26,7 +26,7 @@ export const Route = createFileRoute('/_shell/leagues/$leagueId')({
   component: LeagueDetailPage,
 })
 
-const SEASON_STATUSES = ['upcoming', 'active', 'completed', 'archived'] as const
+type SeasonStatus = 'upcoming' | 'active' | 'completed' | 'archived'
 
 const seasonColumns: ColumnDef<SeasonDto, unknown>[] = [
   { accessorKey: 'name', header: 'Season' },
@@ -37,9 +37,7 @@ const seasonColumns: ColumnDef<SeasonDto, unknown>[] = [
     accessorKey: 'status',
     header: 'Status',
     cell: ({ getValue }) => (
-      <StatusBadge
-        status={getValue() as (typeof SEASON_STATUSES)[number]}
-      />
+      <StatusBadge status={getValue() as SeasonStatus} />
     ),
   },
   {
@@ -60,7 +58,7 @@ function LeagueDetailPage() {
     pathname,
   )
   const queryClient = useQueryClient()
-  const [listQ, seasonsQ] = useQueries({
+  const [listQ, seasonsQ, teamsQ] = useQueries({
     queries: [
       {
         queryKey: ['admin', 'leagues'],
@@ -72,12 +70,29 @@ function LeagueDetailPage() {
           adminListAll<SeasonDto>(`/admin/seasons?league_id=${lid}`),
         enabled: Number.isFinite(lid) && !isSeasonsBranch,
       },
+      {
+        queryKey: ['admin', 'teams'],
+        queryFn: () => adminListAll<TeamDto>('/admin/teams'),
+        enabled: !isSeasonsBranch,
+      },
     ],
   })
   const league = listQ.data?.find((l) => l.id === lid)
   const isEditing = mode === 'edit'
   const [patch, setPatch] = useState<Partial<LeagueDto>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
+  const leagueTeams = useMemo(() => {
+    const allTeams = teamsQ.data ?? []
+    const leagueTeamIds = new Set<number>()
+    for (const s of seasonsQ.data ?? []) {
+      for (const tid of s.team_ids ?? []) {
+        leagueTeamIds.add(tid)
+      }
+    }
+    return allTeams
+      .filter((t) => leagueTeamIds.has(t.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [teamsQ.data, seasonsQ.data])
 
   const merged: LeagueDto | null =
     league ? { ...league, ...patch } : null
@@ -136,7 +151,7 @@ function LeagueDetailPage() {
     return <Outlet />
   }
 
-  if (listQ.isLoading || seasonsQ.isLoading) {
+  if (listQ.isLoading || seasonsQ.isLoading || teamsQ.isLoading) {
     return <p className="muted">Loading…</p>
   }
   if (listQ.isError) {
@@ -400,6 +415,41 @@ function LeagueDetailPage() {
               </div>
             </div>
           </article>
+
+          <section className="team-hub-section">
+            <div className="team-hub-section-head">
+              <div className="team-hub-section-head__lead">
+                <h2 className="team-hub-section__title">Teams in this league</h2>
+                <SectionHintTip ariaHelp="Teams are gathered from all season rosters under this league.">
+                  <span className="section-hint-tip__text">
+                    Teams are gathered from all season rosters under this league.
+                  </span>
+                </SectionHintTip>
+              </div>
+            </div>
+            {leagueTeams.length === 0 ? (
+              <p className="muted">No teams assigned to this league yet.</p>
+            ) : (
+              <div className="league-team-carousel" role="list">
+                {leagueTeams.map((team) => (
+                  <Link
+                    key={team.id}
+                    to="/teams/$teamId"
+                    params={{ teamId: String(team.id) }}
+                    className="league-team-carousel__item"
+                    role="listitem"
+                  >
+                    <BadgeImage imageUrl={team.logo_url} alt="" size="md" />
+                    <span className="league-team-carousel__name">{team.name}</span>
+                    <span className="league-team-carousel__meta muted">
+                      {[team.short_name, team.category].filter(Boolean).join(' · ') ||
+                        '—'}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
 
           <section className="team-hub-section">
             <div className="team-hub-section-head">
