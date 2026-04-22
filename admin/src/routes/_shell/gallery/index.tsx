@@ -26,12 +26,13 @@ type GalleryCardMediaProps = {
 
 function GalleryCardMedia({ mediaUrl, mediaType }: GalleryCardMediaProps) {
   const resolvedUrl = resolveAdminMediaUrl(mediaUrl)
+  const isVideo = mediaType.trim().toLowerCase() === 'video'
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(
-    resolvedUrl ? 'loading' : 'error',
+    resolvedUrl ? (isVideo ? 'loaded' : 'loading') : 'error',
   )
 
   useEffect(() => {
-    if (!resolvedUrl) return
+    if (!resolvedUrl || isVideo) return
     let active = true
     const img = new Image()
     img.onload = () => {
@@ -44,9 +45,9 @@ function GalleryCardMedia({ mediaUrl, mediaType }: GalleryCardMediaProps) {
     return () => {
       active = false
     }
-  }, [resolvedUrl])
+  }, [resolvedUrl, isVideo])
 
-  if (!resolvedUrl || status !== 'loaded') {
+  if (!resolvedUrl || status === 'error' || (!isVideo && status !== 'loaded')) {
     return (
       <span
         className="entity-thumb-media-placeholder entity-thumb-media-placeholder--wide"
@@ -54,6 +55,19 @@ function GalleryCardMedia({ mediaUrl, mediaType }: GalleryCardMediaProps) {
       >
         {mediaType.toUpperCase()}
       </span>
+    )
+  }
+
+  if (isVideo) {
+    return (
+      <video
+        src={resolvedUrl}
+        className="entity-thumb-card__gallery-video"
+        preload="metadata"
+        muted
+        playsInline
+        onError={() => setStatus('error')}
+      />
     )
   }
 
@@ -133,9 +147,7 @@ function GalleryPage() {
           }
           searchPlaceholder="Search gallery…"
           renderCard={(g) => {
-            const mediaUrl =
-              g.thumbnail_url ??
-              (g.media_type?.toLowerCase() === 'image' ? g.file_url : null)
+            const mediaUrl = g.thumbnail_url ?? g.file_url
 
             return (
               <Link

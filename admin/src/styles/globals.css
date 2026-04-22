@@ -1714,6 +1714,18 @@ button.entity-thumb-card {
   object-fit: cover;
 }
 
+.entity-thumb-card--gallery
+  .entity-thumb-card__media--gallery
+  .entity-thumb-card__gallery-video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
 .entity-thumb-card__vs {
   flex-shrink: 0;
   font-family: var(--font-display);
