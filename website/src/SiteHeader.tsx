@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { extractList, fetchJson } from './lib/publicApi'
@@ -21,6 +21,14 @@ type ApiSeason = {
   id: number
   name: string
   slug: string
+}
+
+type NavTeamCategory = 'men' | 'ladies' | 'youth'
+
+/** Matches `/public/teams?category=` — exact team.category values used across the site */
+function teamsForNavCategory(teams: ApiTeam[], category: NavTeamCategory, limit = 6): ApiTeam[] {
+  const key = category.toLowerCase()
+  return teams.filter((t) => (t.category ?? '').trim().toLowerCase() === key).slice(0, limit)
 }
 
 type HeaderSeason = {
@@ -95,11 +103,9 @@ export function SiteHeader() {
     }
   }, [mobileNavOpen])
 
-  const menTeams = teams.filter((team) => (team.category ?? '').toLowerCase().includes('men')).slice(0, 6)
-  const ladiesTeams = teams
-    .filter((team) => (team.category ?? '').toLowerCase().includes('ladies'))
-    .slice(0, 6)
-  const youthTeams = teams.filter((team) => (team.category ?? '').toLowerCase().includes('youth')).slice(0, 6)
+  const menNavTeams = useMemo(() => teamsForNavCategory(teams, 'men'), [teams])
+  const ladiesNavTeams = useMemo(() => teamsForNavCategory(teams, 'ladies'), [teams])
+  const youthNavTeams = useMemo(() => teamsForNavCategory(teams, 'youth'), [teams])
 
   const seasonLinks =
     seasons.length > 0
@@ -108,8 +114,6 @@ export function SiteHeader() {
 
   const leagueLinks =
     leagues.length > 0 ? leagues : [{ id: -1, name: 'National Premier League', slug: 'npl' }]
-
-  const mensTeamLinks = menTeams.length > 0 ? menTeams : teams.slice(0, 6)
 
   return (
     <header className="site-header">
@@ -190,7 +194,7 @@ export function SiteHeader() {
                     </Link>
                   ))}
                   <p className="site-header-mobile__group-label">Teams</p>
-                  {mensTeamLinks.map((team) => (
+                  {menNavTeams.map((team) => (
                     <Link key={`m-drawer-team-${team.id}`} to="/mens/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {team.name}
                     </Link>
@@ -217,7 +221,7 @@ export function SiteHeader() {
                     Results
                   </Link>
                   <p className="site-header-mobile__group-label">Teams</p>
-                  {(ladiesTeams.length > 0 ? ladiesTeams : teams.slice(0, 6)).map((team) => (
+                  {ladiesNavTeams.map((team) => (
                     <Link key={`l-drawer-team-${team.id}`} to="/ladies/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {team.name}
                     </Link>
@@ -238,7 +242,7 @@ export function SiteHeader() {
                     Results
                   </Link>
                   <p className="site-header-mobile__group-label">Teams</p>
-                  {(youthTeams.length > 0 ? youthTeams : teams.slice(0, 6)).map((team) => (
+                  {youthNavTeams.map((team) => (
                     <Link key={`y-drawer-team-${team.id}`} to="/youth/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {team.name}
                     </Link>
@@ -295,7 +299,7 @@ export function SiteHeader() {
                 </div>
                 <div className="dropdown-group">
                   <span>Teams</span>
-                  {mensTeamLinks.map((team) => (
+                  {menNavTeams.map((team) => (
                     <Link key={`mens-team-${team.id}`} to="/mens/teams" search={{ teamSlug: team.slug }}>
                       {team.name}
                     </Link>
@@ -319,7 +323,7 @@ export function SiteHeader() {
                 <Link to="/ladies/results">Results</Link>
                 <div className="dropdown-group">
                   <span>Teams</span>
-                  {(ladiesTeams.length > 0 ? ladiesTeams : teams.slice(0, 6)).map((team) => (
+                  {ladiesNavTeams.map((team) => (
                     <Link key={`ladies-team-${team.id}`} to="/ladies/teams" search={{ teamSlug: team.slug }}>
                       {team.name}
                     </Link>
@@ -335,7 +339,7 @@ export function SiteHeader() {
                 <Link to="/youth/results">Results</Link>
                 <div className="dropdown-group">
                   <span>Teams</span>
-                  {(youthTeams.length > 0 ? youthTeams : teams.slice(0, 6)).map((team) => (
+                  {youthNavTeams.map((team) => (
                     <Link key={`youth-team-${team.id}`} to="/youth/teams" search={{ teamSlug: team.slug }}>
                       {team.name}
                     </Link>
