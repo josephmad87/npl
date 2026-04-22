@@ -43,13 +43,15 @@ const fetchTeams = async () => {
   return extractList<ApiTeam>(payload)
 }
 
-const fetchLeagues = async () => {
-  const payload = await fetchJson<unknown>('/public/leagues?page=1&page_size=20')
+async function fetchLeaguesForCategory(category: NavTeamCategory): Promise<ApiLeague[]> {
+  const payload = await fetchJson<unknown>(
+    `/public/leagues?page=1&page_size=20&category=${encodeURIComponent(category)}`,
+  )
   return extractList<ApiLeague>(payload)
 }
 
-const fetchAllSeasons = async () => {
-  const leagues = await fetchLeagues()
+async function fetchSeasonsForLeagues(leagues: ApiLeague[]): Promise<HeaderSeason[]> {
+  if (leagues.length === 0) return []
   const seasonLists = await Promise.all(
     leagues.map(async (league) => {
       const payload = await fetchJson<unknown>(`/public/leagues/${league.slug}/seasons?page=1&page_size=10`)
@@ -76,14 +78,37 @@ export function SiteHeader() {
     queryFn: fetchTeams,
     retry: 1,
   })
-  const { data: leagues = [] } = useQuery({
-    queryKey: ['header-leagues'],
-    queryFn: fetchLeagues,
+  const { data: mensLeagues = [] } = useQuery({
+    queryKey: ['header-leagues', 'mens'],
+    queryFn: () => fetchLeaguesForCategory('mens'),
     retry: 1,
   })
-  const { data: seasons = [] } = useQuery({
-    queryKey: ['header-seasons'],
-    queryFn: fetchAllSeasons,
+  const { data: womenLeagues = [] } = useQuery({
+    queryKey: ['header-leagues', 'women'],
+    queryFn: () => fetchLeaguesForCategory('women'),
+    retry: 1,
+  })
+  const { data: youthLeagues = [] } = useQuery({
+    queryKey: ['header-leagues', 'youth'],
+    queryFn: () => fetchLeaguesForCategory('youth'),
+    retry: 1,
+  })
+  const { data: mensSeasons = [] } = useQuery({
+    queryKey: ['header-seasons', 'mens', mensLeagues.map((l) => l.slug).join(',')],
+    queryFn: () => fetchSeasonsForLeagues(mensLeagues),
+    enabled: mensLeagues.length > 0,
+    retry: 1,
+  })
+  const { data: womenSeasons = [] } = useQuery({
+    queryKey: ['header-seasons', 'women', womenLeagues.map((l) => l.slug).join(',')],
+    queryFn: () => fetchSeasonsForLeagues(womenLeagues),
+    enabled: womenLeagues.length > 0,
+    retry: 1,
+  })
+  const { data: youthSeasons = [] } = useQuery({
+    queryKey: ['header-seasons', 'youth', youthLeagues.map((l) => l.slug).join(',')],
+    queryFn: () => fetchSeasonsForLeagues(youthLeagues),
+    enabled: youthLeagues.length > 0,
     retry: 1,
   })
 
@@ -107,13 +132,18 @@ export function SiteHeader() {
   const womenNavTeams = useMemo(() => teamsForNavCategory(teams, 'women'), [teams])
   const youthNavTeams = useMemo(() => teamsForNavCategory(teams, 'youth'), [teams])
 
-  const seasonLinks =
-    seasons.length > 0
-      ? seasons.slice(0, 5)
-      : [{ id: -1, name: 'Current Season', slug: 'current-season', leagueSlug: 'npl' }]
-
-  const leagueLinks =
-    leagues.length > 0 ? leagues : [{ id: -1, name: 'National Premier League', slug: 'npl' }]
+  const fallbackSeason: HeaderSeason = {
+    id: -1,
+    name: 'Current Season',
+    slug: 'current-season',
+    leagueSlug: 'npl',
+  }
+  const mensSeasonLinks =
+    mensSeasons.length > 0 ? mensSeasons.slice(0, 5) : [fallbackSeason]
+  const womenSeasonLinks =
+    womenSeasons.length > 0 ? womenSeasons.slice(0, 5) : [fallbackSeason]
+  const youthSeasonLinks =
+    youthSeasons.length > 0 ? youthSeasons.slice(0, 5) : [fallbackSeason]
 
   return (
     <header className="site-header">
@@ -182,7 +212,7 @@ export function SiteHeader() {
                     Results
                   </Link>
                   <p className="site-header-mobile__group-label">Seasons</p>
-                  {seasonLinks.map((season) => (
+                  {mensSeasonLinks.map((season) => (
                     <Link
                       key={`m-drawer-season-${season.id}`}
                       to="/leagues/$leagueSlug/seasons/$seasonSlug"
@@ -200,7 +230,7 @@ export function SiteHeader() {
                     </Link>
                   ))}
                   <p className="site-header-mobile__group-label">Leagues</p>
-                  {leagueLinks.map((league) => (
+                  {mensLeagues.map((league) => (
                     <Link key={`m-drawer-league-${league.id}`} to="/mens/seasons" search={{ leagueSlug: league.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {league.name}
                     </Link>
@@ -220,10 +250,28 @@ export function SiteHeader() {
                   <Link to="/women/results" className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                     Results
                   </Link>
+                  <p className="site-header-mobile__group-label">Seasons</p>
+                  {womenSeasonLinks.map((season) => (
+                    <Link
+                      key={`w-drawer-season-${season.id}`}
+                      to="/leagues/$leagueSlug/seasons/$seasonSlug"
+                      params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
+                      className="site-header-mobile__drawer-link"
+                      onClick={closeMobileNav}
+                    >
+                      {season.name}
+                    </Link>
+                  ))}
                   <p className="site-header-mobile__group-label">Teams</p>
                   {womenNavTeams.map((team) => (
                     <Link key={`l-drawer-team-${team.id}`} to="/women/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {team.name}
+                    </Link>
+                  ))}
+                  <p className="site-header-mobile__group-label">Leagues</p>
+                  {womenLeagues.map((league) => (
+                    <Link key={`w-drawer-league-${league.id}`} to="/women/seasons" search={{ leagueSlug: league.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                      {league.name}
                     </Link>
                   ))}
                 </div>
@@ -241,10 +289,28 @@ export function SiteHeader() {
                   <Link to="/youth/results" className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                     Results
                   </Link>
+                  <p className="site-header-mobile__group-label">Seasons</p>
+                  {youthSeasonLinks.map((season) => (
+                    <Link
+                      key={`y-drawer-season-${season.id}`}
+                      to="/leagues/$leagueSlug/seasons/$seasonSlug"
+                      params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
+                      className="site-header-mobile__drawer-link"
+                      onClick={closeMobileNav}
+                    >
+                      {season.name}
+                    </Link>
+                  ))}
                   <p className="site-header-mobile__group-label">Teams</p>
                   {youthNavTeams.map((team) => (
                     <Link key={`y-drawer-team-${team.id}`} to="/youth/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {team.name}
+                    </Link>
+                  ))}
+                  <p className="site-header-mobile__group-label">Leagues</p>
+                  {youthLeagues.map((league) => (
+                    <Link key={`y-drawer-league-${league.id}`} to="/youth/seasons" search={{ leagueSlug: league.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                      {league.name}
                     </Link>
                   ))}
                 </div>
@@ -287,7 +353,7 @@ export function SiteHeader() {
                 <Link to="/mens/results">Results</Link>
                 <div className="dropdown-group">
                   <span>Seasons</span>
-                  {seasonLinks.map((season) => (
+                  {mensSeasonLinks.map((season) => (
                     <Link
                       key={`mens-season-${season.id}`}
                       to="/leagues/$leagueSlug/seasons/$seasonSlug"
@@ -307,7 +373,7 @@ export function SiteHeader() {
                 </div>
                 <div className="dropdown-group">
                   <span>Leagues</span>
-                  {leagueLinks.map((league) => (
+                  {mensLeagues.map((league) => (
                     <Link key={`mens-league-${league.id}`} to="/mens/seasons" search={{ leagueSlug: league.slug }}>
                       {league.name}
                     </Link>
@@ -322,10 +388,30 @@ export function SiteHeader() {
                 <Link to="/women/fixtures">Fixtures</Link>
                 <Link to="/women/results">Results</Link>
                 <div className="dropdown-group">
+                  <span>Seasons</span>
+                  {womenSeasonLinks.map((season) => (
+                    <Link
+                      key={`women-season-${season.id}`}
+                      to="/leagues/$leagueSlug/seasons/$seasonSlug"
+                      params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
+                    >
+                      {season.name}
+                    </Link>
+                  ))}
+                </div>
+                <div className="dropdown-group">
                   <span>Teams</span>
                   {womenNavTeams.map((team) => (
                     <Link key={`women-team-${team.id}`} to="/women/teams" search={{ teamSlug: team.slug }}>
                       {team.name}
+                    </Link>
+                  ))}
+                </div>
+                <div className="dropdown-group">
+                  <span>Leagues</span>
+                  {womenLeagues.map((league) => (
+                    <Link key={`women-league-${league.id}`} to="/women/seasons" search={{ leagueSlug: league.slug }}>
+                      {league.name}
                     </Link>
                   ))}
                 </div>
@@ -338,10 +424,30 @@ export function SiteHeader() {
                 <Link to="/youth/fixtures">Fixtures</Link>
                 <Link to="/youth/results">Results</Link>
                 <div className="dropdown-group">
+                  <span>Seasons</span>
+                  {youthSeasonLinks.map((season) => (
+                    <Link
+                      key={`youth-season-${season.id}`}
+                      to="/leagues/$leagueSlug/seasons/$seasonSlug"
+                      params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
+                    >
+                      {season.name}
+                    </Link>
+                  ))}
+                </div>
+                <div className="dropdown-group">
                   <span>Teams</span>
                   {youthNavTeams.map((team) => (
                     <Link key={`youth-team-${team.id}`} to="/youth/teams" search={{ teamSlug: team.slug }}>
                       {team.name}
+                    </Link>
+                  ))}
+                </div>
+                <div className="dropdown-group">
+                  <span>Leagues</span>
+                  {youthLeagues.map((league) => (
+                    <Link key={`youth-league-${league.id}`} to="/youth/seasons" search={{ leagueSlug: league.slug }}>
+                      {league.name}
                     </Link>
                   ))}
                 </div>

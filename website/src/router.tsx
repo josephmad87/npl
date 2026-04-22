@@ -16,10 +16,12 @@ import {
   WomenFixturesPage,
   WomenPage,
   WomenResultsPage,
+  WomenSeasonsPage,
   WomenTeamsPage,
   YouthFixturesPage,
   YouthPage,
   YouthResultsPage,
+  YouthSeasonsPage,
   YouthTeamsPage,
 } from './MenuPages'
 import MatchDetailPage from './MatchDetailPage'
@@ -110,6 +112,11 @@ const womenTeamsRoute = createRoute({
   path: '/women/teams',
   component: WomenTeamsPage,
 })
+const womenSeasonsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/women/seasons',
+  component: WomenSeasonsPage,
+})
 
 const youthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/youth', component: YouthPage })
 const youthFixturesRoute = createRoute({
@@ -126,6 +133,11 @@ const youthTeamsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/youth/teams',
   component: YouthTeamsPage,
+})
+const youthSeasonsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/youth/seasons',
+  component: YouthSeasonsPage,
 })
 
 const newsRoute = createRoute({
@@ -198,10 +210,12 @@ const routeTree = rootRoute.addChildren([
   womenRoute,
   womenFixturesRoute,
   womenResultsRoute,
+  womenSeasonsRoute,
   womenTeamsRoute,
   youthRoute,
   youthFixturesRoute,
   youthResultsRoute,
+  youthSeasonsRoute,
   youthTeamsRoute,
   newsRoute,
   galleryRoute,

@@ -10,6 +10,7 @@ import { PageHero } from './components/PageHero'
 import { SectionHeader } from './components/SectionHeader'
 import { Spinner } from './components/Spinner'
 import { TeamCard } from './components/TeamCard'
+import type { CompetitionCategory } from './lib/competitionCategories'
 import { formatCategoryLabel, formatDateRange } from './lib/formatters'
 import {
   type ArticleLite,
@@ -140,15 +141,20 @@ function TeamsListPage({ category }: { category: string }) {
   )
 }
 
-function SeasonsListPage() {
+function SeasonsListPage({ category }: { category: CompetitionCategory }) {
   const { data: leagues = [] } = useQuery({
-    queryKey: ['mens-leagues'],
-    queryFn: async () => extractList<{ id: number; slug: string; name: string }>(await fetchJson<unknown>('/public/leagues?page=1&page_size=20')),
+    queryKey: ['category-leagues', category],
+    queryFn: async () =>
+      extractList<{ id: number; slug: string; name: string }>(
+        await fetchJson<unknown>(
+          `/public/leagues?page=1&page_size=20&category=${encodeURIComponent(category)}`,
+        ),
+      ),
     retry: 1,
   })
   const { map: leaguesMap } = useLeaguesMap()
   const { data: seasons = [], isLoading, isError } = useQuery({
-    queryKey: ['all-seasons-expanded', leagues.map((l) => l.slug).join(',')],
+    queryKey: ['all-seasons-expanded', category, leagues.map((l) => l.slug).join(',')],
     queryFn: async () => {
       const sets = await Promise.all(
         leagues.map(async (league) =>
@@ -167,7 +173,7 @@ function SeasonsListPage() {
   return (
     <main className="container">
       <section className="menu-page">
-        <PageHero title="Mens Seasons" subtitle="Browse by league and season" />
+        <PageHero title={`${formatCategoryLabel(category)} Seasons`} subtitle="Browse by league and season" />
         {isLoading ? <Spinner /> : null}
         {isError ? <ErrorNotice /> : null}
         <div className="menu-list">
@@ -300,7 +306,9 @@ function AboutPageImpl() {
 export const MensPage = () => <CategoryHomePage category="mens" />
 export const MensFixturesPage = () => <FixturesResultsPage category="mens" mode="fixtures" />
 export const MensResultsPage = () => <FixturesResultsPage category="mens" mode="results" />
-export const MensSeasonsPage = () => <SeasonsListPage />
+export const MensSeasonsPage = () => <SeasonsListPage category="mens" />
+export const WomenSeasonsPage = () => <SeasonsListPage category="women" />
+export const YouthSeasonsPage = () => <SeasonsListPage category="youth" />
 export const MensTeamsPage = () => <TeamsListPage category="mens" />
 
 export const WomenPage = () => <CategoryHomePage category="women" />
