@@ -1271,7 +1271,7 @@
 .home-news-carousel__card {
   position: relative;
   flex: 0 0 auto;
-  width: 7.5rem;
+  width: 12rem;
   min-height: 0;
   scroll-snap-align: start;
   transition: width 220ms ease;
