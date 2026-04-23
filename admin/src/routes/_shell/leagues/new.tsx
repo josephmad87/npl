@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { LeagueDto } from '@/lib/api-types'
 import { adminPost } from '@/lib/admin-client'
+import type { CompetitionCategoryValue } from '@/lib/competitionCategories'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -18,7 +19,7 @@ function NewLeaguePage() {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
-  const [category, setCategory] = useState('mens')
+  const [category, setCategory] = useState<CompetitionCategoryValue>('mens')
   const [description, setDescription] = useState('')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [bannerUrl, setBannerUrl] = useState<string | null>(null)

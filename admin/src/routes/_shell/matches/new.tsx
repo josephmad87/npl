@@ -4,6 +4,7 @@ import { Plus, Trophy } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { LeagueDto, MatchDto, SeasonDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPost } from '@/lib/admin-client'
+import type { CompetitionCategoryValue } from '@/lib/competitionCategories'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -40,7 +41,7 @@ function NewMatchPage() {
   })
 
   const [seasonId, setSeasonId] = useState<number | null>(null)
-  const [category, setCategory] = useState('mens')
+  const [category, setCategory] = useState<CompetitionCategoryValue>('mens')
   const [homeTeamId, setHomeTeamId] = useState<number | null>(null)
   const [awayTeamId, setAwayTeamId] = useState<number | null>(null)
   const [venue, setVenue] = useState('')

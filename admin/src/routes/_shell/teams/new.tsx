@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { TeamDto } from '@/lib/api-types'
 import { adminPost } from '@/lib/admin-client'
+import type { CompetitionCategoryValue } from '@/lib/competitionCategories'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -28,7 +29,7 @@ function NewTeamPage() {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
-  const [category, setCategory] = useState('mens')
+  const [category, setCategory] = useState<CompetitionCategoryValue>('mens')
   const [shortName, setShortName] = useState('')
   const [homeGround, setHomeGround] = useState('')
   const [homeGroundName, setHomeGroundName] = useState('')

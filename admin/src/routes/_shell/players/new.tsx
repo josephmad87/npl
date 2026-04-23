@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import type { PlayerDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPost } from '@/lib/admin-client'
+import type { CompetitionCategoryValue } from '@/lib/competitionCategories'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -27,7 +28,7 @@ function NewPlayerPage() {
   const [fullName, setFullName] = useState('')
   const [slug, setSlug] = useState('')
   const [teamId, setTeamId] = useState<number | null>(null)
-  const [category, setCategory] = useState('mens')
+  const [category, setCategory] = useState<CompetitionCategoryValue>('mens')
   const [role, setRole] = useState('')
   const [jerseyNumber, setJerseyNumber] = useState('')
   const [status, setStatus] = useState<(typeof STATUSES)[number]>('active')
