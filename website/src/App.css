@@ -964,6 +964,12 @@
   min-height: 12.5rem;
 }
 
+/* Category home (men’s / women’s / youth): wider result cards in the scrollable track. */
+.home-match-carousel-section--category-results .match-carousel__cell:has(.ui-match-card--result-sheet) {
+  flex: 0 0 min(532px, 97vw);
+  width: min(532px, 97vw);
+}
+
 .match-carousel__cell .ui-match-card__body {
   flex: 1;
   min-height: 0;
@@ -2047,6 +2053,8 @@ table.league-stats-table {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  /* Space between team row and merged block when the latter is present. */
+  gap: 0.35rem;
   min-height: 0;
   padding: 0;
   background: linear-gradient(
@@ -2059,9 +2067,10 @@ table.league-stats-table {
   border-right: 1px solid color-mix(in srgb, var(--color-surface) 15%, transparent);
 }
 
-/* Padded 3-col row only. Merged score sits outside as a full-bleed sibling so the dark bar spans edge-to-edge. */
+/* Padded 3-col row only. Merged score sits below as a sibling so it can flex-grow to the bottom of a stretched card. */
 .ui-match-card__scoreboard-main {
   --scoreboard-pad-r: 0.65rem;
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: start;
@@ -2181,9 +2190,10 @@ table.league-stats-table {
 
 .ui-match-card__score-merged {
   box-sizing: border-box;
-  flex: 0 0 auto;
+  /* Grow with stretched scoreboard so the dark strip runs flush to the card’s bottom. */
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 0;
-  margin-top: 0.35rem;
   padding: 0.55rem 0.75rem;
   width: 100%;
   min-width: 0;

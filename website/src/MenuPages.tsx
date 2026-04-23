@@ -7,6 +7,7 @@ import { LeagueSeasonHub } from './components/LeagueSeasonHub'
 import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox } from './components/GalleryLightbox'
 import { MatchCard } from './components/MatchCard'
+import { MatchCarousel } from './components/MatchCarousel'
 import { NewsCard } from './components/NewsCard'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { PageHero } from './components/PageHero'
@@ -44,7 +45,7 @@ function CategoryHomePage({ category }: { category: string }) {
   })
   const { map: teamsMap } = useTeamsMap()
   const { data: fixtures = [] } = useUpcomingFixtures(category, 4)
-  const { data: results = [] } = useLatestResults(category, 4)
+  const { data: results = [] } = useLatestResults(category, 10)
   const { data: news = [] } = useRecentNews(4, category)
 
   return (
@@ -68,13 +69,22 @@ function CategoryHomePage({ category }: { category: string }) {
             ))}
           </div>
         </section>
-        <section className="home-section">
-          <SectionHeader title="Latest Results" linkTo={`/${category}/results`} />
-          <div className="home-grid home-grid--matches">
-            {results.map((match) => (
-              <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode="result" />
-            ))}
-          </div>
+        <section className="home-section home-match-carousel-section home-match-carousel-section--category-results">
+          {results.length > 0 ? (
+            <MatchCarousel
+              title="Latest Results"
+              linkTo={`/${category}/results`}
+              matches={results}
+              teamsMap={teamsMap}
+              mode="result"
+            />
+          ) : null}
+          {results.length === 0 ? (
+            <>
+              <SectionHeader title="Latest Results" linkTo={`/${category}/results`} />
+              <EmptyState title="No results yet" />
+            </>
+          ) : null}
         </section>
         <section className="home-section">
           <SectionHeader title="Related News" linkTo="/news" linkSearch={{ q: '' }} />
