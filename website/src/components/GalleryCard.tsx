@@ -1,5 +1,6 @@
 import { extractYouTubeVideoId } from '../lib/youtube'
 import { resolveMediaUrl } from '../lib/publicApi'
+import { SiteLogoPlaceholder } from './SiteLogoPlaceholder'
 import { YouTubeThumbnail } from './YouTubeThumbnail'
 
 type GalleryItem = {
@@ -50,7 +51,7 @@ export function GalleryCard({
       ) : resolvedThumb ? (
         <img src={resolvedThumb} alt={item.title} loading="lazy" decoding="async" />
       ) : (
-        <div className="ui-gallery-card-placeholder" />
+        <SiteLogoPlaceholder className="ui-gallery-card-placeholder" />
       )}
       <div className="ui-gallery-card__body">
         <span

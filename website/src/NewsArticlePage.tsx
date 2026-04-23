@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { ErrorNotice } from './components/ErrorNotice'
+import { SiteLogoPlaceholder } from './components/SiteLogoPlaceholder'
 import { parseArticleCompetitionCategory } from './lib/competitionCategories'
 import { formatCategoryLabel } from './lib/formatters'
 import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
@@ -110,7 +111,11 @@ export default function NewsArticlePage() {
                     const thumb = resolveMediaUrl(item.featured_image_url)
                     return (
                       <Link key={item.id} to="/news/$slug" params={{ slug: item.slug }} className="article-sidebar-item">
-                        {thumb ? <img src={thumb} alt={item.title} /> : <div className="article-sidebar-thumb-placeholder" />}
+                        {thumb ? (
+                          <img src={thumb} alt={item.title} />
+                        ) : (
+                          <SiteLogoPlaceholder className="article-sidebar-thumb-placeholder" />
+                        )}
                         <p>{item.title}</p>
                       </Link>
                     )

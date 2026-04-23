@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import siteLogoUrl from '../assets/logo.jpeg'
 import { type YouTubeThumbQuality, getYouTubeThumbnailUrl } from '../lib/youtube'
 
 const FALLBACK_ORDER: YouTubeThumbQuality[] = ['maxresdefault', 'hqdefault', 'mqdefault', 'default']
@@ -26,7 +27,15 @@ export function YouTubeThumbnail({
   }, [])
 
   if (exhausted) {
-    return <div className={placeholderClassName} role="img" aria-label={alt} />
+    return (
+      <img
+        src={siteLogoUrl}
+        alt={alt}
+        className={placeholderClassName}
+        loading="lazy"
+        decoding="async"
+      />
+    )
   }
 
   const quality = FALLBACK_ORDER[Math.min(index, FALLBACK_ORDER.length - 1)] ?? 'hqdefault'

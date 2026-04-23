@@ -56,20 +56,20 @@ function CategoryHomePage({ category }: { category: string }) {
         title={`${categoryLabel} Cricket`}
         subtitle={`Follow the ${categoryLabel.toLowerCase()} competition`}
       />
-      <main className="container">
+    <main className="container">
         <FeaturedTeamsCarousel
           teams={teams.slice(0, 16)}
           title={`${categoryLabel} Teams`}
           linkTo={`/${category}/teams`}
         />
-        <section className="home-section">
-          <SectionHeader title="Upcoming Fixtures" linkTo={`/${category}/fixtures`} />
-          <div className="home-grid home-grid--matches">
-            {fixtures.map((match) => (
-              <MatchCard key={match.id} match={match} teamsMap={teamsMap} />
-            ))}
-          </div>
-        </section>
+      <section className="home-section">
+        <SectionHeader title="Upcoming Fixtures" linkTo={`/${category}/fixtures`} />
+        <div className="home-grid home-grid--matches">
+          {fixtures.map((match) => (
+            <MatchCard key={match.id} match={match} teamsMap={teamsMap} />
+          ))}
+        </div>
+      </section>
         <section className="home-section home-match-carousel-section home-match-carousel-section--category-results">
           {results.length > 0 ? (
             <MatchCarousel
@@ -82,20 +82,20 @@ function CategoryHomePage({ category }: { category: string }) {
           ) : null}
           {results.length === 0 ? (
             <>
-              <SectionHeader title="Latest Results" linkTo={`/${category}/results`} />
+        <SectionHeader title="Latest Results" linkTo={`/${category}/results`} />
               <EmptyState title="No results yet" />
             </>
           ) : null}
-        </section>
-        <section className="home-section">
-          <SectionHeader title="Related News" linkTo="/news" linkSearch={{ q: '' }} />
-          <div className="home-grid home-grid--news">
-            {news.map((article) => (
-              <NewsCard key={article.id} article={article} />
-            ))}
-          </div>
-        </section>
-      </main>
+      </section>
+      <section className="home-section">
+        <SectionHeader title="Related News" linkTo="/news" linkSearch={{ q: '' }} />
+        <div className="home-grid home-grid--news">
+          {news.map((article) => (
+            <NewsCard key={article.id} article={article} />
+          ))}
+        </div>
+      </section>
+    </main>
     </>
   )
 }
@@ -135,7 +135,7 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
   return (
     <>
       <PageHero variant="siteLogo" title={title} subtitle={pageSubtitle} />
-      <main className="container">
+    <main className="container">
         <section className="menu-page listings-page">
           {isLoading ? <Spinner label={mode === 'fixtures' ? 'Loading fixtures…' : 'Loading results…'} /> : null}
           {isError ? <ErrorNotice message={`Could not load ${mode === 'fixtures' ? 'fixtures' : 'results'}.`} /> : null}
@@ -157,18 +157,18 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
                   : 'home-grid home-grid--matches'
               }
             >
-              {data.map((match) => (
+            {data.map((match) => (
                 <MatchCard
                   key={match.id}
                   match={match}
                   teamsMap={teamsMap}
                   mode={mode === 'fixtures' ? 'fixture' : 'result'}
                 />
-              ))}
-            </div>
-          ) : null}
-        </section>
-      </main>
+            ))}
+          </div>
+        ) : null}
+      </section>
+    </main>
     </>
   )
 }
@@ -190,7 +190,7 @@ function TeamsListPage({ category }: { category: string }) {
         title={`${label} Teams`}
         subtitle="Squads, home grounds, and club profiles"
       />
-      <main className="container">
+    <main className="container">
         <section className="menu-page teams-page">
           {isLoading ? <Spinner label="Loading teams…" /> : null}
           {isError ? <ErrorNotice message="Could not load teams." /> : null}
@@ -201,8 +201,8 @@ function TeamsListPage({ category }: { category: string }) {
             />
           ) : null}
           {!isLoading && !isError && data.length > 0 ? (
-            <div className="home-grid home-grid--teams">
-              {data.map((team) => (
+        <div className="home-grid home-grid--teams">
+          {data.map((team) => (
                 <div
                   key={team.id}
                   className={
@@ -211,13 +211,13 @@ function TeamsListPage({ category }: { category: string }) {
                       : 'teams-page__cell'
                   }
                 >
-                  <TeamCard team={team} />
-                </div>
-              ))}
+              <TeamCard team={team} />
             </div>
+          ))}
+        </div>
           ) : null}
-        </section>
-      </main>
+      </section>
+    </main>
     </>
   )
 }
@@ -267,21 +267,21 @@ function CategorySeasonsPage({
   }
 
   if (leagues.length === 0) {
-    return (
+  return (
       <>
         <PageHero
           variant="siteLogo"
           title={`${formatCategoryLabel(category)} Seasons`}
           subtitle="Browse by league and season"
         />
-        <main className="container">
-          <section className="menu-page">
+    <main className="container">
+      <section className="menu-page">
             <EmptyState
               title="No leagues in this category yet"
               description="Check back when competitions are announced."
             />
-          </section>
-        </main>
+      </section>
+    </main>
       </>
     )
   }
@@ -332,21 +332,21 @@ function NewsListPage() {
         subtitle="Match reports, features, and competition updates"
         imageUrl={resolveMediaUrl(news[0]?.featured_image_url)}
       />
-      <main className="container">
+    <main className="container">
         <section className="menu-page news-page">
           <div className="news-page__search">
             <label htmlFor="news-search" className="news-page__search-label">
               Search articles
             </label>
-            <input
+        <input
               id="news-search"
               className="news-page__search-input"
               type="search"
               placeholder="Search by headline or topic"
               autoComplete="off"
-              value={q}
-              onChange={(e) => navigate({ search: { q: e.target.value }, replace: true })}
-            />
+          value={q}
+          onChange={(e) => navigate({ search: { q: e.target.value }, replace: true })}
+        />
           </div>
           {isLoading ? <Spinner label="Loading news…" /> : null}
           {isError ? <ErrorNotice message="Could not load news." /> : null}
@@ -361,14 +361,14 @@ function NewsListPage() {
             />
           ) : null}
           {!isLoading && !isError && news.length > 0 ? (
-            <div className="home-grid home-grid--news">
-              {news.map((article) => (
-                <NewsCard key={article.id} article={article} />
-              ))}
-            </div>
+        <div className="home-grid home-grid--news">
+          {news.map((article) => (
+            <NewsCard key={article.id} article={article} />
+          ))}
+        </div>
           ) : null}
-        </section>
-      </main>
+      </section>
+    </main>
     </>
   )
 }
@@ -392,7 +392,7 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
   return (
     <>
       <PageHero variant="siteLogo" title={heroTitle} subtitle={heroSubtitle} />
-      <main className="container">
+    <main className="container">
         <section className="menu-page gallery-page">
           <nav className="gallery-subnav" aria-label="Gallery categories">
             <Link
@@ -423,13 +423,13 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
             />
           ) : null}
           {!isLoading && !isError && data.length > 0 ? (
-            <div className="home-grid home-grid--gallery">
-              {data.map((item) => (
-                <GalleryCard key={item.id} item={item} onOpen={setActive} />
-              ))}
-            </div>
+        <div className="home-grid home-grid--gallery">
+          {data.map((item) => (
+            <GalleryCard key={item.id} item={item} onOpen={setActive} />
+          ))}
+        </div>
           ) : null}
-        </section>
+      </section>
       </main>
       <GalleryLightbox active={active} onClose={() => setActive(null)} />
     </>
@@ -592,7 +592,7 @@ function AboutPageImpl() {
   return (
     <>
       <PageHero variant="siteLogo" title="About Zimbabwe Cricket NPL" subtitle={heroSubtitle} />
-      <main className="container">
+    <main className="container">
         <section className="menu-page about-page">
           {showEmptyHint ? (
             <EmptyState
@@ -705,11 +705,11 @@ function AboutPageImpl() {
             <Link to="/gallery" className="about-page__quick-link">
               Gallery
             </Link>
-          </div>
+        </div>
 
           <p className="about-page__meta">Page last updated {formatAboutUpdatedAt(about.updated_at)}</p>
-        </section>
-      </main>
+      </section>
+    </main>
     </>
   )
 }

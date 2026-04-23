@@ -296,7 +296,7 @@ export default function MatchDetailPage() {
         <p className="match-centre-hero__desc">{descriptionLine}</p>
       </header>
 
-      <main className="container">
+    <main className="container">
         <section className="menu-page match-centre">
           <div className="match-centre-panels">
             <div className="match-centre-panels__col">
@@ -361,7 +361,7 @@ export default function MatchDetailPage() {
                     </dd>
                   </div>
                 </dl>
-              </div>
+                </div>
             </div>
 
             <div className="match-centre-panels__col">
@@ -419,7 +419,7 @@ export default function MatchDetailPage() {
                         </p>
                       ) : null}
                     </div>
-                  ) : null}
+              ) : null}
                 </section>
               ) : (
                 <p className="match-centre-empty-hint">No result or scorecard yet.</p>
@@ -447,7 +447,7 @@ export default function MatchDetailPage() {
                   aria-selected={scorecardSide === 'home'}
                 >
                   {homeName}
-                </button>
+              </button>
                 <button
                   type="button"
                   className={scorecardSide === 'away' ? 'is-active' : ''}
@@ -456,7 +456,7 @@ export default function MatchDetailPage() {
                   aria-selected={scorecardSide === 'away'}
                 >
                   {awayName}
-                </button>
+              </button>
               </div>
             </div>
             {playersLoading ? (
@@ -465,14 +465,14 @@ export default function MatchDetailPage() {
             {playerStats.length > 0 ? (
               <div className="match-centre-table-wrap">
                 <table className="match-centre-stat-table">
-                  <thead>
-                    <tr>
+                <thead>
+                  <tr>
                       <th>Player</th>
                       <th>Side</th>
                       <th>R</th>
                       <th>BF</th>
-                      <th>4s</th>
-                      <th>6s</th>
+                    <th>4s</th>
+                    <th>6s</th>
                       <th>How out</th>
                       <th>Ov</th>
                       <th>M</th>
@@ -482,9 +482,9 @@ export default function MatchDetailPage() {
                       <th>St</th>
                       <th>RO</th>
                       <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                  </tr>
+                </thead>
+                <tbody>
                     {scorecardRows.map((s) => (
                       <tr key={s.id}>
                         <td>
@@ -514,20 +514,20 @@ export default function MatchDetailPage() {
                         <td>{s.stumpings}</td>
                         <td>{s.run_outs}</td>
                         <td>{s.notes?.trim() ? s.notes : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               </div>
             ) : (
               <p className="match-centre-muted">No per-player rows yet.</p>
             )}
             {playerStats.length > 0 && scorecardRows.length === 0 ? (
               <p className="match-centre-muted">No scorecard rows for this side yet.</p>
-            ) : null}
+        ) : null}
           </section>
-        </section>
-      </main>
+      </section>
+    </main>
     </>
   )
 }

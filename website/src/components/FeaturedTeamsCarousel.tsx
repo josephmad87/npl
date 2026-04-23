@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { SectionHeader } from './SectionHeader'
+import { SiteLogoPlaceholder } from './SiteLogoPlaceholder'
 import type { TeamLite } from '../lib/hooks'
 import { resolveMediaUrl } from '../lib/publicApi'
 
@@ -56,7 +57,7 @@ export function FeaturedTeamsCarousel({
               {image ? (
                 <img src={image} alt="" />
               ) : (
-                <div className="featured-teams-carousel__placeholder" aria-hidden="true" />
+                <SiteLogoPlaceholder className="featured-teams-carousel__placeholder" />
               )}
             </Link>
           )

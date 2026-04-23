@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { resolveMediaUrl } from '../lib/publicApi'
+import { playerPlaceholderSrc, resolvePlayerPhotoSrc } from '../lib/playerPhotoSrc'
 
 type PlayerLite = {
   id: number
@@ -19,19 +19,24 @@ export function PlayerCard({
 }) {
   const inner = (
     <>
-      {isCaptain ? (
-        <span className="ui-player-card__ribbon" aria-label="Captain">
-          Captain
-        </span>
-      ) : null}
-      {player.profile_photo_url ? (
+      <div className="ui-player-card__media">
+        {isCaptain ? (
+          <span className="ui-player-card__ribbon" aria-label="Captain">
+            Captain
+          </span>
+        ) : null}
         <img
-          src={resolveMediaUrl(player.profile_photo_url) ?? player.profile_photo_url}
+          className="ui-player-card__photo"
+          src={resolvePlayerPhotoSrc(player.profile_photo_url)}
           alt={player.full_name}
+          loading="lazy"
+          decoding="async"
+          onError={(e) => {
+            e.currentTarget.onerror = null
+            e.currentTarget.src = playerPlaceholderSrc
+          }}
         />
-      ) : (
-        <div className="ui-player-card-placeholder" />
-      )}
+      </div>
       <div>
         <h3>{player.full_name}</h3>
         <p>{player.role ?? 'Player'}</p>

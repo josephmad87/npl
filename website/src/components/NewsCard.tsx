@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { SiteLogoPlaceholder } from './SiteLogoPlaceholder'
 import { formatCategoryLabel, formatMatchDate } from '../lib/formatters'
 import { resolveMediaUrl } from '../lib/publicApi'
 import type { ArticleLite } from '../lib/hooks'
@@ -7,7 +8,11 @@ export function NewsCard({ article }: { article: ArticleLite }) {
   const image = resolveMediaUrl(article.featured_image_url)
   return (
     <Link to="/news/$slug" params={{ slug: article.slug }} className="ui-news-card">
-      {image ? <img src={image} alt={article.title} /> : <div className="ui-news-card-placeholder" />}
+      {image ? (
+        <img src={image} alt={article.title} />
+      ) : (
+        <SiteLogoPlaceholder className="ui-news-card-placeholder" />
+      )}
       <div>
         <p>
           {article.category?.trim() ? formatCategoryLabel(article.category) : 'News'} •{' '}

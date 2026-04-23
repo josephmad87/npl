@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { useMemo } from 'react'
-import logoFallbackSrc from './assets/logo.jpeg'
 import { ErrorNotice } from './components/ErrorNotice'
 import { SectionHeader } from './components/SectionHeader'
 import { Spinner } from './components/Spinner'
 import { formatCategoryLabel } from './lib/formatters'
 import { useTeamsMap } from './lib/hooks'
+import { playerPlaceholderSrc, resolvePlayerPhotoSrc } from './lib/playerPhotoSrc'
 import { fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type PlayerDetail = {
@@ -86,10 +86,6 @@ function oversToBalls(overs: string | number | null | undefined): number {
   const balls = Number(fracPart.slice(0, 1))
   if (!Number.isFinite(whole) || !Number.isFinite(balls)) return 0
   return whole * 6 + Math.max(0, Math.min(5, balls))
-}
-
-function playerPhotoSrc(url: string | null | undefined): string {
-  return resolveMediaUrl(url) ?? logoFallbackSrc
 }
 
 function statusClass(status: string): string {
@@ -227,7 +223,6 @@ export default function PlayerDetailPage() {
       })
   }, [appearances])
 
-  const heroSrc = data ? playerPhotoSrc(data.profile_photo_url) : logoFallbackSrc
   const teamLogoSrc = team?.logo_url ? resolveMediaUrl(team.logo_url) : null
 
   return (
@@ -263,12 +258,13 @@ export default function PlayerDetailPage() {
             >
               <div className="player-public-hero__media">
                 <img
-                  src={heroSrc}
+                  src={resolvePlayerPhotoSrc(data.profile_photo_url)}
                   alt=""
                   loading="eager"
                   decoding="async"
                   onError={(e) => {
-                    e.currentTarget.src = logoFallbackSrc
+                    e.currentTarget.onerror = null
+                    e.currentTarget.src = playerPlaceholderSrc
                   }}
                 />
               </div>

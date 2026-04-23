@@ -7,6 +7,7 @@ export function PageHero({
   badgeSrc,
   variant = 'default',
   fullWidth = false,
+  titleAlign = 'start',
 }: {
   title: string
   subtitle?: string
@@ -17,9 +18,15 @@ export function PageHero({
   variant?: 'default' | 'siteLogo'
   /** Edge-to-edge (sibling to `.container`, no side padding) */
   fullWidth?: boolean
+  /** Horizontal alignment of badge + title + subtitle in the overlay. */
+  titleAlign?: 'start' | 'center'
 }) {
   const isSiteLogo = variant === 'siteLogo'
   const coverSrc = isSiteLogo ? null : imageUrl
+  const titleBlockClass =
+    titleAlign === 'center'
+      ? 'ui-page-hero__title-block ui-page-hero__title-block--center'
+      : 'ui-page-hero__title-block'
   return (
     <section
       className={`ui-page-hero${isSiteLogo ? ' ui-page-hero--site-logo' : ''}${
@@ -34,7 +41,7 @@ export function PageHero({
         <img src={coverSrc} alt={title} />
       ) : null}
       <div className="ui-page-hero-overlay">
-        <div className="ui-page-hero__title-block">
+        <div className={titleBlockClass}>
           {badgeSrc ? (
             <img
               className="ui-page-hero__badge"

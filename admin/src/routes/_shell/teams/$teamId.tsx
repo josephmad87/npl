@@ -1312,18 +1312,18 @@ function TeamDetailPage() {
                                   Captain
                                 </span>
                               ) : null}
-                              <Link
-                                to="/players/$playerId"
-                                params={{ playerId: String(p.id) }}
-                                className="team-hub-player-link table-cell-with-badge"
-                              >
-                                <PlayerAvatar
-                                  profilePhotoUrl={p.profile_photo_url}
-                                  alt=""
-                                  size="sm"
-                                />
-                                <span>{p.full_name}</span>
-                              </Link>
+                            <Link
+                              to="/players/$playerId"
+                              params={{ playerId: String(p.id) }}
+                              className="team-hub-player-link table-cell-with-badge"
+                            >
+                              <PlayerAvatar
+                                profilePhotoUrl={p.profile_photo_url}
+                                alt=""
+                                size="sm"
+                              />
+                              <span>{p.full_name}</span>
+                            </Link>
                             </div>
                           </td>
                           <td>{p.role ?? '—'}</td>

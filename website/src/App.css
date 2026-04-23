@@ -522,6 +522,10 @@
 }
 
 .menu-list-thumb-placeholder {
+  object-fit: contain;
+  object-position: center;
+  padding: 0.35rem;
+  box-sizing: border-box;
   background: color-mix(in srgb, var(--color-surface) 28%, transparent);
 }
 
@@ -707,6 +711,10 @@
 }
 
 .article-sidebar-thumb-placeholder {
+  object-fit: contain;
+  object-position: center;
+  padding: 0.2rem;
+  box-sizing: border-box;
   background: color-mix(in srgb, var(--color-surface) 20%, transparent);
 }
 
@@ -865,6 +873,10 @@
   width: 100%;
   height: 100%;
   min-height: 0;
+  object-fit: contain;
+  object-position: center;
+  padding: 14%;
+  box-sizing: border-box;
   background: linear-gradient(
     145deg,
     color-mix(in srgb, var(--color-accent) 38%, var(--color-surface)),
@@ -1134,6 +1146,12 @@
   align-items: flex-start;
   gap: 0.4rem;
   max-width: min(38rem, 100%);
+}
+
+.ui-page-hero__title-block--center {
+  align-self: center;
+  align-items: center;
+  text-align: center;
 }
 
 .ui-page-hero__badge {
@@ -2421,33 +2439,39 @@ table.league-stats-table {
 
 .ui-player-card.ui-player-card--captain {
   position: relative;
-  overflow: visible;
+}
+
+.ui-player-card__media {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.85rem 0.85rem 0 0;
 }
 
 .ui-player-card__ribbon {
   position: absolute;
-  top: 0.45rem;
-  right: -0.35rem;
-  width: 5.25rem;
+  top: 0.55rem;
+  right: 0.5rem;
+  width: 3.9rem;
   padding: 0.2rem 0;
-  font-size: 0.55rem;
+  font-size: 0.52rem;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   text-align: center;
   color: #fff;
   background: linear-gradient(120deg, #c9a227 0%, #7a5a0f 100%);
-  transform: rotate(38deg);
-  transform-origin: center;
+  transform: rotate(32deg);
+  transform-origin: center center;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.28);
   pointer-events: none;
   z-index: 2;
+  border-radius: 0.15rem;
 }
 
 .ui-team-card img,
 .ui-news-card img,
 .ui-gallery-card img,
-.ui-player-card img {
+.ui-player-card__media img {
   width: 100%;
   height: 155px;
   object-fit: cover;
@@ -2457,7 +2481,7 @@ table.league-stats-table {
 .ui-team-card > div,
 .ui-news-card > div,
 .ui-gallery-card > div,
-.ui-player-card > div {
+.ui-player-card > div:not(.ui-player-card__media) {
   padding: 0.75rem;
 }
 
@@ -2962,9 +2986,11 @@ table.player-public-table {
 
 .team-page__staff-card-media {
   width: 100%;
-  aspect-ratio: 1;
-  max-height: 160px;
-  margin: 0 auto 0.65rem;
+  max-width: 15.5rem;
+  margin: 0 auto 0.85rem;
+  aspect-ratio: 4 / 5;
+  min-height: 13.5rem;
+  max-height: min(42vh, 22rem);
   border-radius: 0.85rem;
   overflow: hidden;
   background: color-mix(in srgb, var(--color-primary-alt) 18%, var(--color-surface));
@@ -2977,13 +3003,17 @@ table.player-public-table {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center 22%;
 }
 
-.team-page__staff-card-placeholder {
-  font-size: clamp(2rem, 6vw, 2.75rem);
-  font-weight: 800;
-  color: color-mix(in srgb, var(--color-primary) 55%, var(--color-muted));
-  letter-spacing: 0.02em;
+.team-page__staff-card-placeholder-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  padding: 0.65rem;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--color-primary-alt) 18%, var(--color-surface));
 }
 
 .team-page__staff-card-role {
@@ -3032,14 +3062,15 @@ table.player-public-table {
 }
 
 .team-page__home-visual-placeholder {
+  display: block;
+  width: 100%;
   min-height: 220px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  text-align: center;
-  font-size: 0.9rem;
-  color: var(--color-muted);
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--color-primary-alt) 15%, var(--color-surface));
 }
 
 .team-page__home-copy {
@@ -3172,11 +3203,47 @@ table.player-public-table {
   margin-top: 0.35rem;
 }
 
-.ui-player-card-placeholder,
+/* Team detail — result cards: scoreboard over details (not side-by-side), all breakpoints */
+.team-page__match-grid .ui-match-card.ui-match-card--result-sheet {
+  height: 100%;
+  min-height: 0;
+}
+
+.team-page__match-grid .ui-match-card__result-grid {
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.team-page__match-grid .ui-match-card__result-grid .ui-match-card__scoreboard {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  border-right: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-surface) 15%, transparent);
+}
+
+.team-page__match-grid .ui-match-card__result-aside {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.team-page__match-grid .ui-match-card__cta {
+  margin-top: auto;
+}
+
 .ui-team-card-placeholder,
 .ui-news-card-placeholder,
 .ui-gallery-card-placeholder {
+  display: block;
+  width: 100%;
   height: 155px;
+  object-fit: contain;
+  object-position: center;
+  padding: 0.85rem 1rem;
+  box-sizing: border-box;
   background: color-mix(in srgb, var(--color-primary-alt) 20%, var(--color-surface));
 }
 

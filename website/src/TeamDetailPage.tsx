@@ -9,6 +9,8 @@ import { PageHero } from './components/PageHero'
 import { PlayerCard } from './components/PlayerCard'
 import { SectionHeader } from './components/SectionHeader'
 import { Spinner } from './components/Spinner'
+import playerPlaceholderSrc from './assets/player_avatar_placeholder.png'
+import { SiteLogoPlaceholder } from './components/SiteLogoPlaceholder'
 import { formatCategoryLabel } from './lib/formatters'
 import { type MatchLite, useTeamsMap } from './lib/hooks'
 import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
@@ -67,26 +69,30 @@ function StaffCard({
   role,
   name,
   imageUrl,
-  fallbackInitial,
+  placeholderKind,
 }: {
   role: string
   name: string | null | undefined
   imageUrl: string | null | undefined
-  fallbackInitial?: string
+  placeholderKind: 'player' | 'brand'
 }) {
   const resolved = imageUrl ? resolveMediaUrl(imageUrl) : null
-  const initial =
-    fallbackInitial ??
-    (name?.trim().charAt(0).toUpperCase() || '—')
   return (
     <article className="team-page__staff-card">
       <div className="team-page__staff-card-media">
         {resolved ? (
           <img src={resolved} alt="" loading="lazy" decoding="async" />
+        ) : placeholderKind === 'player' ? (
+          <img
+            src={playerPlaceholderSrc}
+            alt=""
+            className="team-page__staff-card-placeholder-img"
+            aria-hidden
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
-          <span className="team-page__staff-card-placeholder" aria-hidden>
-            {initial}
-          </span>
+          <SiteLogoPlaceholder className="team-page__staff-card-placeholder-img" />
         )}
       </div>
       <p className="team-page__staff-card-role">{role}</p>
@@ -231,6 +237,7 @@ export function TeamDetailPage() {
           badgeSrc={data.logo_url ? (resolveMediaUrl(data.logo_url) ?? null) : null}
           variant={useSiteLogoHero ? 'siteLogo' : 'default'}
           fullWidth={Boolean(heroImage && !useSiteLogoHero)}
+          titleAlign={useSiteLogoHero ? 'center' : 'start'}
         />
       ) : null}
       <main className="container">
@@ -252,21 +259,19 @@ export function TeamDetailPage() {
                     role="Captain"
                     name={data.captain}
                     imageUrl={captainPhotoUrl}
-                    fallbackInitial={
-                      data.captain?.trim()
-                        ? data.captain.trim().charAt(0).toUpperCase()
-                        : 'C'
-                    }
+                    placeholderKind="player"
                   />
                   <StaffCard
                     role="Coach"
                     name={data.coach}
                     imageUrl={data.coach_image_url ?? null}
+                    placeholderKind="brand"
                   />
                   <StaffCard
                     role="Manager"
                     name={data.manager}
                     imageUrl={data.manager_image_url ?? null}
+                    placeholderKind="brand"
                   />
                 </div>
               </section>
@@ -283,9 +288,7 @@ export function TeamDetailPage() {
                         decoding="async"
                       />
                     ) : (
-                      <div className="team-page__home-visual-placeholder">
-                        <span>Venue photo coming soon</span>
-                      </div>
+                      <SiteLogoPlaceholder className="team-page__home-visual-placeholder" />
                     )}
                   </div>
                   <div className="team-page__home-copy">
