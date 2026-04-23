@@ -1184,6 +1184,13 @@
   flex-shrink: 0;
 }
 
+.ui-page-hero--team-detail .ui-page-hero__badge {
+  width: clamp(6.5rem, 18vw, 9.5rem);
+  height: clamp(6.5rem, 18vw, 9.5rem);
+  border-radius: 1.3rem;
+  padding: 0.4rem;
+}
+
 /* League detail: app theme gradient (see `body` in index.css) + frosted pickers + tabs */
 .league-hero {
   width: 100%;
