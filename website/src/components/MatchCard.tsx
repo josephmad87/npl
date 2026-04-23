@@ -159,7 +159,9 @@ export function ResultMatchCard({
             </div>
           </div>
           {sb.merged ? (
-            <p className="ui-match-card__score-merged">{sb.merged}</p>
+            <div className="ui-match-card__score-merged-outer">
+              <p className="ui-match-card__score-merged">{sb.merged}</p>
+            </div>
           ) : null}
         </div>
         <div className="ui-match-card__result-aside">

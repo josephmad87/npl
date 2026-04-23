@@ -997,14 +997,19 @@
   grid-template-columns: repeat(auto-fit, minmax(275px, 1fr));
 }
 
-/* /results (and category) listing — wider cards, clamped copy so row heights stay even */
+/* /results (and category) listing — wider cards, clamped copy, row-height alignment */
 .home-grid--results-list {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
   align-items: stretch;
 }
 
 .home-grid--results-list .ui-match-card.ui-match-card--result-sheet {
   height: 100%;
+  min-height: 0;
+}
+
+.home-grid--results-list .ui-match-card__result-grid {
+  flex: 1 1 auto;
   min-height: 0;
 }
 
@@ -1024,8 +1029,14 @@
   overflow: hidden;
 }
 
-.home-grid--results-list .ui-match-card__innings-stack {
-  max-height: 3.5rem;
+.home-grid--results-list .ui-match-card__score-overs {
+  display: none;
+}
+
+.home-grid--results-list .ui-match-card__score-runs {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
@@ -1051,9 +1062,8 @@
 }
 
 .home-grid--results-list .ui-match-card__score-merged {
-  flex: 0 0 auto;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
@@ -2115,8 +2125,7 @@ table.league-stats-table {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  /* Space between team row and merged block when the latter is present. */
-  gap: 0.35rem;
+  gap: 0;
   min-height: 0;
   padding: 0;
   background: linear-gradient(
@@ -2250,17 +2259,28 @@ table.league-stats-table {
   color: color-mix(in srgb, #fff 80%, #ccc);
 }
 
+/* Dark band: outer grows so fill continues to the bottom of a tall scoreboard; text lives in the <p>. */
+.ui-match-card__score-merged-outer {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  min-height: 0;
+  width: 100%;
+  min-width: 0;
+  padding-top: 0.35rem;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--brand-indigo) 55%, #000 15%);
+}
+
 .ui-match-card__score-merged {
   box-sizing: border-box;
-  /* Grow with stretched scoreboard so the dark strip runs flush to the card’s bottom. */
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
   margin: 0;
   padding: 0.55rem 0.75rem;
   width: 100%;
   min-width: 0;
   border-radius: 0;
-  background: color-mix(in srgb, var(--brand-indigo) 55%, #000 15%);
   font-size: 0.78rem;
   font-weight: 600;
   line-height: 1.4;
