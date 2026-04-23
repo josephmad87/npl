@@ -1,10 +1,6 @@
 import { useState } from 'react'
 import logoFallbackSrc from '@/assets/logo.jpeg'
-import { resolveAdminMediaUrl } from '@/lib/media-url'
-
-export function resolveBadgeSrc(url: string | null | undefined): string {
-  return resolveAdminMediaUrl(url) ?? logoFallbackSrc
-}
+import { resolveBadgeSrc } from '@/lib/badgeSrc'
 
 type BadgeImageProps = Readonly<{
   /** Remote URL when set; otherwise bundled NPL logo is used. */

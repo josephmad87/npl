@@ -25,6 +25,7 @@ import {
   YouthTeamsPage,
 } from './MenuPages'
 import MatchDetailPage from './MatchDetailPage'
+import PlayerDetailPage from './PlayerDetailPage'
 import { LeagueDetailPage, SeasonDetailPage, TeamDetailPage } from './EntityDetailPages'
 import NewsArticlePage from './NewsArticlePage'
 import { RootLayout } from './RootLayout'
@@ -184,6 +185,11 @@ const matchDetailRoute = createRoute({
   path: '/matches/$matchId',
   component: MatchDetailPage,
 })
+const playerDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/players/$slug',
+  component: PlayerDetailPage,
+})
 const fixturesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/fixtures',
@@ -226,6 +232,7 @@ const routeTree = rootRoute.addChildren([
   leagueDetailRoute,
   seasonDetailRoute,
   matchDetailRoute,
+  playerDetailRoute,
   fixturesRoute,
   resultsRoute,
 ])

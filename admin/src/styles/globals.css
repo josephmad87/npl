@@ -1531,6 +1531,37 @@ button {
   color: var(--text-muted);
 }
 
+.about-form__h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+  color: var(--text);
+}
+
+.about-form__team-row {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 1.35fr) auto;
+  gap: 1rem 1rem;
+  align-items: end;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.about-form__team-picture {
+  min-width: 0;
+}
+
+.about-form__team-actions {
+  padding-bottom: 0.2rem;
+}
+
+@media (max-width: 720px) {
+  .about-form__team-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .dashboard-section-title {
   font-family: var(--font-display);
   font-size: 1rem;

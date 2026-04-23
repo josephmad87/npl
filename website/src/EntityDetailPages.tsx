@@ -21,10 +21,17 @@ type TeamDetail = {
   logo_url: string | null
   cover_image_url: string | null
   home_ground: string | null
+  home_ground_name: string | null
+  home_ground_location: string | null
+  home_ground_image_url: string | null
   captain: string | null
   coach: string | null
+  manager: string | null
   year_founded: number | null
   description: string | null
+  history: string | null
+  trophies: string[] | null
+  team_photo_urls: string[] | null
   social_links: Record<string, string> | null
   status: string
 }
@@ -70,9 +77,14 @@ export function TeamDetailPage() {
   const playersQ = useQuery({
     queryKey: ['team-players', data?.id ?? 'none'],
     queryFn: async () =>
-      extractList<{ id: number; full_name: string; role: string | null; jersey_number: number | null; profile_photo_url: string | null }>(
-        await fetchJson<unknown>(`/public/players?page=1&page_size=40&team_id=${data?.id ?? -1}`),
-      ),
+      extractList<{
+        id: number
+        full_name: string
+        slug: string
+        role: string | null
+        jersey_number: number | null
+        profile_photo_url: string | null
+      }>(await fetchJson<unknown>(`/public/players?page=1&page_size=40&team_id=${data?.id ?? -1}`)),
     enabled: Boolean(data?.id),
     retry: 1,
   })
@@ -91,18 +103,34 @@ export function TeamDetailPage() {
     retry: 1,
   })
 
+  const coverHero = data ? resolveMediaUrl(data.cover_image_url) : null
+  const firstTeamPhoto = data?.team_photo_urls?.[0] ? resolveMediaUrl(data.team_photo_urls[0]) : null
+  const useSiteLogoHero = Boolean(data) && !coverHero && !firstTeamPhoto
+  const heroImage = coverHero ?? firstTeamPhoto
+
   return (
-    <main className="container">
-      <section className="menu-page">
+    <>
+      {data ? (
+        useSiteLogoHero ? (
+          <PageHero
+            variant="siteLogo"
+            title={data.name}
+            subtitle={`${formatCategoryLabel(data.category)} • ${data.home_ground ?? 'Venue TBC'} • ${data.status}`}
+          />
+        ) : (
+          <PageHero
+            title={data.name}
+            subtitle={`${formatCategoryLabel(data.category)} • ${data.home_ground ?? 'Venue TBC'} • ${data.status}`}
+            imageUrl={heroImage}
+          />
+        )
+      ) : null}
+      <main className="container">
+        <section className="menu-page">
         {isLoading ? <Spinner label="Loading team..." /> : null}
         {isError ? <ErrorNotice message="Could not load team details." /> : null}
         {data ? (
           <>
-            <PageHero
-              title={data.name}
-              subtitle={`${formatCategoryLabel(data.category)} • ${data.home_ground ?? 'Venue TBC'} • ${data.status}`}
-              imageUrl={resolveMediaUrl(data.cover_image_url) ?? resolveMediaUrl(data.logo_url)}
-            />
             <div className="detail-tabs">
               {(['overview', 'squad', 'upcoming', 'results'] as const).map((item) => (
                 <button key={item} type="button" className={tab === item ? 'is-active' : ''} onClick={() => setTab(item)}>
@@ -111,26 +139,96 @@ export function TeamDetailPage() {
               ))}
             </div>
             {tab === 'overview' ? (
-              <div className="menu-list">
-                <article className="menu-list-item">
-                  <div>
-                    <h2>Leadership</h2>
-                    <p>Captain: {data.captain ?? 'TBA'} • Coach: {data.coach ?? 'TBA'}</p>
-                  </div>
-                </article>
-                <article className="menu-list-item">
-                  <div>
-                    <h2>Founded</h2>
-                    <p>{data.year_founded ?? 'N/A'}</p>
-                  </div>
-                </article>
-                <article className="menu-list-item">
-                  <div>
-                    <h2>About</h2>
-                    <p>{data.description ?? 'Team profile coming soon.'}</p>
-                  </div>
-                </article>
-              </div>
+              <>
+                <div className="menu-list menu-list--team-overview">
+                  <article className="menu-list-item menu-list-item--stacked">
+                    <div>
+                      <h2>Leadership</h2>
+                      <p>
+                        Captain: {data.captain ?? 'TBA'} • Coach: {data.coach ?? 'TBA'} •
+                        Manager: {data.manager ?? 'TBA'}
+                      </p>
+                    </div>
+                  </article>
+                  <article className="menu-list-item menu-list-item--stacked">
+                    <div>
+                      <h2>Team History</h2>
+                      <p>{data.history ?? data.description ?? 'Team profile coming soon.'}</p>
+                    </div>
+                  </article>
+                  <article className="menu-list-item menu-list-item--stacked">
+                    <div>
+                      <h2>Homeground</h2>
+                      <p>
+                        {(data.home_ground_name ?? data.home_ground ?? 'TBA')}
+                        {data.home_ground_location ? ` • ${data.home_ground_location}` : ''}
+                      </p>
+                    </div>
+                  </article>
+                  <article className="menu-list-item menu-list-item--stacked">
+                    <div>
+                      <h2>Founded</h2>
+                      <p>{data.year_founded ?? 'N/A'}</p>
+                    </div>
+                  </article>
+                </div>
+
+                {data.home_ground_image_url ? (
+                  <>
+                    <SectionHeader title="Homeground Photo" />
+                    <div className="team-detail-homeground-media">
+                      <img
+                        src={resolveMediaUrl(data.home_ground_image_url) ?? ''}
+                        alt={data.home_ground_name ?? data.name}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
+                  </>
+                ) : null}
+
+                {(data.trophies ?? []).length > 0 ? (
+                  <>
+                    <SectionHeader title="Team Trophies" />
+                    <div className="team-detail-chips">
+                      {(data.trophies ?? []).map((trophy, idx) => (
+                        <span key={`${trophy}-${idx}`} className="team-detail-chip">
+                          {trophy}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+
+                {(data.team_photo_urls ?? []).length > 0 ? (
+                  <>
+                    <SectionHeader title="Team Photos" />
+                    <div className="home-grid home-grid--gallery">
+                      {(data.team_photo_urls ?? []).map((photoUrl, idx) => (
+                        <article
+                          key={`${photoUrl}-${idx}`}
+                          className="ui-gallery-card team-detail-photo-card"
+                        >
+                          <img
+                            src={resolveMediaUrl(photoUrl) ?? ''}
+                            alt={`${data.name} photo ${idx + 1}`}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                          <div className="ui-gallery-card__body">
+                            <span className="ui-gallery-card__badge ui-gallery-card__badge--image">
+                              Team Photo
+                            </span>
+                            <h3 className="ui-gallery-card__title">
+                              {data.name} Photo {idx + 1}
+                            </h3>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </>
             ) : null}
             {tab === 'squad' ? (
               <div className="home-grid home-grid--players">
@@ -155,8 +253,9 @@ export function TeamDetailPage() {
             ) : null}
           </>
         ) : null}
-      </section>
-    </main>
+        </section>
+      </main>
+    </>
   )
 }
 
@@ -261,13 +360,20 @@ export function SeasonDetailPage() {
   })
 
   return (
-    <main className="container">
-      <section className="menu-page">
+    <>
+      {data ? (
+        <PageHero
+          variant="siteLogo"
+          title={data.name}
+          subtitle={`${data.status} • ${formatDateRange(data.start_date, data.end_date)}`}
+        />
+      ) : null}
+      <main className="container">
+        <section className="menu-page">
         {isLoading ? <Spinner label="Loading season..." /> : null}
         {isError ? <ErrorNotice message="Could not load season details." /> : null}
         {data ? (
           <>
-            <PageHero title={data.name} subtitle={`${data.status} • ${formatDateRange(data.start_date, data.end_date)}`} />
             <div className="menu-list">
               <article className="menu-list-item">
                 <div>
@@ -313,7 +419,8 @@ export function SeasonDetailPage() {
             ) : null}
           </>
         ) : null}
-      </section>
-    </main>
+        </section>
+      </main>
+    </>
   )
 }

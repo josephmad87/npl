@@ -10,6 +10,7 @@ export type MediaUploadKind =
   | 'gallery'
   | 'news'
   | 'matches'
+  | 'misc'
 
 export type MediaUploadResponse = {
   url: string

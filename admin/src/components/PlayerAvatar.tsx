@@ -1,10 +1,6 @@
 import { useState } from 'react'
 import playerPlaceholderSrc from '@/assets/player_avatar_placeholder.png'
-import { resolveAdminMediaUrl } from '@/lib/media-url'
-
-export function resolvePlayerPhotoSrc(url: string | null | undefined): string {
-  return resolveAdminMediaUrl(url) ?? playerPlaceholderSrc
-}
+import { resolvePlayerPhotoSrc } from '@/lib/playerPhotoSrc'
 
 type PlayerAvatarProps = Readonly<{
   /** Remote URL when set; otherwise bundled placeholder is used. */

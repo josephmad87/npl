@@ -42,6 +42,18 @@ const STATUSES = ['active', 'inactive'] as const
 type TeamDetailTab = 'rosters' | 'fixtures' | 'completed' | 'players'
 const TEAM_TAB_ROWS = 10
 
+function parseLines(value: string): string[] | null {
+  const rows = value
+    .split('\n')
+    .map((v) => v.trim())
+    .filter(Boolean)
+  return rows.length > 0 ? rows : null
+}
+
+function formatLines(values: string[] | null | undefined): string {
+  return (values ?? []).join('\n')
+}
+
 function resolveTeamHeroSrc(team: TeamDto): string {
   const cover = resolveAdminMediaUrl(team.cover_image_url)
   if (cover) return cover
@@ -138,8 +150,14 @@ function TeamDetailPage() {
     )
   }, [pickLeagueId, seasonsQ.data, tid])
 
-  const matches = matchesQ.data ?? []
-  const players = playersQ.data ?? []
+  const matches = useMemo(
+    () => matchesQ.data ?? [],
+    [matchesQ.data],
+  )
+  const players = useMemo(
+    () => playersQ.data ?? [],
+    [playersQ.data],
+  )
   const completedMatches = useMemo(
     () => matches.filter((m) => m.status === 'completed'),
     [matches],
@@ -220,6 +238,15 @@ function TeamDetailPage() {
         logo_url: merged.logo_url,
         cover_image_url: merged.cover_image_url ?? null,
         home_ground: merged.home_ground,
+        home_ground_name: merged.home_ground_name ?? null,
+        home_ground_location: merged.home_ground_location ?? null,
+        home_ground_image_url: merged.home_ground_image_url ?? null,
+        captain: merged.captain ?? null,
+        coach: merged.coach ?? null,
+        manager: merged.manager ?? null,
+        history: merged.history ?? null,
+        trophies: merged.trophies ?? null,
+        team_photo_urls: merged.team_photo_urls ?? null,
         status: merged.status,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] })
@@ -406,6 +433,160 @@ function TeamDetailPage() {
               ),
             },
             {
+              id: 'home_ground_name',
+              label: 'Home ground name',
+              control: (
+                <input
+                  id="home_ground_name"
+                  className="inline-edit__control"
+                  value={merged.home_ground_name ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      home_ground_name: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'home_ground_location',
+              label: 'Home ground location',
+              control: (
+                <input
+                  id="home_ground_location"
+                  className="inline-edit__control"
+                  value={merged.home_ground_location ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      home_ground_location: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'home_ground_image_url',
+              label: 'Home ground image',
+              control: (
+                <MediaUrlField
+                  id="home_ground_image_url"
+                  uploadKind="teams"
+                  accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                  value={merged.home_ground_image_url ?? null}
+                  onChange={(next) =>
+                    setPatch((p) => ({ ...p, home_ground_image_url: next }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'captain',
+              label: 'Captain',
+              control: (
+                <input
+                  id="captain"
+                  className="inline-edit__control"
+                  value={merged.captain ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      captain: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'coach',
+              label: 'Coach',
+              control: (
+                <input
+                  id="coach"
+                  className="inline-edit__control"
+                  value={merged.coach ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      coach: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'manager',
+              label: 'Manager',
+              control: (
+                <input
+                  id="manager"
+                  className="inline-edit__control"
+                  value={merged.manager ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      manager: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'history',
+              label: 'Team history',
+              control: (
+                <textarea
+                  id="history"
+                  className="inline-edit__control"
+                  rows={5}
+                  value={merged.history ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      history: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'trophies',
+              label: 'Team trophies (one per line)',
+              control: (
+                <textarea
+                  id="trophies"
+                  className="inline-edit__control"
+                  rows={4}
+                  value={formatLines(merged.trophies)}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      trophies: parseLines(e.target.value),
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'team_photo_urls',
+              label: 'Team photos (one URL per line)',
+              control: (
+                <textarea
+                  id="team_photo_urls"
+                  className="inline-edit__control"
+                  rows={4}
+                  value={formatLines(merged.team_photo_urls)}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      team_photo_urls: parseLines(e.target.value),
+                    }))
+                  }
+                />
+              ),
+            },
+            {
               id: 'status',
               label: 'Status',
               control: (
@@ -490,9 +671,61 @@ function TeamDetailPage() {
                 </span>
               </div>
               <div className="entity-detail-hero-row">
+                <span className="entity-detail-hero-row__label">Captain</span>
+                <span className="entity-detail-hero-row__value">
+                  {team.captain ?? '—'}
+                </span>
+              </div>
+              <div className="entity-detail-hero-row">
+                <span className="entity-detail-hero-row__label">Coach</span>
+                <span className="entity-detail-hero-row__value">
+                  {team.coach ?? '—'}
+                </span>
+              </div>
+              <div className="entity-detail-hero-row">
+                <span className="entity-detail-hero-row__label">Manager</span>
+                <span className="entity-detail-hero-row__value">
+                  {team.manager ?? '—'}
+                </span>
+              </div>
+              <div className="entity-detail-hero-row">
                 <span className="entity-detail-hero-row__label">Home ground</span>
                 <span className="entity-detail-hero-row__value">
                   {team.home_ground ?? '—'}
+                </span>
+              </div>
+              <div className="entity-detail-hero-row">
+                <span className="entity-detail-hero-row__label">Ground name</span>
+                <span className="entity-detail-hero-row__value">
+                  {team.home_ground_name ?? '—'}
+                </span>
+              </div>
+              <div className="entity-detail-hero-row">
+                <span className="entity-detail-hero-row__label">Ground location</span>
+                <span className="entity-detail-hero-row__value">
+                  {team.home_ground_location ?? '—'}
+                </span>
+              </div>
+              <div className="entity-detail-hero-row">
+                <span className="entity-detail-hero-row__label">History</span>
+                <span className="entity-detail-hero-row__value">
+                  {team.history ?? '—'}
+                </span>
+              </div>
+              <div className="entity-detail-hero-row">
+                <span className="entity-detail-hero-row__label">Trophies</span>
+                <span className="entity-detail-hero-row__value">
+                  {(team.trophies ?? []).length > 0
+                    ? team.trophies?.join(' • ')
+                    : '—'}
+                </span>
+              </div>
+              <div className="entity-detail-hero-row">
+                <span className="entity-detail-hero-row__label">Team photos</span>
+                <span className="entity-detail-hero-row__value">
+                  {(team.team_photo_urls ?? []).length > 0
+                    ? `${team.team_photo_urls?.length ?? 0} photo URL(s)`
+                    : '—'}
                 </span>
               </div>
               <div className="entity-detail-hero-row">

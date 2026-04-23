@@ -95,6 +95,16 @@ function MatchDetailPage() {
     [match, teamsQ.data],
   )
 
+  const matchPlayerStatsKey = useMemo(
+    () =>
+      match
+        ? (match.player_stats ?? [])
+            .map((s) => `${s.id}:${s.runs}:${s.balls_faced}:${s.wickets}`)
+            .join('|')
+        : '',
+    [match],
+  )
+
   const isEditing = mode === 'edit'
   const isResultMode = mode === 'result'
   const [scorecardSide, setScorecardSide] = useState<'home' | 'away'>('home')
@@ -331,6 +341,7 @@ function MatchDetailPage() {
       />
       {isResultMode ? (
         <MatchResultEditor
+          key={`${mid}|${matchPlayerStatsKey}`}
           match={match}
           matchId={mid}
           homeLabel={homeName ?? `#${match.home_team_id}`}

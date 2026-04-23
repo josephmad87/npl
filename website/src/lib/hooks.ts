@@ -10,9 +10,16 @@ export type TeamLite = {
   category?: string | null
   cover_image_url?: string | null
   home_ground?: string | null
+  home_ground_name?: string | null
+  home_ground_location?: string | null
+  home_ground_image_url?: string | null
   captain?: string | null
   coach?: string | null
+  manager?: string | null
   description?: string | null
+  history?: string | null
+  trophies?: string[] | null
+  team_photo_urls?: string[] | null
   year_founded?: number | null
 }
 

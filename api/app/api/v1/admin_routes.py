@@ -18,15 +18,18 @@ from app.api.deps import (
 from app.api.pagination import PageParams, paginate_select, to_paginated
 from app.core.security import hash_password
 from app.db.session import get_db
+from app.models.about_content import AboutContent
 from app.models.article import Article
 from app.models.audit import AuditLog
 from app.models.gallery import GalleryItem
+from app.models.sponsor import Sponsor
 from app.models.league import League, Season, SeasonTeam
 from app.models.match import Match, MatchPlayerStat, MatchResult
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
 from app.models.team import Team
 from app.models.user import User
+from app.schemas.about_content import AboutContentBody, AboutContentOut
 from app.schemas.articles import ArticleCreate, ArticleOut, ArticleUpdate
 from app.schemas.audit import AuditLogOut
 from app.schemas.auth import AdminUserCreate, UserMe
@@ -36,6 +39,7 @@ from app.schemas.seasons import SeasonCreate, SeasonOut, SeasonPublicOut, Season
 from app.schemas.matches import MatchCreate, MatchDetailOut, MatchResultIn, MatchUpdate
 from app.schemas.media_upload import MediaUploadOut
 from app.schemas.platform_settings import PlatformSettingsOut, PlatformSettingsPatch
+from app.schemas.sponsor import SponsorCreate, SponsorOut, SponsorUpdate
 from app.schemas.players import PlayerCreate, PlayerMatchAppearanceOut, PlayerOut, PlayerUpdate
 from app.schemas.teams import TeamCreate, TeamOut, TeamUpdate
 from app.services.audit import write_audit
@@ -915,3 +919,226 @@ def admin_patch_platform_settings(
     )
     db.commit()
     return PlatformSettingsOut.model_validate(row)
+
+
+def _get_or_create_about_row(db: Session) -> AboutContent:
+    row = db.get(AboutContent, 1)
+    if row is None:
+        row = AboutContent(id=1, body={})
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return row
+
+
+def _coerce_about_body(raw: object) -> AboutContentBody:
+    if not raw or not isinstance(raw, dict):
+        return AboutContentBody()
+    try:
+        return AboutContentBody.model_validate(raw)
+    except Exception:
+        return AboutContentBody()
+
+
+def _about_row_to_out(row: AboutContent) -> AboutContentOut:
+    body = _coerce_about_body(row.body)
+    return AboutContentOut(
+        **body.model_dump(),
+        updated_at=row.updated_at,
+    )
+
+
+@router.get("/about", response_model=AboutContentOut)
+def admin_get_about(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> AboutContentOut:
+    row = _get_or_create_about_row(db)
+    return _about_row_to_out(row)
+
+
+@router.patch("/about", response_model=AboutContentOut)
+def admin_patch_about(
+    body: AboutContentBody,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> AboutContentOut:
+    row = _get_or_create_about_row(db)
+    row.body = body.model_dump(mode="json")
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(row)
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="update",
+        entity_type="about_content",
+        entity_id="1",
+        summary="About page",
+    )
+    db.commit()
+    return _about_row_to_out(row)
+
+
+@router.get("/sponsors", response_model=dict)
+def admin_list_sponsors(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+    page_params: PageParams = Depends(),
+) -> dict:
+    count_raw = db.scalar(select(func.count()).select_from(Sponsor))
+    total = int(count_raw) if count_raw is not None else 0
+    offset = (page_params.page - 1) * page_params.page_size
+    stmt = (
+        select(Sponsor, Team.name)
+        .outerjoin(Team, Sponsor.team_id == Team.id)
+        .order_by(Sponsor.name, Sponsor.id)
+        .offset(offset)
+        .limit(page_params.page_size)
+    )
+    rows = list(db.execute(stmt).all())
+    items = [
+        SponsorOut(
+            id=sp.id,
+            name=sp.name,
+            image_url=sp.image_url,
+            team_id=sp.team_id,
+            team_name=tn,
+            created_at=sp.created_at,
+        )
+        for sp, tn in rows
+    ]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.get("/sponsors/{sponsor_id}", response_model=SponsorOut)
+def admin_get_sponsor(
+    sponsor_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> SponsorOut:
+    found = (
+        db.execute(
+            select(Sponsor, Team.name)
+            .outerjoin(Team, Sponsor.team_id == Team.id)
+            .where(Sponsor.id == sponsor_id),
+        )
+        .one_or_none()
+    )
+    if found is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Sponsor not found"})
+    sp, team_name = found[0], found[1]
+    return SponsorOut(
+        id=sp.id,
+        name=sp.name,
+        image_url=sp.image_url,
+        team_id=sp.team_id,
+        team_name=team_name,
+        created_at=sp.created_at,
+    )
+
+
+@router.post("/sponsors", response_model=SponsorOut, status_code=status.HTTP_201_CREATED)
+def admin_create_sponsor(
+    body: SponsorCreate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> SponsorOut:
+    if body.team_id is not None and db.get(Team, body.team_id) is None:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Team not found for team_id."},
+        )
+    sp = Sponsor(
+        name=body.name.strip(),
+        image_url=(body.image_url or "").strip(),
+        team_id=body.team_id,
+    )
+    db.add(sp)
+    db.commit()
+    db.refresh(sp)
+    team_name = db.scalar(select(Team.name).where(Team.id == sp.team_id)) if sp.team_id is not None else None
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="create",
+        entity_type="sponsor",
+        entity_id=sp.id,
+        summary=sp.name,
+    )
+    db.commit()
+    return SponsorOut(
+        id=sp.id,
+        name=sp.name,
+        image_url=sp.image_url,
+        team_id=sp.team_id,
+        team_name=team_name,
+        created_at=sp.created_at,
+    )
+
+
+@router.patch("/sponsors/{sponsor_id}", response_model=SponsorOut)
+def admin_update_sponsor(
+    sponsor_id: int,
+    body: SponsorUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> SponsorOut:
+    sp = db.get(Sponsor, sponsor_id)
+    if sp is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Sponsor not found"})
+    up = body.model_dump(exclude_unset=True)
+    if "team_id" in up and up["team_id"] is not None and db.get(Team, up["team_id"]) is None:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Team not found for team_id."},
+        )
+    if "name" in up and up["name"] is not None:
+        sp.name = up["name"].strip()
+    if "image_url" in up and up["image_url"] is not None:
+        sp.image_url = up["image_url"].strip()
+    if "team_id" in up:
+        sp.team_id = up["team_id"]
+    db.commit()
+    db.refresh(sp)
+    team_name = db.scalar(select(Team.name).where(Team.id == sp.team_id)) if sp.team_id is not None else None
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="update",
+        entity_type="sponsor",
+        entity_id=sp.id,
+        summary=sp.name,
+    )
+    db.commit()
+    return SponsorOut(
+        id=sp.id,
+        name=sp.name,
+        image_url=sp.image_url,
+        team_id=sp.team_id,
+        team_name=team_name,
+        created_at=sp.created_at,
+    )
+
+
+@router.delete("/sponsors/{sponsor_id}", status_code=status.HTTP_204_NO_CONTENT)
+def admin_delete_sponsor(
+    sponsor_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> None:
+    sp = db.get(Sponsor, sponsor_id)
+    if sp is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Sponsor not found"})
+    title = sp.name
+    db.delete(sp)
+    db.commit()
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="delete",
+        entity_type="sponsor",
+        entity_id=sponsor_id,
+        summary=title,
+    )
+    db.commit()

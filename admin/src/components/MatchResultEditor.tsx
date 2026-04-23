@@ -7,7 +7,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { MatchDto, MatchPlayerStatDto, PlayerDto } from '@/lib/api-types'
 import { adminPost } from '@/lib/admin-client'
 
@@ -116,19 +116,9 @@ export function MatchResultEditor({
   )
   const [matchReport, setMatchReport] = useState(res?.match_report ?? '')
 
-  const statsFingerprint = useMemo(
-    () =>
-      (match.player_stats ?? [])
-        .map((s) => `${s.id}:${s.runs}:${s.balls_faced}:${s.wickets}`)
-        .join('|'),
-    [match.player_stats],
-  )
   const [statRows, setStatRows] = useState<StatRow[]>(() =>
     fromServer(match.player_stats ?? []),
   )
-  useEffect(() => {
-    setStatRows(fromServer(match.player_stats ?? []))
-  }, [matchId, statsFingerprint, match.player_stats])
 
   const rosterPlayers = useMemo(
     () =>

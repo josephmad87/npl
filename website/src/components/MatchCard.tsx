@@ -89,21 +89,32 @@ export function MatchCard({
         </span>
       </div>
       <div className="ui-match-card__body">
-        <h3 className="ui-match-card__title">
+        <h3
+          className="ui-match-card__title"
+          title={`${homeName} vs ${awayName}`}
+        >
           {homeName} vs {awayName}
         </h3>
-        <p className="ui-match-card__meta">
-          {formatMatchDate(match.match_date)}
-          {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
-          <br />
-          {match.venue ?? 'Venue TBC'}
-          {showScore ? (
-            <>
-              <br />
-              <span className="ui-match-card__scoreline">{scoreline}</span>
-            </>
+        <div className="ui-match-card__meta">
+          <span
+            className="ui-match-card__meta-date"
+            title={`${formatMatchDate(match.match_date)}${match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}`}
+          >
+            {formatMatchDate(match.match_date)}
+            {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
+          </span>
+          <span
+            className="ui-match-card__venue"
+            title={match.venue ?? 'Venue TBC'}
+          >
+            {match.venue ?? 'Venue TBC'}
+          </span>
+          {showScore && scoreline ? (
+            <span className="ui-match-card__scoreline" title={scoreline}>
+              {scoreline}
+            </span>
           ) : null}
-        </p>
+        </div>
       </div>
       <div className="ui-match-card__footer">
         <span

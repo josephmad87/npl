@@ -1,6 +1,8 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  BookOpen,
   CalendarDays,
+  Handshake,
   Images,
   LayoutDashboard,
   Newspaper,
@@ -24,6 +26,8 @@ export const ADMIN_ROUTE_ICONS: Record<string, LucideIcon> = {
   '/matches': CalendarDays,
   '/news': Newspaper,
   '/gallery': Images,
+  '/about': BookOpen,
+  '/sponsors': Handshake,
   '/users': UserCog,
   '/audit': ScrollText,
   '/profile': User,

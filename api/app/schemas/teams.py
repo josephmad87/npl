@@ -12,8 +12,15 @@ class TeamBase(BaseModel):
     cover_image_url: str | None = None
     description: str | None = None
     home_ground: str | None = None
+    home_ground_name: str | None = None
+    home_ground_location: str | None = None
+    home_ground_image_url: str | None = None
     coach: str | None = None
     captain: str | None = None
+    manager: str | None = None
+    history: str | None = None
+    trophies: list[str] | None = None
+    team_photo_urls: list[str] | None = None
     year_founded: int | None = None
     status: str = "active"
     social_links: dict | None = None
@@ -32,8 +39,15 @@ class TeamUpdate(BaseModel):
     cover_image_url: str | None = None
     description: str | None = None
     home_ground: str | None = None
+    home_ground_name: str | None = None
+    home_ground_location: str | None = None
+    home_ground_image_url: str | None = None
     coach: str | None = None
     captain: str | None = None
+    manager: str | None = None
+    history: str | None = None
+    trophies: list[str] | None = None
+    team_photo_urls: list[str] | None = None
     year_founded: int | None = None
     status: str | None = None
     social_links: dict | None = None
@@ -49,8 +63,15 @@ class TeamOut(ORMModel):
     cover_image_url: str | None
     description: str | None
     home_ground: str | None
+    home_ground_name: str | None
+    home_ground_location: str | None
+    home_ground_image_url: str | None
     coach: str | None
     captain: str | None
+    manager: str | None
+    history: str | None
+    trophies: list[str] | None
+    team_photo_urls: list[str] | None
     year_founded: int | None
     status: str
     social_links: dict | None

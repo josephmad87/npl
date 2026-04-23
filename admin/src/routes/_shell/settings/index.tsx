@@ -83,6 +83,8 @@ function PlatformSettingsPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [savedFlash, setSavedFlash] = useState<string | null>(null)
 
+  /* Intentional: mirror React Query’s server data into form state when the payload changes. */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!q.data) return
     setSiteName(q.data.site_name)
@@ -91,6 +93,7 @@ function PlatformSettingsPage() {
     setFlagsJson(JSON.stringify(q.data.feature_flags ?? {}, null, 2))
     setHooksJson(JSON.stringify(q.data.notification_hooks ?? [], null, 2))
   }, [q.data])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const saveMutation = useMutation({
     mutationFn: (body: Omit<PlatformSettingsDto, 'updated_at'>) =>

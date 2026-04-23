@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Loader2, Save } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { UserMe, UserMePatch } from '@/lib/api-types'
 import { ApiError } from '@/lib/api'
 import { adminGet, adminPatch } from '@/lib/admin-client'
@@ -23,17 +23,14 @@ function MyProfilePage() {
     refetchOnWindowFocus: false,
   })
 
-  const [fullName, setFullName] = useState('')
+  const [nameOverride, setNameOverride] = useState<string | null>(null)
+  const fullName =
+    nameOverride !== null ? nameOverride : (q.data?.full_name ?? '')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [savedFlash, setSavedFlash] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!q.data) return
-    setFullName(q.data.full_name ?? '')
-  }, [q.data])
 
   const saveMutation = useMutation({
     mutationFn: (body: UserMePatch) => adminPatch<UserMe>('/auth/me', body),
@@ -42,6 +39,7 @@ function MyProfilePage() {
       patchSession({
         name: data.full_name ?? data.email,
       })
+      setNameOverride(null)
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
@@ -165,7 +163,7 @@ function MyProfilePage() {
                     id="profile_full_name"
                     className="inline-edit__control"
                     value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
+                    onChange={(e) => setNameOverride(e.target.value)}
                     maxLength={255}
                     autoComplete="name"
                   />

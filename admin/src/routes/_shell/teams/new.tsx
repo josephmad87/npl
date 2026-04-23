@@ -15,6 +15,14 @@ export const Route = createFileRoute('/_shell/teams/new')({
 
 const STATUSES = ['active', 'inactive'] as const
 
+function parseLines(value: string): string[] | null {
+  const rows = value
+    .split('\n')
+    .map((v) => v.trim())
+    .filter(Boolean)
+  return rows.length > 0 ? rows : null
+}
+
 function NewTeamPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -23,6 +31,15 @@ function NewTeamPage() {
   const [category, setCategory] = useState('mens')
   const [shortName, setShortName] = useState('')
   const [homeGround, setHomeGround] = useState('')
+  const [homeGroundName, setHomeGroundName] = useState('')
+  const [homeGroundLocation, setHomeGroundLocation] = useState('')
+  const [homeGroundImageUrl, setHomeGroundImageUrl] = useState<string | null>(null)
+  const [captain, setCaptain] = useState('')
+  const [coach, setCoach] = useState('')
+  const [manager, setManager] = useState('')
+  const [history, setHistory] = useState('')
+  const [trophiesText, setTrophiesText] = useState('')
+  const [teamPhotosText, setTeamPhotosText] = useState('')
   const [status, setStatus] = useState<(typeof STATUSES)[number]>('active')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
@@ -52,6 +69,15 @@ function NewTeamPage() {
         category: c,
         short_name: shortName.trim() || null,
         home_ground: homeGround.trim() || null,
+        home_ground_name: homeGroundName.trim() || null,
+        home_ground_location: homeGroundLocation.trim() || null,
+        home_ground_image_url: homeGroundImageUrl?.trim() ?? null,
+        captain: captain.trim() || null,
+        coach: coach.trim() || null,
+        manager: manager.trim() || null,
+        history: history.trim() || null,
+        trophies: parseLines(trophiesText),
+        team_photo_urls: parseLines(teamPhotosText),
         status,
         logo_url: logoUrl?.trim() ?? null,
         cover_image_url: coverUrl?.trim() ?? null,
@@ -138,6 +164,118 @@ function NewTeamPage() {
                 className="inline-edit__control"
                 value={homeGround}
                 onChange={(e) => setHomeGround(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: 'home_ground_name',
+            label: 'Home ground name',
+            control: (
+              <input
+                id="home_ground_name"
+                className="inline-edit__control"
+                value={homeGroundName}
+                onChange={(e) => setHomeGroundName(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: 'home_ground_location',
+            label: 'Home ground location',
+            control: (
+              <input
+                id="home_ground_location"
+                className="inline-edit__control"
+                value={homeGroundLocation}
+                onChange={(e) => setHomeGroundLocation(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: 'home_ground_image_url',
+            label: 'Home ground image',
+            control: (
+              <MediaUrlField
+                id="home_ground_image_url"
+                uploadKind="teams"
+                accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                value={homeGroundImageUrl}
+                onChange={setHomeGroundImageUrl}
+              />
+            ),
+          },
+          {
+            id: 'captain',
+            label: 'Captain',
+            control: (
+              <input
+                id="captain"
+                className="inline-edit__control"
+                value={captain}
+                onChange={(e) => setCaptain(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: 'coach',
+            label: 'Coach',
+            control: (
+              <input
+                id="coach"
+                className="inline-edit__control"
+                value={coach}
+                onChange={(e) => setCoach(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: 'manager',
+            label: 'Manager',
+            control: (
+              <input
+                id="manager"
+                className="inline-edit__control"
+                value={manager}
+                onChange={(e) => setManager(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: 'history',
+            label: 'Team history',
+            control: (
+              <textarea
+                id="history"
+                className="inline-edit__control"
+                rows={5}
+                value={history}
+                onChange={(e) => setHistory(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: 'trophies',
+            label: 'Team trophies (one per line)',
+            control: (
+              <textarea
+                id="trophies"
+                className="inline-edit__control"
+                rows={4}
+                value={trophiesText}
+                onChange={(e) => setTrophiesText(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: 'team_photo_urls',
+            label: 'Team photos (one URL per line)',
+            control: (
+              <textarea
+                id="team_photo_urls"
+                className="inline-edit__control"
+                rows={4}
+                value={teamPhotosText}
+                onChange={(e) => setTeamPhotosText(e.target.value)}
               />
             ),
           },

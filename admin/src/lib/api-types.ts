@@ -18,6 +18,15 @@ export type TeamDto = {
   /** Hero / banner image when set (falls back to logo or default badge). */
   cover_image_url?: string | null
   home_ground: string | null
+  home_ground_name?: string | null
+  home_ground_location?: string | null
+  home_ground_image_url?: string | null
+  captain?: string | null
+  coach?: string | null
+  manager?: string | null
+  history?: string | null
+  trophies?: string[] | null
+  team_photo_urls?: string[] | null
   status: string
 }
 
@@ -203,6 +212,39 @@ export type GalleryItemDto = {
 export type NotificationHookDto = {
   name: string
   url: string
+}
+
+export type AboutTeamMemberDto = {
+  position: string
+  picture_url: string
+}
+
+export type AboutContactsDto = {
+  emails: string[]
+  phone: string
+}
+
+/** Body for GET/PATCH /admin/about (excludes `updated_at` in PATCH). */
+export type AboutContentBodyDto = {
+  mission: string
+  vision: string
+  history: string
+  team: AboutTeamMemberDto[]
+  contacts: AboutContactsDto
+  physical_address: string
+}
+
+export type AboutContentDto = AboutContentBodyDto & {
+  updated_at: string
+}
+
+export type SponsorDto = {
+  id: number
+  name: string
+  image_url: string
+  team_id: number | null
+  team_name: string | null
+  created_at: string
 }
 
 export type PlatformSettingsDto = {

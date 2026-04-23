@@ -67,18 +67,29 @@ export default function MatchDetailPage() {
     return a.runs_conceded - b.runs_conceded
   })
 
+  const coverHero = data ? resolveMediaUrl(data.cover_image_url) : null
+  const title = data
+    ? `${home?.name ?? `Team ${data.home_team_id}`} vs ${away?.name ?? `Team ${data.away_team_id}`}`
+    : ''
+  const subtitle = data
+    ? `${formatMatchDate(data.match_date)} • ${data.venue ?? 'Venue TBC'} • ${data.status}`
+    : ''
+
   return (
-    <main className="container">
-      <section className="menu-page">
+    <>
+      {data ? (
+        coverHero ? (
+          <PageHero title={title} subtitle={subtitle} imageUrl={coverHero} />
+        ) : (
+          <PageHero variant="siteLogo" title={title} subtitle={subtitle} />
+        )
+      ) : null}
+      <main className="container">
+        <section className="menu-page">
         {isLoading ? <Spinner label="Loading match..." /> : null}
         {isError ? <ErrorNotice message="Could not load match details." /> : null}
         {data ? (
           <>
-            <PageHero
-              title={`${home?.name ?? `Team ${data.home_team_id}`} vs ${away?.name ?? `Team ${data.away_team_id}`}`}
-              subtitle={`${formatMatchDate(data.match_date)} • ${data.venue ?? 'Venue TBC'} • ${data.status}`}
-              imageUrl={resolveMediaUrl(data.cover_image_url)}
-            />
             <div className="menu-list">
               <article className="menu-list-item">
                 <div>
@@ -159,7 +170,8 @@ export default function MatchDetailPage() {
             {stats.length === 0 ? <EmptyState title="No scorecard data for this match yet" /> : null}
           </>
         ) : null}
-      </section>
-    </main>
+        </section>
+      </main>
+    </>
   )
 }

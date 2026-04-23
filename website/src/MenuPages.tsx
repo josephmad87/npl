@@ -101,20 +101,22 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
   const title = `${category ? `${formatCategoryLabel(category)} ` : ''}${mode === 'fixtures' ? 'Fixtures' : 'Results'}`
 
   return (
-    <main className="container">
-      <section className="menu-page">
-        <PageHero title={title} subtitle="Live API feed" />
-        {isLoading ? <Spinner /> : null}
-        {isError ? <ErrorNotice /> : null}
-        {!isLoading && !isError ? (
-          <div className="home-grid home-grid--matches">
-            {data.map((match) => (
-              <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode={mode === 'fixtures' ? 'fixture' : 'result'} />
-            ))}
-          </div>
-        ) : null}
-      </section>
-    </main>
+    <>
+      <PageHero variant="siteLogo" title={title} subtitle="Live API feed" />
+      <main className="container">
+        <section className="menu-page">
+          {isLoading ? <Spinner /> : null}
+          {isError ? <ErrorNotice /> : null}
+          {!isLoading && !isError ? (
+            <div className="home-grid home-grid--matches">
+              {data.map((match) => (
+                <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode={mode === 'fixtures' ? 'fixture' : 'result'} />
+              ))}
+            </div>
+          ) : null}
+        </section>
+      </main>
+    </>
   )
 }
 

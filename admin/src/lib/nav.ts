@@ -40,6 +40,16 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['super_admin', 'content_editor', 'read_only_admin'],
   },
   {
+    to: '/about',
+    label: 'About',
+    roles: ['super_admin', 'content_editor', 'read_only_admin'],
+  },
+  {
+    to: '/sponsors',
+    label: 'Sponsors',
+    roles: ['super_admin', 'content_editor', 'read_only_admin'],
+  },
+  {
     to: '/users',
     label: 'Admin users',
     roles: ['super_admin'],
