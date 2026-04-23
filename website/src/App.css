@@ -1144,16 +1144,16 @@
   padding-top: clamp(1rem, 3vw, 1.8rem);
   padding-right: clamp(1rem, 3vw, 1.8rem);
   padding-bottom: clamp(1rem, 3vw, 1.8rem);
-  /* Slightly less than full nav inset so crest/name meet the site logo box visually. */
+  /* Pull past full nav math so team block lines up with the header logo box (see prior tweak). */
   padding-left: calc(
     max(0px, (100% - min(var(--header-content-max), 100%)) * 0.5) +
-      var(--header-nav-inline-pad) + var(--header-logo-left) - 0.75rem
+      var(--header-nav-inline-pad) + var(--header-logo-left) - 2.25rem
   );
 }
 
 @media (max-width: 720px) {
   .ui-page-hero--team-header-align .ui-page-hero-overlay {
-    padding-left: 0.65rem;
+    padding-left: 0.45rem;
   }
 }
 
