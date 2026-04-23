@@ -997,6 +997,68 @@
   grid-template-columns: repeat(auto-fit, minmax(275px, 1fr));
 }
 
+/* /results (and category) listing — wider cards, clamped copy so row heights stay even */
+.home-grid--results-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
+  align-items: stretch;
+}
+
+.home-grid--results-list .ui-match-card.ui-match-card--result-sheet {
+  height: 100%;
+  min-height: 0;
+}
+
+.home-grid--results-list .ui-match-card__result-aside {
+  justify-content: flex-start;
+  min-height: 0;
+}
+
+.home-grid--results-list .ui-match-card__cta {
+  margin-top: auto;
+}
+
+.home-grid--results-list .ui-match-card__team-nick {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-grid--results-list .ui-match-card__innings-stack {
+  max-height: 3.5rem;
+  overflow: hidden;
+}
+
+.home-grid--results-list .ui-match-card__comp-line {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-grid--results-list .ui-match-card__headline {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-grid--results-list .ui-match-card__toss {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-grid--results-list .ui-match-card__score-merged {
+  flex: 0 0 auto;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
 .home-grid--teams,
 .home-grid--gallery,
 .home-grid--players {

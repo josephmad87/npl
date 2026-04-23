@@ -118,7 +118,13 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
           {isLoading ? <Spinner /> : null}
           {isError ? <ErrorNotice /> : null}
           {!isLoading && !isError ? (
-            <div className="home-grid home-grid--matches">
+            <div
+              className={
+                mode === 'results'
+                  ? 'home-grid home-grid--matches home-grid--results-list'
+                  : 'home-grid home-grid--matches'
+              }
+            >
               {data.map((match) => (
                 <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode={mode === 'fixtures' ? 'fixture' : 'result'} />
               ))}
