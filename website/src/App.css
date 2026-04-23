@@ -1026,12 +1026,7 @@
 }
 
 .home-grid--results-list .ui-match-card__result-aside {
-  justify-content: flex-start;
   min-height: 0;
-}
-
-.home-grid--results-list .ui-match-card__cta {
-  margin-top: auto;
 }
 
 .home-grid--results-list .ui-match-card__team-nick {
@@ -1105,11 +1100,28 @@
   object-fit: cover;
 }
 
-/* Full-bleed strip (sibling to .container): brand logo, edge-to-edge */
+/* Site-logo variant: gradient strip, floating logo card, then title/badge below (no overlap). */
 .ui-page-hero--site-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   border-radius: 0;
-  min-height: clamp(200px, 28vw, 320px);
-  background: #fff;
+  min-height: 0;
+  overflow: visible;
+  background: var(--color-surface);
+}
+
+.ui-page-hero--site-logo::before {
+  content: '';
+  display: block;
+  flex-shrink: 0;
+  height: clamp(4.25rem, 12vw, 6.25rem);
+  background: linear-gradient(
+    120deg,
+    var(--color-primary) 0%,
+    var(--color-primary-alt) 52%,
+    var(--color-accent) 100%
+  );
 }
 
 .ui-page-hero__brand-mark {
@@ -1121,6 +1133,23 @@
   pointer-events: none;
 }
 
+.ui-page-hero--site-logo .ui-page-hero__brand-mark {
+  position: relative;
+  inset: auto;
+  z-index: 2;
+  width: fit-content;
+  max-width: min(92vw, 26rem);
+  margin: clamp(-2.65rem, -7vw, -1.5rem) auto 0;
+  padding: clamp(0.45rem, 1.4vw, 0.75rem) clamp(0.75rem, 2.2vw, 1.2rem);
+  align-self: center;
+  background: #fff;
+  border-radius: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--color-text) 7%, transparent),
+    0 12px 32px color-mix(in srgb, var(--color-primary) 22%, #000 12%);
+}
+
 .ui-page-hero__brand-mark img {
   width: auto;
   height: min(70%, 16.5rem);
@@ -1130,14 +1159,21 @@
   box-sizing: content-box;
 }
 
+.ui-page-hero--site-logo .ui-page-hero__brand-mark img {
+  height: clamp(4.5rem, 14vw, 7.5rem);
+  max-width: min(72vw, 14rem);
+  padding: clamp(0.2rem, 1vw, 0.45rem) clamp(0.35rem, 1.2vw, 0.65rem);
+}
+
 .ui-page-hero--site-logo .ui-page-hero-overlay {
+  position: relative;
+  inset: auto;
   z-index: 1;
-  background: linear-gradient(
-    to top,
-    rgba(255, 255, 255, 0.96),
-    rgba(255, 255, 255, 0.4) 48%,
-    rgba(255, 255, 255, 0) 72%
-  );
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  padding: clamp(0.75rem, 2.2vw, 1.15rem) clamp(1rem, 3vw, 1.85rem)
+    clamp(1.1rem, 3vw, 1.65rem);
+  background: transparent;
 }
 
 .ui-page-hero__title-block {
@@ -2342,11 +2378,20 @@ table.league-stats-table {
 .ui-match-card__result-aside {
   display: flex;
   flex: 1 1 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  padding: 1rem 1.1rem 1.1rem 1.15rem;
+  min-width: 0;
+}
+
+.ui-match-card__result-aside-main {
+  display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
   gap: 0.3rem;
-  padding: 1rem 1.1rem 1.1rem 1.15rem;
   min-width: 0;
 }
 
@@ -2402,7 +2447,9 @@ table.league-stats-table {
 
 .ui-match-card__cta {
   display: inline-block;
-  margin-top: 0.6rem;
+  flex-shrink: 0;
+  margin-top: 0;
+  margin-left: auto;
   padding: 0.42rem 1.15rem;
   border-radius: 999px;
   font-size: 0.62rem;
@@ -2470,11 +2517,18 @@ table.league-stats-table {
 
 .ui-team-card img,
 .ui-news-card img,
-.ui-gallery-card img,
-.ui-player-card__media img {
+.ui-gallery-card img {
   width: 100%;
   height: 155px;
   object-fit: cover;
+  display: block;
+}
+
+.ui-player-card__media img {
+  width: 100%;
+  height: clamp(200px, 58vw, 240px);
+  object-fit: cover;
+  object-position: center 18%;
   display: block;
 }
 
@@ -2975,7 +3029,8 @@ table.player-public-table {
 .team-page__staff-card {
   border: 1px solid var(--color-border);
   border-radius: 1rem;
-  padding: 1rem 1rem 1.1rem;
+  padding: 0;
+  overflow: hidden;
   background: linear-gradient(
     165deg,
     color-mix(in srgb, var(--color-surface) 88%, var(--color-accent)) 0%,
@@ -2985,21 +3040,17 @@ table.player-public-table {
 }
 
 .team-page__staff-card-media {
+  position: relative;
   width: 100%;
-  max-width: 15.5rem;
-  margin: 0 auto 0.85rem;
+  margin: 0;
   aspect-ratio: 4 / 5;
-  min-height: 13.5rem;
   max-height: min(42vh, 22rem);
-  border-radius: 0.85rem;
   overflow: hidden;
   background: color-mix(in srgb, var(--color-primary-alt) 18%, var(--color-surface));
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .team-page__staff-card-media img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -3007,13 +3058,16 @@ table.player-public-table {
 }
 
 .team-page__staff-card-placeholder-img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
-  padding: 0.65rem;
-  box-sizing: border-box;
   background: color-mix(in srgb, var(--color-primary-alt) 18%, var(--color-surface));
+}
+
+.team-page__staff-card-body {
+  padding: 0.85rem 1rem 1.1rem;
 }
 
 .team-page__staff-card-role {
@@ -3032,53 +3086,54 @@ table.player-public-table {
   color: var(--color-text);
 }
 
-.team-page__home-split {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  gap: 1.25rem 1.5rem;
-  align-items: stretch;
-}
-
-@media (max-width: 720px) {
-  .team-page__home-split {
-    grid-template-columns: 1fr;
-  }
+.team-page__home-card {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--color-surface) 88%, var(--color-accent)) 0%,
+    var(--color-surface) 55%
+  );
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
 .team-page__home-visual {
-  border-radius: 1rem;
+  position: relative;
+  width: 100%;
+  margin: 0;
+  aspect-ratio: 16 / 9;
+  max-height: min(38vh, 22rem);
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  min-height: 200px;
+  border: none;
+  border-radius: 0;
   background: color-mix(in srgb, var(--color-primary-alt) 15%, var(--color-surface));
 }
 
 .team-page__home-visual img {
+  display: block;
   width: 100%;
   height: 100%;
-  min-height: 220px;
   object-fit: cover;
-  display: block;
+  object-position: center;
 }
 
 .team-page__home-visual-placeholder {
   display: block;
   width: 100%;
-  min-height: 220px;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
-  padding: clamp(1.25rem, 4vw, 2.5rem);
-  box-sizing: border-box;
   background: color-mix(in srgb, var(--color-primary-alt) 15%, var(--color-surface));
 }
 
 .team-page__home-copy {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.5rem;
-  padding: 0.25rem 0;
+  padding: 1rem 1.15rem 1.2rem;
 }
 
 .team-page__home-name {
@@ -3227,11 +3282,6 @@ table.player-public-table {
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
-  justify-content: flex-start;
-}
-
-.team-page__match-grid .ui-match-card__cta {
-  margin-top: auto;
 }
 
 .ui-team-card-placeholder,
@@ -3962,7 +4012,7 @@ table.player-public-table {
 /* Public match centre — mirrors admin match view (header, detail grid, scorecard) */
 .match-centre-hero {
   width: 100%;
-  margin: 0;
+  margin: 0 0 clamp(1rem, 2.8vw, 1.5rem);
   padding: clamp(1.35rem, 4vw, 2.1rem) 1.5rem 1.75rem;
   text-align: center;
   color: rgba(255, 255, 255, 0.95);

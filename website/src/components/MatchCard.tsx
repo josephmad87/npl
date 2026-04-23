@@ -165,18 +165,20 @@ export function ResultMatchCard({
           ) : null}
         </div>
         <div className="ui-match-card__result-aside">
-          <p className="ui-match-card__comp-line">{comp.toUpperCase()}</p>
-          <p
-            className="ui-match-card__datetime"
-            title={`${formatMatchDate(match.match_date)}${match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}`}
-          >
-            {formatMatchDateTimeForResultCard(match)}
-          </p>
-          <p className="ui-match-card__venue-line" title={match.venue ?? 'Venue TBC'}>
-            {match.venue ?? 'Venue TBC'}
-          </p>
-          <p className="ui-match-card__headline">{headline}</p>
-          {toss ? <p className="ui-match-card__toss">{toss.toUpperCase()}</p> : null}
+          <div className="ui-match-card__result-aside-main">
+            <p className="ui-match-card__comp-line">{comp.toUpperCase()}</p>
+            <p
+              className="ui-match-card__datetime"
+              title={`${formatMatchDate(match.match_date)}${match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}`}
+            >
+              {formatMatchDateTimeForResultCard(match)}
+            </p>
+            <p className="ui-match-card__venue-line" title={match.venue ?? 'Venue TBC'}>
+              {match.venue ?? 'Venue TBC'}
+            </p>
+            <p className="ui-match-card__headline">{headline}</p>
+            {toss ? <p className="ui-match-card__toss">{toss.toUpperCase()}</p> : null}
+          </div>
           <span className="ui-match-card__cta">Match centre</span>
         </div>
       </div>

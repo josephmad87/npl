@@ -95,8 +95,10 @@ function StaffCard({
           <SiteLogoPlaceholder className="team-page__staff-card-placeholder-img" />
         )}
       </div>
-      <p className="team-page__staff-card-role">{role}</p>
-      <p className="team-page__staff-card-name">{name?.trim() || 'TBA'}</p>
+      <div className="team-page__staff-card-body">
+        <p className="team-page__staff-card-role">{role}</p>
+        <p className="team-page__staff-card-name">{name?.trim() || 'TBA'}</p>
+      </div>
     </article>
   )
 }
@@ -278,7 +280,7 @@ export function TeamDetailPage() {
 
               <section className="team-page__section" aria-label="Home ground">
                 <SectionHeader title="Home ground" />
-                <div className="team-page__home-split">
+                <div className="team-page__home-card">
                   <div className="team-page__home-visual">
                     {homeGroundImg ? (
                       <img
