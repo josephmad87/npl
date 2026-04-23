@@ -227,7 +227,13 @@ export function SiteHeader() {
                   ))}
                   <p className="site-header-mobile__group-label">Teams</p>
                   {mensNavTeams.map((team) => (
-                    <Link key={`m-drawer-team-${team.id}`} to="/mens/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                    <Link
+                      key={`m-drawer-team-${team.id}`}
+                      to="/teams/$slug"
+                      params={{ slug: team.slug }}
+                      className="site-header-mobile__drawer-link"
+                      onClick={closeMobileNav}
+                    >
                       {team.name}
                     </Link>
                   ))}
@@ -266,7 +272,13 @@ export function SiteHeader() {
                   ))}
                   <p className="site-header-mobile__group-label">Teams</p>
                   {womenNavTeams.map((team) => (
-                    <Link key={`l-drawer-team-${team.id}`} to="/women/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                    <Link
+                      key={`l-drawer-team-${team.id}`}
+                      to="/teams/$slug"
+                      params={{ slug: team.slug }}
+                      className="site-header-mobile__drawer-link"
+                      onClick={closeMobileNav}
+                    >
                       {team.name}
                     </Link>
                   ))}
@@ -305,7 +317,13 @@ export function SiteHeader() {
                   ))}
                   <p className="site-header-mobile__group-label">Teams</p>
                   {youthNavTeams.map((team) => (
-                    <Link key={`y-drawer-team-${team.id}`} to="/youth/teams" search={{ teamSlug: team.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                    <Link
+                      key={`y-drawer-team-${team.id}`}
+                      to="/teams/$slug"
+                      params={{ slug: team.slug }}
+                      className="site-header-mobile__drawer-link"
+                      onClick={closeMobileNav}
+                    >
                       {team.name}
                     </Link>
                   ))}
@@ -368,7 +386,7 @@ export function SiteHeader() {
                 <div className="dropdown-group">
                   <span>Teams</span>
                   {mensNavTeams.map((team) => (
-                    <Link key={`mens-team-${team.id}`} to="/mens/teams" search={{ teamSlug: team.slug }}>
+                    <Link key={`mens-team-${team.id}`} to="/teams/$slug" params={{ slug: team.slug }}>
                       {team.name}
                     </Link>
                   ))}
@@ -404,7 +422,7 @@ export function SiteHeader() {
                 <div className="dropdown-group">
                   <span>Teams</span>
                   {womenNavTeams.map((team) => (
-                    <Link key={`women-team-${team.id}`} to="/women/teams" search={{ teamSlug: team.slug }}>
+                    <Link key={`women-team-${team.id}`} to="/teams/$slug" params={{ slug: team.slug }}>
                       {team.name}
                     </Link>
                   ))}
@@ -440,7 +458,7 @@ export function SiteHeader() {
                 <div className="dropdown-group">
                   <span>Teams</span>
                   {youthNavTeams.map((team) => (
-                    <Link key={`youth-team-${team.id}`} to="/youth/teams" search={{ teamSlug: team.slug }}>
+                    <Link key={`youth-team-${team.id}`} to="/teams/$slug" params={{ slug: team.slug }}>
                       {team.name}
                     </Link>
                   ))}

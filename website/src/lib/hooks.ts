@@ -14,8 +14,11 @@ export type TeamLite = {
   home_ground_location?: string | null
   home_ground_image_url?: string | null
   captain?: string | null
+  captain_player_id?: number | null
   coach?: string | null
+  coach_image_url?: string | null
   manager?: string | null
+  manager_image_url?: string | null
   description?: string | null
   history?: string | null
   trophies?: string[] | null

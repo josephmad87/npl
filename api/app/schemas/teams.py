@@ -1,6 +1,24 @@
+from datetime import date
+
 from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMModel
+
+
+class TeamSeasonRecordOut(BaseModel):
+    """Completed-match summary for one team in one season (derived, not a stored table)."""
+
+    league_id: int
+    league_name: str
+    league_slug: str
+    season_id: int
+    season_name: str
+    season_slug: str
+    season_start: date | None = None
+    played: int
+    wins: int
+    losses: int
+    no_result: int
 
 
 class TeamBase(BaseModel):
@@ -16,8 +34,10 @@ class TeamBase(BaseModel):
     home_ground_location: str | None = None
     home_ground_image_url: str | None = None
     coach: str | None = None
+    coach_image_url: str | None = None
     captain: str | None = None
     manager: str | None = None
+    manager_image_url: str | None = None
     history: str | None = None
     trophies: list[str] | None = None
     team_photo_urls: list[str] | None = None
@@ -43,8 +63,11 @@ class TeamUpdate(BaseModel):
     home_ground_location: str | None = None
     home_ground_image_url: str | None = None
     coach: str | None = None
+    coach_image_url: str | None = None
     captain: str | None = None
+    captain_player_id: int | None = None
     manager: str | None = None
+    manager_image_url: str | None = None
     history: str | None = None
     trophies: list[str] | None = None
     team_photo_urls: list[str] | None = None
@@ -67,8 +90,11 @@ class TeamOut(ORMModel):
     home_ground_location: str | None
     home_ground_image_url: str | None
     coach: str | None
+    coach_image_url: str | None
     captain: str | None
+    captain_player_id: int | None
     manager: str | None
+    manager_image_url: str | None
     history: str | None
     trophies: list[str] | None
     team_photo_urls: list[str] | None

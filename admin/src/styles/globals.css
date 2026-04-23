@@ -1240,6 +1240,32 @@ button {
   color: var(--accent-mid);
 }
 
+.team-hub-player-cell {
+  position: relative;
+  display: inline-block;
+  min-width: 0;
+}
+
+.team-hub-player-ribbon {
+  position: absolute;
+  top: 0.1rem;
+  right: -0.35rem;
+  width: 5.25rem;
+  padding: 0.22rem 0;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: center;
+  color: #fff;
+  background: linear-gradient(120deg, #c9a227 0%, #7a5a0f 100%);
+  transform: rotate(38deg);
+  transform-origin: center;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.28);
+  pointer-events: none;
+  z-index: 2;
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

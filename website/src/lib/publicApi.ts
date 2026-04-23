@@ -24,6 +24,39 @@ export function extractList<T>(payload: unknown): T[] {
   return []
 }
 
+type PaginatedPayload = {
+  total?: number
+  pages?: number
+}
+
+/**
+ * Fetches every page of a paginated public API list (e.g. /public/results) up to `maxPages`.
+ * Use for category-wide listings where the UI must show all matches, not just the first page.
+ */
+export async function fetchAllPaginatedList<T>(buildPath: (page: number) => string, maxPages = 100): Promise<T[]> {
+  const first = await fetchJson<unknown>(buildPath(1))
+  const bag = first as PaginatedPayload
+  let items = extractList<T>(first)
+  const total = typeof bag.total === 'number' ? bag.total : items.length
+  const pageCount = typeof bag.pages === 'number' ? bag.pages : 1
+  if (pageCount <= 1 || items.length >= total) {
+    return items
+  }
+  const lastPage = Math.min(pageCount, maxPages)
+  for (let p = 2; p <= lastPage; p += 1) {
+    const next = await fetchJson<unknown>(buildPath(p))
+    const chunk = extractList<T>(next)
+    if (chunk.length === 0) {
+      break
+    }
+    items = items.concat(chunk)
+    if (items.length >= total) {
+      break
+    }
+  }
+  return items
+}
+
 export const resolveMediaUrl = (raw: string | null | undefined): string | null => {
   const value = raw?.trim() ?? ''
   if (!value) return null

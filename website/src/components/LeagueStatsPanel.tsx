@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { EmptyState } from './EmptyState'
 import type { MatchLite, TeamLite } from '../lib/hooks'
 import { extractList, fetchJson } from '../lib/publicApi'
@@ -83,25 +83,32 @@ export function LeagueStatsPanel({
     return [...playerById.values()].sort((a, b) => a.full_name.localeCompare(b.full_name))
   }, [playerById])
 
-  useEffect(() => {
-    if (teamIds.length > 0 && (teamId == null || !teamIds.includes(teamId))) {
-      setTeamId(teamIds[0])
-    }
+  const effectiveTeamId = useMemo(() => {
+    if (teamIds.length === 0) return null
+    if (teamId != null && teamIds.includes(teamId)) return teamId
+    return teamIds[0] ?? null
   }, [teamIds, teamId])
 
-  useEffect(() => {
-    if (scope === 'player' && playerId == null && playerOptions.length > 0) {
-      setPlayerId(playerOptions[0].id)
+  const effectivePlayerId = useMemo(() => {
+    if (scope !== 'player') return playerId
+    if (playerOptions.length === 0) return null
+    if (playerId != null && playerOptions.some((p) => p.id === playerId)) {
+      return playerId
     }
+    return playerOptions[0]?.id ?? null
   }, [scope, playerId, playerOptions])
 
   const kpiList = useMemo(() => {
     if (scope === 'tournament') return kpiTournamentList(resultMatches)
-    if (scope === 'team' && teamId != null) return kpiTeamList(resultMatches, teamId)
-    if (scope === 'player' && playerId != null) return kpiPlayerList(resultMatches, playerId)
+    if (scope === 'team' && effectiveTeamId != null) {
+      return kpiTeamList(resultMatches, effectiveTeamId)
+    }
+    if (scope === 'player' && effectivePlayerId != null) {
+      return kpiPlayerList(resultMatches, effectivePlayerId)
+    }
     if (scope === 'player') return []
     return kpiTournamentList(resultMatches)
-  }, [resultMatches, scope, teamId, playerId])
+  }, [resultMatches, scope, effectiveTeamId, effectivePlayerId])
 
   const tops = useMemo(() => topPerformers(resultMatches), [resultMatches])
   const batRows = useMemo(
@@ -138,7 +145,7 @@ export function LeagueStatsPanel({
               <span className="sr-only">Team</span>
               <select
                 className="league-stats-inline-pick__sel"
-                value={teamId ?? ''}
+                value={effectiveTeamId ?? ''}
                 onChange={(e) => setTeamId(Number(e.target.value) || null)}
               >
                 {teamIds.map((id) => (
@@ -156,10 +163,12 @@ export function LeagueStatsPanel({
               <span className="sr-only">Player</span>
               <select
                 className="league-stats-inline-pick__sel"
-                value={playerId ?? ''}
+                value={effectivePlayerId ?? ''}
                 onChange={(e) => setPlayerId(Number(e.target.value) || null)}
               >
-                <option value="">Select player</option>
+                {playerOptions.length === 0 ? (
+                  <option value="">No players in season</option>
+                ) : null}
                 {playerOptions.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.full_name}

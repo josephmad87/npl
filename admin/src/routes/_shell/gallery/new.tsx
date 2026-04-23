@@ -1,8 +1,8 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import type { GalleryItemDto } from '@/lib/api-types'
-import { adminPost } from '@/lib/admin-client'
+import type { GalleryItemDto, TeamDto } from '@/lib/api-types'
+import { adminListAll, adminPost } from '@/lib/admin-client'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
@@ -18,6 +18,11 @@ type GalleryStatus = 'draft' | 'published'
 function NewGalleryItemPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const teamsQ = useQuery({
+    queryKey: ['admin', 'teams'],
+    queryFn: () => adminListAll<TeamDto>('/admin/teams'),
+    staleTime: 60_000,
+  })
   const [title, setTitle] = useState('')
   const [fileUrl, setFileUrl] = useState<string | null>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
@@ -25,8 +30,13 @@ function NewGalleryItemPage() {
   const [status, setStatus] =
     useState<GalleryStatus>('draft')
   const [tagsText, setTagsText] = useState('')
+  const [teamId, setTeamId] = useState<number | ''>('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  const teamsSorted = [...(teamsQ.data ?? [])].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  )
 
   const save = async () => {
     if (isSaving) return
@@ -54,6 +64,10 @@ function NewGalleryItemPage() {
         media_type: mediaType,
         status,
         tags: tags.length > 0 ? tags : null,
+        team_id:
+          teamId !== '' && Number.isFinite(Number(teamId))
+            ? Number(teamId)
+            : null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] })
       void navigate({
@@ -158,6 +172,29 @@ function NewGalleryItemPage() {
                 onChange={(e) => setTagsText(e.target.value)}
                 disabled={isSaving}
               />
+            ),
+          },
+          {
+            id: 'team_id',
+            label: 'Associated team (optional)',
+            control: (
+              <select
+                id="team_id"
+                className="inline-edit__control"
+                value={teamId === '' ? '' : String(teamId)}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setTeamId(v ? Number(v) : '')
+                }}
+                disabled={isSaving || teamsQ.isLoading}
+              >
+                <option value="">None</option>
+                {teamsSorted.map((t) => (
+                  <option key={t.id} value={String(t.id)}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
             ),
           },
           {

@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from collections import defaultdict
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Select, or_, select
@@ -9,16 +10,16 @@ from app.db.session import get_db
 from app.models.article import Article
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season, SeasonTeam
-from app.models.match import Match
+from app.models.match import Match, MatchPlayerStat
 from app.models.player import Player
 from app.models.team import Team
 from app.schemas.articles import ArticleOut
 from app.schemas.gallery import GalleryItemOut
 from app.schemas.leagues import LeagueDetailPublicOut, LeagueOut
 from app.schemas.matches import MatchDetailOut
-from app.schemas.players import PlayerOut
+from app.schemas.players import PlayerMatchAppearanceOut, PlayerOut
 from app.schemas.seasons import SeasonPublicOut, SeasonSummaryOut
-from app.schemas.teams import TeamOut
+from app.schemas.teams import TeamOut, TeamSeasonRecordOut
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -60,6 +61,72 @@ def get_team(slug: str, db: Session = Depends(get_db)) -> TeamOut:
     return TeamOut.model_validate(team)
 
 
+@router.get("/teams/{slug}/season-records", response_model=list[TeamSeasonRecordOut])
+def team_season_records(slug: str, db: Session = Depends(get_db)) -> list[TeamSeasonRecordOut]:
+    """Wins / losses / no-result counts from completed matches, grouped by season."""
+    team = db.scalar(select(Team).where(Team.slug == slug, Team.status == "active"))
+    if team is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "not_found", "message": "Team not found"})
+    stmt = (
+        select(Match)
+        .options(
+            joinedload(Match.result),
+            joinedload(Match.season).joinedload(Season.league),
+        )
+        .where(
+            Match.status == "completed",
+            Match.season_id.isnot(None),
+            or_(Match.home_team_id == team.id, Match.away_team_id == team.id),
+        )
+    )
+    matches = db.scalars(stmt).all()
+    by_season: dict[int, list[Match]] = defaultdict(list)
+    for m in matches:
+        if m.season_id is not None:
+            by_season[m.season_id].append(m)
+
+    records: list[TeamSeasonRecordOut] = []
+    for _sid, ms in by_season.items():
+        season = ms[0].season
+        if season is None:
+            continue
+        league = season.league
+        if league is None:
+            continue
+        wins = losses = no_result = 0
+        for m in ms:
+            res = m.result
+            wtid = res.winning_team_id if res is not None else None
+            if wtid == team.id:
+                wins += 1
+            elif wtid is not None:
+                losses += 1
+            else:
+                no_result += 1
+        records.append(
+            TeamSeasonRecordOut(
+                league_id=league.id,
+                league_name=league.name,
+                league_slug=league.slug,
+                season_id=season.id,
+                season_name=season.name,
+                season_slug=season.slug,
+                season_start=season.start_date,
+                played=len(ms),
+                wins=wins,
+                losses=losses,
+                no_result=no_result,
+            ),
+        )
+
+    def sort_key(r: TeamSeasonRecordOut) -> tuple[str, int]:
+        start = r.season_start or date.min
+        return (r.league_name.lower(), -start.toordinal())
+
+    records.sort(key=sort_key)
+    return records
+
+
 @router.get("/players", response_model=dict)
 def list_players(
     db: Session = Depends(get_db),
@@ -91,6 +158,72 @@ def get_player(slug: str, db: Session = Depends(get_db)) -> PlayerOut:
     if player is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Player not found"})
     return PlayerOut.model_validate(player)
+
+
+def _public_player_match_appearance_rows(db: Session, player_id: int) -> list[PlayerMatchAppearanceOut]:
+    stmt = (
+        select(MatchPlayerStat)
+        .join(Match, MatchPlayerStat.match_id == Match.id)
+        .where(MatchPlayerStat.player_id == player_id)
+        .options(
+            joinedload(MatchPlayerStat.match).joinedload(Match.season).joinedload(Season.league),
+            joinedload(MatchPlayerStat.match).joinedload(Match.home_team),
+            joinedload(MatchPlayerStat.match).joinedload(Match.away_team),
+        )
+        .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
+    )
+    rows = db.scalars(stmt).unique().all()
+    out: list[PlayerMatchAppearanceOut] = []
+    for st in rows:
+        m = st.match
+        ht = m.home_team.name if m.home_team else f"#{m.home_team_id}"
+        at = m.away_team.name if m.away_team else f"#{m.away_team_id}"
+        lg = None
+        sn = None
+        if m.season is not None:
+            sn = m.season.name
+            if m.season.league is not None:
+                lg = m.season.league.name
+        ov = float(st.overs) if st.overs is not None else None
+        out.append(
+            PlayerMatchAppearanceOut(
+                stat_id=st.id,
+                match_id=m.id,
+                match_date=m.match_date,
+                venue=m.venue,
+                status=m.status,
+                home_team_id=m.home_team_id,
+                away_team_id=m.away_team_id,
+                home_team_name=ht,
+                away_team_name=at,
+                league_name=lg,
+                season_name=sn,
+                season_id=m.season_id,
+                side_team_id=st.team_id,
+                runs=st.runs,
+                balls_faced=st.balls_faced,
+                fours=st.fours,
+                sixes=st.sixes,
+                dismissal=st.dismissal,
+                overs=ov,
+                maidens=st.maidens,
+                runs_conceded=st.runs_conceded,
+                wickets=st.wickets,
+                catches=st.catches,
+                stumpings=st.stumpings,
+                run_outs=st.run_outs,
+                notes=st.notes,
+            ),
+        )
+    return out
+
+
+@router.get("/players/{slug}/match-appearances", response_model=list[PlayerMatchAppearanceOut])
+def public_player_match_appearances(slug: str, db: Session = Depends(get_db)) -> list[PlayerMatchAppearanceOut]:
+    player = db.scalar(select(Player).where(Player.slug == slug, Player.status == "active"))
+    if player is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Player not found"})
+    return _public_player_match_appearance_rows(db, player.id)
 
 
 def _season_team_ids(db: Session, season_id: int) -> list[int]:
@@ -290,11 +423,14 @@ def list_gallery(
     db: Session = Depends(get_db),
     page_params: PageParams = Depends(),
     media_type: str | None = Query(default=None),
+    team_id: int | None = Query(default=None),
     q: str | None = Query(default=None),
 ) -> dict:
     stmt = select(GalleryItem).where(GalleryItem.status == "published")
     if media_type:
         stmt = stmt.where(GalleryItem.media_type == media_type)
+    if team_id is not None:
+        stmt = stmt.where(GalleryItem.team_id == team_id)
     if q:
         like = f"%{q}%"
         stmt = stmt.where(

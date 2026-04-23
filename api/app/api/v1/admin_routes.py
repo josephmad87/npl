@@ -219,6 +219,16 @@ def admin_create_team(
     return team
 
 
+def _assert_gallery_team_id(db: Session, team_id: int | None) -> None:
+    if team_id is None:
+        return
+    if db.get(Team, team_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "validation", "message": "team_id must reference an existing team."},
+        )
+
+
 @router.patch("/teams/{team_id}", response_model=TeamOut)
 def admin_update_team(
     team_id: int,
@@ -229,7 +239,22 @@ def admin_update_team(
     team = db.get(Team, team_id)
     if team is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Team not found"})
-    for k, v in body.model_dump(exclude_unset=True).items():
+    data = body.model_dump(exclude_unset=True)
+    if "captain_player_id" in data:
+        pid = data.pop("captain_player_id")
+        if pid is None:
+            team.captain_player_id = None
+            team.captain = None
+        else:
+            pl = db.get(Player, pid)
+            if pl is None or pl.team_id != team_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"code": "validation", "message": "Captain must be a player on this team."},
+                )
+            team.captain_player_id = pid
+            team.captain = pl.full_name
+    for k, v in data.items():
         setattr(team, k, v)
     try:
         db.commit()
@@ -826,7 +851,9 @@ def admin_create_gallery(
     db: Session = Depends(get_db),
     actor: User = Depends(require_content_writer),
 ) -> GalleryItem:
-    item = GalleryItem(**body.model_dump(), uploaded_by_user_id=actor.id)
+    payload = body.model_dump()
+    _assert_gallery_team_id(db, payload.get("team_id"))
+    item = GalleryItem(**payload, uploaded_by_user_id=actor.id)
     db.add(item)
     try:
         db.commit()
@@ -849,7 +876,10 @@ def admin_update_gallery(
     item = db.get(GalleryItem, item_id)
     if item is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Gallery item not found"})
-    for k, v in body.model_dump(exclude_unset=True).items():
+    patch = body.model_dump(exclude_unset=True)
+    if "team_id" in patch:
+        _assert_gallery_team_id(db, patch["team_id"])
+    for k, v in patch.items():
         setattr(item, k, v)
     try:
         db.commit()

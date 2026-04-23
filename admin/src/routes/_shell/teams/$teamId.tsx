@@ -20,6 +20,7 @@ import type {
 import logoFallbackSrc from '@/assets/logo.jpeg'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
+import { DetailFields } from '@/components/DetailFields'
 import { adminListAll, adminPatch } from '@/lib/admin-client'
 import { BadgeImage } from '@/components/BadgeImage'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -39,7 +40,7 @@ export const Route = createFileRoute('/_shell/teams/$teamId')({
 })
 
 const STATUSES = ['active', 'inactive'] as const
-type TeamDetailTab = 'rosters' | 'fixtures' | 'completed' | 'players'
+type TeamDetailTab = 'profile' | 'rosters' | 'fixtures' | 'completed' | 'players'
 const TEAM_TAB_ROWS = 10
 
 function parseLines(value: string): string[] | null {
@@ -70,7 +71,7 @@ function TeamDetailPage() {
   const queryClient = useQueryClient()
   const [pickLeagueId, setPickLeagueId] = useState<number | ''>('')
   const [pickSeasonId, setPickSeasonId] = useState<number | ''>('')
-  const [activeTab, setActiveTab] = useState<TeamDetailTab>('rosters')
+  const [activeTab, setActiveTab] = useState<TeamDetailTab>('profile')
   const [rosterError, setRosterError] = useState<string | null>(null)
   const [rosterBusy, setRosterBusy] = useState(false)
 
@@ -165,7 +166,25 @@ function TeamDetailPage() {
   const rosterRows = seasonsWithRoster.slice(0, TEAM_TAB_ROWS)
   const fixtureRows = matches.slice(0, TEAM_TAB_ROWS)
   const completedRows = completedMatches.slice(0, TEAM_TAB_ROWS)
-  const playerRows = players.slice(0, TEAM_TAB_ROWS)
+  const playersSorted = useMemo(
+    () =>
+      [...players].sort((a, b) =>
+        a.full_name.localeCompare(b.full_name, undefined, { sensitivity: 'base' }),
+      ),
+    [players],
+  )
+  const captainSelectValue = useMemo(() => {
+    const pid = merged?.captain_player_id
+    if (pid != null && Number.isFinite(pid) && players.some((p) => p.id === pid)) {
+      return String(pid)
+    }
+    const name = (merged?.captain ?? '').trim()
+    if (name) {
+      const hit = players.find((p) => p.full_name === name)
+      if (hit) return String(hit.id)
+    }
+    return ''
+  }, [merged?.captain_player_id, merged?.captain, players])
 
   const addTeamToSeasonRoster = useCallback(async () => {
     if (pickSeasonId === '' || !Number.isFinite(Number(pickSeasonId))) {
@@ -241,12 +260,14 @@ function TeamDetailPage() {
         home_ground_name: merged.home_ground_name ?? null,
         home_ground_location: merged.home_ground_location ?? null,
         home_ground_image_url: merged.home_ground_image_url ?? null,
+        captain_player_id: merged.captain_player_id ?? null,
         captain: merged.captain ?? null,
         coach: merged.coach ?? null,
+        coach_image_url: merged.coach_image_url ?? null,
         manager: merged.manager ?? null,
+        manager_image_url: merged.manager_image_url ?? null,
         history: merged.history ?? null,
         trophies: merged.trophies ?? null,
-        team_photo_urls: merged.team_photo_urls ?? null,
         status: merged.status,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] })
@@ -416,36 +437,23 @@ function TeamDetailPage() {
               ),
             },
             {
-              id: 'home_ground',
+              id: 'home_venue',
               label: 'Home ground',
               control: (
                 <input
-                  id="home_ground"
+                  id="home_venue"
                   className="inline-edit__control"
-                  value={merged.home_ground ?? ''}
-                  onChange={(e) =>
+                  value={
+                    (merged.home_ground_name ?? merged.home_ground) ?? ''
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value.trim() || null
                     setPatch((p) => ({
                       ...p,
-                      home_ground: e.target.value || null,
+                      home_ground: v,
+                      home_ground_name: v,
                     }))
-                  }
-                />
-              ),
-            },
-            {
-              id: 'home_ground_name',
-              label: 'Home ground name',
-              control: (
-                <input
-                  id="home_ground_name"
-                  className="inline-edit__control"
-                  value={merged.home_ground_name ?? ''}
-                  onChange={(e) =>
-                    setPatch((p) => ({
-                      ...p,
-                      home_ground_name: e.target.value || null,
-                    }))
-                  }
+                  }}
                 />
               ),
             },
@@ -482,25 +490,44 @@ function TeamDetailPage() {
               ),
             },
             {
-              id: 'captain',
+              id: 'captain_player',
               label: 'Captain',
               control: (
-                <input
-                  id="captain"
+                <select
+                  id="captain_player"
                   className="inline-edit__control"
-                  value={merged.captain ?? ''}
-                  onChange={(e) =>
+                  value={captainSelectValue}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (!v) {
+                      setPatch((p) => ({
+                        ...p,
+                        captain_player_id: null,
+                        captain: null,
+                      }))
+                      return
+                    }
+                    const id = Number(v)
+                    const pl = playersSorted.find((x) => x.id === id)
                     setPatch((p) => ({
                       ...p,
-                      captain: e.target.value || null,
+                      captain_player_id: id,
+                      captain: pl?.full_name ?? null,
                     }))
-                  }
-                />
+                  }}
+                >
+                  <option value="">None</option>
+                  {playersSorted.map((p) => (
+                    <option key={p.id} value={String(p.id)}>
+                      {p.full_name}
+                    </option>
+                  ))}
+                </select>
               ),
             },
             {
               id: 'coach',
-              label: 'Coach',
+              label: 'Coach name',
               control: (
                 <input
                   id="coach"
@@ -509,15 +536,30 @@ function TeamDetailPage() {
                   onChange={(e) =>
                     setPatch((p) => ({
                       ...p,
-                      coach: e.target.value || null,
+                      coach: e.target.value.trim() || null,
                     }))
                   }
                 />
               ),
             },
             {
+              id: 'coach_image_url',
+              label: 'Coach photo',
+              control: (
+                <MediaUrlField
+                  id="coach_image_url"
+                  uploadKind="teams"
+                  accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                  value={merged.coach_image_url ?? null}
+                  onChange={(next) =>
+                    setPatch((p) => ({ ...p, coach_image_url: next }))
+                  }
+                />
+              ),
+            },
+            {
               id: 'manager',
-              label: 'Manager',
+              label: 'Manager name',
               control: (
                 <input
                   id="manager"
@@ -526,8 +568,23 @@ function TeamDetailPage() {
                   onChange={(e) =>
                     setPatch((p) => ({
                       ...p,
-                      manager: e.target.value || null,
+                      manager: e.target.value.trim() || null,
                     }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'manager_image_url',
+              label: 'Manager photo',
+              control: (
+                <MediaUrlField
+                  id="manager_image_url"
+                  uploadKind="teams"
+                  accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                  value={merged.manager_image_url ?? null}
+                  onChange={(next) =>
+                    setPatch((p) => ({ ...p, manager_image_url: next }))
                   }
                 />
               ),
@@ -563,24 +620,6 @@ function TeamDetailPage() {
                     setPatch((p) => ({
                       ...p,
                       trophies: parseLines(e.target.value),
-                    }))
-                  }
-                />
-              ),
-            },
-            {
-              id: 'team_photo_urls',
-              label: 'Team photos (one URL per line)',
-              control: (
-                <textarea
-                  id="team_photo_urls"
-                  className="inline-edit__control"
-                  rows={4}
-                  value={formatLines(merged.team_photo_urls)}
-                  onChange={(e) =>
-                    setPatch((p) => ({
-                      ...p,
-                      team_photo_urls: parseLines(e.target.value),
                     }))
                   }
                 />
@@ -670,70 +709,6 @@ function TeamDetailPage() {
                   {team.category}
                 </span>
               </div>
-              <div className="entity-detail-hero-row">
-                <span className="entity-detail-hero-row__label">Captain</span>
-                <span className="entity-detail-hero-row__value">
-                  {team.captain ?? '—'}
-                </span>
-              </div>
-              <div className="entity-detail-hero-row">
-                <span className="entity-detail-hero-row__label">Coach</span>
-                <span className="entity-detail-hero-row__value">
-                  {team.coach ?? '—'}
-                </span>
-              </div>
-              <div className="entity-detail-hero-row">
-                <span className="entity-detail-hero-row__label">Manager</span>
-                <span className="entity-detail-hero-row__value">
-                  {team.manager ?? '—'}
-                </span>
-              </div>
-              <div className="entity-detail-hero-row">
-                <span className="entity-detail-hero-row__label">Home ground</span>
-                <span className="entity-detail-hero-row__value">
-                  {team.home_ground ?? '—'}
-                </span>
-              </div>
-              <div className="entity-detail-hero-row">
-                <span className="entity-detail-hero-row__label">Ground name</span>
-                <span className="entity-detail-hero-row__value">
-                  {team.home_ground_name ?? '—'}
-                </span>
-              </div>
-              <div className="entity-detail-hero-row">
-                <span className="entity-detail-hero-row__label">Ground location</span>
-                <span className="entity-detail-hero-row__value">
-                  {team.home_ground_location ?? '—'}
-                </span>
-              </div>
-              <div className="entity-detail-hero-row">
-                <span className="entity-detail-hero-row__label">History</span>
-                <span className="entity-detail-hero-row__value">
-                  {team.history ?? '—'}
-                </span>
-              </div>
-              <div className="entity-detail-hero-row">
-                <span className="entity-detail-hero-row__label">Trophies</span>
-                <span className="entity-detail-hero-row__value">
-                  {(team.trophies ?? []).length > 0
-                    ? team.trophies?.join(' • ')
-                    : '—'}
-                </span>
-              </div>
-              <div className="entity-detail-hero-row">
-                <span className="entity-detail-hero-row__label">Team photos</span>
-                <span className="entity-detail-hero-row__value">
-                  {(team.team_photo_urls ?? []).length > 0
-                    ? `${team.team_photo_urls?.length ?? 0} photo URL(s)`
-                    : '—'}
-                </span>
-              </div>
-              <div className="entity-detail-hero-row">
-                <span className="entity-detail-hero-row__label">Status</span>
-                <span className="entity-detail-hero-row__value">
-                  <StatusBadge status={team.status as 'active' | 'inactive'} />
-                </span>
-              </div>
             </div>
           </article>
 
@@ -756,6 +731,15 @@ function TeamDetailPage() {
 
           <section className="team-hub-section">
             <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Team detail sections">
+              <button
+                type="button"
+                className={`dashboard-match-panel__tab${activeTab === 'profile' ? ' is-active' : ''}`}
+                onClick={() => setActiveTab('profile')}
+                role="tab"
+                aria-selected={activeTab === 'profile'}
+              >
+                Team profile
+              </button>
               <button
                 type="button"
                 className={`dashboard-match-panel__tab${activeTab === 'rosters' ? ' is-active' : ''}`}
@@ -794,6 +778,121 @@ function TeamDetailPage() {
               </button>
             </div>
           </section>
+
+          {activeTab === 'profile' ? (
+            <section className="team-hub-section">
+              <div className="team-hub-section-head">
+                <div className="team-hub-section-head__lead">
+                  <h2 className="team-hub-section__title">Team profile</h2>
+                  <SectionHintTip ariaHelp="Venue, staff, history, and status. Use Edit team to change these fields.">
+                    <span className="section-hint-tip__text">
+                      Venue, staff, history, and status. Use{' '}
+                      <strong>Edit team</strong> to change these fields.
+                    </span>
+                  </SectionHintTip>
+                </div>
+              </div>
+              <DetailFields
+                items={[
+                  {
+                    label: 'Captain',
+                    value: team.captain ?? '—',
+                  },
+                  {
+                    label: 'Coach',
+                    value: (
+                      <span className="table-cell-with-badge">
+                        {team.coach_image_url ? (
+                          <PlayerAvatar
+                            profilePhotoUrl={team.coach_image_url}
+                            alt=""
+                            size="sm"
+                          />
+                        ) : null}
+                        <span>{team.coach ?? '—'}</span>
+                      </span>
+                    ),
+                  },
+                  {
+                    label: 'Manager',
+                    value: (
+                      <span className="table-cell-with-badge">
+                        {team.manager_image_url ? (
+                          <PlayerAvatar
+                            profilePhotoUrl={team.manager_image_url}
+                            alt=""
+                            size="sm"
+                          />
+                        ) : null}
+                        <span>{team.manager ?? '—'}</span>
+                      </span>
+                    ),
+                  },
+                  {
+                    label: 'Home ground',
+                    value: (team.home_ground_name ?? team.home_ground) ?? '—',
+                  },
+                  {
+                    label: 'Ground location',
+                    value: team.home_ground_location ?? '—',
+                  },
+                  {
+                    label: 'Home ground image',
+                    value:
+                      team.home_ground_image_url != null &&
+                      team.home_ground_image_url.trim() !== '' ? (
+                        <span className="table-cell-with-badge">
+                          <BadgeImage
+                            imageUrl={team.home_ground_image_url}
+                            alt=""
+                            size="sm"
+                          />
+                          <a
+                            href={team.home_ground_image_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="entity-detail-hero-row__link entity-detail-hero-row__link--ellipsis"
+                          >
+                            {team.home_ground_image_url}
+                          </a>
+                        </span>
+                      ) : (
+                        '—'
+                      ),
+                  },
+                  {
+                    label: 'History',
+                    value:
+                      team.history != null && team.history.trim() !== '' ? (
+                        <span style={{ whiteSpace: 'pre-wrap' }}>{team.history}</span>
+                      ) : (
+                        '—'
+                      ),
+                  },
+                  {
+                    label: 'Trophies',
+                    value:
+                      (team.trophies ?? []).length > 0
+                        ? team.trophies?.join(' • ')
+                        : '—',
+                  },
+                  {
+                    label: 'Team photos',
+                    value:
+                      (team.team_photo_urls ?? []).length > 0
+                        ? `${team.team_photo_urls?.length ?? 0} URL(s)`
+                        : '—',
+                  },
+                  {
+                    label: 'Status',
+                    value: (
+                      <StatusBadge status={team.status as 'active' | 'inactive'} />
+                    ),
+                  },
+                ]}
+              />
+            </section>
+          ) : null}
 
           {activeTab === 'rosters' ? (
             <section className="team-hub-section">
@@ -1189,21 +1288,43 @@ function TeamDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {playerRows.map((p) => (
+                      {playersSorted.map((p) => {
+                        const isCaptain =
+                          (team.captain_player_id != null &&
+                            p.id === team.captain_player_id) ||
+                          (team.captain_player_id == null &&
+                            (team.captain ?? '').trim() === p.full_name)
+                        return (
                         <tr key={p.id}>
                           <td>
-                            <Link
-                              to="/players/$playerId"
-                              params={{ playerId: String(p.id) }}
-                              className="team-hub-player-link table-cell-with-badge"
+                            <div
+                              className={
+                                isCaptain
+                                  ? 'team-hub-player-cell team-hub-player-cell--captain'
+                                  : 'team-hub-player-cell'
+                              }
                             >
-                              <PlayerAvatar
-                                profilePhotoUrl={p.profile_photo_url}
-                                alt=""
-                                size="sm"
-                              />
-                              <span>{p.full_name}</span>
-                            </Link>
+                              {isCaptain ? (
+                                <span
+                                  className="team-hub-player-ribbon"
+                                  aria-label="Captain"
+                                >
+                                  Captain
+                                </span>
+                              ) : null}
+                              <Link
+                                to="/players/$playerId"
+                                params={{ playerId: String(p.id) }}
+                                className="team-hub-player-link table-cell-with-badge"
+                              >
+                                <PlayerAvatar
+                                  profilePhotoUrl={p.profile_photo_url}
+                                  alt=""
+                                  size="sm"
+                                />
+                                <span>{p.full_name}</span>
+                              </Link>
+                            </div>
                           </td>
                           <td>{p.role ?? '—'}</td>
                           <td>{p.jersey_number ?? '—'}</td>
@@ -1225,7 +1346,8 @@ function TeamDetailPage() {
                             </Link>
                           </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>

@@ -25,7 +25,7 @@ import {
   useTeamsMap,
   useUpcomingFixtures,
 } from './lib/hooks'
-import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { extractList, fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type GalleryItem = {
   id: number
@@ -99,12 +99,22 @@ function CategoryHomePage({ category }: { category: string }) {
   )
 }
 
+const PUBLIC_LIST_PAGE_SIZE = 100
+
 function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fixtures' | 'results' }) {
   const endpoint = mode === 'fixtures' ? '/public/fixtures' : '/public/results'
-  const suffix = category ? `&category=${category}` : ''
   const { data = [], isLoading, isError } = useQuery({
-    queryKey: [endpoint, category ?? 'all'],
-    queryFn: async () => extractList<MatchLite>(await fetchJson<unknown>(`${endpoint}?page=1&page_size=30${suffix}`)),
+    queryKey: [endpoint, 'all-pages', category ?? 'all', mode],
+    queryFn: async () => {
+      const buildPath = (page: number) => {
+        const p = new URLSearchParams()
+        p.set('page', String(page))
+        p.set('page_size', String(PUBLIC_LIST_PAGE_SIZE))
+        if (category) p.set('category', category)
+        return `${endpoint}?${p.toString()}`
+      }
+      return fetchAllPaginatedList<MatchLite>(buildPath)
+    },
     retry: 1,
   })
   const { map: teamsMap } = useTeamsMap()

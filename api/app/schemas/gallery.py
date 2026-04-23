@@ -15,6 +15,7 @@ class GalleryItemBase(BaseModel):
     status: str = "draft"
     tags: list[str] | None = None
     related_entities: dict | None = None
+    team_id: int | None = None
 
 
 class GalleryItemCreate(GalleryItemBase):
@@ -31,6 +32,7 @@ class GalleryItemUpdate(BaseModel):
     status: str | None = None
     tags: list[str] | None = None
     related_entities: dict | None = None
+    team_id: int | None = None
 
 
 class GalleryItemOut(ORMModel):
@@ -45,4 +47,5 @@ class GalleryItemOut(ORMModel):
     status: str
     tags: list[str] | None
     related_entities: dict | None
+    team_id: int | None
     created_at: datetime

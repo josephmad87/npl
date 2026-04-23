@@ -20,4 +20,8 @@ class GalleryItem(Base):
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False, index=True)
     tags: Mapped[list | None] = mapped_column(JSON)
     related_entities: Mapped[dict | None] = mapped_column(JSON)
+    team_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teams.id", ondelete="SET NULL"),
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

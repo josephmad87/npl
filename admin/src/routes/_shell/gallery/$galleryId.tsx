@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Trash2, SquarePen } from 'lucide-react'
 import { useState } from 'react'
-import type { GalleryItemDto } from '@/lib/api-types'
+import type { GalleryItemDto, TeamDto } from '@/lib/api-types'
 import { adminDelete, adminListAll, adminPatch } from '@/lib/admin-client'
 import { BackNavLink } from '@/components/BackNavLink'
 import { DetailFields } from '@/components/DetailFields'
@@ -29,6 +29,11 @@ function GalleryDetailPage() {
   const listQ = useQuery({
     queryKey: ['admin', 'gallery'],
     queryFn: () => adminListAll<GalleryItemDto>('/admin/gallery'),
+  })
+  const teamsQ = useQuery({
+    queryKey: ['admin', 'teams'],
+    queryFn: () => adminListAll<TeamDto>('/admin/teams'),
+    staleTime: 60_000,
   })
   const item = listQ.data?.find((g) => g.id === gid)
   const isEditing = mode === 'edit'
@@ -87,6 +92,7 @@ function GalleryDetailPage() {
         tags: tags.length > 0 ? tags : null,
         file_url: merged.file_url,
         thumbnail_url: merged.thumbnail_url ?? null,
+        team_id: merged.team_id ?? null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] })
       goView()
@@ -135,6 +141,13 @@ function GalleryDetailPage() {
       : null
   const youtubeThumb = youtubeId ? getYouTubeThumbnailUrl(youtubeId) : null
   const resolvedPreview = resolvedThumb ?? youtubeThumb ?? resolvedFile
+  const teamsSorted = [...(teamsQ.data ?? [])].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  )
+  const linkedTeamName =
+    item.team_id != null
+      ? (teamsQ.data ?? []).find((t) => t.id === item.team_id)?.name ?? `Team #${item.team_id}`
+      : null
 
   return (
     <>
@@ -263,6 +276,34 @@ function GalleryDetailPage() {
               ),
             },
             {
+              id: 'team_id',
+              label: 'Associated team (optional)',
+              control: (
+                <select
+                  id="team_id"
+                  className="inline-edit__control"
+                  value={
+                    merged.team_id != null ? String(merged.team_id) : ''
+                  }
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setPatch((p) => ({
+                      ...p,
+                      team_id: v ? Number(v) : null,
+                    }))
+                  }}
+                  disabled={isSaving || teamsQ.isLoading}
+                >
+                  <option value="">None</option>
+                  {teamsSorted.map((t) => (
+                    <option key={t.id} value={String(t.id)}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              ),
+            },
+            {
               id: 'publish',
               label: 'Publish',
               control: (
@@ -345,6 +386,10 @@ function GalleryDetailPage() {
           <DetailFields
             items={[
               { label: 'Type', value: item.media_type },
+              {
+                label: 'Team',
+                value: linkedTeamName ?? '—',
+              },
               { label: 'Tags', value: (item.tags ?? []).join(', ') || '—' },
               {
                 label: 'Media URL',

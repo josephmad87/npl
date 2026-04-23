@@ -31,16 +31,16 @@ function NewTeamPage() {
   const [slug, setSlug] = useState('')
   const [category, setCategory] = useState<CompetitionCategoryValue>('mens')
   const [shortName, setShortName] = useState('')
-  const [homeGround, setHomeGround] = useState('')
-  const [homeGroundName, setHomeGroundName] = useState('')
+  const [homeVenue, setHomeVenue] = useState('')
   const [homeGroundLocation, setHomeGroundLocation] = useState('')
   const [homeGroundImageUrl, setHomeGroundImageUrl] = useState<string | null>(null)
   const [captain, setCaptain] = useState('')
   const [coach, setCoach] = useState('')
+  const [coachImageUrl, setCoachImageUrl] = useState<string | null>(null)
   const [manager, setManager] = useState('')
+  const [managerImageUrl, setManagerImageUrl] = useState<string | null>(null)
   const [history, setHistory] = useState('')
   const [trophiesText, setTrophiesText] = useState('')
-  const [teamPhotosText, setTeamPhotosText] = useState('')
   const [status, setStatus] = useState<(typeof STATUSES)[number]>('active')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
@@ -69,16 +69,17 @@ function NewTeamPage() {
         slug: s,
         category: c,
         short_name: shortName.trim() || null,
-        home_ground: homeGround.trim() || null,
-        home_ground_name: homeGroundName.trim() || null,
+        home_ground: homeVenue.trim() || null,
+        home_ground_name: homeVenue.trim() || null,
         home_ground_location: homeGroundLocation.trim() || null,
         home_ground_image_url: homeGroundImageUrl?.trim() ?? null,
         captain: captain.trim() || null,
         coach: coach.trim() || null,
+        coach_image_url: coachImageUrl?.trim() ?? null,
         manager: manager.trim() || null,
+        manager_image_url: managerImageUrl?.trim() ?? null,
         history: history.trim() || null,
         trophies: parseLines(trophiesText),
-        team_photo_urls: parseLines(teamPhotosText),
         status,
         logo_url: logoUrl?.trim() ?? null,
         cover_image_url: coverUrl?.trim() ?? null,
@@ -157,26 +158,14 @@ function NewTeamPage() {
             ),
           },
           {
-            id: 'home_ground',
+            id: 'home_venue',
             label: 'Home ground',
             control: (
               <input
-                id="home_ground"
+                id="home_venue"
                 className="inline-edit__control"
-                value={homeGround}
-                onChange={(e) => setHomeGround(e.target.value)}
-              />
-            ),
-          },
-          {
-            id: 'home_ground_name',
-            label: 'Home ground name',
-            control: (
-              <input
-                id="home_ground_name"
-                className="inline-edit__control"
-                value={homeGroundName}
-                onChange={(e) => setHomeGroundName(e.target.value)}
+                value={homeVenue}
+                onChange={(e) => setHomeVenue(e.target.value)}
               />
             ),
           },
@@ -219,7 +208,7 @@ function NewTeamPage() {
           },
           {
             id: 'coach',
-            label: 'Coach',
+            label: 'Coach name',
             control: (
               <input
                 id="coach"
@@ -230,14 +219,40 @@ function NewTeamPage() {
             ),
           },
           {
+            id: 'coach_image_url',
+            label: 'Coach photo',
+            control: (
+              <MediaUrlField
+                id="coach_image_url"
+                uploadKind="teams"
+                accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                value={coachImageUrl}
+                onChange={setCoachImageUrl}
+              />
+            ),
+          },
+          {
             id: 'manager',
-            label: 'Manager',
+            label: 'Manager name',
             control: (
               <input
                 id="manager"
                 className="inline-edit__control"
                 value={manager}
                 onChange={(e) => setManager(e.target.value)}
+              />
+            ),
+          },
+          {
+            id: 'manager_image_url',
+            label: 'Manager photo',
+            control: (
+              <MediaUrlField
+                id="manager_image_url"
+                uploadKind="teams"
+                accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                value={managerImageUrl}
+                onChange={setManagerImageUrl}
               />
             ),
           },
@@ -264,19 +279,6 @@ function NewTeamPage() {
                 rows={4}
                 value={trophiesText}
                 onChange={(e) => setTrophiesText(e.target.value)}
-              />
-            ),
-          },
-          {
-            id: 'team_photo_urls',
-            label: 'Team photos (one URL per line)',
-            control: (
-              <textarea
-                id="team_photo_urls"
-                className="inline-edit__control"
-                rows={4}
-                value={teamPhotosText}
-                onChange={(e) => setTeamPhotosText(e.target.value)}
               />
             ),
           },

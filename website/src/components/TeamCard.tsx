@@ -11,7 +11,9 @@ export function TeamCard({ team }: { team: TeamLite }) {
       <div>
         <h3>{team.name}</h3>
         <p>{formatCategoryLabel(team.category)}</p>
-        {team.home_ground ? <p>{team.home_ground}</p> : null}
+        {(team.home_ground_name ?? team.home_ground) ? (
+          <p>{team.home_ground_name ?? team.home_ground}</p>
+        ) : null}
       </div>
     </Link>
   )

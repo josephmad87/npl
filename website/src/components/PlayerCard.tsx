@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { resolveMediaUrl } from '../lib/publicApi'
 
 type PlayerLite = {
   id: number
@@ -9,11 +10,25 @@ type PlayerLite = {
   profile_photo_url?: string | null
 }
 
-export function PlayerCard({ player }: { player: PlayerLite }) {
+export function PlayerCard({
+  player,
+  isCaptain,
+}: {
+  player: PlayerLite
+  isCaptain?: boolean
+}) {
   const inner = (
     <>
+      {isCaptain ? (
+        <span className="ui-player-card__ribbon" aria-label="Captain">
+          Captain
+        </span>
+      ) : null}
       {player.profile_photo_url ? (
-        <img src={player.profile_photo_url} alt={player.full_name} />
+        <img
+          src={resolveMediaUrl(player.profile_photo_url) ?? player.profile_photo_url}
+          alt={player.full_name}
+        />
       ) : (
         <div className="ui-player-card-placeholder" />
       )}
@@ -24,12 +39,18 @@ export function PlayerCard({ player }: { player: PlayerLite }) {
       </div>
     </>
   )
+  const cardClass =
+    `ui-player-card${isCaptain ? ' ui-player-card--captain' : ''}`
   if (player.slug) {
     return (
-      <Link to="/players/$slug" params={{ slug: player.slug }} className="ui-player-card">
+      <Link
+        to="/players/$slug"
+        params={{ slug: player.slug }}
+        className={cardClass}
+      >
         {inner}
       </Link>
     )
   }
-  return <article className="ui-player-card">{inner}</article>
+  return <article className={cardClass}>{inner}</article>
 }

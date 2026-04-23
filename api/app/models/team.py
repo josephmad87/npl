@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Integer, JSON, String, Text
+from sqlalchemy import ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -26,8 +26,14 @@ class Team(Base):
     home_ground_location: Mapped[str | None] = mapped_column(String(255))
     home_ground_image_url: Mapped[str | None] = mapped_column(String(512))
     coach: Mapped[str | None] = mapped_column(String(255))
+    coach_image_url: Mapped[str | None] = mapped_column(String(512))
     captain: Mapped[str | None] = mapped_column(String(255))
+    captain_player_id: Mapped[int | None] = mapped_column(
+        ForeignKey("players.id", ondelete="SET NULL"),
+        index=True,
+    )
     manager: Mapped[str | None] = mapped_column(String(255))
+    manager_image_url: Mapped[str | None] = mapped_column(String(512))
     history: Mapped[str | None] = mapped_column(Text)
     trophies: Mapped[list[str] | None] = mapped_column(JSON)
     team_photo_urls: Mapped[list[str] | None] = mapped_column(JSON)

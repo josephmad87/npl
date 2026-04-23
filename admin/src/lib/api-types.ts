@@ -22,8 +22,11 @@ export type TeamDto = {
   home_ground_location?: string | null
   home_ground_image_url?: string | null
   captain?: string | null
+  captain_player_id?: number | null
   coach?: string | null
+  coach_image_url?: string | null
   manager?: string | null
+  manager_image_url?: string | null
   history?: string | null
   trophies?: string[] | null
   team_photo_urls?: string[] | null
@@ -206,6 +209,7 @@ export type GalleryItemDto = {
   thumbnail_url?: string | null
   status: string
   tags: string[] | null
+  team_id?: number | null
   created_at: string
 }
 
