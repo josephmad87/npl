@@ -42,12 +42,22 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: '/about',
     label: 'About',
-    roles: ['super_admin', 'content_editor', 'read_only_admin'],
+    roles: [
+      'super_admin',
+      'competition_manager',
+      'content_editor',
+      'read_only_admin',
+    ],
   },
   {
     to: '/sponsors',
     label: 'Sponsors',
-    roles: ['super_admin', 'content_editor', 'read_only_admin'],
+    roles: [
+      'super_admin',
+      'competition_manager',
+      'content_editor',
+      'read_only_admin',
+    ],
   },
   {
     to: '/users',
