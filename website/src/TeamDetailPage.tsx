@@ -240,6 +240,7 @@ export function TeamDetailPage() {
           variant={useSiteLogoHero ? 'siteLogo' : 'default'}
           fullWidth={Boolean(heroImage && !useSiteLogoHero)}
           titleAlign="start"
+          className="ui-page-hero--team-header-align"
         />
       ) : null}
       <main className="container">

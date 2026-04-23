@@ -8,6 +8,7 @@ export function PageHero({
   variant = 'default',
   fullWidth = false,
   titleAlign = 'start',
+  className,
 }: {
   title: string
   subtitle?: string
@@ -20,6 +21,8 @@ export function PageHero({
   fullWidth?: boolean
   /** Horizontal alignment of badge + title + subtitle in the overlay. */
   titleAlign?: 'start' | 'center'
+  /** Extra section classes (e.g. alignment with site header on team detail). */
+  className?: string
 }) {
   const isSiteLogo = variant === 'siteLogo'
   const coverSrc = isSiteLogo ? null : imageUrl
@@ -27,12 +30,16 @@ export function PageHero({
     titleAlign === 'center'
       ? 'ui-page-hero__title-block ui-page-hero__title-block--center'
       : 'ui-page-hero__title-block'
+  const rootClass = [
+    'ui-page-hero',
+    isSiteLogo ? 'ui-page-hero--site-logo' : '',
+    fullWidth ? 'ui-page-hero--bleed' : '',
+    className?.trim() ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ')
   return (
-    <section
-      className={`ui-page-hero${isSiteLogo ? ' ui-page-hero--site-logo' : ''}${
-        fullWidth ? ' ui-page-hero--bleed' : ''
-      }`}
-    >
+    <section className={rootClass}>
       {isSiteLogo ? (
         <div className="ui-page-hero__brand-mark">
           <img src={siteLogoUrl} alt="NPL logo" />

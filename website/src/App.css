@@ -1139,6 +1139,23 @@
   align-items: flex-start;
 }
 
+/* Team detail: line hero title block up with desktop header logo (nav shell + --header-nav-inline-pad + --header-logo-left). */
+.ui-page-hero--team-header-align .ui-page-hero-overlay {
+  padding-top: clamp(1rem, 3vw, 1.8rem);
+  padding-right: clamp(1rem, 3vw, 1.8rem);
+  padding-bottom: clamp(1rem, 3vw, 1.8rem);
+  padding-left: calc(
+    max(0px, (100% - min(var(--header-content-max), 100%)) * 0.5) +
+      var(--header-nav-inline-pad) + var(--header-logo-left)
+  );
+}
+
+@media (max-width: 720px) {
+  .ui-page-hero--team-header-align .ui-page-hero-overlay {
+    padding-left: 0.85rem;
+  }
+}
+
 .ui-page-hero__title-block {
   display: flex;
   flex-direction: column;
@@ -3167,8 +3184,29 @@ table.player-public-table {
 
 .team-page__standings-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.88rem;
+}
+
+.team-page__standings-table thead th:nth-child(1) {
+  width: 44%;
+}
+
+.team-page__standings-table thead th:nth-child(2),
+.team-page__standings-table thead th:nth-child(3),
+.team-page__standings-table thead th:nth-child(4),
+.team-page__standings-table thead th:nth-child(5) {
+  width: 10%;
+}
+
+.team-page__standings-table thead th:nth-child(6) {
+  width: 16%;
+}
+
+.team-page__standings-table td:first-child {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .team-page__standings-table th,

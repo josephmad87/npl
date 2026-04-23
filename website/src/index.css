@@ -15,6 +15,10 @@
   --color-text: #1f1640;
   --color-muted: #6f6792;
   --color-border: #ddd5f3;
+  /* Must match `.nav-row` + `.site-brand--inline` so hero text can align with header logo */
+  --header-content-max: 1200px;
+  --header-nav-inline-pad: 7.2rem;
+  --header-logo-left: 0.85rem;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
