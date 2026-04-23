@@ -6,6 +6,7 @@ import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox } from './components/GalleryLightbox'
 import { MatchCard } from './components/MatchCard'
 import { NewsCard } from './components/NewsCard'
+import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { PageHero } from './components/PageHero'
 import { SectionHeader } from './components/SectionHeader'
 import { Spinner } from './components/Spinner'
@@ -47,41 +48,44 @@ function CategoryHomePage({ category }: { category: string }) {
   const { data: news = [] } = useRecentNews(4, category)
 
   return (
-    <main className="container">
-      <PageHero title={`${categoryLabel} Cricket`} subtitle={`Follow the ${categoryLabel.toLowerCase()} competition`} />
-      <section className="home-section">
-        <SectionHeader title={`${categoryLabel} Teams`} linkTo={`/${category}/teams`} />
-        <div className="home-grid home-grid--teams">
-          {teams.slice(0, 6).map((team) => (
-            <TeamCard key={team.id} team={team} />
-          ))}
-        </div>
-      </section>
-      <section className="home-section">
-        <SectionHeader title="Upcoming Fixtures" linkTo={`/${category}/fixtures`} />
-        <div className="home-grid home-grid--matches">
-          {fixtures.map((match) => (
-            <MatchCard key={match.id} match={match} teamsMap={teamsMap} />
-          ))}
-        </div>
-      </section>
-      <section className="home-section">
-        <SectionHeader title="Latest Results" linkTo={`/${category}/results`} />
-        <div className="home-grid home-grid--matches">
-          {results.map((match) => (
-            <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode="result" />
-          ))}
-        </div>
-      </section>
-      <section className="home-section">
-        <SectionHeader title="Related News" linkTo="/news" linkSearch={{ q: '' }} />
-        <div className="home-grid home-grid--news">
-          {news.map((article) => (
-            <NewsCard key={article.id} article={article} />
-          ))}
-        </div>
-      </section>
-    </main>
+    <>
+      <PageHero
+        variant="siteLogo"
+        title={`${categoryLabel} Cricket`}
+        subtitle={`Follow the ${categoryLabel.toLowerCase()} competition`}
+      />
+      <main className="container">
+        <FeaturedTeamsCarousel
+          teams={teams.slice(0, 16)}
+          title={`${categoryLabel} Teams`}
+          linkTo={`/${category}/teams`}
+        />
+        <section className="home-section">
+          <SectionHeader title="Upcoming Fixtures" linkTo={`/${category}/fixtures`} />
+          <div className="home-grid home-grid--matches">
+            {fixtures.map((match) => (
+              <MatchCard key={match.id} match={match} teamsMap={teamsMap} />
+            ))}
+          </div>
+        </section>
+        <section className="home-section">
+          <SectionHeader title="Latest Results" linkTo={`/${category}/results`} />
+          <div className="home-grid home-grid--matches">
+            {results.map((match) => (
+              <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode="result" />
+            ))}
+          </div>
+        </section>
+        <section className="home-section">
+          <SectionHeader title="Related News" linkTo="/news" linkSearch={{ q: '' }} />
+          <div className="home-grid home-grid--news">
+            {news.map((article) => (
+              <NewsCard key={article.id} article={article} />
+            ))}
+          </div>
+        </section>
+      </main>
+    </>
   )
 }
 
@@ -212,24 +216,31 @@ function NewsListPage() {
   })
 
   return (
-    <main className="container">
-      <section className="menu-page">
-        <PageHero title="News" subtitle="Latest updates and reports" imageUrl={resolveMediaUrl(news[0]?.featured_image_url)} />
-        <input
-          className="menu-search-input"
-          placeholder="Search news"
-          value={q}
-          onChange={(e) => navigate({ search: { q: e.target.value }, replace: true })}
-        />
-        {isLoading ? <Spinner /> : null}
-        {isError ? <ErrorNotice /> : null}
-        <div className="home-grid home-grid--news">
-          {news.map((article) => (
-            <NewsCard key={article.id} article={article} />
-          ))}
-        </div>
-      </section>
-    </main>
+    <>
+      <PageHero
+        fullWidth
+        title="News"
+        subtitle="Latest updates and reports"
+        imageUrl={resolveMediaUrl(news[0]?.featured_image_url)}
+      />
+      <main className="container">
+        <section className="menu-page">
+          <input
+            className="menu-search-input"
+            placeholder="Search news"
+            value={q}
+            onChange={(e) => navigate({ search: { q: e.target.value }, replace: true })}
+          />
+          {isLoading ? <Spinner /> : null}
+          {isError ? <ErrorNotice /> : null}
+          <div className="home-grid home-grid--news">
+            {news.map((article) => (
+              <NewsCard key={article.id} article={article} />
+            ))}
+          </div>
+        </section>
+      </main>
+    </>
   )
 }
 
@@ -243,19 +254,25 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
   const [active, setActive] = useState<GalleryItem | null>(null)
 
   return (
-    <main className="container">
-      <section className="menu-page">
-        <PageHero title={mediaType ? `Gallery ${formatCategoryLabel(mediaType)}` : 'Gallery'} subtitle="Images and videos from NPL" />
-        {isLoading ? <Spinner /> : null}
-        {isError ? <ErrorNotice /> : null}
-        <div className="home-grid home-grid--gallery">
-          {data.map((item) => (
-            <GalleryCard key={item.id} item={item} onOpen={setActive} />
-          ))}
-        </div>
-      </section>
+    <>
+      <PageHero
+        variant="siteLogo"
+        title={mediaType ? `Gallery ${formatCategoryLabel(mediaType)}` : 'Gallery'}
+        subtitle="Images and videos from NPL"
+      />
+      <main className="container">
+        <section className="menu-page">
+          {isLoading ? <Spinner /> : null}
+          {isError ? <ErrorNotice /> : null}
+          <div className="home-grid home-grid--gallery">
+            {data.map((item) => (
+              <GalleryCard key={item.id} item={item} onOpen={setActive} />
+            ))}
+          </div>
+        </section>
+      </main>
       <GalleryLightbox active={active} onClose={() => setActive(null)} />
-    </main>
+    </>
   )
 }
 
@@ -277,29 +294,35 @@ function AboutPageImpl() {
   })
 
   return (
-    <main className="container">
-      <section className="menu-page">
-        <PageHero title="About Zimbabwe Cricket NPL" subtitle="Domestic excellence across Mens, Women and Youth competitions." />
-        <div className="menu-list">
-          <article className="menu-list-item">
-            <h2>Teams</h2>
-            <p>{teamsQ.data?.total ?? 0}</p>
-          </article>
-          <article className="menu-list-item">
-            <h2>Leagues</h2>
-            <p>{leaguesQ.data?.total ?? 0}</p>
-          </article>
-          <article className="menu-list-item">
-            <h2>Published News</h2>
-            <p>{newsQ.data?.total ?? 0}</p>
-          </article>
-          <article className="menu-list-item">
-            <h2>Contact</h2>
-            <p>media@npl.co.zw</p>
-          </article>
-        </div>
-      </section>
-    </main>
+    <>
+      <PageHero
+        variant="siteLogo"
+        title="About Zimbabwe Cricket NPL"
+        subtitle="Domestic excellence across Mens, Women and Youth competitions."
+      />
+      <main className="container">
+        <section className="menu-page">
+          <div className="menu-list">
+            <article className="menu-list-item">
+              <h2>Teams</h2>
+              <p>{teamsQ.data?.total ?? 0}</p>
+            </article>
+            <article className="menu-list-item">
+              <h2>Leagues</h2>
+              <p>{leaguesQ.data?.total ?? 0}</p>
+            </article>
+            <article className="menu-list-item">
+              <h2>Published News</h2>
+              <p>{newsQ.data?.total ?? 0}</p>
+            </article>
+            <article className="menu-list-item">
+              <h2>Contact</h2>
+              <p>media@npl.co.zw</p>
+            </article>
+          </div>
+        </section>
+      </main>
+    </>
   )
 }
 

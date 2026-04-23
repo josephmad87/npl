@@ -442,7 +442,7 @@ function PlayerDetailPage() {
       ) : (
         <>
           <article
-            className="entity-detail-hero"
+            className="entity-detail-hero entity-detail-hero--player"
             aria-label={`${player.full_name} profile summary`}
           >
             <div className="entity-detail-hero__media">

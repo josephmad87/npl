@@ -874,6 +874,10 @@ button {
   object-position: center;
 }
 
+.entity-detail-hero--player .entity-detail-hero__media img {
+  object-position: top center;
+}
+
 .entity-detail-hero__media--badge img {
   object-fit: contain;
   padding: 1rem 1.25rem;
@@ -1824,6 +1828,8 @@ button.entity-thumb-card {
   border-radius: 0;
   border: none;
   object-fit: cover;
+  /* Portrait headshots in a wide tile: default center crop loses the top of the head */
+  object-position: top center;
 }
 
 .entity-thumb-card--team .entity-thumb-card__media--team,

@@ -4,7 +4,15 @@ import { SectionHeader } from './SectionHeader'
 import type { TeamLite } from '../lib/hooks'
 import { resolveMediaUrl } from '../lib/publicApi'
 
-export function FeaturedTeamsCarousel({ teams }: { teams: TeamLite[] }) {
+export function FeaturedTeamsCarousel({
+  teams,
+  title = 'Featured Teams',
+  linkTo = '/mens/teams',
+}: {
+  teams: TeamLite[]
+  title?: string
+  linkTo?: string
+}) {
   const trackRef = useRef<HTMLDivElement>(null)
 
   const scrollBy = useCallback((direction: -1 | 1) => {
@@ -19,10 +27,10 @@ export function FeaturedTeamsCarousel({ teams }: { teams: TeamLite[] }) {
   if (teams.length === 0) return null
 
   return (
-    <section className="home-section home-featured-teams" aria-label="Featured teams">
+    <section className="home-section home-featured-teams" aria-label={title}>
       <div className="featured-teams-carousel__toolbar">
         <div className="featured-teams-carousel__header-wrap">
-          <SectionHeader title="Featured Teams" linkTo="/mens/teams" />
+          <SectionHeader title={title} linkTo={linkTo} />
         </div>
         <div className="featured-teams-carousel__nav" aria-label="Scroll teams">
           <button type="button" className="featured-teams-carousel__nav-btn" aria-label="Scroll left" onClick={() => scrollBy(-1)}>
