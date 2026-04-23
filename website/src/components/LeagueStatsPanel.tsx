@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { EmptyState } from './EmptyState'
 import type { MatchLite, TeamLite } from '../lib/hooks'
-import { extractList, fetchJson } from '../lib/publicApi'
+import { fetchAllPaginatedList } from '../lib/publicApi'
 import {
   buildBattingLeaderboard,
   buildBowlingLeaderboard,
@@ -22,9 +22,9 @@ function useSeasonPlayerNames(teamIds: number[]) {
     queryFn: async () => {
       if (teamIds.length === 0) return new Map<number, Pl>()
       const rows = await Promise.all(
-        teamIds.map(async (tid) =>
-          extractList<Pl>(
-            await fetchJson<unknown>(`/public/players?page=1&page_size=200&team_id=${tid}`),
+        teamIds.map((tid) =>
+          fetchAllPaginatedList<Pl>((page) =>
+            `/public/players?page=${page}&page_size=100&team_id=${tid}&include_inactive=true`,
           ),
         ),
       )

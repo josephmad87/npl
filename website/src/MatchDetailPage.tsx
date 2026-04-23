@@ -10,7 +10,7 @@ import {
   matchResultSummaryLine,
   matchWinnerSide,
 } from './lib/match-result'
-import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type MatchResultDetail = {
   winning_team_id: number | null
@@ -165,10 +165,8 @@ export default function MatchDetailPage() {
   const homePlayersQ = useQuery({
     queryKey: ['match-players', 'home', data?.home_team_id],
     queryFn: async () =>
-      extractList<PublicPlayerRow>(
-        await fetchJson<unknown>(
-          `/public/players?page=1&page_size=200&team_id=${data?.home_team_id ?? -1}`,
-        ),
+      fetchAllPaginatedList<PublicPlayerRow>((page) =>
+        `/public/players?page=${page}&page_size=100&team_id=${data?.home_team_id ?? -1}&include_inactive=true`,
       ),
     enabled: Boolean(data?.home_team_id),
     retry: 1,
@@ -177,10 +175,8 @@ export default function MatchDetailPage() {
   const awayPlayersQ = useQuery({
     queryKey: ['match-players', 'away', data?.away_team_id],
     queryFn: async () =>
-      extractList<PublicPlayerRow>(
-        await fetchJson<unknown>(
-          `/public/players?page=1&page_size=200&team_id=${data?.away_team_id ?? -1}`,
-        ),
+      fetchAllPaginatedList<PublicPlayerRow>((page) =>
+        `/public/players?page=${page}&page_size=100&team_id=${data?.away_team_id ?? -1}&include_inactive=true`,
       ),
     enabled: Boolean(data?.away_team_id),
     retry: 1,

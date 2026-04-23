@@ -158,8 +158,11 @@ def list_players(
     category: str | None = Query(default=None),
     role: str | None = Query(default=None),
     q: str | None = Query(default=None),
+    include_inactive: bool = Query(default=False),
 ) -> dict:
-    stmt = select(Player).where(Player.status == "active")
+    stmt = select(Player)
+    if not include_inactive:
+        stmt = stmt.where(Player.status == "active")
     if team_id is not None:
         stmt = stmt.where(Player.team_id == team_id)
     if category:

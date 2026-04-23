@@ -1125,6 +1125,16 @@
   box-sizing: content-box;
 }
 
+/* Team + site-logo hero: sit big NPL mark in the same left band as crest/title (not dead center). */
+.ui-page-hero--team-header-align.ui-page-hero--site-logo .ui-page-hero__brand-mark {
+  justify-content: flex-start;
+  padding-left: calc(
+    max(0px, (100% - min(var(--header-content-max), 100%)) * 0.5) +
+      var(--header-nav-inline-pad) + var(--header-logo-left) - 3rem
+  );
+  box-sizing: border-box;
+}
+
 .ui-page-hero--site-logo .ui-page-hero-overlay {
   z-index: 1;
   background: linear-gradient(
@@ -1147,13 +1157,17 @@
   /* Pull past full nav math so team block lines up with the header logo box (see prior tweak). */
   padding-left: calc(
     max(0px, (100% - min(var(--header-content-max), 100%)) * 0.5) +
-      var(--header-nav-inline-pad) + var(--header-logo-left) - 2.25rem
+      var(--header-nav-inline-pad) + var(--header-logo-left) - 3rem
   );
 }
 
 @media (max-width: 720px) {
   .ui-page-hero--team-header-align .ui-page-hero-overlay {
-    padding-left: 0.45rem;
+    padding-left: 0.35rem;
+  }
+
+  .ui-page-hero--team-header-align.ui-page-hero--site-logo .ui-page-hero__brand-mark {
+    padding-left: 0.35rem;
   }
 }
 
@@ -2408,9 +2422,9 @@ table.league-stats-table {
   margin: 0.4rem 0 0;
   font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   line-height: 1.35;
-  text-transform: uppercase;
+  text-transform: none;
   color: var(--color-primary);
   word-break: break-word;
 }

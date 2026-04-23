@@ -72,7 +72,43 @@ export function matchCompetitionLine(m: MatchLite): string {
   return 'Match'
 }
 
-export function matchResultHeadline(m: MatchLite): string {
+export type MatchResultHeadlineNames = {
+  homeName: string
+  awayName: string
+}
+
+/** Parse admin `margin_text` like "7 wickets", "21 runs (DLS)" for public card headline. */
+function parseMarginForWonBy(margin: string): {
+  count: number
+  unit: 'wicket' | 'wickets' | 'run' | 'runs'
+  suffix: string
+} | null {
+  const trimmed = margin.trim()
+  const paren = trimmed.match(/\(([^)]+)\)\s*$/)
+  const suffix = paren ? ` (${paren[1]})` : ''
+  const core = (paren ? trimmed.slice(0, paren.index) : trimmed).trim()
+
+  const w = core.match(/(?:won\s+by\s+)?(\d+)\s*wickets?/i)
+  if (w) {
+    const n = Number.parseInt(w[1], 10)
+    if (!Number.isFinite(n)) return null
+    const unit = n === 1 ? 'wicket' : 'wickets'
+    return { count: n, unit, suffix }
+  }
+  const r = core.match(/(?:won\s+by\s+)?(\d+)\s*runs?/i)
+  if (r) {
+    const n = Number.parseInt(r[1], 10)
+    if (!Number.isFinite(n)) return null
+    const unit = n === 1 ? 'run' : 'runs'
+    return { count: n, unit, suffix }
+  }
+  return null
+}
+
+export function matchResultHeadline(
+  m: MatchLite,
+  names?: MatchResultHeadlineNames,
+): string {
   if (m.status !== 'completed') {
     return (m.status ?? 'Scheduled').replaceAll('_', ' ').toUpperCase()
   }
@@ -81,6 +117,15 @@ export function matchResultHeadline(m: MatchLite): string {
     return 'RESULT'
   }
   const margin = r.margin_text?.trim()
+  const winnerSide = matchWinnerSide(m)
+  if (margin && names && winnerSide) {
+    const winnerName =
+      winnerSide === 'home' ? names.homeName.trim() : names.awayName.trim()
+    const parsed = parseMarginForWonBy(margin)
+    if (parsed && winnerName) {
+      return `${winnerName} won by ${parsed.count} ${parsed.unit}${parsed.suffix}`
+    }
+  }
   if (margin) {
     return margin.toUpperCase()
   }

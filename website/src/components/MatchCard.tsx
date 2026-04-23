@@ -104,7 +104,7 @@ export function ResultMatchCard({
 }) {
   const winner = matchWinnerSide(match)
   const sb = buildInningScoreboard(match)
-  const headline = matchResultHeadline(match)
+  const headline = matchResultHeadline(match, { homeName, awayName })
   const comp = matchCompetitionLine(match)
   const toss = match.toss_info?.trim()
 
