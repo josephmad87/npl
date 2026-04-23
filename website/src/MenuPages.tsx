@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useSearch } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import { EmptyState } from './components/EmptyState'
 import { ErrorNotice } from './components/ErrorNotice'
+import { LeagueSeasonHub } from './components/LeagueSeasonHub'
 import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox } from './components/GalleryLightbox'
 import { MatchCard } from './components/MatchCard'
@@ -12,14 +14,12 @@ import { SectionHeader } from './components/SectionHeader'
 import { Spinner } from './components/Spinner'
 import { TeamCard } from './components/TeamCard'
 import type { CompetitionCategory } from './lib/competitionCategories'
-import { formatCategoryLabel, formatDateRange } from './lib/formatters'
+import { formatCategoryLabel } from './lib/formatters'
 import {
   type ArticleLite,
   type MatchLite,
-  type SeasonLite,
   type TeamLite,
   useLatestResults,
-  useLeaguesMap,
   useRecentNews,
   useTeamsMap,
   useUpcomingFixtures,
@@ -147,8 +147,16 @@ function TeamsListPage({ category }: { category: string }) {
   )
 }
 
-function SeasonsListPage({ category }: { category: CompetitionCategory }) {
-  const { data: leagues = [] } = useQuery({
+function CategorySeasonsPage({
+  category,
+  searchPath,
+}: {
+  category: CompetitionCategory
+  searchPath: '/mens/seasons' | '/women/seasons' | '/youth/seasons'
+}) {
+  const { leagueSlug } = useSearch({ from: searchPath })
+  const navigate = useNavigate({ from: searchPath })
+  const { data: leagues = [], isLoading: leaguesLoading } = useQuery({
     queryKey: ['category-leagues', category],
     queryFn: async () =>
       extractList<{ id: number; slug: string; name: string }>(
@@ -158,51 +166,55 @@ function SeasonsListPage({ category }: { category: CompetitionCategory }) {
       ),
     retry: 1,
   })
-  const { map: leaguesMap } = useLeaguesMap()
-  const { data: seasons = [], isLoading, isError } = useQuery({
-    queryKey: ['all-seasons-expanded', category, leagues.map((l) => l.slug).join(',')],
-    queryFn: async () => {
-      const sets = await Promise.all(
-        leagues.map(async (league) =>
-          extractList<SeasonLite>(
-            await fetchJson<unknown>(`/public/leagues/${league.slug}/seasons?page=1&page_size=30`),
-          ).map((s) => ({ ...s, leagueSlug: league.slug })),
-        ),
-      )
-      return sets.flat() as Array<SeasonLite & { leagueSlug: string }>
-    },
-    enabled: leagues.length > 0,
-    retry: 1,
-  })
-  const highlightedLeague = new URLSearchParams(globalThis.location.search).get('leagueSlug')
+
+  const activeLeagueSlug = useMemo(() => {
+    if (leagueSlug && leagues.some((l) => l.slug === leagueSlug)) {
+      return leagueSlug
+    }
+    return leagues[0]?.slug ?? ''
+  }, [leagueSlug, leagues])
+
+  if (leaguesLoading) {
+    return (
+      <main className="container">
+        <section className="menu-page">
+          <Spinner label="Loading leagues..." />
+        </section>
+      </main>
+    )
+  }
+
+  if (leagues.length === 0) {
+    return (
+      <main className="container">
+        <section className="menu-page">
+          <PageHero
+            title={`${formatCategoryLabel(category)} Seasons`}
+            subtitle="Browse by league and season"
+          />
+          <EmptyState title="No leagues in this category yet" />
+        </section>
+      </main>
+    )
+  }
+
+  if (!activeLeagueSlug) {
+    return (
+      <main className="container">
+        <Spinner label="Loading..." />
+      </main>
+    )
+  }
 
   return (
-    <main className="container">
-      <section className="menu-page">
-        <PageHero title={`${formatCategoryLabel(category)} Seasons`} subtitle="Browse by league and season" />
-        {isLoading ? <Spinner /> : null}
-        {isError ? <ErrorNotice /> : null}
-        <div className="menu-list">
-          {seasons.map((season) => {
-            const league = Object.values(leaguesMap).find((l) => l.slug === season.leagueSlug)
-            return (
-              <article key={`${season.leagueSlug}-${season.id}`} className={`menu-list-item${highlightedLeague === season.leagueSlug ? ' is-active' : ''}`}>
-                <div>
-                  <Link
-                    to="/leagues/$leagueSlug/seasons/$seasonSlug"
-                    params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
-                    className="menu-list-link"
-                  >
-                    {season.name}
-                  </Link>
-                  <p>{league?.name ?? season.leagueSlug} • {formatDateRange(season.start_date ?? null, season.end_date ?? null)}</p>
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      </section>
-    </main>
+    <LeagueSeasonHub
+      key={activeLeagueSlug}
+      leagueSlug={activeLeagueSlug}
+      onLeagueSlugChange={(next) => {
+        void navigate({ search: { leagueSlug: next }, replace: true })
+      }}
+      showDescription
+    />
   )
 }
 
@@ -331,9 +343,15 @@ function AboutPageImpl() {
 export const MensPage = () => <CategoryHomePage category="mens" />
 export const MensFixturesPage = () => <FixturesResultsPage category="mens" mode="fixtures" />
 export const MensResultsPage = () => <FixturesResultsPage category="mens" mode="results" />
-export const MensSeasonsPage = () => <SeasonsListPage category="mens" />
-export const WomenSeasonsPage = () => <SeasonsListPage category="women" />
-export const YouthSeasonsPage = () => <SeasonsListPage category="youth" />
+export const MensSeasonsPage = () => (
+  <CategorySeasonsPage category="mens" searchPath="/mens/seasons" />
+)
+export const WomenSeasonsPage = () => (
+  <CategorySeasonsPage category="women" searchPath="/women/seasons" />
+)
+export const YouthSeasonsPage = () => (
+  <CategorySeasonsPage category="youth" searchPath="/youth/seasons" />
+)
 export const MensTeamsPage = () => <TeamsListPage category="mens" />
 
 export const WomenPage = () => <CategoryHomePage category="women" />

@@ -61,9 +61,11 @@ export type MatchLite = {
   category?: string | null
   home_team_id: number
   away_team_id: number
+  title?: string | null
   venue?: string | null
   match_date?: string | null
   start_time?: string | null
+  toss_info?: string | null
   status?: string
   cover_image_url?: string | null
   result?: {

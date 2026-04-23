@@ -1,15 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link, useParams } from '@tanstack/react-router'
-import { EmptyState } from './components/EmptyState'
+import { useNavigate, useParams } from '@tanstack/react-router'
 import { ErrorNotice } from './components/ErrorNotice'
+import { LeagueSeasonHub } from './components/LeagueSeasonHub'
 import { MatchCard } from './components/MatchCard'
 import { PageHero } from './components/PageHero'
 import { PlayerCard } from './components/PlayerCard'
 import { SectionHeader } from './components/SectionHeader'
 import { Spinner } from './components/Spinner'
-import { TeamCard } from './components/TeamCard'
-import { formatCategoryLabel, formatDateRange } from './lib/formatters'
+import { formatCategoryLabel } from './lib/formatters'
 import { type MatchLite, useTeamsMap } from './lib/hooks'
 import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
@@ -34,35 +33,6 @@ type TeamDetail = {
   team_photo_urls: string[] | null
   social_links: Record<string, string> | null
   status: string
-}
-
-type LeagueDetail = {
-  id: number
-  name: string
-  slug: string
-  category: string | null
-  banner_url: string | null
-  logo_url: string | null
-  status: string
-  description: string | null
-  seasons: Array<{
-    id: number
-    name: string
-    slug: string
-    start_date: string | null
-    end_date: string | null
-    status: string
-  }>
-}
-
-type SeasonDetail = {
-  id: number
-  name: string
-  slug: string
-  status: string
-  start_date: string | null
-  end_date: string | null
-  team_ids: number[]
 }
 
 export function TeamDetailPage() {
@@ -261,166 +231,37 @@ export function TeamDetailPage() {
 
 export function LeagueDetailPage() {
   const { slug } = useParams({ from: '/leagues/$slug' })
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['league-detail', slug],
-    queryFn: () => fetchJson<LeagueDetail>(`/public/leagues/${slug}`),
-    retry: 1,
-  })
-  const { map: teamsMap } = useTeamsMap()
-  const [seasonTab, setSeasonTab] = useState<string>('all')
-  const seasonQuery = useQuery({
-    queryKey: ['league-season-detail', slug, seasonTab],
-    queryFn: () => fetchJson<SeasonDetail>(`/public/leagues/${slug}/seasons/${seasonTab}`),
-    enabled: Boolean(slug) && seasonTab !== 'all',
-    retry: 1,
-  })
-
+  const navigate = useNavigate()
   return (
-    <main className="container">
-      <section className="menu-page">
-        {isLoading ? <Spinner label="Loading league..." /> : null}
-        {isError ? <ErrorNotice message="Could not load league details." /> : null}
-        {data ? (
-          <>
-            <PageHero
-              title={data.name}
-              subtitle={`${formatCategoryLabel(data.category)} • ${data.status}`}
-              imageUrl={resolveMediaUrl(data.banner_url) ?? resolveMediaUrl(data.logo_url)}
-            />
-            <p className="menu-page-copy">{data.description ?? 'League overview coming soon.'}</p>
-            <SectionHeader title="Seasons" />
-            <div className="detail-tabs">
-              <button type="button" className={seasonTab === 'all' ? 'is-active' : ''} onClick={() => setSeasonTab('all')}>
-                all
-              </button>
-              {data.seasons.map((season) => (
-                <button
-                  key={season.id}
-                  type="button"
-                  className={seasonTab === season.slug ? 'is-active' : ''}
-                  onClick={() => setSeasonTab(season.slug)}
-                >
-                  {season.name}
-                </button>
-              ))}
-            </div>
-            <div className="menu-list">
-              {(seasonTab === 'all' ? data.seasons : data.seasons.filter((s) => s.slug === seasonTab)).map((season) => (
-                <article key={season.id} className="menu-list-item">
-                  <div>
-                    <h2>{season.name}</h2>
-                    <p>{formatDateRange(season.start_date, season.end_date)} • {season.status}</p>
-                    <Link to="/leagues/$leagueSlug/seasons/$seasonSlug" params={{ leagueSlug: slug, seasonSlug: season.slug }} className="menu-list-link">
-                      Open season
-                    </Link>
-                  </div>
-                </article>
-              ))}
-            </div>
-            {seasonQuery.data ? (
-              <>
-                <SectionHeader title="Teams in selected season" />
-                <div className="home-grid home-grid--teams">
-                  {seasonQuery.data.team_ids.map((teamId) => {
-                    const team = teamsMap[teamId]
-                    return team ? <TeamCard key={teamId} team={team} /> : null
-                  })}
-                </div>
-              </>
-            ) : null}
-          </>
-        ) : null}
-      </section>
-    </main>
+    <LeagueSeasonHub
+      key={slug}
+      leagueSlug={slug}
+      onLeagueSlugChange={(next) => {
+        void navigate({ to: '/leagues/$slug', params: { slug: next } })
+      }}
+      showDescription
+    />
   )
 }
 
 export function SeasonDetailPage() {
   const { leagueSlug, seasonSlug } = useParams({ from: '/leagues/$leagueSlug/seasons/$seasonSlug' })
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['season-detail', leagueSlug, seasonSlug],
-    queryFn: () => fetchJson<SeasonDetail>(`/public/leagues/${leagueSlug}/seasons/${seasonSlug}`),
-    retry: 1,
-  })
-  const { map: teamsMap } = useTeamsMap()
-  const [tab, setTab] = useState<'fixtures' | 'results'>('fixtures')
-  const fixturesQ = useQuery({
-    queryKey: ['season-fixtures', data?.id ?? 'none'],
-    queryFn: async () =>
-      extractList<MatchLite>(await fetchJson<unknown>(`/public/fixtures?page=1&page_size=20&season_id=${data?.id ?? -1}`)),
-    enabled: Boolean(data?.id),
-    retry: 1,
-  })
-  const resultsQ = useQuery({
-    queryKey: ['season-results', data?.id ?? 'none'],
-    queryFn: async () =>
-      extractList<MatchLite>(await fetchJson<unknown>(`/public/results?page=1&page_size=20&season_id=${data?.id ?? -1}`)),
-    enabled: Boolean(data?.id),
-    retry: 1,
-  })
-
+  const navigate = useNavigate()
   return (
-    <>
-      {data ? (
-        <PageHero
-          variant="siteLogo"
-          title={data.name}
-          subtitle={`${data.status} • ${formatDateRange(data.start_date, data.end_date)}`}
-        />
-      ) : null}
-      <main className="container">
-        <section className="menu-page">
-        {isLoading ? <Spinner label="Loading season..." /> : null}
-        {isError ? <ErrorNotice message="Could not load season details." /> : null}
-        {data ? (
-          <>
-            <div className="menu-list">
-              <article className="menu-list-item">
-                <div>
-                  <h2>Status</h2>
-                  <p>{data.status}</p>
-                </div>
-              </article>
-              <article className="menu-list-item">
-                <div>
-                  <h2>Dates</h2>
-                  <p>
-                    {data.start_date ?? 'TBD'} - {data.end_date ?? 'TBD'}
-                  </p>
-                </div>
-              </article>
-              <article className="menu-list-item">
-                <div>
-                  <h2>Teams in Season</h2>
-                  <p>{data.team_ids.length}</p>
-                </div>
-              </article>
-            </div>
-            <SectionHeader title="Teams in season" />
-            <div className="home-grid home-grid--teams">
-              {data.team_ids.map((id) => (teamsMap[id] ? <TeamCard key={id} team={teamsMap[id]} /> : null))}
-            </div>
-            <SectionHeader title="Schedule" />
-            <div className="detail-tabs">
-              <button type="button" className={tab === 'fixtures' ? 'is-active' : ''} onClick={() => setTab('fixtures')}>
-                fixtures
-              </button>
-              <button type="button" className={tab === 'results' ? 'is-active' : ''} onClick={() => setTab('results')}>
-                results
-              </button>
-            </div>
-            <div className="home-grid home-grid--matches">
-              {(tab === 'fixtures' ? fixturesQ.data : resultsQ.data)?.map((match) => (
-                <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode={tab === 'fixtures' ? 'fixture' : 'result'} />
-              )) ?? null}
-            </div>
-            {(tab === 'fixtures' ? fixturesQ.data : resultsQ.data)?.length === 0 ? (
-              <EmptyState title={`No ${tab} available for this season`} />
-            ) : null}
-          </>
-        ) : null}
-        </section>
-      </main>
-    </>
+    <LeagueSeasonHub
+      key={`${leagueSlug}-${seasonSlug}`}
+      leagueSlug={leagueSlug}
+      onLeagueSlugChange={(next) => {
+        void navigate({ to: '/leagues/$slug', params: { slug: next } })
+      }}
+      seasonSlugFromRoute={seasonSlug}
+      onSeasonSlugNavigate={(s) => {
+        void navigate({
+          to: '/leagues/$leagueSlug/seasons/$seasonSlug',
+          params: { leagueSlug, seasonSlug: s },
+        })
+      }}
+      showDescription
+    />
   )
 }

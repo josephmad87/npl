@@ -57,10 +57,15 @@ const mensResultsRoute = createRoute({
   path: '/mens/results',
   component: MensResultsPage,
 })
+const seasonListSearch = (search: Record<string, unknown>) => ({
+  leagueSlug: typeof search.leagueSlug === 'string' ? search.leagueSlug : '',
+})
+
 const mensSeasonsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/mens/seasons',
   component: MensSeasonsPage,
+  validateSearch: seasonListSearch,
 })
 const mensTeamsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -117,6 +122,7 @@ const womenSeasonsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/women/seasons',
   component: WomenSeasonsPage,
+  validateSearch: seasonListSearch,
 })
 
 const youthRoute = createRoute({ getParentRoute: () => rootRoute, path: '/youth', component: YouthPage })
@@ -139,6 +145,7 @@ const youthSeasonsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/youth/seasons',
   component: YouthSeasonsPage,
+  validateSearch: seasonListSearch,
 })
 
 const newsRoute = createRoute({
