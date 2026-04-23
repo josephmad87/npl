@@ -2,29 +2,47 @@ from collections import defaultdict
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, or_, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.pagination import PageParams, paginate_select, to_paginated
 from app.db.session import get_db
+from app.models.about_content import AboutContent
 from app.models.article import Article
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season, SeasonTeam
 from app.models.match import Match, MatchPlayerStat
 from app.models.player import Player
+from app.models.sponsor import Sponsor
 from app.models.team import Team
+from app.schemas.about_content import AboutContentBody, AboutContentOut
 from app.schemas.articles import ArticleOut
 from app.schemas.gallery import GalleryItemOut
 from app.schemas.leagues import LeagueDetailPublicOut, LeagueOut
 from app.schemas.matches import MatchDetailOut
 from app.schemas.players import PlayerMatchAppearanceOut, PlayerOut
 from app.schemas.seasons import SeasonPublicOut, SeasonSummaryOut
+from app.schemas.sponsor import SponsorOut
 from app.schemas.teams import TeamOut, TeamSeasonRecordOut
 
 router = APIRouter(prefix="/public", tags=["public"])
 
 FIXTURE_STATUSES = ("scheduled", "live", "postponed")
 RESULT_STATUSES = ("completed",)
+
+
+def _coerce_public_about_body(raw: object) -> AboutContentBody:
+    if not raw or not isinstance(raw, dict):
+        return AboutContentBody()
+    try:
+        return AboutContentBody.model_validate(raw)
+    except Exception:
+        return AboutContentBody()
+
+
+def _public_about_out(row: AboutContent) -> AboutContentOut:
+    body = _coerce_public_about_body(row.body)
+    return AboutContentOut(**body.model_dump(), updated_at=row.updated_at)
 
 
 def _published_article_filter(stmt: Select) -> Select:
@@ -443,4 +461,44 @@ def list_gallery(
     stmt = stmt.order_by(GalleryItem.created_at.desc())
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
     items = [GalleryItemOut.model_validate(r) for r in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.get("/about", response_model=AboutContentOut)
+def get_public_about(db: Session = Depends(get_db)) -> AboutContentOut:
+    """Singleton about copy for the public site (same payload shape as admin GET /admin/about)."""
+    row = db.get(AboutContent, 1)
+    if row is None:
+        return AboutContentOut(updated_at=datetime.now(timezone.utc))
+    return _public_about_out(row)
+
+
+@router.get("/sponsors", response_model=dict)
+def list_public_sponsors(
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+) -> dict:
+    """Sponsor logos and names for the public About page and footers."""
+    count_raw = db.scalar(select(func.count()).select_from(Sponsor))
+    total = int(count_raw) if count_raw is not None else 0
+    offset = (page_params.page - 1) * page_params.page_size
+    stmt = (
+        select(Sponsor, Team.name)
+        .outerjoin(Team, Sponsor.team_id == Team.id)
+        .order_by(Sponsor.name, Sponsor.id)
+        .offset(offset)
+        .limit(page_params.page_size)
+    )
+    rows = list(db.execute(stmt).all())
+    items = [
+        SponsorOut(
+            id=sp.id,
+            name=sp.name,
+            image_url=sp.image_url,
+            team_id=sp.team_id,
+            team_name=tn,
+            created_at=sp.created_at,
+        )
+        for sp, tn in rows
+    ]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()

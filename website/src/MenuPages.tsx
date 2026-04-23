@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState, useSearch } from '@tanstack/react-router'
+import nplLogoUrl from './assets/logo.jpeg'
 import { EmptyState } from './components/EmptyState'
 import { ErrorNotice } from './components/ErrorNotice'
 import { LeagueSeasonHub } from './components/LeagueSeasonHub'
@@ -119,15 +120,36 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
   })
   const { map: teamsMap } = useTeamsMap()
   const title = `${category ? `${formatCategoryLabel(category)} ` : ''}${mode === 'fixtures' ? 'Fixtures' : 'Results'}`
+  const pageSubtitle = useMemo(() => {
+    const cat = category ? formatCategoryLabel(category).toLowerCase() : null
+    if (mode === 'fixtures') {
+      return cat
+        ? `Upcoming and scheduled ${cat} matches.`
+        : 'Upcoming and scheduled matches across all competitions.'
+    }
+    return cat
+      ? `Completed ${cat} match results and scorelines.`
+      : 'Completed match results and scorelines across all competitions.'
+  }, [mode, category])
 
   return (
     <>
-      <PageHero variant="siteLogo" title={title} subtitle="Live API feed" />
+      <PageHero variant="siteLogo" title={title} subtitle={pageSubtitle} />
       <main className="container">
-        <section className="menu-page">
-          {isLoading ? <Spinner /> : null}
-          {isError ? <ErrorNotice /> : null}
-          {!isLoading && !isError ? (
+        <section className="menu-page listings-page">
+          {isLoading ? <Spinner label={mode === 'fixtures' ? 'Loading fixtures…' : 'Loading results…'} /> : null}
+          {isError ? <ErrorNotice message={`Could not load ${mode === 'fixtures' ? 'fixtures' : 'results'}.`} /> : null}
+          {!isLoading && !isError && data.length === 0 ? (
+            <EmptyState
+              title={mode === 'fixtures' ? 'No fixtures to show' : 'No results to show yet'}
+              description={
+                mode === 'fixtures'
+                  ? 'Check back when the schedule is published, or browse another competition.'
+                  : 'Results will appear here once matches are completed.'
+              }
+            />
+          ) : null}
+          {!isLoading && !isError && data.length > 0 ? (
             <div
               className={
                 mode === 'results'
@@ -136,7 +158,12 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
               }
             >
               {data.map((match) => (
-                <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode={mode === 'fixtures' ? 'fixture' : 'result'} />
+                <MatchCard
+                  key={match.id}
+                  match={match}
+                  teamsMap={teamsMap}
+                  mode={mode === 'fixtures' ? 'fixture' : 'result'}
+                />
               ))}
             </div>
           ) : null}
@@ -154,22 +181,44 @@ function TeamsListPage({ category }: { category: string }) {
     retry: 1,
   })
   const highlightedSlug = new URLSearchParams(globalThis.location.search).get('teamSlug')
+  const label = formatCategoryLabel(category)
 
   return (
-    <main className="container">
-      <section className="menu-page">
-        <PageHero title={`${formatCategoryLabel(category)} Teams`} subtitle="Squads, venues and leadership" />
-        {isLoading ? <Spinner /> : null}
-        {isError ? <ErrorNotice /> : null}
-        <div className="home-grid home-grid--teams">
-          {data.map((team) => (
-            <div key={team.id} className={highlightedSlug === team.slug ? 'menu-list-item is-active' : ''}>
-              <TeamCard team={team} />
+    <>
+      <PageHero
+        variant="siteLogo"
+        title={`${label} Teams`}
+        subtitle="Squads, home grounds, and club profiles"
+      />
+      <main className="container">
+        <section className="menu-page teams-page">
+          {isLoading ? <Spinner label="Loading teams…" /> : null}
+          {isError ? <ErrorNotice message="Could not load teams." /> : null}
+          {!isLoading && !isError && data.length === 0 ? (
+            <EmptyState
+              title="No teams in this category yet"
+              description="Team profiles will appear here once they are published."
+            />
+          ) : null}
+          {!isLoading && !isError && data.length > 0 ? (
+            <div className="home-grid home-grid--teams">
+              {data.map((team) => (
+                <div
+                  key={team.id}
+                  className={
+                    highlightedSlug === team.slug
+                      ? 'teams-page__cell teams-page__cell--highlight'
+                      : 'teams-page__cell'
+                  }
+                >
+                  <TeamCard team={team} />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
-    </main>
+          ) : null}
+        </section>
+      </main>
+    </>
   )
 }
 
@@ -202,33 +251,53 @@ function CategorySeasonsPage({
 
   if (leaguesLoading) {
     return (
-      <main className="container">
-        <section className="menu-page">
-          <Spinner label="Loading leagues..." />
-        </section>
-      </main>
+      <>
+        <PageHero
+          variant="siteLogo"
+          title={`${formatCategoryLabel(category)} Seasons`}
+          subtitle="Browse by league and season"
+        />
+        <main className="container">
+          <section className="menu-page">
+            <Spinner label="Loading leagues…" />
+          </section>
+        </main>
+      </>
     )
   }
 
   if (leagues.length === 0) {
     return (
-      <main className="container">
-        <section className="menu-page">
-          <PageHero
-            title={`${formatCategoryLabel(category)} Seasons`}
-            subtitle="Browse by league and season"
-          />
-          <EmptyState title="No leagues in this category yet" />
-        </section>
-      </main>
+      <>
+        <PageHero
+          variant="siteLogo"
+          title={`${formatCategoryLabel(category)} Seasons`}
+          subtitle="Browse by league and season"
+        />
+        <main className="container">
+          <section className="menu-page">
+            <EmptyState
+              title="No leagues in this category yet"
+              description="Check back when competitions are announced."
+            />
+          </section>
+        </main>
+      </>
     )
   }
 
   if (!activeLeagueSlug) {
     return (
-      <main className="container">
-        <Spinner label="Loading..." />
-      </main>
+      <>
+        <PageHero
+          variant="siteLogo"
+          title={`${formatCategoryLabel(category)} Seasons`}
+          subtitle="Browse by league and season"
+        />
+        <main className="container">
+          <Spinner label="Loading…" />
+        </main>
+      </>
     )
   }
 
@@ -260,24 +329,44 @@ function NewsListPage() {
       <PageHero
         fullWidth
         title="News"
-        subtitle="Latest updates and reports"
+        subtitle="Match reports, features, and competition updates"
         imageUrl={resolveMediaUrl(news[0]?.featured_image_url)}
       />
       <main className="container">
-        <section className="menu-page">
-          <input
-            className="menu-search-input"
-            placeholder="Search news"
-            value={q}
-            onChange={(e) => navigate({ search: { q: e.target.value }, replace: true })}
-          />
-          {isLoading ? <Spinner /> : null}
-          {isError ? <ErrorNotice /> : null}
-          <div className="home-grid home-grid--news">
-            {news.map((article) => (
-              <NewsCard key={article.id} article={article} />
-            ))}
+        <section className="menu-page news-page">
+          <div className="news-page__search">
+            <label htmlFor="news-search" className="news-page__search-label">
+              Search articles
+            </label>
+            <input
+              id="news-search"
+              className="news-page__search-input"
+              type="search"
+              placeholder="Search by headline or topic"
+              autoComplete="off"
+              value={q}
+              onChange={(e) => navigate({ search: { q: e.target.value }, replace: true })}
+            />
           </div>
+          {isLoading ? <Spinner label="Loading news…" /> : null}
+          {isError ? <ErrorNotice message="Could not load news." /> : null}
+          {!isLoading && !isError && news.length === 0 ? (
+            <EmptyState
+              title={trimmed ? 'No articles match your search' : 'No published articles yet'}
+              description={
+                trimmed
+                  ? 'Try a shorter search or clear the field to see all stories.'
+                  : 'New stories will show here once they are published.'
+              }
+            />
+          ) : null}
+          {!isLoading && !isError && news.length > 0 ? (
+            <div className="home-grid home-grid--news">
+              {news.map((article) => (
+                <NewsCard key={article.id} article={article} />
+              ))}
+            </div>
+          ) : null}
         </section>
       </main>
     </>
@@ -292,23 +381,54 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
     retry: 1,
   })
   const [active, setActive] = useState<GalleryItem | null>(null)
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const heroTitle = mediaType ? `${formatCategoryLabel(mediaType)}s` : 'Gallery'
+  const heroSubtitle = mediaType
+    ? mediaType === 'image'
+      ? 'Photos from matches, events, and behind the scenes'
+      : 'Match highlights and event coverage'
+    : 'Photos and video from across the National Premier League'
 
   return (
     <>
-      <PageHero
-        variant="siteLogo"
-        title={mediaType ? `Gallery ${formatCategoryLabel(mediaType)}` : 'Gallery'}
-        subtitle="Images and videos from NPL"
-      />
+      <PageHero variant="siteLogo" title={heroTitle} subtitle={heroSubtitle} />
       <main className="container">
-        <section className="menu-page">
-          {isLoading ? <Spinner /> : null}
-          {isError ? <ErrorNotice /> : null}
-          <div className="home-grid home-grid--gallery">
-            {data.map((item) => (
-              <GalleryCard key={item.id} item={item} onOpen={setActive} />
-            ))}
-          </div>
+        <section className="menu-page gallery-page">
+          <nav className="gallery-subnav" aria-label="Gallery categories">
+            <Link
+              to="/gallery"
+              className={`gallery-subnav__link${pathname === '/gallery' ? ' is-active' : ''}`}
+            >
+              All
+            </Link>
+            <Link
+              to="/gallery/images"
+              className={`gallery-subnav__link${pathname === '/gallery/images' ? ' is-active' : ''}`}
+            >
+              Images
+            </Link>
+            <Link
+              to="/gallery/video"
+              className={`gallery-subnav__link${pathname === '/gallery/video' ? ' is-active' : ''}`}
+            >
+              Video
+            </Link>
+          </nav>
+          {isLoading ? <Spinner label="Loading gallery…" /> : null}
+          {isError ? <ErrorNotice message="Could not load gallery." /> : null}
+          {!isLoading && !isError && data.length === 0 ? (
+            <EmptyState
+              title="Nothing here yet"
+              description="New images and clips will show up as they are published."
+            />
+          ) : null}
+          {!isLoading && !isError && data.length > 0 ? (
+            <div className="home-grid home-grid--gallery">
+              {data.map((item) => (
+                <GalleryCard key={item.id} item={item} onOpen={setActive} />
+              ))}
+            </div>
+          ) : null}
         </section>
       </main>
       <GalleryLightbox active={active} onClose={() => setActive(null)} />
@@ -316,50 +436,278 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
   )
 }
 
+type PublicAboutContent = {
+  mission: string
+  vision: string
+  history: string
+  team: Array<{ position?: string | null; picture_url?: string | null }>
+  contacts: { emails: string[]; phone: string }
+  physical_address: string
+  updated_at: string
+}
+
+type PublicSponsor = {
+  id: number
+  name: string
+  image_url: string
+  team_id: number | null
+  team_name: string | null
+  created_at: string
+}
+
+function formatAboutUpdatedAt(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.valueOf())) return iso
+  return new Intl.DateTimeFormat('en-ZW', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(d)
+}
+
+function AboutInlineImage({
+  url,
+  alt,
+  className,
+}: {
+  url: string | null | undefined
+  alt: string
+  className: string
+}) {
+  const resolved = resolveMediaUrl(url?.trim() ?? '') ?? nplLogoUrl
+  return (
+    <img
+      className={className}
+      src={resolved}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      onError={(e) => {
+        e.currentTarget.onerror = null
+        e.currentTarget.src = nplLogoUrl
+      }}
+    />
+  )
+}
+
+function AboutTextSection({ title, text }: { title: string; text: string }) {
+  const body = text.trim()
+  if (!body) return null
+  return (
+    <section className="about-page__block">
+      <h2 className="about-page__block-title">{title}</h2>
+      <div className="about-page__prose">{body}</div>
+    </section>
+  )
+}
+
 function AboutPageImpl() {
-  const teamsQ = useQuery({
-    queryKey: ['about-teams'],
-    queryFn: () => fetchJson<{ total?: number }>('/public/teams?page=1&page_size=1'),
+  const aboutQ = useQuery({
+    queryKey: ['public-about'],
+    queryFn: () => fetchJson<PublicAboutContent>('/public/about'),
     retry: 1,
   })
-  const leaguesQ = useQuery({
-    queryKey: ['about-leagues'],
-    queryFn: () => fetchJson<{ total?: number }>('/public/leagues?page=1&page_size=1'),
-    retry: 1,
-  })
-  const newsQ = useQuery({
-    queryKey: ['about-news'],
-    queryFn: () => fetchJson<{ total?: number }>('/public/news?page=1&page_size=1'),
+  const sponsorsQ = useQuery({
+    queryKey: ['public-sponsors'],
+    queryFn: () =>
+      fetchAllPaginatedList<PublicSponsor>(
+        (page) => `/public/sponsors?page=${page}&page_size=100`,
+      ),
     retry: 1,
   })
 
+  const about = aboutQ.data
+  const sponsors = sponsorsQ.data ?? []
+
+  const heroSubtitle = useMemo(() => {
+    const m = about?.mission?.trim()
+    if (!m) {
+      return 'Mission, leadership, contact details, and official partners.'
+    }
+    const first = m.split(/\n\s*\n/u)[0]?.trim() ?? m
+    return first.length > 200 ? `${first.slice(0, 197)}…` : first
+  }, [about?.mission])
+
+  const teamMembers = useMemo(() => {
+    const rows = about?.team ?? []
+    return rows.filter(
+      (r) => (r.position?.trim() ?? '') !== '' || (r.picture_url?.trim() ?? '') !== '',
+    )
+  }, [about?.team])
+
+  const hasContactBlock = useMemo(() => {
+    if (!about) return false
+    const emails = about.contacts?.emails?.filter((e) => e.trim()) ?? []
+    const phone = about.contacts?.phone?.trim() ?? ''
+    const addr = about.physical_address?.trim() ?? ''
+    return emails.length > 0 || phone !== '' || addr !== ''
+  }, [about])
+
+  const hasStoryContent = useMemo(() => {
+    if (!about) return false
+    return (
+      about.mission.trim() !== '' ||
+      about.vision.trim() !== '' ||
+      about.history.trim() !== '' ||
+      teamMembers.length > 0 ||
+      hasContactBlock
+    )
+  }, [about, teamMembers.length, hasContactBlock])
+
+  if (aboutQ.isLoading) {
+    return (
+      <>
+        <PageHero
+          variant="siteLogo"
+          title="About Zimbabwe Cricket NPL"
+          subtitle="Loading official page content…"
+        />
+        <main className="container">
+          <section className="menu-page about-page">
+            <Spinner label="Loading about content…" />
+          </section>
+        </main>
+      </>
+    )
+  }
+
+  if (aboutQ.isError || !about) {
+    return (
+      <>
+        <PageHero
+          variant="siteLogo"
+          title="About Zimbabwe Cricket NPL"
+          subtitle="Official league information"
+        />
+        <main className="container">
+          <section className="menu-page about-page">
+            <ErrorNotice message="Could not load the About page. Please try again later." />
+          </section>
+        </main>
+      </>
+    )
+  }
+
+  const showEmptyHint = !hasStoryContent && sponsors.length === 0
+
   return (
     <>
-      <PageHero
-        variant="siteLogo"
-        title="About Zimbabwe Cricket NPL"
-        subtitle="Domestic excellence across Mens, Women and Youth competitions."
-      />
+      <PageHero variant="siteLogo" title="About Zimbabwe Cricket NPL" subtitle={heroSubtitle} />
       <main className="container">
-        <section className="menu-page">
-          <div className="menu-list">
-            <article className="menu-list-item">
-              <h2>Teams</h2>
-              <p>{teamsQ.data?.total ?? 0}</p>
-            </article>
-            <article className="menu-list-item">
-              <h2>Leagues</h2>
-              <p>{leaguesQ.data?.total ?? 0}</p>
-            </article>
-            <article className="menu-list-item">
-              <h2>Published News</h2>
-              <p>{newsQ.data?.total ?? 0}</p>
-            </article>
-            <article className="menu-list-item">
-              <h2>Contact</h2>
-              <p>media@npl.co.zw</p>
-            </article>
+        <section className="menu-page about-page">
+          {showEmptyHint ? (
+            <EmptyState
+              title="About content coming soon"
+              description="League copy, leadership photos, contacts, and sponsors can be added in the admin About screen."
+            />
+          ) : null}
+
+          <AboutTextSection title="Mission" text={about.mission} />
+          <AboutTextSection title="Vision" text={about.vision} />
+          <AboutTextSection title="History" text={about.history} />
+
+          {teamMembers.length > 0 ? (
+            <section className="about-page__block">
+              <h2 className="about-page__block-title">Leadership &amp; team</h2>
+              <ul className="about-page__team-grid">
+                {teamMembers.map((row, i) => (
+                  <li key={`${row.position ?? ''}-${i}`} className="about-page__team-card">
+                    <AboutInlineImage
+                      url={row.picture_url}
+                      alt={row.position?.trim() ? `${row.position.trim()} portrait` : 'Team member'}
+                      className="about-page__team-photo"
+                    />
+                    <p className="about-page__team-position">
+                      {row.position?.trim() ? row.position.trim() : '—'}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {hasContactBlock ? (
+            <section className="about-page__block">
+              <h2 className="about-page__block-title">Contact</h2>
+              <ul className="about-page__contact-list">
+                {(about.contacts?.emails ?? [])
+                  .map((e) => e.trim())
+                  .filter(Boolean)
+                  .map((email) => (
+                    <li key={email}>
+                      <a className="about-page__email" href={`mailto:${email}`}>
+                        {email}
+                      </a>
+                    </li>
+                  ))}
+              </ul>
+              {about.contacts?.phone?.trim() ? (
+                <p className="about-page__phone-line">
+                  <span className="about-page__contact-label">Phone</span>{' '}
+                  <a href={`tel:${about.contacts.phone.replace(/\s+/g, '')}`}>
+                    {about.contacts.phone.trim()}
+                  </a>
+                </p>
+              ) : null}
+              {about.physical_address?.trim() ? (
+                <>
+                  <h3 className="about-page__address-label">Physical address</h3>
+                  <div className="about-page__prose about-page__prose--address">
+                    {about.physical_address.trim()}
+                  </div>
+                </>
+              ) : null}
+            </section>
+          ) : null}
+
+          {sponsors.length > 0 ? (
+            <section className="about-page__block">
+              <h2 className="about-page__block-title">Partners &amp; sponsors</h2>
+              <ul className="about-page__sponsor-grid">
+                {sponsors.map((s) => (
+                  <li key={s.id} className="about-page__sponsor-card">
+                    <AboutInlineImage
+                      url={s.image_url}
+                      alt={s.name}
+                      className="about-page__sponsor-logo"
+                    />
+                    <span className="about-page__sponsor-name">{s.name}</span>
+                    {s.team_name?.trim() ? (
+                      <span className="about-page__sponsor-team">{s.team_name.trim()}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : sponsorsQ.isError ? (
+            <p className="about-page__muted">Partners list could not be loaded.</p>
+          ) : null}
+
+          <h2 className="about-page__section-title">Explore the competition</h2>
+          <div className="about-page__quick" role="navigation" aria-label="Key sections">
+            <Link to="/mens" className="about-page__quick-link">
+              Mens
+            </Link>
+            <Link to="/women" className="about-page__quick-link">
+              Women
+            </Link>
+            <Link to="/youth" className="about-page__quick-link">
+              Youth
+            </Link>
+            <Link to="/fixtures" className="about-page__quick-link">
+              Fixtures
+            </Link>
+            <Link to="/results" className="about-page__quick-link">
+              Results
+            </Link>
+            <Link to="/news" search={{ q: '' }} className="about-page__quick-link">
+              News
+            </Link>
+            <Link to="/gallery" className="about-page__quick-link">
+              Gallery
+            </Link>
           </div>
+
+          <p className="about-page__meta">Page last updated {formatAboutUpdatedAt(about.updated_at)}</p>
         </section>
       </main>
     </>

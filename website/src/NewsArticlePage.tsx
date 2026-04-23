@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
+import { ErrorNotice } from './components/ErrorNotice'
 import { parseArticleCompetitionCategory } from './lib/competitionCategories'
 import { formatCategoryLabel } from './lib/formatters'
 import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
@@ -65,7 +66,9 @@ export default function NewsArticlePage() {
             <p>Loading article...</p>
           </div>
         ) : null}
-        {isError ? <p>Could not load this news article.</p> : null}
+        {isError ? (
+          <ErrorNotice message="Could not load this news article. It may have been removed or the link is incorrect." />
+        ) : null}
 
         {!isLoading && !isError && article ? (
           <article className="article-content">
