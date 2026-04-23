@@ -2039,15 +2039,11 @@ table.league-stats-table {
 }
 
 .ui-match-card__scoreboard {
-  --scoreboard-pad-r: 0.65rem;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: start;
-  align-content: start;
-  gap: 0.35rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   min-height: 0;
-  /* No left padding: purple bleeds to the card edge. Right pad separates teams from the divider; .__score-merged extends into it. */
-  padding: 0 var(--scoreboard-pad-r) 0 0;
+  padding: 0;
   background: linear-gradient(
     160deg,
     var(--color-primary-alt) 0%,
@@ -2056,6 +2052,18 @@ table.league-stats-table {
   );
   background-clip: border-box;
   border-right: 1px solid color-mix(in srgb, var(--color-surface) 15%, transparent);
+}
+
+/* Padded 3-col row only. Merged score sits outside as a full-bleed sibling so the dark bar spans edge-to-edge. */
+.ui-match-card__scoreboard-main {
+  --scoreboard-pad-r: 0.65rem;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  align-content: start;
+  gap: 0.35rem 0.5rem;
+  min-width: 0;
+  padding: 0 var(--scoreboard-pad-r) 0 0;
 }
 
 .ui-match-card__team-col {
@@ -2069,11 +2077,11 @@ table.league-stats-table {
 }
 
 /* Inset for content only — scoreboard background stays full-bleed to the card edge. */
-.ui-match-card__scoreboard > .ui-match-card__team-col:nth-child(1) {
+.ui-match-card__scoreboard-main > .ui-match-card__team-col:nth-child(1) {
   padding: 0.85rem 0.2rem 0.55rem 0.75rem;
 }
 
-.ui-match-card__scoreboard > .ui-match-card__team-col:nth-child(3) {
+.ui-match-card__scoreboard-main > .ui-match-card__team-col:nth-child(3) {
   padding: 0.85rem 0.75rem 0.55rem 0.2rem;
 }
 
@@ -2167,15 +2175,13 @@ table.league-stats-table {
 }
 
 .ui-match-card__score-merged {
-  grid-column: 1 / -1;
   box-sizing: border-box;
+  flex: 0 0 auto;
   margin: 0;
   margin-top: 0.35rem;
-  margin-right: calc(-1 * var(--scoreboard-pad-r, 0.65rem));
   padding: 0.55rem 0.75rem;
-  width: calc(100% + var(--scoreboard-pad-r, 0.65rem));
+  width: 100%;
   min-width: 0;
-  max-width: none;
   border-radius: 0;
   background: color-mix(in srgb, var(--brand-indigo) 55%, #000 15%);
   font-size: 0.78rem;

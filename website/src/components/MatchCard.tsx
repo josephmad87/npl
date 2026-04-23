@@ -117,44 +117,46 @@ export function ResultMatchCard({
     >
       <div className="ui-match-card__result-grid">
         <div className="ui-match-card__scoreboard" aria-label="Scoreboard">
-          <div
-            className={
-              winner === 'home'
-                ? 'ui-match-card__team-col ui-match-card__team-col--accent'
-                : 'ui-match-card__team-col'
-            }
-          >
-            <div className="ui-match-card__team-brand">
-              <TeamLogoBadge
-                logoUrl={home?.logo_url ?? null}
-                variant="round"
-                isWinner={winner === 'home'}
-              />
-              <span className="ui-match-card__team-nick">{homeName.toUpperCase()}</span>
+          <div className="ui-match-card__scoreboard-main">
+            <div
+              className={
+                winner === 'home'
+                  ? 'ui-match-card__team-col ui-match-card__team-col--accent'
+                  : 'ui-match-card__team-col'
+              }
+            >
+              <div className="ui-match-card__team-brand">
+                <TeamLogoBadge
+                  logoUrl={home?.logo_url ?? null}
+                  variant="round"
+                  isWinner={winner === 'home'}
+                />
+                <span className="ui-match-card__team-nick">{homeName.toUpperCase()}</span>
+              </div>
+              {!sb.merged ? <InningsLines parts={sb.homeLines} /> : null}
             </div>
-            {!sb.merged ? <InningsLines parts={sb.homeLines} /> : null}
-          </div>
-          <div className="ui-match-card__vs-rail" aria-hidden="true">
-            <span className="ui-match-card__vs-rail-line" />
-            <span className="ui-match-card__vs-rail-text">VS</span>
-            <span className="ui-match-card__vs-rail-line" />
-          </div>
-          <div
-            className={
-              winner === 'away'
-                ? 'ui-match-card__team-col ui-match-card__team-col--accent'
-                : 'ui-match-card__team-col'
-            }
-          >
-            <div className="ui-match-card__team-brand">
-              <TeamLogoBadge
-                logoUrl={away?.logo_url ?? null}
-                variant="round"
-                isWinner={winner === 'away'}
-              />
-              <span className="ui-match-card__team-nick">{awayName.toUpperCase()}</span>
+            <div className="ui-match-card__vs-rail" aria-hidden="true">
+              <span className="ui-match-card__vs-rail-line" />
+              <span className="ui-match-card__vs-rail-text">VS</span>
+              <span className="ui-match-card__vs-rail-line" />
             </div>
-            {!sb.merged ? <InningsLines parts={sb.awayLines} /> : null}
+            <div
+              className={
+                winner === 'away'
+                  ? 'ui-match-card__team-col ui-match-card__team-col--accent'
+                  : 'ui-match-card__team-col'
+              }
+            >
+              <div className="ui-match-card__team-brand">
+                <TeamLogoBadge
+                  logoUrl={away?.logo_url ?? null}
+                  variant="round"
+                  isWinner={winner === 'away'}
+                />
+                <span className="ui-match-card__team-nick">{awayName.toUpperCase()}</span>
+              </div>
+              {!sb.merged ? <InningsLines parts={sb.awayLines} /> : null}
+            </div>
           </div>
           {sb.merged ? (
             <p className="ui-match-card__score-merged">{sb.merged}</p>
