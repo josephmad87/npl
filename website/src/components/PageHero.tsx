@@ -40,7 +40,13 @@ export function PageHero({
       ) : coverSrc ? (
         <img src={coverSrc} alt={title} />
       ) : null}
-      <div className="ui-page-hero-overlay">
+      <div
+        className={`ui-page-hero-overlay${
+          isSiteLogo && titleAlign === 'start' && badgeSrc
+            ? ' ui-page-hero-overlay--site-logo-title-start'
+            : ''
+        }`}
+      >
         <div className={titleBlockClass}>
           {badgeSrc ? (
             <img

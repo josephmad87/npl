@@ -1100,28 +1100,11 @@
   object-fit: cover;
 }
 
-/* Site-logo variant: gradient strip, floating logo card, then title/badge below (no overlap). */
+/* Full-bleed strip (sibling to .container): brand logo fills hero; title in overlay */
 .ui-page-hero--site-logo {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
   border-radius: 0;
-  min-height: 0;
-  overflow: visible;
-  background: var(--color-surface);
-}
-
-.ui-page-hero--site-logo::before {
-  content: '';
-  display: block;
-  flex-shrink: 0;
-  height: clamp(4.25rem, 12vw, 6.25rem);
-  background: linear-gradient(
-    120deg,
-    var(--color-primary) 0%,
-    var(--color-primary-alt) 52%,
-    var(--color-accent) 100%
-  );
+  min-height: clamp(200px, 28vw, 320px);
+  background: #fff;
 }
 
 .ui-page-hero__brand-mark {
@@ -1133,23 +1116,6 @@
   pointer-events: none;
 }
 
-.ui-page-hero--site-logo .ui-page-hero__brand-mark {
-  position: relative;
-  inset: auto;
-  z-index: 2;
-  width: fit-content;
-  max-width: min(92vw, 26rem);
-  margin: clamp(-2.65rem, -7vw, -1.5rem) auto 0;
-  padding: clamp(0.45rem, 1.4vw, 0.75rem) clamp(0.75rem, 2.2vw, 1.2rem);
-  align-self: center;
-  background: #fff;
-  border-radius: 0.85rem;
-  border: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
-  box-shadow:
-    0 1px 2px color-mix(in srgb, var(--color-text) 7%, transparent),
-    0 12px 32px color-mix(in srgb, var(--color-primary) 22%, #000 12%);
-}
-
 .ui-page-hero__brand-mark img {
   width: auto;
   height: min(70%, 16.5rem);
@@ -1159,21 +1125,18 @@
   box-sizing: content-box;
 }
 
-.ui-page-hero--site-logo .ui-page-hero__brand-mark img {
-  height: clamp(4.5rem, 14vw, 7.5rem);
-  max-width: min(72vw, 14rem);
-  padding: clamp(0.2rem, 1vw, 0.45rem) clamp(0.35rem, 1.2vw, 0.65rem);
+.ui-page-hero--site-logo .ui-page-hero-overlay {
+  z-index: 1;
+  background: linear-gradient(
+    to top,
+    rgba(255, 255, 255, 0.96),
+    rgba(255, 255, 255, 0.4) 48%,
+    rgba(255, 255, 255, 0) 72%
+  );
 }
 
-.ui-page-hero--site-logo .ui-page-hero-overlay {
-  position: relative;
-  inset: auto;
-  z-index: 1;
-  flex: 0 0 auto;
-  justify-content: flex-start;
-  padding: clamp(0.75rem, 2.2vw, 1.15rem) clamp(1rem, 3vw, 1.85rem)
-    clamp(1.1rem, 3vw, 1.65rem);
-  background: transparent;
+.ui-page-hero-overlay--site-logo-title-start {
+  align-items: flex-start;
 }
 
 .ui-page-hero__title-block {

@@ -239,7 +239,7 @@ export function TeamDetailPage() {
           badgeSrc={data.logo_url ? (resolveMediaUrl(data.logo_url) ?? null) : null}
           variant={useSiteLogoHero ? 'siteLogo' : 'default'}
           fullWidth={Boolean(heroImage && !useSiteLogoHero)}
-          titleAlign={useSiteLogoHero ? 'center' : 'start'}
+          titleAlign="start"
         />
       ) : null}
       <main className="container">
