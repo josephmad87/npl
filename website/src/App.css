@@ -347,8 +347,7 @@
   overflow: hidden;
   min-height: clamp(384px, 64vw, 672px);
   border: 0;
-  background: #fff;
-  box-shadow: 0 10px 40px color-mix(in srgb, var(--color-primary) 12%, transparent);
+  box-shadow: 0 22px 48px color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 
 .hero-slide {
@@ -357,7 +356,18 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 320ms ease;
-  background: #fff;
+  background:
+    radial-gradient(
+      circle at 18% 22%,
+      color-mix(in srgb, var(--color-highlight) 40%, transparent) 0%,
+      transparent 42%
+    ),
+    linear-gradient(
+      130deg,
+      var(--color-primary-alt) 0%,
+      var(--color-accent) 55%,
+      color-mix(in srgb, var(--color-primary) 88%, black) 100%
+    );
 }
 
 .hero-slide.is-active {
@@ -381,12 +391,12 @@
   align-items: flex-start;
   padding: clamp(1rem, 3vw, 1.9rem) clamp(2rem, 6vw, 3.8rem) clamp(4rem, 12vw, 7.6rem)
     clamp(2rem, 6vw, 3.8rem);
-  color: var(--color-text);
+  color: var(--color-surface);
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.5) 58%,
-    rgba(255, 255, 255, 0.94) 100%
+    color-mix(in srgb, var(--color-primary) 12%, transparent) 0%,
+    color-mix(in srgb, var(--color-primary) 78%, transparent) 72%,
+    color-mix(in srgb, var(--color-primary) 92%, transparent) 100%
   );
 }
 
@@ -858,6 +868,79 @@
   );
 }
 
+/* Home: Latest Results — horizontal scroll like Featured Teams */
+.home-match-carousel-section .match-carousel__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.65rem 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.home-match-carousel-section .match-carousel__header-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-match-carousel-section .match-carousel__header-wrap .ui-section-header {
+  margin-bottom: 0;
+}
+
+.match-carousel__nav {
+  display: flex;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.match-carousel__nav-btn {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 1.35rem;
+  line-height: 1;
+  color: #5c6370;
+  background: color-mix(in srgb, var(--color-border) 55%, var(--color-surface));
+}
+
+.match-carousel__nav-btn:hover {
+  background: var(--color-border);
+}
+
+.match-carousel__track {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0.65rem 0.35rem 0.9rem;
+  margin: 0 -0.35rem;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.match-carousel__track::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.match-carousel__cell {
+  flex: 0 0 min(300px, 86vw);
+  width: min(300px, 86vw);
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.match-carousel__cell .ui-match-card {
+  width: 100%;
+}
+
 .home-grid {
   display: grid;
   gap: 0.9rem;
@@ -1158,6 +1241,65 @@
   text-align: left;
   cursor: pointer;
   padding: 0;
+}
+
+.ui-gallery-card__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.ui-gallery-card__badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.22rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+}
+
+.ui-gallery-card__badge--image {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-accent) 12%, #f0ecf8);
+  border-color: color-mix(in srgb, var(--color-primary) 22%, var(--color-border));
+}
+
+.ui-gallery-card__badge--video {
+  color: #1a4d6b;
+  background: color-mix(in srgb, #0ea5e9 14%, #e8f4fc);
+  border-color: color-mix(in srgb, #0ea5e9 35%, var(--color-border));
+}
+
+.ui-gallery-card__badge--youtube {
+  color: #a80c0c;
+  background: linear-gradient(
+    180deg,
+    #fff5f5 0%,
+    #fde8e8 100%
+  );
+  border-color: color-mix(in srgb, #c00 30%, var(--color-border));
+}
+
+.ui-gallery-card__badge--other {
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-border) 70%, var(--color-surface));
+  border-color: var(--color-border);
+}
+
+.ui-gallery-card__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--color-text);
 }
 
 .ui-player-card-placeholder,

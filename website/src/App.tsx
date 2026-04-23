@@ -6,6 +6,7 @@ import { EmptyState } from './components/EmptyState'
 import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
 import { MatchCard } from './components/MatchCard'
+import { MatchCarousel } from './components/MatchCarousel'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
@@ -112,14 +113,22 @@ function App() {
         {upcomingFixtures.length === 0 ? <EmptyState title="No upcoming fixtures yet" /> : null}
       </section>
 
-      <section className="home-section">
-        <SectionHeader title="Latest Results" linkTo="/results" />
-        <div className="home-grid home-grid--matches">
-          {latestResults.map((match) => (
-            <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode="result" />
-          ))}
-        </div>
-        {latestResults.length === 0 ? <EmptyState title="No results published yet" /> : null}
+      <section className="home-section home-match-carousel-section">
+        {latestResults.length > 0 ? (
+          <MatchCarousel
+            title="Latest Results"
+            linkTo="/results"
+            matches={latestResults}
+            teamsMap={teamsMap}
+            mode="result"
+          />
+        ) : null}
+        {latestResults.length === 0 ? (
+          <>
+            <SectionHeader title="Latest Results" linkTo="/results" />
+            <EmptyState title="No results published yet" />
+          </>
+        ) : null}
       </section>
 
       <FeaturedTeamsCarousel teams={teams.slice(0, 16)} />
