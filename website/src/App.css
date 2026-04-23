@@ -1139,6 +1139,13 @@
   align-items: flex-start;
 }
 
+/* Team page: big NPL mark stays viewport-centered; title/badge use same horizontal inset as `.container`. */
+.ui-page-hero--team-detail .ui-page-hero-overlay {
+  align-items: flex-start;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
 .ui-page-hero__title-block {
   display: flex;
   flex-direction: column;

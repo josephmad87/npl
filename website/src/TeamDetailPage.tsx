@@ -239,7 +239,8 @@ export function TeamDetailPage() {
           badgeSrc={data.logo_url ? (resolveMediaUrl(data.logo_url) ?? null) : null}
           variant={useSiteLogoHero ? 'siteLogo' : 'default'}
           fullWidth={Boolean(heroImage && !useSiteLogoHero)}
-          titleAlign="center"
+          titleAlign="start"
+          className="ui-page-hero--team-detail"
         />
       ) : null}
       <main className="container">
