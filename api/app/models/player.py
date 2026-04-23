@@ -41,4 +41,5 @@ class Player(Base):
     stumpings: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     player_of_match_awards: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    team: Mapped["Team"] = relationship(back_populates="players")
+    # Team.captain_player_id also points at players.id — restrict this link to the squad FK.
+    team: Mapped["Team"] = relationship(back_populates="players", foreign_keys=[team_id])

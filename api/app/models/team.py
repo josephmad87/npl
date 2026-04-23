@@ -41,7 +41,10 @@ class Team(Base):
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False, index=True)
     social_links: Mapped[dict | None] = mapped_column(JSON)
 
-    players: Mapped[list["Player"]] = relationship(back_populates="team")
+    players: Mapped[list["Player"]] = relationship(
+        back_populates="team",
+        foreign_keys="Player.team_id",
+    )
     home_matches: Mapped[list["Match"]] = relationship(
         "Match",
         foreign_keys="Match.home_team_id",
