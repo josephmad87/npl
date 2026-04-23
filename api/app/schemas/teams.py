@@ -93,6 +93,7 @@ class TeamOut(ORMModel):
     coach_image_url: str | None
     captain: str | None
     captain_player_id: int | None
+    captain_profile_photo_url: str | None = None
     manager: str | None
     manager_image_url: str | None
     history: str | None

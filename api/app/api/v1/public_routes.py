@@ -76,7 +76,12 @@ def get_team(slug: str, db: Session = Depends(get_db)) -> TeamOut:
     team = db.scalar(select(Team).where(Team.slug == slug, Team.status == "active"))
     if team is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "not_found", "message": "Team not found"})
-    return TeamOut.model_validate(team)
+    out = TeamOut.model_validate(team)
+    if team.captain_player_id is not None:
+        cap = db.get(Player, team.captain_player_id)
+        if cap is not None and cap.profile_photo_url:
+            out = out.model_copy(update={"captain_profile_photo_url": cap.profile_photo_url})
+    return out
 
 
 @router.get("/teams/{slug}/season-records", response_model=list[TeamSeasonRecordOut])

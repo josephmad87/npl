@@ -23,6 +23,8 @@ export type TeamDto = {
   home_ground_image_url?: string | null
   captain?: string | null
   captain_player_id?: number | null
+  /** Populated on public GET /teams/{slug} from the captain player’s profile photo. */
+  captain_profile_photo_url?: string | null
   coach?: string | null
   coach_image_url?: string | null
   manager?: string | null

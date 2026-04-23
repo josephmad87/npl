@@ -82,22 +82,6 @@ function fixturesHrefForMatch(category: string | null | undefined): string {
   return '/fixtures'
 }
 
-function resultsHrefForMatch(category: string | null | undefined): string {
-  const c = (category ?? '').trim().toLowerCase()
-  if (c === 'mens' || c === 'men' || c === 'man') return '/mens/results'
-  if (
-    c === 'women' ||
-    c === 'womens' ||
-    c === 'ladies' ||
-    c === 'lady' ||
-    c === 'woman'
-  ) {
-    return '/women/results'
-  }
-  if (c === 'youth') return '/youth/results'
-  return '/fixtures'
-}
-
 function matchStatusPillClass(status: string | undefined): string {
   const s = (status ?? 'scheduled').toLowerCase()
   if (s === 'completed') return 'match-centre__status-pill--completed'
@@ -314,32 +298,6 @@ export default function MatchDetailPage() {
 
       <main className="container">
         <section className="menu-page match-centre">
-          <nav className="match-centre-toolbar" aria-label="Match links">
-            <Link to={fixturesHrefForMatch(data.category)}>Fixtures</Link>
-            <Link to={resultsHrefForMatch(data.category)}>Results</Link>
-            {home?.slug ? (
-              <Link to="/teams/$slug" params={{ slug: home.slug }}>
-                {homeName}
-              </Link>
-            ) : null}
-            {away?.slug ? (
-              <Link to="/teams/$slug" params={{ slug: away.slug }}>
-                {awayName}
-              </Link>
-            ) : null}
-            {data.season?.league?.slug && data.season?.slug ? (
-              <Link
-                to="/leagues/$leagueSlug/seasons/$seasonSlug"
-                params={{
-                  leagueSlug: data.season.league.slug,
-                  seasonSlug: data.season.slug,
-                }}
-              >
-                Season
-              </Link>
-            ) : null}
-          </nav>
-
           <div className="match-centre-panels">
             <div className="match-centre-panels__col">
               <div className="match-centre-panel">

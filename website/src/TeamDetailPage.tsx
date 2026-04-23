@@ -26,6 +26,7 @@ type TeamDetail = {
   home_ground_image_url: string | null
   captain: string | null
   captain_player_id?: number | null
+  captain_profile_photo_url?: string | null
   coach: string | null
   coach_image_url?: string | null
   manager: string | null
@@ -208,6 +209,18 @@ export function TeamDetailPage() {
     )
   }, [playersQ.data])
 
+  const captainPhotoUrl = useMemo(() => {
+    if (!data) return null
+    if (data.captain_profile_photo_url?.trim()) {
+      return data.captain_profile_photo_url.trim()
+    }
+    if (data.captain_player_id != null) {
+      const row = playersSorted.find((p) => p.id === data.captain_player_id)
+      return row?.profile_photo_url?.trim() ?? null
+    }
+    return null
+  }, [data, playersSorted])
+
   return (
     <>
       {data ? (
@@ -215,6 +228,7 @@ export function TeamDetailPage() {
           title={data.name}
           subtitle={`${formatCategoryLabel(data.category)} · ${data.home_ground_name ?? data.home_ground ?? 'Venue TBC'} · ${data.status}`}
           imageUrl={heroImage}
+          badgeSrc={data.logo_url ? (resolveMediaUrl(data.logo_url) ?? null) : null}
           variant={useSiteLogoHero ? 'siteLogo' : 'default'}
           fullWidth={Boolean(heroImage && !useSiteLogoHero)}
         />
@@ -225,26 +239,11 @@ export function TeamDetailPage() {
           {isError ? <ErrorNotice message="Could not load team details." /> : null}
           {data ? (
             <>
-              <div className="team-page__intro">
-                {data.logo_url ? (
-                  <img
-                    className="team-page__logo"
-                    src={resolveMediaUrl(data.logo_url) ?? ''}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : null}
-                <div className="team-page__intro-text">
-                  <p className="team-page__kicker">
-                    {formatCategoryLabel(data.category)}
-                  </p>
-                  <h2 className="team-page__title">{data.name}</h2>
-                  {data.description ? (
-                    <p className="team-page__lede muted">{data.description}</p>
-                  ) : null}
+              {data.description?.trim() ? (
+                <div className="team-page__intro team-page__intro--lede-only">
+                  <p className="team-page__lede muted">{data.description.trim()}</p>
                 </div>
-              </div>
+              ) : null}
 
               <section className="team-page__section" aria-label="Leadership">
                 <SectionHeader title="Leadership" />
@@ -252,7 +251,7 @@ export function TeamDetailPage() {
                   <StaffCard
                     role="Captain"
                     name={data.captain}
-                    imageUrl={null}
+                    imageUrl={captainPhotoUrl}
                     fallbackInitial={
                       data.captain?.trim()
                         ? data.captain.trim().charAt(0).toUpperCase()
