@@ -17,9 +17,11 @@ import nplLogoUrl from '../assets/logo.jpeg'
 function TeamLogoBadge({
   logoUrl,
   variant = 'default',
+  isWinner = false,
 }: {
   logoUrl: string | null
   variant?: 'default' | 'round'
+  isWinner?: boolean
 }) {
   const initial = resolveMediaUrl(logoUrl) ?? nplLogoUrl
   const [src, setSrc] = useState(initial)
@@ -32,6 +34,7 @@ function TeamLogoBadge({
       }
       src={src}
       alt=""
+      title={isWinner ? 'Winner' : undefined}
       loading="lazy"
       decoding="async"
       onError={() => setSrc(nplLogoUrl)}
@@ -85,7 +88,8 @@ function InningsLines({ parts }: { parts: string[] }) {
   )
 }
 
-function ResultMatchCard({
+/** Result row layout: prefer `<MatchCard mode="result" />` site-wide, or this export when needed. */
+export function ResultMatchCard({
   match,
   homeName,
   awayName,
@@ -121,7 +125,11 @@ function ResultMatchCard({
             }
           >
             <div className="ui-match-card__team-brand">
-              <TeamLogoBadge logoUrl={home?.logo_url ?? null} variant="round" />
+              <TeamLogoBadge
+                logoUrl={home?.logo_url ?? null}
+                variant="round"
+                isWinner={winner === 'home'}
+              />
               <span className="ui-match-card__team-nick">{homeName.toUpperCase()}</span>
             </div>
             {!sb.merged ? <InningsLines parts={sb.homeLines} /> : null}
@@ -139,7 +147,11 @@ function ResultMatchCard({
             }
           >
             <div className="ui-match-card__team-brand">
-              <TeamLogoBadge logoUrl={away?.logo_url ?? null} variant="round" />
+              <TeamLogoBadge
+                logoUrl={away?.logo_url ?? null}
+                variant="round"
+                isWinner={winner === 'away'}
+              />
               <span className="ui-match-card__team-nick">{awayName.toUpperCase()}</span>
             </div>
             {!sb.merged ? <InningsLines parts={sb.awayLines} /> : null}
@@ -168,6 +180,7 @@ function ResultMatchCard({
   )
 }
 
+/** Fixture card (`mode` default) or result sheet when `mode="result"`. */
 export function MatchCard({
   match,
   teamsMap,

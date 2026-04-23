@@ -2002,43 +2002,60 @@ table.league-stats-table {
   border-color: color-mix(in srgb, var(--color-border) 55%, var(--color-primary) 45%);
 }
 
+/* Flex row: both columns get the same cross-axis height (fixes purple stopping short of the card bottom in some layouts). */
 .ui-match-card__result-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  display: flex;
+  flex-direction: row;
   align-items: stretch;
   gap: 0;
   min-height: 9rem;
+  width: 100%;
+}
+
+.ui-match-card__result-grid .ui-match-card__scoreboard {
+  flex: 1.15 1 0;
+  min-width: 0;
 }
 
 @media (max-width: 800px) {
   .ui-match-card__result-grid {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .ui-match-card__result-grid .ui-match-card__scoreboard {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .ui-match-card__result-aside {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .ui-match-card__scoreboard {
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
   }
 }
 
 .ui-match-card__scoreboard {
+  --scoreboard-pad-r: 0.65rem;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: start;
-  align-self: stretch;
-  min-height: 100%;
+  align-content: start;
   gap: 0.35rem 0.5rem;
-  /* No outer padding: purple must bleed to the card’s left and vertical edges (parent clips radius). */
-  padding: 0 0.65rem 0 0;
+  min-height: 0;
+  /* No left padding: purple bleeds to the card edge. Right pad separates teams from the divider; .__score-merged extends into it. */
+  padding: 0 var(--scoreboard-pad-r) 0 0;
   background: linear-gradient(
     160deg,
     var(--color-primary-alt) 0%,
     var(--color-primary) 45%,
     var(--color-accent) 100%
   );
+  background-clip: border-box;
   border-right: 1px solid color-mix(in srgb, var(--color-surface) 15%, transparent);
-}
-
-@media (max-width: 800px) {
-  .ui-match-card__scoreboard {
-    border-right: none;
-    border-bottom: 1px solid var(--color-border);
-  }
 }
 
 .ui-match-card__team-col {
@@ -2061,7 +2078,10 @@ table.league-stats-table {
 }
 
 .ui-match-card__team-col--accent .ui-match-card__badge--round {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-saffron) 65%, var(--brand-maize) 35%);
+  border-color: var(--color-highlight);
+  box-shadow:
+    0 0 0 1px var(--color-highlight),
+    0 2px 8px color-mix(in srgb, #000 28%, transparent);
 }
 
 .ui-match-card__team-brand {
@@ -2148,11 +2168,14 @@ table.league-stats-table {
 
 .ui-match-card__score-merged {
   grid-column: 1 / -1;
+  box-sizing: border-box;
   margin: 0;
   margin-top: 0.35rem;
+  margin-right: calc(-1 * var(--scoreboard-pad-r, 0.65rem));
   padding: 0.55rem 0.75rem;
-  width: 100%;
+  width: calc(100% + var(--scoreboard-pad-r, 0.65rem));
   min-width: 0;
+  max-width: none;
   border-radius: 0;
   background: color-mix(in srgb, var(--brand-indigo) 55%, #000 15%);
   font-size: 0.78rem;
@@ -2164,6 +2187,7 @@ table.league-stats-table {
 
 .ui-match-card__result-aside {
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
