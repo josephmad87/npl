@@ -1139,11 +1139,23 @@
   align-items: flex-start;
 }
 
-/* Team page: big NPL mark stays viewport-centered; title/badge use same horizontal inset as `.container`. */
+/* Team page: big NPL mark stays viewport-centered; title stack lines up with `.container` + `.menu-page` + centered team column. */
 .ui-page-hero--team-detail .ui-page-hero-overlay {
   align-items: flex-start;
-  padding-left: 1.5rem;
-  padding-right: 1.5rem;
+  --team-hero-container-pad: 1.5rem; /* .container horizontal padding */
+  --team-hero-menu-pad: 0.5rem; /* .menu-page horizontal padding */
+  --team-hero-content-max: 1080px; /* .team-page max-width (with .menu-page width) */
+  --team-hero-inner: calc(100vw - 2 * var(--team-hero-container-pad));
+  --team-hero-center-shift: max(
+    0px,
+    (var(--team-hero-inner) - min(var(--team-hero-content-max), var(--team-hero-inner))) * 0.5
+  );
+  padding-left: calc(
+    var(--team-hero-container-pad) + var(--team-hero-menu-pad) + var(--team-hero-center-shift)
+  );
+  padding-right: calc(
+    var(--team-hero-container-pad) + var(--team-hero-menu-pad) + var(--team-hero-center-shift)
+  );
 }
 
 .ui-page-hero__title-block {
