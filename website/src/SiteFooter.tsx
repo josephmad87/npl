@@ -1,7 +1,38 @@
 import { Link } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
+import nplLogoUrl from './assets/logo.jpeg'
+import { fetchJson } from './lib/publicApi'
+
+type FooterAboutContent = {
+  social_links?: {
+    facebook?: string
+    instagram?: string
+    twitter?: string
+    youtube?: string
+  }
+}
+
+function normalizeSocialLink(raw: string | null | undefined): string | null {
+  const value = raw?.trim() ?? ''
+  if (!value) return null
+  if (value.startsWith('http://') || value.startsWith('https://')) return value
+  if (value.startsWith('//')) return `https:${value}`
+  return `https://${value}`
+}
 
 export function SiteFooter() {
   const year = new Date().getFullYear()
+  const aboutQ = useQuery({
+    queryKey: ['public-about-footer-socials'],
+    queryFn: () => fetchJson<FooterAboutContent>('/public/about'),
+    retry: 1,
+  })
+  const socials = aboutQ.data?.social_links
+  const facebook = normalizeSocialLink(socials?.facebook)
+  const instagram = normalizeSocialLink(socials?.instagram)
+  const twitter = normalizeSocialLink(socials?.twitter)
+  const youtube = normalizeSocialLink(socials?.youtube)
+  const hasSocialLinks = facebook !== null || instagram !== null || twitter !== null || youtube !== null
 
   return (
     <footer className="site-footer">
@@ -22,6 +53,10 @@ export function SiteFooter() {
         </div>
 
         <div className="site-footer-grid">
+          <div className="site-footer-brand" aria-label="Zimbabwe Cricket NPL">
+            <img src={nplLogoUrl} alt="NPL logo" />
+          </div>
+
           <nav className="site-footer-col" aria-label="Competitions">
             <h3>Competitions</h3>
             <Link to="/mens">Mens hub</Link>
@@ -68,6 +103,35 @@ export function SiteFooter() {
             <Link to="/news" search={{ q: 'announcement' }}>
               Announcements
             </Link>
+          </nav>
+
+          <nav className="site-footer-col" aria-label="Social">
+            <h3>Social</h3>
+            {facebook !== null ? (
+              <a href={facebook} target="_blank" rel="noreferrer">
+                Facebook
+              </a>
+            ) : null}
+            {instagram !== null ? (
+              <a href={instagram} target="_blank" rel="noreferrer">
+                Instagram
+              </a>
+            ) : null}
+            {twitter !== null ? (
+              <a href={twitter} target="_blank" rel="noreferrer">
+                Twitter / X
+              </a>
+            ) : null}
+            {youtube !== null ? (
+              <a href={youtube} target="_blank" rel="noreferrer">
+                YouTube
+              </a>
+            ) : null}
+            {!hasSocialLinks ? (
+              <span className="site-footer-col__hint">
+                Social links can be added in Admin → About.
+              </span>
+            ) : null}
           </nav>
         </div>
 

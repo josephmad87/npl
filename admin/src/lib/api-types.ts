@@ -230,6 +230,13 @@ export type AboutContactsDto = {
   phone: string
 }
 
+export type AboutSocialLinksDto = {
+  facebook: string
+  instagram: string
+  twitter: string
+  youtube: string
+}
+
 /** Body for GET/PATCH /admin/about (excludes `updated_at` in PATCH). */
 export type AboutContentBodyDto = {
   mission: string
@@ -237,6 +244,7 @@ export type AboutContentBodyDto = {
   history: string
   team: AboutTeamMemberDto[]
   contacts: AboutContactsDto
+  social_links: AboutSocialLinksDto
   physical_address: string
 }
 

@@ -565,6 +565,12 @@ type PublicAboutContent = {
   history: string
   team: Array<{ position?: string | null; picture_url?: string | null }>
   contacts: { emails: string[]; phone: string }
+  social_links?: {
+    facebook?: string
+    instagram?: string
+    twitter?: string
+    youtube?: string
+  }
   physical_address: string
   updated_at: string
 }

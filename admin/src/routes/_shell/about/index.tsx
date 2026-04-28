@@ -37,6 +37,12 @@ function AboutForm({ data }: AboutFormProps) {
     (data.contacts?.emails ?? []).join('\n'),
   )
   const [phone, setPhone] = useState(data.contacts?.phone ?? '')
+  const [socialLinks, setSocialLinks] = useState({
+    facebook: data.social_links?.facebook ?? '',
+    instagram: data.social_links?.instagram ?? '',
+    twitter: data.social_links?.twitter ?? '',
+    youtube: data.social_links?.youtube ?? '',
+  })
   const [physicalAddress, setPhysicalAddress] = useState(
     data.physical_address ?? '',
   )
@@ -87,6 +93,12 @@ function AboutForm({ data }: AboutFormProps) {
           .map((s) => s.trim())
           .filter(Boolean),
         phone: phone.trim(),
+      },
+      social_links: {
+        facebook: socialLinks.facebook.trim(),
+        instagram: socialLinks.instagram.trim(),
+        twitter: socialLinks.twitter.trim(),
+        youtube: socialLinks.youtube.trim(),
       },
       physical_address: physicalAddress.trim(),
     }
@@ -276,6 +288,100 @@ function AboutForm({ data }: AboutFormProps) {
           />
         </div>
 
+        <div className="settings-form__group">
+          <h2 className="about-form__h2" id="section-social-links">
+            Social links
+          </h2>
+          <div>
+            <label
+              className="settings-form__label"
+              htmlFor="social-facebook"
+            >
+              Facebook URL
+            </label>
+            <input
+              id="social-facebook"
+              className="inline-edit__control"
+              value={socialLinks.facebook}
+              onChange={(e) =>
+                setSocialLinks((prev) => ({
+                  ...prev,
+                  facebook: e.target.value,
+                }))
+              }
+              type="url"
+              placeholder="https://facebook.com/your-page"
+              autoComplete="url"
+            />
+          </div>
+          <div>
+            <label
+              className="settings-form__label"
+              htmlFor="social-instagram"
+            >
+              Instagram URL
+            </label>
+            <input
+              id="social-instagram"
+              className="inline-edit__control"
+              value={socialLinks.instagram}
+              onChange={(e) =>
+                setSocialLinks((prev) => ({
+                  ...prev,
+                  instagram: e.target.value,
+                }))
+              }
+              type="url"
+              placeholder="https://instagram.com/your-page"
+              autoComplete="url"
+            />
+          </div>
+          <div>
+            <label
+              className="settings-form__label"
+              htmlFor="social-twitter"
+            >
+              Twitter/X URL
+            </label>
+            <input
+              id="social-twitter"
+              className="inline-edit__control"
+              value={socialLinks.twitter}
+              onChange={(e) =>
+                setSocialLinks((prev) => ({
+                  ...prev,
+                  twitter: e.target.value,
+                }))
+              }
+              type="url"
+              placeholder="https://x.com/your-page"
+              autoComplete="url"
+            />
+          </div>
+          <div>
+            <label
+              className="settings-form__label"
+              htmlFor="social-youtube"
+            >
+              YouTube URL
+            </label>
+            <input
+              id="social-youtube"
+              className="inline-edit__control"
+              value={socialLinks.youtube}
+              onChange={(e) =>
+                setSocialLinks((prev) => ({
+                  ...prev,
+                  youtube: e.target.value,
+                }))
+              }
+              type="url"
+              placeholder="https://youtube.com/@your-channel"
+              autoComplete="url"
+            />
+          </div>
+        </div>
+
         {formError ? <p className="settings-form__error">{formError}</p> : null}
 
       <div className="settings-form__actions">
@@ -330,7 +436,7 @@ function AboutPage() {
       <PageHeader
         title="About"
         descriptionAsTooltip
-        description="GET/PATCH /admin/about. Mission, vision, history, team (position and picture), contact emails and phone, and physical address for the public site."
+        description="GET/PATCH /admin/about. Mission, vision, history, team (position and picture), contacts, social links, and physical address for the public site."
       />
       <div className="settings-panel">{body}</div>
     </>
