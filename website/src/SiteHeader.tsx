@@ -200,6 +200,9 @@ export function SiteHeader() {
               <Link to="/about-us" className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top" onClick={closeMobileNav}>
                 About Us
               </Link>
+              <Link to="/contact-us" className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top" onClick={closeMobileNav}>
+                Contact Us
+              </Link>
 
               <details className="site-header-mobile__details">
                 <summary className="site-header-mobile__summary">Mens</summary>
@@ -485,6 +488,7 @@ export function SiteHeader() {
               </div>
             </div>
             <Link to="/about-us">About Us</Link>
+            <Link to="/contact-us">Contact Us</Link>
           </nav>
         </div>
       </div>

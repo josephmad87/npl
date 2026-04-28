@@ -60,6 +60,7 @@ export function SiteFooter() {
           <nav className="site-footer-col" aria-label="About and support">
             <h3>About &amp; support</h3>
             <Link to="/about-us">About us</Link>
+            <Link to="/contact-us">Contact us</Link>
             <Link to="/">Homepage</Link>
             <Link to="/news" search={{ q: 'press' }}>
               Press updates

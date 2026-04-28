@@ -606,10 +606,18 @@ function AboutInlineImage({
 function AboutTextSection({ title, text }: { title: string; text: string }) {
   const body = text.trim()
   if (!body) return null
+  const paragraphs = body
+    .split(/\n\s*\n/u)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
   return (
-    <section className="about-page__block">
-      <h2 className="about-page__block-title">{title}</h2>
-      <div className="about-page__prose">{body}</div>
+    <section className="about-page__story-card">
+      <h2 className="about-page__story-title">{title}</h2>
+      <div className="about-page__story-body">
+        {paragraphs.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
+      </div>
     </section>
   )
 }
@@ -665,6 +673,7 @@ function AboutPageImpl() {
           variant="siteLogo"
           title="About Zimbabwe Cricket NPL"
           subtitle="Loading official page content…"
+          imageUrl=""
         />
         <main className="container">
           <section className="menu-page about-page">
@@ -682,6 +691,7 @@ function AboutPageImpl() {
           variant="siteLogo"
           title="About Zimbabwe Cricket NPL"
           subtitle="Official league information"
+          imageUrl=""
         />
         <main className="container">
           <section className="menu-page about-page">
@@ -696,7 +706,12 @@ function AboutPageImpl() {
 
   return (
     <>
-      <PageHero variant="siteLogo" title="About Zimbabwe Cricket NPL" subtitle={heroSubtitle} />
+      <PageHero
+        variant="siteLogo"
+        title="About Zimbabwe Cricket NPL"
+        subtitle={heroSubtitle}
+        imageUrl=""
+      />
     <main className="container">
         <section className="menu-page about-page">
           {showEmptyHint ? (
@@ -706,12 +721,14 @@ function AboutPageImpl() {
             />
           ) : null}
 
-          <AboutTextSection title="Mission" text={about.mission} />
-          <AboutTextSection title="Vision" text={about.vision} />
-          <AboutTextSection title="History" text={about.history} />
+          <section className="about-page__story-grid">
+            <AboutTextSection title="Mission" text={about.mission} />
+            <AboutTextSection title="Vision" text={about.vision} />
+            <AboutTextSection title="History" text={about.history} />
+          </section>
 
           {teamMembers.length > 0 ? (
-            <section className="about-page__block">
+            <section className="about-page__block about-page__block--card">
               <h2 className="about-page__block-title">Leadership &amp; team</h2>
               <ul className="about-page__team-grid">
                 {teamMembers.map((row, i) => (
@@ -731,7 +748,7 @@ function AboutPageImpl() {
           ) : null}
 
           {hasContactBlock ? (
-            <section className="about-page__block">
+            <section className="about-page__block about-page__block--card">
               <h2 className="about-page__block-title">Contact</h2>
               <ul className="about-page__contact-list">
                 {(about.contacts?.emails ?? [])
@@ -771,6 +788,91 @@ function AboutPageImpl() {
   )
 }
 
+function ContactUsPageImpl() {
+  const aboutQ = useQuery({
+    queryKey: ['public-about'],
+    queryFn: () => fetchJson<PublicAboutContent>('/public/about'),
+    retry: 1,
+  })
+  const about = aboutQ.data
+  const emails = (about?.contacts?.emails ?? []).map((e) => e.trim()).filter(Boolean)
+  const phone = about?.contacts?.phone?.trim() ?? ''
+  const address = about?.physical_address?.trim() ?? ''
+  const hasAnyContact = emails.length > 0 || phone !== '' || address !== ''
+
+  return (
+    <>
+      <PageHero
+        variant="siteLogo"
+        title="Contact Us"
+        subtitle="Reach the Zimbabwe Cricket NPL team for media, support, and partnership enquiries."
+      />
+      <main className="container">
+        <section className="menu-page contact-page">
+          {aboutQ.isLoading ? <Spinner label="Loading contact details…" /> : null}
+          {aboutQ.isError ? (
+            <ErrorNotice message="Could not load contact details. Please try again later." />
+          ) : null}
+          {!aboutQ.isLoading && !aboutQ.isError && !hasAnyContact ? (
+            <EmptyState
+              title="Contact details coming soon"
+              description="Phone, email, and office information will appear here once published."
+            />
+          ) : null}
+
+          {!aboutQ.isLoading && !aboutQ.isError && hasAnyContact ? (
+            <div className="contact-page__grid">
+              <article className="contact-page__card">
+                <h2>Email</h2>
+                {emails.length === 0 ? <p className="muted">No email published yet.</p> : null}
+                <ul className="contact-page__list">
+                  {emails.map((email) => (
+                    <li key={email}>
+                      <a href={`mailto:${email}`}>{email}</a>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+
+              <article className="contact-page__card">
+                <h2>Phone</h2>
+                {phone ? (
+                  <p className="contact-page__single">
+                    <a href={`tel:${phone.replace(/\s+/g, '')}`}>{phone}</a>
+                  </p>
+                ) : (
+                  <p className="muted">No phone number published yet.</p>
+                )}
+              </article>
+
+              <article className="contact-page__card">
+                <h2>Office address</h2>
+                {address ? (
+                  <p className="contact-page__single contact-page__single--multiline">{address}</p>
+                ) : (
+                  <p className="muted">No office address published yet.</p>
+                )}
+              </article>
+
+              <article className="contact-page__card contact-page__card--wide">
+                <h2>Helpful links</h2>
+                <div className="contact-page__links">
+                  <Link to="/about-us">About us</Link>
+                  <Link to="/news" search={{ q: '' }}>
+                    Newsroom
+                  </Link>
+                  <Link to="/gallery">Gallery</Link>
+                  <Link to="/fixtures">Fixtures</Link>
+                </div>
+              </article>
+            </div>
+          ) : null}
+        </section>
+      </main>
+    </>
+  )
+}
+
 export const MensPage = () => <CategoryHomePage category="mens" />
 export const MensFixturesPage = () => <FixturesResultsPage category="mens" mode="fixtures" />
 export const MensResultsPage = () => <FixturesResultsPage category="mens" mode="results" />
@@ -800,5 +902,6 @@ export const GalleryPage = () => <GalleryPageImpl />
 export const GalleryImagesPage = () => <GalleryPageImpl mediaType="image" />
 export const GalleryVideoPage = () => <GalleryPageImpl mediaType="video" />
 export const AboutUsPage = () => <AboutPageImpl />
+export const ContactUsPage = () => <ContactUsPageImpl />
 export const FixturesPage = () => <FixturesResultsPage mode="fixtures" />
 export const ResultsPage = () => <FixturesResultsPage mode="results" />

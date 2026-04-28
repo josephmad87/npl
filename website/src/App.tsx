@@ -165,21 +165,6 @@ function App() {
 
       <FeaturedTeamsCarousel teams={teams.slice(0, 16)} />
 
-      {sponsors.length > 0 ? (
-        <section className="home-section">
-          <SectionHeader title="Partners & Sponsors" />
-          <div className="home-sponsors-row" role="list" aria-label="Partners and sponsors">
-            {sponsors.map((sponsor) => (
-              <article key={sponsor.id} className="home-sponsors-card" role="listitem">
-                <div className="home-sponsors-card__logo">
-                  <HomeSponsorImage url={sponsor.image_url} alt={sponsor.name} />
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       <section className="home-section">
         <SectionHeader title="Gallery Preview" linkTo="/gallery" />
         <div className="home-grid home-grid--gallery">
@@ -188,6 +173,27 @@ function App() {
           ))}
         </div>
       </section>
+
+      {sponsors.length > 0 ? (
+        <section className="home-section">
+          <SectionHeader title="Partners & Sponsors" />
+          <div className="home-sponsors-marquee" aria-label="Partners and sponsors">
+            <div className="home-sponsors-track" role="list">
+              {[...sponsors, ...sponsors].map((sponsor, idx) => (
+                <article
+                  key={`${sponsor.id}-${idx}`}
+                  className="home-sponsors-card"
+                  role="listitem"
+                >
+                  <div className="home-sponsors-card__logo">
+                    <HomeSponsorImage url={sponsor.image_url} alt={sponsor.name} />
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <GalleryLightbox active={galleryActive} onClose={() => setGalleryActive(null)} />
     </main>

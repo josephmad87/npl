@@ -11,7 +11,7 @@ type HeroNewsItem = {
   featured_image_url?: string | null
 }
 
-function useRandomHeroImage() {
+function useRandomHeroImage(enabled: boolean) {
   const { data: images = [] } = useQuery({
     queryKey: ['hero-random-image-pool'],
     queryFn: async () => {
@@ -36,6 +36,7 @@ function useRandomHeroImage() {
     },
     staleTime: 1000 * 60 * 10,
     retry: 1,
+    enabled,
   })
 
   if (images.length === 0) return null
@@ -67,9 +68,11 @@ export function PageHero({
   /** Extra section classes (e.g. alignment with site header on team detail). */
   className?: string
 }) {
-  const randomHeroImage = useRandomHeroImage()
   const isSiteLogo = variant === 'siteLogo'
-  const coverSrc = imageUrl?.trim() ?? randomHeroImage
+  const randomHeroImage = useRandomHeroImage(!isSiteLogo)
+  const explicitImage = imageUrl?.trim() ?? ''
+  const coverSrc = isSiteLogo ? (explicitImage || null) : (explicitImage || randomHeroImage)
+  const showSiteLogoMark = isSiteLogo && !coverSrc
   const titleBlockClass =
     titleAlign === 'center'
       ? 'ui-page-hero__title-block ui-page-hero__title-block--center'
@@ -87,7 +90,7 @@ export function PageHero({
       {coverSrc ? (
         <img src={coverSrc} alt={title} />
       ) : null}
-      {isSiteLogo ? (
+      {showSiteLogoMark ? (
         <div className="ui-page-hero__brand-mark">
           <img src={siteLogoUrl} alt="NPL logo" />
         </div>
