@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { EmptyState } from './EmptyState'
 import type { MatchLite, TeamLite } from '../lib/hooks'
 import { fetchAllPaginatedList } from '../lib/publicApi'
+import { playerPlaceholderSrc, resolvePlayerPhotoSrc } from '../lib/playerPhotoSrc'
 import {
   buildBattingLeaderboard,
   buildBowlingLeaderboard,
@@ -14,7 +15,7 @@ import {
   topPerformers,
 } from '../lib/leagueStatsBuild'
 
-type Pl = { id: number; full_name: string; team_id: number }
+type Pl = { id: number; full_name: string; team_id: number; profile_photo_url: string | null }
 
 function useSeasonPlayerNames(teamIds: number[]) {
   return useQuery({
@@ -60,6 +61,21 @@ function sortBowlRows(rows: BowlingTableRow[], by: WSort): BowlingTableRow[] {
   if (by === 'econ') next.sort((a, b) => parseFloat(a.econ) - parseFloat(b.econ) || b.wk - a.wk)
   if (by === 'r') next.sort((a, b) => a.r - b.r)
   return next.map((r, i) => ({ ...r, pos: i + 1 }))
+}
+
+function isTeamCaptain(
+  playerId: number,
+  teamId: number,
+  teamsMap: Record<number, TeamLite>,
+  playerById: Map<number, Pl>,
+): boolean {
+  const team = teamsMap[teamId]
+  if (!team) return false
+  if (team.captain_player_id != null) return team.captain_player_id === playerId
+  const captainName = team.captain?.trim().toLowerCase()
+  if (!captainName) return false
+  const playerName = playerById.get(playerId)?.full_name?.trim().toLowerCase()
+  return playerName === captainName
 }
 
 export function LeagueStatsPanel({
@@ -208,11 +224,24 @@ export function LeagueStatsPanel({
               <div className="league-stats-top-card__head">
                 {slot ? (
                   <div className="league-stats-top-card__head-row">
-                    <div className="league-stats-top-card__ph" aria-hidden="true" />
+                    <img
+                      className="league-stats-top-card__ph"
+                      src={resolvePlayerPhotoSrc(playerById.get(slot.playerId)?.profile_photo_url)}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null
+                        e.currentTarget.src = playerPlaceholderSrc
+                      }}
+                    />
                     <div className="league-stats-top-card__head-text">
                       <div className="league-stats-top-card__name">
                         {playerById.get(slot.playerId)?.full_name?.toUpperCase() ??
-                          `Player #${slot.playerId}`}
+                          `Player #${slot.playerId}`}{' '}
+                        {isTeamCaptain(slot.playerId, slot.teamId, teamsMap, playerById) ? (
+                          <span className="league-stats-captain-badge">Captain</span>
+                        ) : null}
                       </div>
                       <div className="league-stats-top-card__statline">
                         <span className="league-stats-top-card__big">{slot.value}</span>{' '}
@@ -291,7 +320,14 @@ export function LeagueStatsPanel({
                   {batRows.map((r) => (
                     <tr key={r.playerId}>
                       <td>{r.pos}</td>
-                      <td>{playerById.get(r.playerId)?.full_name ?? `#${r.playerId}`}</td>
+                      <td>
+                        {playerById.get(r.playerId)?.full_name ?? `#${r.playerId}`}{' '}
+                        {isTeamCaptain(r.playerId, r.teamId, teamsMap, playerById) ? (
+                          <span className="league-stats-captain-badge league-stats-captain-badge--table">
+                            Captain
+                          </span>
+                        ) : null}
+                      </td>
                       <td>{teamsMap[r.teamId]?.name ?? '—'}</td>
                       <td>{r.m}</td>
                       <td>{r.r}</td>
@@ -349,7 +385,14 @@ export function LeagueStatsPanel({
                   {bowlRows.map((r) => (
                     <tr key={r.playerId}>
                       <td>{r.pos}</td>
-                      <td>{playerById.get(r.playerId)?.full_name ?? `#${r.playerId}`}</td>
+                      <td>
+                        {playerById.get(r.playerId)?.full_name ?? `#${r.playerId}`}{' '}
+                        {isTeamCaptain(r.playerId, r.teamId, teamsMap, playerById) ? (
+                          <span className="league-stats-captain-badge league-stats-captain-badge--table">
+                            Captain
+                          </span>
+                        ) : null}
+                      </td>
                       <td>{teamsMap[r.teamId]?.name ?? '—'}</td>
                       <td>{r.m}</td>
                       <td>{r.wk}</td>

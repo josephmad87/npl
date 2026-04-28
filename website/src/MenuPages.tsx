@@ -446,15 +446,6 @@ type PublicAboutContent = {
   updated_at: string
 }
 
-type PublicSponsor = {
-  id: number
-  name: string
-  image_url: string
-  team_id: number | null
-  team_name: string | null
-  created_at: string
-}
-
 function formatAboutUpdatedAt(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.valueOf())) return iso
@@ -506,17 +497,8 @@ function AboutPageImpl() {
     queryFn: () => fetchJson<PublicAboutContent>('/public/about'),
     retry: 1,
   })
-  const sponsorsQ = useQuery({
-    queryKey: ['public-sponsors'],
-    queryFn: () =>
-      fetchAllPaginatedList<PublicSponsor>(
-        (page) => `/public/sponsors?page=${page}&page_size=100`,
-      ),
-    retry: 1,
-  })
 
   const about = aboutQ.data
-  const sponsors = sponsorsQ.data ?? []
 
   const heroSubtitle = useMemo(() => {
     const m = about?.mission?.trim()
@@ -587,7 +569,7 @@ function AboutPageImpl() {
     )
   }
 
-  const showEmptyHint = !hasStoryContent && sponsors.length === 0
+  const showEmptyHint = !hasStoryContent
 
   return (
     <>
@@ -658,54 +640,6 @@ function AboutPageImpl() {
               ) : null}
             </section>
           ) : null}
-
-          {sponsors.length > 0 ? (
-            <section className="about-page__block">
-              <h2 className="about-page__block-title">Partners &amp; sponsors</h2>
-              <ul className="about-page__sponsor-grid">
-                {sponsors.map((s) => (
-                  <li key={s.id} className="about-page__sponsor-card">
-                    <AboutInlineImage
-                      url={s.image_url}
-                      alt={s.name}
-                      className="about-page__sponsor-logo"
-                    />
-                    <span className="about-page__sponsor-name">{s.name}</span>
-                    {s.team_name?.trim() ? (
-                      <span className="about-page__sponsor-team">{s.team_name.trim()}</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : sponsorsQ.isError ? (
-            <p className="about-page__muted">Partners list could not be loaded.</p>
-          ) : null}
-
-          <h2 className="about-page__section-title">Explore the competition</h2>
-          <div className="about-page__quick" role="navigation" aria-label="Key sections">
-            <Link to="/mens" className="about-page__quick-link">
-              Mens
-            </Link>
-            <Link to="/women" className="about-page__quick-link">
-              Women
-            </Link>
-            <Link to="/youth" className="about-page__quick-link">
-              Youth
-            </Link>
-            <Link to="/fixtures" className="about-page__quick-link">
-              Fixtures
-            </Link>
-            <Link to="/results" className="about-page__quick-link">
-              Results
-            </Link>
-            <Link to="/news" search={{ q: '' }} className="about-page__quick-link">
-              News
-            </Link>
-            <Link to="/gallery" className="about-page__quick-link">
-              Gallery
-            </Link>
-        </div>
 
           <p className="about-page__meta">Page last updated {formatAboutUpdatedAt(about.updated_at)}</p>
       </section>

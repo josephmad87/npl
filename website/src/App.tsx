@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import nplLogoUrl from './assets/logo.jpeg'
 import './App.css'
 import { EmptyState } from './components/EmptyState'
 import { GalleryCard } from './components/GalleryCard'
@@ -11,9 +12,32 @@ import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { useLatestResults, useRecentNews, useTeamsMap, useUpcomingFixtures } from './lib/hooks'
-import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { extractList, fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type GalleryItem = GalleryLightboxItem
+type PublicSponsor = {
+  id: number
+  name: string
+  image_url: string
+  team_id: number | null
+  team_name: string | null
+}
+
+function HomeSponsorImage({ url, alt }: { url: string | null | undefined; alt: string }) {
+  const resolved = resolveMediaUrl(url?.trim() ?? '') ?? nplLogoUrl
+  return (
+    <img
+      src={resolved}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      onError={(e) => {
+        e.currentTarget.onerror = null
+        e.currentTarget.src = nplLogoUrl
+      }}
+    />
+  )
+}
 
 function App() {
   const { data: newsArticles = [] } = useRecentNews(36)
@@ -23,6 +47,14 @@ function App() {
   const { data: gallery = [] } = useQuery({
     queryKey: ['home-gallery'],
     queryFn: async () => extractList<GalleryItem>(await fetchJson<unknown>('/public/gallery?page=1&page_size=6')),
+    retry: 1,
+  })
+  const { data: sponsors = [] } = useQuery({
+    queryKey: ['home-sponsors'],
+    queryFn: async () =>
+      fetchAllPaginatedList<PublicSponsor>(
+        (page) => `/public/sponsors?page=${page}&page_size=24`,
+      ),
     retry: 1,
   })
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
@@ -132,6 +164,25 @@ function App() {
       </section>
 
       <FeaturedTeamsCarousel teams={teams.slice(0, 16)} />
+
+      {sponsors.length > 0 ? (
+        <section className="home-section">
+          <SectionHeader title="Partners & Sponsors" />
+          <div className="home-sponsors-row" role="list" aria-label="Partners and sponsors">
+            {sponsors.map((sponsor) => (
+              <article key={sponsor.id} className="home-sponsors-card" role="listitem">
+                <div className="home-sponsors-card__logo">
+                  <HomeSponsorImage url={sponsor.image_url} alt={sponsor.name} />
+                </div>
+                <h3 className="home-sponsors-card__name">{sponsor.name}</h3>
+                {sponsor.team_name?.trim() ? (
+                  <p className="home-sponsors-card__team">{sponsor.team_name.trim()}</p>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="home-section">
         <SectionHeader title="Gallery Preview" linkTo="/gallery" />
