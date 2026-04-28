@@ -174,10 +174,6 @@ function App() {
                 <div className="home-sponsors-card__logo">
                   <HomeSponsorImage url={sponsor.image_url} alt={sponsor.name} />
                 </div>
-                <h3 className="home-sponsors-card__name">{sponsor.name}</h3>
-                {sponsor.team_name?.trim() ? (
-                  <p className="home-sponsors-card__team">{sponsor.team_name.trim()}</p>
-                ) : null}
               </article>
             ))}
           </div>

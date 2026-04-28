@@ -1,5 +1,5 @@
 :root {
-  --page-content-pad: clamp(1rem, 3vw, 2rem);
+  --page-content-pad: calc((100vw - min(1200px, 100vw)) * 0.5 + 0.85rem);
 }
 
 .container {
@@ -479,8 +479,7 @@
   flex-direction: column;
   justify-content: flex-end;
   align-items: flex-start;
-  padding: clamp(1rem, 3vw, 1.9rem) clamp(2rem, 6vw, 3.8rem) clamp(4rem, 12vw, 7.6rem)
-    clamp(2rem, 6vw, 3.8rem);
+  padding: clamp(1rem, 3vw, 1.9rem) var(--page-content-pad) clamp(4rem, 12vw, 7.6rem);
   color: var(--color-surface);
   background: linear-gradient(
     180deg,
@@ -559,9 +558,9 @@
 }
 
 .menu-page {
-  width: min(1100px, 100%);
+  width: min(1240px, 100%);
   margin: 1.25rem auto 0;
-  padding: 0 0.5rem;
+  padding: 0;
 }
 
 .menu-page-header {
@@ -1111,26 +1110,26 @@
 .home-sponsors-card {
   flex: 0 0 min(232px, 56vw);
   width: min(232px, 56vw);
-  min-height: 11rem;
+  min-height: 8.8rem;
   border: 0;
   border-radius: 0.85rem;
   background: #fff;
   box-shadow: none;
-  padding: 0.9rem 0.8rem;
+  padding: 0.8rem;
   display: grid;
-  grid-template-rows: 1fr auto auto;
+  grid-template-rows: 1fr;
   align-content: start;
   justify-items: center;
-  gap: 0.45rem;
+  gap: 0;
   scroll-snap-align: start;
 }
 
 .home-sponsors-card__logo {
   width: 100%;
-  height: 6.8rem;
+  height: 7.2rem;
   display: grid;
   place-items: center;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .home-sponsors-card__logo img {
@@ -1139,23 +1138,6 @@
   object-fit: contain;
   object-position: center;
   display: block;
-}
-
-.home-sponsors-card__name {
-  margin: 0;
-  text-align: center;
-  font-size: 0.94rem;
-  line-height: 1.2;
-  font-weight: 800;
-  color: var(--color-primary);
-}
-
-.home-sponsors-card__team {
-  margin: 0;
-  text-align: center;
-  font-size: 0.74rem;
-  line-height: 1.2;
-  color: color-mix(in srgb, var(--color-text) 72%, transparent);
 }
 
 .home-grid {
@@ -1302,8 +1284,8 @@
 .ui-page-hero--team-detail .ui-page-hero-overlay {
   align-items: flex-start;
   --team-hero-container-pad: var(--page-content-pad); /* .container horizontal padding */
-  --team-hero-menu-pad: 0.5rem; /* .menu-page horizontal padding */
-  --team-hero-content-max: 1080px; /* .team-page max-width (with .menu-page width) */
+  --team-hero-menu-pad: 0rem; /* .menu-page horizontal padding */
+  --team-hero-content-max: 1240px; /* .menu-page width */
   --team-hero-inner: calc(100vw - 2 * var(--team-hero-container-pad));
   --team-hero-center-shift: max(
     0px,
@@ -2057,7 +2039,7 @@ table.league-stats-table {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: clamp(1rem, 3vw, 1.8rem);
+  padding: clamp(1rem, 3vw, 1.8rem) var(--page-content-pad);
   background: linear-gradient(
     to top,
     rgba(255, 255, 255, 0.96),
@@ -2655,6 +2637,37 @@ table.league-stats-table {
   overflow: hidden;
 }
 
+.ui-team-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100%;
+  box-shadow: 0 8px 24px rgba(31, 22, 64, 0.08);
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.ui-team-card:hover,
+.ui-team-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--color-primary) 22%, var(--color-border));
+  box-shadow: 0 12px 30px rgba(31, 22, 64, 0.12);
+}
+
+.ui-team-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-highlight) 58%, var(--color-border));
+  outline-offset: 2px;
+}
+
+.ui-team-card__media {
+  height: 170px;
+  padding: 0.7rem;
+  background: color-mix(in srgb, var(--color-primary) 4%, #fff);
+  display: grid;
+  place-items: center;
+}
+
 .ui-player-card.ui-player-card--captain {
   position: relative;
 }
@@ -2695,6 +2708,13 @@ table.league-stats-table {
   display: block;
 }
 
+.ui-team-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
 .ui-player-card__media img {
   width: 100%;
   height: clamp(200px, 58vw, 240px);
@@ -2708,6 +2728,10 @@ table.league-stats-table {
 .ui-gallery-card > div,
 .ui-player-card > div:not(.ui-player-card__media) {
   padding: 0.75rem;
+}
+
+.ui-team-card__body {
+  padding: 0.85rem 0.8rem 0.95rem;
 }
 
 .ui-gallery-card {
@@ -4555,6 +4579,56 @@ table.player-public-table {
 /* —— Listings, teams, news, gallery, about (shared page polish) —— */
 .listings-page {
   min-height: 4rem;
+}
+
+.results-tabs {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+}
+
+.results-tabs__row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.results-tabs__label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.results-tabs__list {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding: 0.1rem 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.results-tabs__list::-webkit-scrollbar {
+  display: none;
+}
+
+.results-tabs__btn {
+  border: 1px solid var(--color-border);
+  background: #fff;
+  color: var(--color-text);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.results-tabs__btn.is-active {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-primary) 12%, #fff);
+  color: var(--color-primary);
 }
 
 .menu-page-copy {
