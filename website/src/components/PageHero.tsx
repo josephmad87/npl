@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import siteLogoUrl from '../assets/logo.jpeg'
 import { extractList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
 
 type HeroGalleryItem = {
@@ -69,10 +68,9 @@ export function PageHero({
   className?: string
 }) {
   const isSiteLogo = variant === 'siteLogo'
-  const randomHeroImage = useRandomHeroImage(!isSiteLogo)
+  const randomHeroImage = useRandomHeroImage(true)
   const explicitImage = imageUrl?.trim() ?? ''
-  const coverSrc = isSiteLogo ? (explicitImage || null) : (explicitImage || randomHeroImage)
-  const showSiteLogoMark = isSiteLogo && !coverSrc
+  const coverSrc = explicitImage || randomHeroImage
   const titleBlockClass =
     titleAlign === 'center'
       ? 'ui-page-hero__title-block ui-page-hero__title-block--center'
@@ -89,11 +87,6 @@ export function PageHero({
     <section className={rootClass}>
       {coverSrc ? (
         <img src={coverSrc} alt={title} />
-      ) : null}
-      {showSiteLogoMark ? (
-        <div className="ui-page-hero__brand-mark">
-          <img src={siteLogoUrl} alt="NPL logo" />
-        </div>
       ) : null}
       <div
         className={`ui-page-hero-overlay${

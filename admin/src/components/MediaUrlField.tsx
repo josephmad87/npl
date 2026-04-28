@@ -76,6 +76,7 @@ export function MediaUrlField({
   const videoOk = acceptsVideo(accept)
   const showImagePreview =
     text.length > 0 && looksLikeImageUrl(text, imageOnly) && !previewBroken
+  const useProfileStyle = imageOnly
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -135,7 +136,7 @@ export function MediaUrlField({
 
   return (
     <div
-      className={`media-url-field${locked ? ' media-url-field--locked' : ''}${isDragging ? ' media-url-field--drag' : ''}`}
+      className={`media-url-field${locked ? ' media-url-field--locked' : ''}${isDragging ? ' media-url-field--drag' : ''}${useProfileStyle ? ' media-url-field--profile' : ''}`}
     >
       <div className="media-url-field__top">
         <input
@@ -171,17 +172,44 @@ export function MediaUrlField({
             </span>
           ) : (
             <>
+              {useProfileStyle && showImagePreview ? (
+                <span className="media-url-field__profile-preview" aria-hidden>
+                  <img
+                    src={resolveDisplayUrl(text)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    onLoad={() => setPreviewBroken(false)}
+                    onError={() => setPreviewBroken(true)}
+                  />
+                </span>
+              ) : null}
               <span className="media-url-field__drop-icon" aria-hidden>
                 {videoOk && !imageOnly ? (
                   <FileVideo size={30} strokeWidth={1.75} />
                 ) : (
-                  <ImagePlus size={30} strokeWidth={1.75} />
+                  <ImagePlus
+                    size={useProfileStyle ? 24 : 30}
+                    strokeWidth={1.75}
+                  />
                 )}
               </span>
               <span className="media-url-field__drop-title">
-                Drop a file here or <em>browse</em>
+                {useProfileStyle ? (
+                  <>
+                    Upload new picture or <em>browse</em>
+                  </>
+                ) : (
+                  <>
+                    Drop a file here or <em>browse</em>
+                  </>
+                )}
               </span>
-              <span className="media-url-field__drop-hint">{hint}</span>
+              <span className="media-url-field__drop-hint">
+                {useProfileStyle
+                  ? 'Use a clear headshot for best results'
+                  : hint}
+              </span>
             </>
           )}
         </label>
@@ -205,7 +233,7 @@ export function MediaUrlField({
         ) : null}
       </div>
 
-      {showImagePreview ? (
+      {showImagePreview && !useProfileStyle ? (
         <div className="media-url-field__preview">
           <img
             src={resolveDisplayUrl(text)}

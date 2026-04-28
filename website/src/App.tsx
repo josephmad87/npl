@@ -167,7 +167,7 @@ function App() {
 
       <section className="home-section">
         <SectionHeader title="Gallery Preview" linkTo="/gallery" />
-        <div className="home-grid home-grid--gallery">
+        <div className="home-grid home-grid--gallery home-grid--gallery-row">
           {gallery.map((item) => (
             <GalleryCard key={item.id} item={item} onOpen={setGalleryActive} />
           ))}

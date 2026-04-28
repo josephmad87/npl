@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ErrorNotice } from './components/ErrorNotice'
 import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
@@ -65,6 +65,17 @@ type PlayerRow = {
   profile_photo_url: string | null
 }
 
+type TeamSectionTabId =
+  | 'leadership'
+  | 'home-ground'
+  | 'history'
+  | 'season-records'
+  | 'fixtures'
+  | 'results'
+  | 'squad'
+  | 'gallery'
+  | 'team-photos'
+
 function StaffCard({
   role,
   name,
@@ -112,6 +123,7 @@ export function TeamDetailPage() {
   })
   const { map: teamsMap } = useTeamsMap()
   const [galleryActive, setGalleryActive] = useState<GalleryLightboxItem | null>(null)
+  const [activeTab, setActiveTab] = useState<TeamSectionTabId>('leadership')
 
   const seasonRecordsQ = useQuery({
     queryKey: ['team-season-records', slug],
@@ -168,13 +180,6 @@ export function TeamDetailPage() {
     retry: 1,
   })
 
-  const coverHero = data ? resolveMediaUrl(data.cover_image_url) : null
-  const firstTeamPhoto = data?.team_photo_urls?.[0]
-    ? resolveMediaUrl(data.team_photo_urls[0])
-    : null
-  const useSiteLogoHero = Boolean(data) && !coverHero && !firstTeamPhoto
-  const heroImage = coverHero ?? firstTeamPhoto
-
   const venueTitle =
     (data?.home_ground_name ?? data?.home_ground)?.trim() || 'Home ground'
   const venueLocation = data?.home_ground_location?.trim()
@@ -229,16 +234,40 @@ export function TeamDetailPage() {
     return null
   }, [data, playersSorted])
 
+  const teamTabs = useMemo(
+    () =>
+      [
+        { id: 'leadership', label: 'Leadership' },
+        { id: 'home-ground', label: 'Home ground' },
+        { id: 'history', label: 'History' },
+        { id: 'season-records', label: 'Season records' },
+        { id: 'fixtures', label: 'Fixtures' },
+        { id: 'results', label: 'Results' },
+        { id: 'squad', label: 'Squad' },
+        { id: 'gallery', label: 'Gallery' },
+        ...(data && (data.team_photo_urls ?? []).length > 0
+          ? [{ id: 'team-photos', label: 'Team photos' }]
+          : []),
+      ] as Array<{ id: TeamSectionTabId; label: string }>,
+    [data],
+  )
+
+  useEffect(() => {
+    if (!teamTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(teamTabs[0]?.id ?? 'leadership')
+    }
+  }, [activeTab, teamTabs])
+
   return (
     <>
       {data ? (
         <PageHero
           title={data.name}
           subtitle={`${formatCategoryLabel(data.category)} · ${data.home_ground_name ?? data.home_ground ?? 'Venue TBC'} · ${data.status}`}
-          imageUrl={heroImage}
+          imageUrl=""
           badgeSrc={data.logo_url ? (resolveMediaUrl(data.logo_url) ?? null) : null}
-          variant={useSiteLogoHero ? 'siteLogo' : 'default'}
-          fullWidth={Boolean(heroImage && !useSiteLogoHero)}
+          variant="siteLogo"
+          fullWidth={false}
           titleAlign="start"
           className="ui-page-hero--team-detail"
         />
@@ -255,7 +284,23 @@ export function TeamDetailPage() {
                 </div>
               ) : null}
 
-              <section className="team-page__section" aria-label="Leadership">
+              <div className="team-page__tabs" role="tablist" aria-label="Team page sections">
+                {teamTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    className={`team-page__tab-btn${activeTab === tab.id ? ' is-active' : ''}`}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === 'leadership' ? (
+                <section className="team-page__section" aria-label="Leadership">
                 <SectionHeader title="Leadership" />
                 <div className="team-page__staff-grid">
                   <StaffCard
@@ -277,9 +322,11 @@ export function TeamDetailPage() {
                     placeholderKind="brand"
                   />
                 </div>
-              </section>
+                </section>
+              ) : null}
 
-              <section className="team-page__section" aria-label="Home ground">
+              {activeTab === 'home-ground' ? (
+                <section className="team-page__section" aria-label="Home ground">
                 <SectionHeader title="Home ground" />
                 <div className="team-page__home-card">
                   <div className="team-page__home-visual">
@@ -303,9 +350,11 @@ export function TeamDetailPage() {
                     )}
                   </div>
                 </div>
-              </section>
+                </section>
+              ) : null}
 
-              <section className="team-page__section" aria-label="History">
+              {activeTab === 'history' ? (
+                <section className="team-page__section" aria-label="History">
                 <SectionHeader title="History" />
                 <div className="team-page__prose">
                   <p>
@@ -331,9 +380,11 @@ export function TeamDetailPage() {
                     </div>
                   </>
                 ) : null}
-              </section>
+                </section>
+              ) : null}
 
-              <section className="team-page__section" aria-label="Season records">
+              {activeTab === 'season-records' ? (
+                <section className="team-page__section" aria-label="Season records">
                 <SectionHeader title="Season records" />
                 <p className="team-page__hint muted">
                   Wins, losses, and no-results from completed matches, by league
@@ -408,9 +459,11 @@ export function TeamDetailPage() {
                   *NR: matches with no winner recorded (tie, abandoned, or
                   incomplete result).
                 </p>
-              </section>
+                </section>
+              ) : null}
 
-              <section className="team-page__section" aria-label="Fixtures">
+              {activeTab === 'fixtures' ? (
+                <section className="team-page__section" aria-label="Fixtures">
                 <SectionHeader title="Fixtures" />
                 {fixturesQ.isLoading ? <Spinner label="Loading fixtures…" /> : null}
                 {(fixturesQ.data ?? []).length === 0 && !fixturesQ.isLoading ? (
@@ -422,9 +475,11 @@ export function TeamDetailPage() {
                     ))}
                   </div>
                 )}
-              </section>
+                </section>
+              ) : null}
 
-              <section className="team-page__section" aria-label="Results">
+              {activeTab === 'results' ? (
+                <section className="team-page__section" aria-label="Results">
                 <SectionHeader title="Results" />
                 {resultsQ.isLoading ? <Spinner label="Loading results…" /> : null}
                 {(resultsQ.data ?? []).length === 0 && !resultsQ.isLoading ? (
@@ -441,9 +496,11 @@ export function TeamDetailPage() {
                     ))}
                   </div>
                 )}
-              </section>
+                </section>
+              ) : null}
 
-              <section className="team-page__section" aria-label="Squad">
+              {activeTab === 'squad' ? (
+                <section className="team-page__section" aria-label="Squad">
                 <SectionHeader title="Squad" />
                 {playersQ.isLoading ? <Spinner label="Loading players…" /> : null}
                 {playersSorted.length === 0 && !playersQ.isLoading ? (
@@ -464,9 +521,11 @@ export function TeamDetailPage() {
                     ))}
                   </div>
                 )}
-              </section>
+                </section>
+              ) : null}
 
-              <section className="team-page__section" aria-label="Gallery">
+              {activeTab === 'gallery' ? (
+                <section className="team-page__section" aria-label="Gallery">
                 <SectionHeader
                   title="Gallery"
                   linkTo="/gallery"
@@ -488,9 +547,10 @@ export function TeamDetailPage() {
                     ))}
                   </div>
                 )}
-              </section>
+                </section>
+              ) : null}
 
-              {(data.team_photo_urls ?? []).length > 0 ? (
+              {activeTab === 'team-photos' && (data.team_photo_urls ?? []).length > 0 ? (
                 <section className="team-page__section" aria-label="Team photos">
                   <SectionHeader title="Team photos" />
                   <div className="home-grid home-grid--gallery">

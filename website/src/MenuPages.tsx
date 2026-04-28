@@ -603,7 +603,15 @@ function AboutInlineImage({
   )
 }
 
-function AboutTextSection({ title, text }: { title: string; text: string }) {
+function AboutTextSection({
+  title,
+  text,
+  className,
+}: {
+  title: string
+  text: string
+  className?: string
+}) {
   const body = text.trim()
   if (!body) return null
   const paragraphs = body
@@ -611,7 +619,7 @@ function AboutTextSection({ title, text }: { title: string; text: string }) {
     .map((chunk) => chunk.trim())
     .filter(Boolean)
   return (
-    <section className="about-page__story-card">
+    <section className={`about-page__story-card${className ? ` ${className}` : ''}`}>
       <h2 className="about-page__story-title">{title}</h2>
       <div className="about-page__story-body">
         {paragraphs.map((paragraph) => (
@@ -721,10 +729,26 @@ function AboutPageImpl() {
             />
           ) : null}
 
-          <section className="about-page__story-grid">
-            <AboutTextSection title="Mission" text={about.mission} />
-            <AboutTextSection title="Vision" text={about.vision} />
-            <AboutTextSection title="History" text={about.history} />
+          <section className="about-page__story-layout">
+            <div className="about-page__story-row about-page__story-row--duo">
+              <AboutTextSection
+                title="Mission"
+                text={about.mission}
+                className="about-page__story-card--mission"
+              />
+              <AboutTextSection
+                title="Vision"
+                text={about.vision}
+                className="about-page__story-card--vision"
+              />
+            </div>
+            <div className="about-page__story-row about-page__story-row--single">
+              <AboutTextSection
+                title="History"
+                text={about.history}
+                className="about-page__story-card--history"
+              />
+            </div>
           </section>
 
           {teamMembers.length > 0 ? (
