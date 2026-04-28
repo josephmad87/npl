@@ -36,13 +36,13 @@ export function SiteFooter() {
             <Link to="/mens/teams">Mens teams</Link>
             <Link to="/women/teams">Women teams</Link>
             <Link to="/youth/teams">Youth teams</Link>
-            <Link to="/mens/seasons" search={{ leagueSlug: 'npl' }}>
+            <Link to="/mens/seasons" search={{ leagueSlug: '' }}>
               Mens seasons
             </Link>
-            <Link to="/women/seasons" search={{ leagueSlug: 'npl' }}>
+            <Link to="/women/seasons" search={{ leagueSlug: '' }}>
               Women seasons
             </Link>
-            <Link to="/youth/seasons" search={{ leagueSlug: 'npl' }}>
+            <Link to="/youth/seasons" search={{ leagueSlug: '' }}>
               Youth seasons
             </Link>
           </nav>

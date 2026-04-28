@@ -134,18 +134,9 @@ export function SiteHeader() {
     }
   }, [mobileNavOpen])
 
-  const fallbackSeason: HeaderSeason = {
-    id: -1,
-    name: 'Current Season',
-    slug: 'current-season',
-    leagueSlug: 'npl',
-  }
-  const mensSeasonLinks =
-    mensSeasons.length > 0 ? mensSeasons.slice(0, 5) : [fallbackSeason]
-  const womenSeasonLinks =
-    womenSeasons.length > 0 ? womenSeasons.slice(0, 5) : [fallbackSeason]
-  const youthSeasonLinks =
-    youthSeasons.length > 0 ? youthSeasons.slice(0, 5) : [fallbackSeason]
+  const mensSeasonLinks = mensSeasons.slice(0, 5)
+  const womenSeasonLinks = womenSeasons.slice(0, 5)
+  const youthSeasonLinks = youthSeasons.slice(0, 5)
 
   return (
     <header className="site-header">
