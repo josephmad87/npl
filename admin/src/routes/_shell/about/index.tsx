@@ -174,6 +174,21 @@ function AboutForm({ data }: AboutFormProps) {
               className="about-form__team-row"
               key={`team-${i}`}
             >
+              <div className="about-form__team-picture">
+                <label
+                  className="settings-form__label"
+                  htmlFor={`pic-${i}`}
+                >
+                  Picture
+                </label>
+                <MediaUrlField
+                  id={`pic-${i}`}
+                  uploadKind="misc"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,image/bmp,image/tiff,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.gif,.avif,.svg,.bmp,.tif,.tiff,.heic,.heif"
+                  value={row.picture_url}
+                  onChange={(u) => setTeamField(i, { picture_url: u ?? '' })}
+                />
+              </div>
               <div>
                 <label
                   className="settings-form__label"
@@ -190,21 +205,6 @@ function AboutForm({ data }: AboutFormProps) {
                   }
                   placeholder="e.g. Chair, Operations"
                   maxLength={200}
-                />
-              </div>
-              <div className="about-form__team-picture">
-                <label
-                  className="settings-form__label"
-                  htmlFor={`pic-${i}`}
-                >
-                  Picture
-                </label>
-                <MediaUrlField
-                  id={`pic-${i}`}
-                  uploadKind="misc"
-                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,image/bmp,image/tiff,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.gif,.avif,.svg,.bmp,.tif,.tiff,.heic,.heif"
-                  value={row.picture_url}
-                  onChange={(u) => setTeamField(i, { picture_url: u ?? '' })}
                 />
               </div>
               <div className="about-form__team-actions">

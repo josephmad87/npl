@@ -13,6 +13,7 @@ import {
   MensSeasonsPage,
   MensTeamsPage,
   NewsPage,
+  SearchResultsPage,
   ResultsPage,
   WomenFixturesPage,
   WomenPage,
@@ -157,6 +158,22 @@ const newsRoute = createRoute({
     q: typeof search.q === 'string' ? search.q : '',
   }),
 })
+const searchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/search',
+  component: SearchResultsPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === 'string' ? search.q : '',
+    type:
+      search.type === 'all' ||
+      search.type === 'news' ||
+      search.type === 'team' ||
+      search.type === 'player' ||
+      search.type === 'league'
+        ? search.type
+        : 'all',
+  }),
+})
 const galleryRoute = createRoute({ getParentRoute: () => rootRoute, path: '/gallery', component: GalleryPage })
 const galleryImagesRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -237,6 +254,7 @@ const routeTree = rootRoute.addChildren([
   youthSeasonsRoute,
   youthTeamsRoute,
   newsRoute,
+  searchRoute,
   galleryRoute,
   galleryImagesRoute,
   galleryVideoRoute,

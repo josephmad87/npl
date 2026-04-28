@@ -32,7 +32,6 @@ export function SiteFooter() {
   const instagram = normalizeSocialLink(socials?.instagram)
   const twitter = normalizeSocialLink(socials?.twitter)
   const youtube = normalizeSocialLink(socials?.youtube)
-  const hasSocialLinks = facebook !== null || instagram !== null || twitter !== null || youtube !== null
 
   return (
     <footer className="site-footer">
@@ -126,11 +125,6 @@ export function SiteFooter() {
               <a href={youtube} target="_blank" rel="noreferrer">
                 YouTube
               </a>
-            ) : null}
-            {!hasSocialLinks ? (
-              <span className="site-footer-col__hint">
-                Social links can be added in Admin → About.
-              </span>
             ) : null}
           </nav>
         </div>

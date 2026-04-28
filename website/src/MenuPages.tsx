@@ -496,6 +496,189 @@ function NewsListPage() {
   )
 }
 
+function SearchResultsPageImpl() {
+  const { q, type } = useSearch({ from: '/search' })
+  const navigate = useNavigate({ from: '/search' })
+  const query = q.trim()
+  const hasQuery = query.length > 0
+  const encodedQuery = encodeURIComponent(query)
+  const activeFilter = type as SearchFilter
+
+  const resultsQ = useQuery({
+    queryKey: ['site-search', query],
+    queryFn: async () => {
+      const [teamsRaw, playersRaw, newsRaw, leaguesRaw] = await Promise.all([
+        fetchJson<unknown>(`/public/teams?page=1&page_size=12&q=${encodedQuery}`),
+        fetchJson<unknown>(`/public/players?page=1&page_size=12&q=${encodedQuery}`),
+        fetchJson<unknown>(`/public/news?page=1&page_size=12&q=${encodedQuery}`),
+        fetchJson<unknown>(`/public/leagues?page=1&page_size=12&q=${encodedQuery}`),
+      ])
+      const teams = extractList<SearchTeam>(teamsRaw)
+      const players = extractList<SearchPlayer>(playersRaw)
+      const news = extractList<ArticleLite>(newsRaw)
+      const leagues = extractList<SearchLeague>(leaguesRaw)
+
+      const items: SearchResultItem[] = [
+        ...news.map((article) => ({
+          key: `news-${article.id}`,
+          kind: 'news' as const,
+          title: article.title,
+          snippet:
+            article.excerpt?.trim() ??
+            article.category?.trim() ??
+            'News article and competition update.',
+          slug: article.slug,
+        })),
+        ...teams.map((team) => ({
+          key: `team-${team.id}`,
+          kind: 'team' as const,
+          title: team.name,
+          snippet: `${formatCategoryLabel(team.category ?? 'mens')} team profile`,
+          slug: team.slug,
+        })),
+        ...players.map((player) => ({
+          key: `player-${player.id}`,
+          kind: 'player' as const,
+          title: player.full_name,
+          snippet: player.role?.trim() ?? 'Player profile and stats',
+          slug: player.slug,
+        })),
+        ...leagues.map((league) => ({
+          key: `league-${league.id}`,
+          kind: 'league' as const,
+          title: league.name,
+          snippet:
+            league.description?.trim() ??
+            `${formatCategoryLabel(league.category ?? 'mens')} competition league`,
+          slug: league.slug,
+        })),
+      ]
+      return items
+    },
+    enabled: hasQuery,
+    retry: 1,
+  })
+
+  const results = resultsQ.data ?? []
+  const filteredResults = useMemo(() => {
+    if (activeFilter === 'all') return results
+    return results.filter((item) => item.kind === activeFilter)
+  }, [results, activeFilter])
+  const filterTabs: Array<{ id: SearchFilter; label: string }> = [
+    { id: 'all', label: 'All' },
+    { id: 'news', label: 'News' },
+    { id: 'team', label: 'Teams' },
+    { id: 'player', label: 'Players' },
+    { id: 'league', label: 'Leagues' },
+  ]
+
+  return (
+    <>
+      <PageHero
+        variant="siteLogo"
+        title="Search"
+        subtitle={hasQuery ? `Results for "${query}"` : 'Find news, teams, players, and leagues'}
+      />
+      <main className="container">
+        <section className="menu-page search-page">
+          <form
+            className="search-page__form"
+            onSubmit={(e) => {
+              e.preventDefault()
+              const form = new FormData(e.currentTarget)
+              const next = String(form.get('q') ?? '').trim()
+              void navigate({ search: { q: next, type: 'all' } })
+            }}
+          >
+            <label className="search-page__label" htmlFor="site-search-results-input">
+              Search site
+            </label>
+            <input
+              id="site-search-results-input"
+              name="q"
+              type="search"
+              className="search-page__input"
+              defaultValue={q}
+              placeholder="Search players, teams, news, and leagues"
+            />
+          </form>
+
+          {!hasQuery ? (
+            <EmptyState
+              title="Start typing to search"
+              description="Use the search box above to find content across the site."
+            />
+          ) : null}
+          {hasQuery && resultsQ.isLoading ? <Spinner label="Searching…" /> : null}
+          {hasQuery && resultsQ.isError ? (
+            <ErrorNotice message="Search failed. Please try again." />
+          ) : null}
+          {hasQuery && !resultsQ.isLoading && !resultsQ.isError && results.length === 0 ? (
+            <EmptyState title="No search results found" />
+          ) : null}
+          {hasQuery && !resultsQ.isLoading && !resultsQ.isError && results.length > 0 ? (
+            <>
+              <div className="search-page__tabs" role="tablist" aria-label="Search result filters">
+                {filterTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeFilter === tab.id}
+                    className={`search-page__tab${activeFilter === tab.id ? ' is-active' : ''}`}
+                    onClick={() => {
+                      void navigate({
+                        search: {
+                          q,
+                          type: tab.id,
+                        },
+                        replace: true,
+                      })
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              {filteredResults.length === 0 ? (
+                <EmptyState title="No results in this filter" />
+              ) : null}
+              <div className="search-page__results" role="list" aria-label="Search results">
+                {filteredResults.map((item) => (
+                  <article key={item.key} className="search-page__result" role="listitem">
+                  {item.kind === 'news' ? (
+                    <Link to="/news/$slug" params={{ slug: item.slug }} className="search-page__title">
+                      {item.title}
+                    </Link>
+                  ) : null}
+                  {item.kind === 'team' ? (
+                    <Link to="/teams/$slug" params={{ slug: item.slug }} className="search-page__title">
+                      {item.title}
+                    </Link>
+                  ) : null}
+                  {item.kind === 'player' ? (
+                    <Link to="/players/$slug" params={{ slug: item.slug }} className="search-page__title">
+                      {item.title}
+                    </Link>
+                  ) : null}
+                  {item.kind === 'league' ? (
+                    <Link to="/leagues/$slug" params={{ slug: item.slug }} className="search-page__title">
+                      {item.title}
+                    </Link>
+                  ) : null}
+                  <p className="search-page__meta">{item.kind.toUpperCase()}</p>
+                  <p className="search-page__snippet">{item.snippet}</p>
+                  </article>
+                ))}
+              </div>
+            </>
+          ) : null}
+        </section>
+      </main>
+    </>
+  )
+}
+
 function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
   const filter = mediaType ? `&media_type=${mediaType}` : ''
   const { data = [], isLoading, isError } = useQuery({
@@ -558,6 +741,38 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
     </>
   )
 }
+
+type SearchTeam = {
+  id: number
+  name: string
+  slug: string
+  category?: string | null
+}
+
+type SearchPlayer = {
+  id: number
+  full_name: string
+  slug: string
+  role?: string | null
+}
+
+type SearchLeague = {
+  id: number
+  name: string
+  slug: string
+  category?: string | null
+  description?: string | null
+}
+
+type SearchResultItem = {
+  key: string
+  kind: 'news' | 'team' | 'player' | 'league'
+  title: string
+  snippet: string
+  slug: string
+}
+
+type SearchFilter = 'all' | SearchResultItem['kind']
 
 type PublicAboutContent = {
   mission: string
@@ -931,6 +1146,7 @@ export const YouthResultsPage = () => <FixturesResultsPage category="youth" mode
 export const YouthTeamsPage = () => <TeamsListPage category="youth" />
 
 export const NewsPage = () => <NewsListPage />
+export const SearchResultsPage = () => <SearchResultsPageImpl />
 export const GalleryPage = () => <GalleryPageImpl />
 export const GalleryImagesPage = () => <GalleryPageImpl mediaType="image" />
 export const GalleryVideoPage = () => <GalleryPageImpl mediaType="video" />

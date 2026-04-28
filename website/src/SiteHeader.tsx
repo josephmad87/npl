@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { extractList, fetchJson } from './lib/publicApi'
 import nplLogoUrl from './assets/logo.jpeg'
 
@@ -69,6 +69,9 @@ async function fetchSeasonsForLeagues(leagues: ApiLeague[]): Promise<HeaderSeaso
 
 export function SiteHeader() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [searchText, setSearchText] = useState('')
+  const navigate = useNavigate()
+  const location = useRouterState({ select: (s) => s.location })
   const { data: mensNavTeams = [] } = useQuery({
     queryKey: ['header-teams', 'mens'],
     queryFn: () => fetchTeamsForCategory('mens'),
@@ -138,6 +141,21 @@ export function SiteHeader() {
   const womenSeasonLinks = womenSeasons.slice(0, 5)
   const youthSeasonLinks = youthSeasons.slice(0, 5)
 
+  useEffect(() => {
+    if (location.pathname !== '/search') return
+    const current = typeof location.search.q === 'string' ? location.search.q : ''
+    setSearchText(current)
+  }, [location.pathname, location.search])
+
+  const submitSearch = () => {
+    const q = searchText.trim()
+    void navigate({
+      to: '/search',
+      search: { q, type: 'all' },
+    })
+    setMobileNavOpen(false)
+  }
+
   return (
     <header className="site-header">
       <div className="header-shell">
@@ -146,7 +164,20 @@ export function SiteHeader() {
             <Link to="/" className="site-header-mobile__logo" aria-label="NPL home" onClick={closeMobileNav}>
               <img src={nplLogoUrl} alt="" />
             </Link>
-            <input type="search" className="site-header-mobile__search" placeholder="Search" aria-label="Search" />
+            <input
+              type="search"
+              className="site-header-mobile__search"
+              placeholder="Search"
+              aria-label="Search"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  submitSearch()
+                }
+              }}
+            />
             <button
               type="button"
               className={`site-header-mobile__menu-btn${mobileNavOpen ? ' is-open' : ''}`}
@@ -351,7 +382,19 @@ export function SiteHeader() {
         <div className="site-header-desktop">
           <div className="utility-row">
             <div className="utility-controls">
-              <input type="search" placeholder="Search" aria-label="Search" />
+              <input
+                type="search"
+                placeholder="Search"
+                aria-label="Search"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    submitSearch()
+                  }
+                }}
+              />
             </div>
           </div>
           <nav className="main-nav nav-row" aria-label="Main">
