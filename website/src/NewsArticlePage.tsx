@@ -72,19 +72,19 @@ export default function NewsArticlePage() {
         ) : null}
 
         {!isLoading && !isError && article ? (
-          <article className="article-content">
+          <>
             {heroImage ? (
-              <div className="article-hero">
+              <header className="article-hero">
                 <img src={heroImage} alt={article.title} />
-                <header className="article-hero-overlay">
+                <div className="article-hero-overlay">
                   {categoryLine ? <p className="article-category">{categoryLine}</p> : null}
                   <h1>{article.title}</h1>
                   <p className="article-meta">
                     By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at)}
                   </p>
                   {article.excerpt ? <p className="article-excerpt">{article.excerpt}</p> : null}
-                </header>
-              </div>
+                </div>
+              </header>
             ) : (
               <header className="article-header">
                 {categoryLine ? <p className="article-category">{categoryLine}</p> : null}
@@ -95,12 +95,14 @@ export default function NewsArticlePage() {
                 {article.excerpt ? <p className="article-excerpt">{article.excerpt}</p> : null}
               </header>
             )}
-            <div className="article-lower">
-              {article.body ? (
-                <section className="article-body" dangerouslySetInnerHTML={{ __html: article.body }} />
-              ) : (
-                <p className="article-empty">Full story coming soon.</p>
-              )}
+            <div className="article-page__content">
+              <div className="article-page__main">
+                {article.body ? (
+                  <section className="article-body" dangerouslySetInnerHTML={{ __html: article.body }} />
+                ) : (
+                  <p className="article-empty">Full story coming soon.</p>
+                )}
+              </div>
               <aside
                 className="article-sidebar"
                 aria-label={relatedCategory ? 'Related news' : 'Recent news'}
@@ -123,7 +125,7 @@ export default function NewsArticlePage() {
                 </div>
               </aside>
             </div>
-          </article>
+          </>
         ) : null}
       </section>
     </main>
