@@ -1,5 +1,5 @@
 :root {
-  --page-content-pad: 0.85rem;
+  --page-content-pad: clamp(1rem, 3vw, 2rem);
 }
 
 .container {
@@ -1093,11 +1093,13 @@
   display: flex;
   gap: 0.9rem;
   overflow-x: auto;
+  overflow-y: hidden;
   padding: 0.45rem 0.2rem 0.6rem;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  align-items: stretch;
 }
 
 .home-sponsors-row::-webkit-scrollbar {
@@ -1107,26 +1109,28 @@
 }
 
 .home-sponsors-card {
-  flex: 0 0 min(172px, 38vw);
-  width: min(172px, 38vw);
-  min-height: 8.5rem;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, var(--color-border));
+  flex: 0 0 min(232px, 56vw);
+  width: min(232px, 56vw);
+  min-height: 11rem;
+  border: 0;
   border-radius: 0.85rem;
   background: #fff;
-  box-shadow: 0 7px 24px rgba(31, 22, 64, 0.08);
-  padding: 0.65rem 0.6rem;
+  box-shadow: none;
+  padding: 0.9rem 0.8rem;
   display: grid;
+  grid-template-rows: 1fr auto auto;
   align-content: start;
   justify-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
   scroll-snap-align: start;
 }
 
 .home-sponsors-card__logo {
   width: 100%;
-  height: 3.7rem;
+  height: 6.8rem;
   display: grid;
   place-items: center;
+  overflow: hidden;
 }
 
 .home-sponsors-card__logo img {
