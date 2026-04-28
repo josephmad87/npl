@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import siteLogoUrl from '../assets/logo.jpeg'
 import { extractList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
 
 type HeroGalleryItem = {
@@ -52,6 +53,7 @@ export function PageHero({
   fullWidth = false,
   titleAlign = 'start',
   className,
+  fallbackMode = 'related',
 }: {
   title: string
   subtitle?: string
@@ -66,11 +68,14 @@ export function PageHero({
   titleAlign?: 'start' | 'center'
   /** Extra section classes (e.g. alignment with site header on team detail). */
   className?: string
+  /** Related = random gallery/news fallback, none = no image fallback. */
+  fallbackMode?: 'related' | 'none'
 }) {
   const isSiteLogo = variant === 'siteLogo'
-  const randomHeroImage = useRandomHeroImage(true)
+  const randomHeroImage = useRandomHeroImage(fallbackMode === 'related')
   const explicitImage = imageUrl?.trim() ?? ''
-  const coverSrc = explicitImage || randomHeroImage
+  const coverSrc = explicitImage || (fallbackMode === 'related' ? randomHeroImage : null)
+  const showSiteLogoMark = isSiteLogo && !coverSrc
   const titleBlockClass =
     titleAlign === 'center'
       ? 'ui-page-hero__title-block ui-page-hero__title-block--center'
@@ -87,6 +92,11 @@ export function PageHero({
     <section className={rootClass}>
       {coverSrc ? (
         <img src={coverSrc} alt={title} />
+      ) : null}
+      {showSiteLogoMark ? (
+        <div className="ui-page-hero__brand-mark">
+          <img src={siteLogoUrl} alt="NPL logo" />
+        </div>
       ) : null}
       <div
         className={`ui-page-hero-overlay${

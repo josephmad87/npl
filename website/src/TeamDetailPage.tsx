@@ -180,6 +180,12 @@ export function TeamDetailPage() {
     retry: 1,
   })
 
+  const coverHero = data ? resolveMediaUrl(data.cover_image_url) : null
+  const firstTeamPhoto = data?.team_photo_urls?.[0]
+    ? resolveMediaUrl(data.team_photo_urls[0])
+    : null
+  const teamHeroImage = coverHero ?? firstTeamPhoto ?? ''
+
   const venueTitle =
     (data?.home_ground_name ?? data?.home_ground)?.trim() || 'Home ground'
   const venueLocation = data?.home_ground_location?.trim()
@@ -264,10 +270,11 @@ export function TeamDetailPage() {
         <PageHero
           title={data.name}
           subtitle={`${formatCategoryLabel(data.category)} · ${data.home_ground_name ?? data.home_ground ?? 'Venue TBC'} · ${data.status}`}
-          imageUrl=""
+          imageUrl={teamHeroImage}
           badgeSrc={data.logo_url ? (resolveMediaUrl(data.logo_url) ?? null) : null}
-          variant="siteLogo"
-          fullWidth={false}
+          variant={teamHeroImage ? 'default' : 'siteLogo'}
+          fullWidth={Boolean(teamHeroImage)}
+          fallbackMode="none"
           titleAlign="start"
           className="ui-page-hero--team-detail"
         />

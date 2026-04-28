@@ -682,6 +682,7 @@ function AboutPageImpl() {
           title="About Zimbabwe Cricket NPL"
           subtitle="Loading official page content…"
           imageUrl=""
+          fallbackMode="none"
         />
         <main className="container">
           <section className="menu-page about-page">
@@ -700,6 +701,7 @@ function AboutPageImpl() {
           title="About Zimbabwe Cricket NPL"
           subtitle="Official league information"
           imageUrl=""
+          fallbackMode="none"
         />
         <main className="container">
           <section className="menu-page about-page">
@@ -719,6 +721,7 @@ function AboutPageImpl() {
         title="About Zimbabwe Cricket NPL"
         subtitle={heroSubtitle}
         imageUrl=""
+        fallbackMode="none"
       />
     <main className="container">
         <section className="menu-page about-page">
