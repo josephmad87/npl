@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState, useSearch } from '@tanstack/react-router'
 import nplLogoUrl from './assets/logo.jpeg'
@@ -860,14 +860,7 @@ function AboutPageImpl() {
 
   const about = aboutQ.data
 
-  const heroSubtitle = useMemo(() => {
-    const m = about?.mission?.trim()
-    if (!m) {
-      return 'Mission, leadership, contact details, and official partners.'
-    }
-    const first = m.split(/\n\s*\n/u)[0]?.trim() ?? m
-    return first.length > 200 ? `${first.slice(0, 197)}…` : first
-  }, [about?.mission])
+  const heroSubtitle = ''
 
   const teamMembers = useMemo(() => {
     const rows = about?.team ?? []
@@ -900,7 +893,7 @@ function AboutPageImpl() {
       <>
         <PageHero
           variant="siteLogo"
-          title="About Zimbabwe Cricket NPL"
+          title="About us"
           subtitle="Loading official page content…"
           imageUrl=""
           fallbackMode="none"
@@ -919,7 +912,7 @@ function AboutPageImpl() {
       <>
         <PageHero
           variant="siteLogo"
-          title="About Zimbabwe Cricket NPL"
+          title="About us"
           subtitle="Official league information"
           imageUrl=""
           fallbackMode="none"
@@ -939,7 +932,7 @@ function AboutPageImpl() {
     <>
       <PageHero
         variant="siteLogo"
-        title="About Zimbabwe Cricket NPL"
+        title="About us"
         subtitle={heroSubtitle}
         imageUrl=""
         fallbackMode="none"
@@ -1044,9 +1037,20 @@ function ContactUsPageImpl() {
   })
   const about = aboutQ.data
   const emails = (about?.contacts?.emails ?? []).map((e) => e.trim()).filter(Boolean)
+  const primaryEmail = emails[0] ?? ''
   const phone = about?.contacts?.phone?.trim() ?? ''
   const address = about?.physical_address?.trim() ?? ''
   const hasAnyContact = emails.length > 0 || phone !== '' || address !== ''
+  const [message, setMessage] = useState('')
+
+  const handleMessageSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!primaryEmail || message.trim() === '') return
+
+    const subject = encodeURIComponent('Contact form enquiry')
+    const body = encodeURIComponent(message.trim())
+    window.location.href = `mailto:${primaryEmail}?subject=${subject}&body=${body}`
+  }
 
   return (
     <>
@@ -1069,51 +1073,81 @@ function ContactUsPageImpl() {
           ) : null}
 
           {!aboutQ.isLoading && !aboutQ.isError && hasAnyContact ? (
-            <div className="contact-page__grid">
-              <article className="contact-page__card">
-                <h2>Email</h2>
-                {emails.length === 0 ? <p className="muted">No email published yet.</p> : null}
-                <ul className="contact-page__list">
-                  {emails.map((email) => (
-                    <li key={email}>
-                      <a href={`mailto:${email}`}>{email}</a>
-                    </li>
-                  ))}
-                </ul>
-              </article>
+            <>
+              <section className="contact-page__message-box">
+                <h2>Send us a message</h2>
+                <form className="contact-page__message-form" onSubmit={handleMessageSubmit}>
+                  <label htmlFor="contact-message" className="contact-page__message-label">
+                    Your message
+                  </label>
+                  <textarea
+                    id="contact-message"
+                    className="contact-page__message-input"
+                    placeholder="Write your enquiry here..."
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    rows={5}
+                  />
+                  <button
+                    type="submit"
+                    className="contact-page__message-submit"
+                    disabled={!primaryEmail || message.trim() === ''}
+                  >
+                    Send message
+                  </button>
+                </form>
+              </section>
+              <div className="contact-page__grid">
+                <article className="contact-page__card">
+                  <h2>Email</h2>
+                  {emails.length === 0 ? <p className="muted">No email published yet.</p> : null}
+                  <ul className="contact-page__list">
+                    {emails.map((email) => (
+                      <li key={email}>
+                        <a href={`mailto:${email}`}>{email}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
 
-              <article className="contact-page__card">
-                <h2>Phone</h2>
-                {phone ? (
-                  <p className="contact-page__single">
-                    <a href={`tel:${phone.replace(/\s+/g, '')}`}>{phone}</a>
-                  </p>
-                ) : (
-                  <p className="muted">No phone number published yet.</p>
-                )}
-              </article>
+                <article className="contact-page__card">
+                  <h2>Phone</h2>
+                  {phone ? (
+                    <p className="contact-page__single">
+                      <a href={`tel:${phone.replace(/\s+/g, '')}`}>{phone}</a>
+                    </p>
+                  ) : (
+                    <p className="muted">No phone number published yet.</p>
+                  )}
+                </article>
 
-              <article className="contact-page__card">
-                <h2>Office address</h2>
-                {address ? (
-                  <p className="contact-page__single contact-page__single--multiline">{address}</p>
-                ) : (
-                  <p className="muted">No office address published yet.</p>
-                )}
-              </article>
+                <article className="contact-page__card">
+                  <h2>Office address</h2>
+                  {address ? (
+                    <p className="contact-page__single contact-page__single--multiline">{address}</p>
+                  ) : (
+                    <p className="muted">No office address published yet.</p>
+                  )}
+                </article>
 
-              <article className="contact-page__card contact-page__card--wide">
-                <h2>Helpful links</h2>
-                <div className="contact-page__links">
-                  <Link to="/about-us">About us</Link>
-                  <Link to="/news" search={{ q: '' }}>
-                    Newsroom
-                  </Link>
-                  <Link to="/gallery">Gallery</Link>
-                  <Link to="/fixtures">Fixtures</Link>
-                </div>
-              </article>
-            </div>
+                <article className="contact-page__card contact-page__card--wide">
+                  <h2>Helpful links</h2>
+                  <div className="contact-page__links">
+                    <Link to="/about-us">About us</Link>
+                    <Link to="/news" search={{ q: '' }}>
+                      Newsroom
+                    </Link>
+                    <Link to="/gallery">Gallery</Link>
+                    <Link to="/fixtures">Fixtures</Link>
+                  </div>
+                </article>
+              </div>
+            </>
+          ) : null}
+          {!aboutQ.isLoading && !aboutQ.isError && hasAnyContact && !primaryEmail ? (
+            <p className="muted contact-page__message-note">
+              A public email address is required before messages can be sent from this page.
+            </p>
           ) : null}
         </section>
       </main>

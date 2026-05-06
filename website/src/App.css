@@ -5164,6 +5164,76 @@ table.player-public-table {
   max-width: 72rem;
 }
 
+.contact-page__message-box {
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.95rem;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(31, 22, 64, 0.07);
+}
+
+.contact-page__message-box h2 {
+  margin: 0 0 0.55rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--color-primary);
+}
+
+.contact-page__message-form {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.contact-page__message-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-muted);
+}
+
+.contact-page__message-input {
+  width: 100%;
+  min-height: 7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  padding: 0.72rem 0.8rem;
+  font: inherit;
+  color: var(--color-text);
+  background: #fff;
+  resize: vertical;
+}
+
+.contact-page__message-input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-highlight) 35%, white);
+  outline-offset: 1px;
+}
+
+.contact-page__message-submit {
+  justify-self: start;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.45rem 0.95rem;
+  font: inherit;
+  font-weight: 700;
+  color: #fff;
+  background: var(--color-primary);
+  cursor: pointer;
+}
+
+.contact-page__message-submit:hover,
+.contact-page__message-submit:focus-visible {
+  background: color-mix(in srgb, var(--color-primary) 85%, #000 15%);
+}
+
+.contact-page__message-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.contact-page__message-note {
+  margin-top: 0.6rem;
+}
+
 .contact-page__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
