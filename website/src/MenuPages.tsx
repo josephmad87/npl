@@ -1041,14 +1041,31 @@ function ContactUsPageImpl() {
   const phone = about?.contacts?.phone?.trim() ?? ''
   const address = about?.physical_address?.trim() ?? ''
   const hasAnyContact = emails.length > 0 || phone !== '' || address !== ''
+  const [fullName, setFullName] = useState('')
+  const [senderPhone, setSenderPhone] = useState('')
+  const [senderEmail, setSenderEmail] = useState('')
   const [message, setMessage] = useState('')
+  const isMessageReady =
+    primaryEmail !== '' &&
+    fullName.trim() !== '' &&
+    senderEmail.trim() !== '' &&
+    message.trim() !== ''
 
   const handleMessageSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!primaryEmail || message.trim() === '') return
+    if (!isMessageReady) return
 
     const subject = encodeURIComponent('Contact form enquiry')
-    const body = encodeURIComponent(message.trim())
+    const body = encodeURIComponent(
+      [
+        `Full name: ${fullName.trim() || 'Not provided'}`,
+        `Phone number: ${senderPhone.trim() || 'Not provided'}`,
+        `Email: ${senderEmail.trim() || 'Not provided'}`,
+        '',
+        'Message:',
+        message.trim(),
+      ].join('\n'),
+    )
     window.location.href = `mailto:${primaryEmail}?subject=${subject}&body=${body}`
   }
 
@@ -1073,10 +1090,43 @@ function ContactUsPageImpl() {
           ) : null}
 
           {!aboutQ.isLoading && !aboutQ.isError && hasAnyContact ? (
-            <>
+            <div className="contact-page__content">
               <section className="contact-page__message-box">
                 <h2>Send us a message</h2>
                 <form className="contact-page__message-form" onSubmit={handleMessageSubmit}>
+                  <label htmlFor="contact-full-name" className="contact-page__message-label">
+                    Full name
+                  </label>
+                  <input
+                    id="contact-full-name"
+                    className="contact-page__text-input"
+                    placeholder="Enter your full name"
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
+                    required
+                  />
+                  <label htmlFor="contact-phone-number" className="contact-page__message-label">
+                    Phone number
+                  </label>
+                  <input
+                    id="contact-phone-number"
+                    className="contact-page__text-input"
+                    placeholder="Enter your phone number"
+                    value={senderPhone}
+                    onChange={(event) => setSenderPhone(event.target.value)}
+                  />
+                  <label htmlFor="contact-email-address" className="contact-page__message-label">
+                    Email
+                  </label>
+                  <input
+                    id="contact-email-address"
+                    className="contact-page__text-input"
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={senderEmail}
+                    onChange={(event) => setSenderEmail(event.target.value)}
+                    required
+                  />
                   <label htmlFor="contact-message" className="contact-page__message-label">
                     Your message
                   </label>
@@ -1091,13 +1141,13 @@ function ContactUsPageImpl() {
                   <button
                     type="submit"
                     className="contact-page__message-submit"
-                    disabled={!primaryEmail || message.trim() === ''}
+                    disabled={!isMessageReady}
                   >
                     Send message
                   </button>
                 </form>
               </section>
-              <div className="contact-page__grid">
+              <div className="contact-page__cards-column">
                 <article className="contact-page__card">
                   <h2>Email</h2>
                   {emails.length === 0 ? <p className="muted">No email published yet.</p> : null}
@@ -1142,7 +1192,7 @@ function ContactUsPageImpl() {
                   </div>
                 </article>
               </div>
-            </>
+            </div>
           ) : null}
           {!aboutQ.isLoading && !aboutQ.isError && hasAnyContact && !primaryEmail ? (
             <p className="muted contact-page__message-note">
