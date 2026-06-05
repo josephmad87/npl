@@ -1,4 +1,5 @@
 import type { MatchLite } from './hooks'
+import { ballsToOversLabel, oversFieldToBalls } from './leagueSeasonAggregates'
 
 export function statRows(match: MatchLite): Array<Record<string, unknown>> {
   return Array.isArray(match.player_stats) ? (match.player_stats as Array<Record<string, unknown>>) : []
@@ -130,11 +131,10 @@ function accumulate(matches: MatchLite[], filter: RowFilter) {
           bowling.set(pid, w)
         }
         w.matchIds.add(mid)
-        w.overs += ov
         w.maidens += mai
         w.runsConceded += rCon
         w.wickets += wk
-        w.ballsBowled += ov * 6
+        w.ballsBowled += oversFieldToBalls(row.overs)
         touched = true
       }
 
@@ -202,7 +202,7 @@ function kpisFromMaps(
   let c50 = 0
   let c100 = 0
   let maid = 0
-  let overs = 0
+  let bowlingBalls = 0
   let rCon = 0
   let catches = 0
   let stumps = 0
@@ -219,7 +219,7 @@ function kpisFromMaps(
   for (const w of bowling.values()) {
     wk += w.wickets
     maid += w.maidens
-    overs += w.overs
+    bowlingBalls += w.ballsBowled
     rCon += w.runsConceded
     catches += w.catches
     stumps += w.stumpings
@@ -256,7 +256,7 @@ function kpisFromMaps(
     { label: 'Extras', value: extras },
     { label: 'Catches', value: catches },
     { label: 'Stumpings', value: stumps },
-    { label: 'Overs', value: overs.toFixed(1) },
+    { label: 'Overs', value: ballsToOversLabel(bowlingBalls) },
     { label: 'Runs (conc.)', value: rCon },
   ]
 }
@@ -288,8 +288,8 @@ function battingSR(b: BattingAgg): string {
 }
 
 function economy(w: BowlingAgg): string {
-  if (w.overs <= 0) return '—'
-  return (w.runsConceded / w.overs).toFixed(2)
+  if (w.ballsBowled <= 0) return '—'
+  return ((w.runsConceded * 6) / w.ballsBowled).toFixed(2)
 }
 
 function bowlSR(w: BowlingAgg): string {
@@ -363,14 +363,14 @@ export function buildBowlingLeaderboard(matches: MatchLite[]): BowlingTableRow[]
   const { bowling } = aggregateTournament(matches)
   const rows: BowlingTableRow[] = []
   for (const w of bowling.values()) {
-    if (w.overs <= 0 && w.wickets <= 0) continue
+    if (w.ballsBowled <= 0 && w.wickets <= 0) continue
     rows.push({
       pos: 0,
       playerId: w.playerId,
       teamId: w.teamId,
       m: w.matchIds.size,
       wk: w.wickets,
-      o: w.overs.toFixed(1),
+      o: ballsToOversLabel(w.ballsBowled),
       r: w.runsConceded,
       maid: w.maidens,
       econ: economy(w),
@@ -416,13 +416,13 @@ export function topPerformers(matches: MatchLite[]): {
 
   let bestEcon: BowlingAgg | null = null
   for (const w of bowling.values()) {
-    if (w.overs < 5) continue
-    const e = w.runsConceded / w.overs
+    if (w.ballsBowled < 30) continue
+    const e = (w.runsConceded * 6) / w.ballsBowled
     if (!bestEcon) {
       bestEcon = w
       continue
     }
-    if (e < bestEcon.runsConceded / bestEcon.overs) bestEcon = w
+    if (e < (bestEcon.runsConceded * 6) / bestEcon.ballsBowled) bestEcon = w
   }
 
   return {

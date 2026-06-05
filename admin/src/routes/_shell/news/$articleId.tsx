@@ -4,7 +4,7 @@ import { SquarePen } from 'lucide-react'
 import { useState } from 'react'
 import type { ArticleDto } from '@/lib/api-types'
 import { sanitizeArticleHtml } from '@/lib/sanitizeArticleHtml'
-import { adminListAll, adminPatch } from '@/lib/admin-client'
+import { adminGet, adminPatch } from '@/lib/admin-client'
 import {
   ArticleEditorForm,
   type ArticleEditorValues,
@@ -27,11 +27,12 @@ function ArticleDetailPage() {
   const { mode } = Route.useSearch()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const listQ = useQuery({
-    queryKey: ['admin', 'news'],
-    queryFn: () => adminListAll<ArticleDto>('/admin/news'),
+  const articleQ = useQuery({
+    queryKey: ['admin', 'news', aid],
+    queryFn: () => adminGet<ArticleDto>(`/admin/news/${aid}`),
+    enabled: Number.isFinite(aid),
   })
-  const article = listQ.data?.find((a) => a.id === aid)
+  const article = articleQ.data
   const isEditing = mode === 'edit'
   const [saveError, setSaveError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -80,6 +81,7 @@ function ArticleDetailPage() {
         seo_description: values.seo_description,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'news'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'news', aid] })
       goView()
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Save failed')
@@ -88,11 +90,11 @@ function ArticleDetailPage() {
     }
   }
 
-  if (listQ.isLoading) {
+  if (articleQ.isLoading) {
     return <p className="muted">Loading…</p>
   }
-  if (listQ.isError) {
-    return <p className="login-error">{listQ.error.message}</p>
+  if (articleQ.isError) {
+    return <p className="login-error">{articleQ.error.message}</p>
   }
   if (!article || !Number.isFinite(aid)) {
     return (

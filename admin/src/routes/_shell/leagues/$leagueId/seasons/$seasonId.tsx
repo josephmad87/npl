@@ -75,12 +75,17 @@ function SeasonDetailPage() {
       setSaveError('Season name is required.')
       return
     }
-    const team_ids = teamIdsText
+    const parsedTeamIds = teamIdsText
       .split(/[,\s]+/)
       .map((x) => x.trim())
       .filter(Boolean)
       .map((x) => Number(x))
       .filter((x) => Number.isFinite(x))
+    const originalTeamIds = [...(season.team_ids ?? [])].sort((a, b) => a - b)
+    const nextTeamIds = [...parsedTeamIds].sort((a, b) => a - b)
+    const rosterChanged =
+      originalTeamIds.length !== nextTeamIds.length ||
+      originalTeamIds.some((id, idx) => id !== nextTeamIds[idx])
     try {
       await adminPatch<SeasonDto>(`/admin/seasons/${sid}`, {
         name: merged.name,
@@ -88,9 +93,9 @@ function SeasonDetailPage() {
         start_date: merged.start_date,
         end_date: merged.end_date,
         status: merged.status,
-        team_ids: team_ids.length > 0 ? team_ids : [],
+        ...(rosterChanged ? { team_ids: parsedTeamIds } : {}),
       })
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'seasons', lid] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'seasons'] })
       goView()
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Save failed')

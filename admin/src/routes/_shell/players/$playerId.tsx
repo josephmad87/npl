@@ -55,15 +55,16 @@ function PlayerDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [teamsQ, playersQ, perfQ] = useQueries({
+  const [teamsQ, playerQ, perfQ] = useQueries({
     queries: [
       {
         queryKey: ['admin', 'teams'],
         queryFn: () => adminListAll<TeamDto>('/admin/teams'),
       },
       {
-        queryKey: ['admin', 'players'],
-        queryFn: () => adminListAll<PlayerDto>('/admin/players'),
+        queryKey: ['admin', 'players', pid],
+        queryFn: () => adminGet<PlayerDto>(`/admin/players/${pid}`),
+        enabled: Number.isFinite(pid),
       },
       {
         queryKey: ['admin', 'players', pid, 'match-appearances'],
@@ -76,7 +77,7 @@ function PlayerDetailPage() {
     ],
   })
 
-  const player = playersQ.data?.find((p) => p.id === pid)
+  const player = playerQ.data
   const teamName = useMemo(() => {
     if (!player) return ''
     return teamsQ.data?.find((t) => t.id === player.team_id)?.name ?? ''
@@ -133,8 +134,16 @@ function PlayerDetailPage() {
         role: merged.role,
         jersey_number: merged.jersey_number,
         status: merged.status,
+        date_of_birth: merged.date_of_birth ?? null,
+        nationality: merged.nationality?.trim() || null,
+        batting_style: merged.batting_style?.trim() || null,
+        bowling_style: merged.bowling_style?.trim() || null,
+        bio: merged.bio?.trim() || null,
+        debut_info: merged.debut_info?.trim() || null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'players'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'players', pid] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] })
       await queryClient.invalidateQueries({
         queryKey: ['admin', 'players', pid, 'match-appearances'],
       })
@@ -145,13 +154,13 @@ function PlayerDetailPage() {
   }
 
   const loading =
-    teamsQ.isLoading || playersQ.isLoading || perfQ.isLoading
-  const err = teamsQ.error ?? playersQ.error ?? perfQ.error
+    teamsQ.isLoading || playerQ.isLoading || perfQ.isLoading
+  const err = teamsQ.error ?? playerQ.error ?? perfQ.error
   const teamOptions = teamsQ.data ?? []
   const appearances = perfQ.data ?? []
   const scorecardCount = appearances.length
   const careerByLeague = useMemo(() => {
-    const source = perfQ.data ?? []
+    const source = (perfQ.data ?? []).filter((row) => row.status === 'completed')
     type LeagueStats = {
       league: string
       matchIds: Set<number>
@@ -200,6 +209,7 @@ function PlayerDetailPage() {
       next.bowlingBalls += oversToBalls(row.overs)
       next.catches += row.catches ?? 0
       next.stumpings += row.stumpings ?? 0
+      if (row.player_of_match) next.potm += 1
 
       const dismissal = (row.dismissal ?? '').trim().toLowerCase()
       if (dismissal && dismissal !== 'not out' && dismissal !== 'retired hurt') {
@@ -398,6 +408,107 @@ function PlayerDetailPage() {
               ),
             },
             {
+              id: 'date_of_birth',
+              label: 'Date of birth',
+              control: (
+                <input
+                  id="date_of_birth"
+                  type="date"
+                  className="inline-edit__control"
+                  value={merged.date_of_birth?.slice(0, 10) ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      date_of_birth: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'nationality',
+              label: 'Nationality',
+              control: (
+                <input
+                  id="nationality"
+                  className="inline-edit__control"
+                  value={merged.nationality ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      nationality: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'batting_style',
+              label: 'Batting style',
+              control: (
+                <input
+                  id="batting_style"
+                  className="inline-edit__control"
+                  value={merged.batting_style ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      batting_style: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'bowling_style',
+              label: 'Bowling style',
+              control: (
+                <input
+                  id="bowling_style"
+                  className="inline-edit__control"
+                  value={merged.bowling_style ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      bowling_style: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'bio',
+              label: 'Bio',
+              control: (
+                <textarea
+                  id="bio"
+                  className="inline-edit__control"
+                  rows={4}
+                  value={merged.bio ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({ ...p, bio: e.target.value || null }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'debut_info',
+              label: 'Debut info',
+              control: (
+                <input
+                  id="debut_info"
+                  className="inline-edit__control"
+                  value={merged.debut_info ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      debut_info: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
               id: 'jersey_number',
               label: 'Jersey number',
               control: (
@@ -493,6 +604,54 @@ function PlayerDetailPage() {
                   {String(player.jersey_number ?? '—')}
                 </span>
               </div>
+              {player.date_of_birth ? (
+                <div className="entity-detail-hero-row">
+                  <span className="entity-detail-hero-row__label">Date of birth</span>
+                  <span className="entity-detail-hero-row__value">
+                    {player.date_of_birth.slice(0, 10)}
+                  </span>
+                </div>
+              ) : null}
+              {player.nationality ? (
+                <div className="entity-detail-hero-row">
+                  <span className="entity-detail-hero-row__label">Nationality</span>
+                  <span className="entity-detail-hero-row__value">
+                    {player.nationality}
+                  </span>
+                </div>
+              ) : null}
+              {player.batting_style ? (
+                <div className="entity-detail-hero-row">
+                  <span className="entity-detail-hero-row__label">Batting</span>
+                  <span className="entity-detail-hero-row__value">
+                    {player.batting_style}
+                  </span>
+                </div>
+              ) : null}
+              {player.bowling_style ? (
+                <div className="entity-detail-hero-row">
+                  <span className="entity-detail-hero-row__label">Bowling</span>
+                  <span className="entity-detail-hero-row__value">
+                    {player.bowling_style}
+                  </span>
+                </div>
+              ) : null}
+              {player.bio ? (
+                <div className="entity-detail-hero-row">
+                  <span className="entity-detail-hero-row__label">Bio</span>
+                  <span className="entity-detail-hero-row__value">
+                    {player.bio}
+                  </span>
+                </div>
+              ) : null}
+              {player.debut_info ? (
+                <div className="entity-detail-hero-row">
+                  <span className="entity-detail-hero-row__label">Debut</span>
+                  <span className="entity-detail-hero-row__value">
+                    {player.debut_info}
+                  </span>
+                </div>
+              ) : null}
               <div className="entity-detail-hero-row">
                 <span className="entity-detail-hero-row__label">Profile photo</span>
                 <div className="entity-detail-hero-row__value entity-detail-hero-row__value--inline">

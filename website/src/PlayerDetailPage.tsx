@@ -53,6 +53,7 @@ type PlayerMatchAppearance = {
   season_name: string | null
   season_id: number | null
   side_team_id: number
+  player_of_match?: boolean
   runs: number
   balls_faced: number
   fours: number
@@ -141,6 +142,7 @@ export default function PlayerDetailPage() {
 
     const byLeague = new Map<string, LeagueStats>()
     for (const row of appearances) {
+      if (row.status !== 'completed') continue
       const leagueLabel = row.league_name ?? 'Unknown league'
       const next =
         byLeague.get(leagueLabel) ??
@@ -170,6 +172,7 @@ export default function PlayerDetailPage() {
       next.bowlingBalls += oversToBalls(row.overs)
       next.catches += row.catches ?? 0
       next.stumpings += row.stumpings ?? 0
+      if (row.player_of_match) next.potm += 1
 
       const dismissal = (row.dismissal ?? '').trim().toLowerCase()
       if (dismissal && dismissal !== 'not out' && dismissal !== 'retired hurt') {
@@ -363,10 +366,9 @@ export default function PlayerDetailPage() {
             </section>
 
             <section className="player-public-section" aria-label="Career totals from profile">
-              <SectionHeader title="Career totals (record)" />
+              <SectionHeader title="Career totals" />
               <p className="player-public-hint muted">
-                Summary figures stored on the player record (may differ from
-                scorecard-derived tables until synced).
+                Updated automatically when match scorecards are saved.
               </p>
               <div className="player-public-stat-grid">
                 <div className="player-public-stat-card">

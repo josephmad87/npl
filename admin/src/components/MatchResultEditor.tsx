@@ -10,6 +10,7 @@ import {
 import { useCallback, useMemo, useState } from 'react'
 import type { MatchDto, MatchPlayerStatDto, PlayerDto } from '@/lib/api-types'
 import { adminPost } from '@/lib/admin-client'
+import { invalidateCompetitionDataQueries } from '@/lib/invalidate-competition-data'
 
 type StatRow = {
   key: string
@@ -218,7 +219,10 @@ export function MatchResultEditor({
         match_report: matchReport.trim() || null,
         player_stats,
       })
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
+      await invalidateCompetitionDataQueries(
+        queryClient,
+        player_stats.map((row) => row.player_id),
+      )
       onSaved()
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Save failed')

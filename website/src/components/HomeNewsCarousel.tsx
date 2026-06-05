@@ -8,8 +8,8 @@ import { resolveMediaUrl } from '../lib/publicApi'
 type FilterOption = { id: string; label: string }
 
 function sortByPublishedDesc(a: ArticleLite, b: ArticleLite): number {
-  const ta = a.published_at ? new Date(a.published_at).valueOf() : 0
-  const tb = b.published_at ? new Date(b.published_at).valueOf() : 0
+  const ta = new Date(a.published_at ?? a.created_at ?? 0).valueOf()
+  const tb = new Date(b.published_at ?? b.created_at ?? 0).valueOf()
   return tb - ta
 }
 
@@ -76,7 +76,10 @@ function HomeNewsCarouselTrack({
     <div ref={scrollRef} className="home-news-carousel__track">
       {articles.map((article, idx) => {
         const img = resolveMediaUrl(article.featured_image_url)
-        const metaBits = [article.category ?? 'News', formatMatchDate(article.published_at)].filter(Boolean)
+        const metaBits = [
+          article.category ?? 'News',
+          formatMatchDate(article.published_at ?? article.created_at),
+        ].filter(Boolean)
         const excerpt = article.excerpt?.trim() ?? ''
         const clip = excerpt.length > 120 ? `${excerpt.slice(0, 117)}…` : excerpt
 

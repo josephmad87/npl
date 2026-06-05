@@ -24,6 +24,8 @@ function NewGalleryItemPage() {
     staleTime: 60_000,
   })
   const [title, setTitle] = useState('')
+  const [slug, setSlug] = useState('')
+  const [description, setDescription] = useState('')
   const [fileUrl, setFileUrl] = useState<string | null>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [mediaType, setMediaType] = useState<(typeof TYPES)[number]>('image')
@@ -59,6 +61,8 @@ function NewGalleryItemPage() {
     try {
       const created = await adminPost<GalleryItemDto>('/admin/gallery', {
         title: t,
+        slug: slug.trim() || null,
+        description: description.trim() || null,
         file_url: u,
         thumbnail_url: thumbnailUrl?.trim() ?? null,
         media_type: mediaType,
@@ -108,6 +112,33 @@ function NewGalleryItemPage() {
                 className="inline-edit__control"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                disabled={isSaving}
+              />
+            ),
+          },
+          {
+            id: 'slug',
+            label: 'Slug (optional)',
+            control: (
+              <input
+                id="slug"
+                className="inline-edit__control"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                disabled={isSaving}
+              />
+            ),
+          },
+          {
+            id: 'description',
+            label: 'Description (optional)',
+            control: (
+              <textarea
+                id="description"
+                className="inline-edit__control"
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 disabled={isSaving}
               />
             ),

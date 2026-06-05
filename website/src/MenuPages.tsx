@@ -40,8 +40,11 @@ function CategoryHomePage({ category }: { category: string }) {
   const categoryLabel = formatCategoryLabel(category)
   const { data: teams = [] } = useQuery({
     queryKey: ['category-teams', category],
-    queryFn: async () =>
-      extractList<TeamLite>(await fetchJson<unknown>(`/public/teams?page=1&page_size=20&category=${category}`)),
+    queryFn: () =>
+      fetchAllPaginatedList<TeamLite>(
+        (page) =>
+          `/public/teams?page=${page}&page_size=100&category=${encodeURIComponent(category)}`,
+      ),
     retry: 1,
   })
   const { map: teamsMap } = useTeamsMap()
@@ -299,8 +302,11 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
 function TeamsListPage({ category }: { category: string }) {
   const { data = [], isLoading, isError } = useQuery({
     queryKey: ['teams-list', category],
-    queryFn: async () =>
-      extractList<TeamLite>(await fetchJson<unknown>(`/public/teams?page=1&page_size=50&category=${category}`)),
+    queryFn: () =>
+      fetchAllPaginatedList<TeamLite>(
+        (page) =>
+          `/public/teams?page=${page}&page_size=100&category=${encodeURIComponent(category)}`,
+      ),
     retry: 1,
   })
   const highlightedSlug = new URLSearchParams(globalThis.location.search).get('teamSlug')
@@ -356,11 +362,10 @@ function CategorySeasonsPage({
   const navigate = useNavigate({ from: searchPath })
   const { data: leagues = [], isLoading: leaguesLoading } = useQuery({
     queryKey: ['category-leagues', category],
-    queryFn: async () =>
-      extractList<{ id: number; slug: string; name: string }>(
-        await fetchJson<unknown>(
-          `/public/leagues?page=1&page_size=20&category=${encodeURIComponent(category)}`,
-        ),
+    queryFn: () =>
+      fetchAllPaginatedList<{ id: number; slug: string; name: string }>(
+        (page) =>
+          `/public/leagues?page=${page}&page_size=100&category=${encodeURIComponent(category)}`,
       ),
     retry: 1,
   })
@@ -443,7 +448,10 @@ function NewsListPage() {
   const qParam = trimmed ? `&q=${encodeURIComponent(trimmed)}` : ''
   const { data: news = [], isLoading, isError } = useQuery({
     queryKey: ['news-list', trimmed],
-    queryFn: async () => extractList<ArticleLite>(await fetchJson<unknown>(`/public/news?page=1&page_size=20${qParam}`)),
+    queryFn: async () =>
+      fetchAllPaginatedList<ArticleLite>(
+        (page) => `/public/news?page=${page}&page_size=50${qParam}`,
+      ),
     retry: 1,
   })
 
@@ -683,7 +691,10 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
   const filter = mediaType ? `&media_type=${mediaType}` : ''
   const { data = [], isLoading, isError } = useQuery({
     queryKey: ['gallery-page', mediaType ?? 'all'],
-    queryFn: async () => extractList<GalleryItem>(await fetchJson<unknown>(`/public/gallery?page=1&page_size=40${filter}`)),
+    queryFn: () =>
+      fetchAllPaginatedList<GalleryItem>(
+        (page) => `/public/gallery?page=${page}&page_size=100${filter}`,
+      ),
     retry: 1,
   })
   const [active, setActive] = useState<GalleryItem | null>(null)

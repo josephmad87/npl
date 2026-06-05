@@ -58,8 +58,11 @@ def list_teams(
     page_params: PageParams = Depends(),
     category: str | None = Query(default=None),
     q: str | None = Query(default=None, description="Search name or slug"),
+    include_inactive: bool = Query(default=False),
 ) -> dict:
-    stmt = select(Team).where(Team.status == "active")
+    stmt = select(Team)
+    if not include_inactive:
+        stmt = stmt.where(Team.status == "active")
     if category:
         stmt = stmt.where(Team.category == category)
     if q:
@@ -195,6 +198,7 @@ def _public_player_match_appearance_rows(db: Session, player_id: int) -> list[Pl
             joinedload(MatchPlayerStat.match).joinedload(Match.season).joinedload(Season.league),
             joinedload(MatchPlayerStat.match).joinedload(Match.home_team),
             joinedload(MatchPlayerStat.match).joinedload(Match.away_team),
+            joinedload(MatchPlayerStat.match).joinedload(Match.result),
         )
         .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
     )
@@ -211,6 +215,7 @@ def _public_player_match_appearance_rows(db: Session, player_id: int) -> list[Pl
             if m.season.league is not None:
                 lg = m.season.league.name
         ov = float(st.overs) if st.overs is not None else None
+        pom_id = m.result.player_of_match_player_id if m.result else None
         out.append(
             PlayerMatchAppearanceOut(
                 stat_id=st.id,
@@ -226,6 +231,7 @@ def _public_player_match_appearance_rows(db: Session, player_id: int) -> list[Pl
                 season_name=sn,
                 season_id=m.season_id,
                 side_team_id=st.team_id,
+                player_of_match=pom_id == player_id,
                 runs=st.runs,
                 balls_faced=st.balls_faced,
                 fours=st.fours,

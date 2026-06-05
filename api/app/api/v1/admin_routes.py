@@ -43,6 +43,11 @@ from app.schemas.sponsor import SponsorCreate, SponsorOut, SponsorUpdate
 from app.schemas.players import PlayerCreate, PlayerMatchAppearanceOut, PlayerOut, PlayerUpdate
 from app.schemas.teams import TeamCreate, TeamOut, TeamUpdate
 from app.services.audit import write_audit
+from app.services.player_stats import (
+    affected_player_ids_for_match,
+    recompute_all_player_career_stats,
+    recompute_player_career_stats,
+)
 from app.services.uploads import build_media_public_url, save_upload_file
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -229,6 +234,18 @@ def _assert_gallery_team_id(db: Session, team_id: int | None) -> None:
         )
 
 
+@router.get("/teams/{team_id}", response_model=TeamOut)
+def admin_get_team(
+    team_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> Team:
+    team = db.get(Team, team_id)
+    if team is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Team not found"})
+    return team
+
+
 @router.patch("/teams/{team_id}", response_model=TeamOut)
 def admin_update_team(
     team_id: int,
@@ -323,6 +340,18 @@ def admin_create_player(
     return player
 
 
+@router.get("/players/{player_id}", response_model=PlayerOut)
+def admin_get_player(
+    player_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> Player:
+    player = db.get(Player, player_id)
+    if player is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Player not found"})
+    return player
+
+
 @router.patch("/players/{player_id}", response_model=PlayerOut)
 def admin_update_player(
     player_id: int,
@@ -333,9 +362,16 @@ def admin_update_player(
     player = db.get(Player, player_id)
     if player is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Player not found"})
+    previous_team_id = player.team_id
     payload = body.model_dump(exclude_unset=True)
     if "team_id" in payload and payload["team_id"] is not None and db.get(Team, payload["team_id"]) is None:
         raise HTTPException(status_code=400, detail={"code": "validation", "message": "Invalid team_id"})
+    new_team_id = payload.get("team_id", previous_team_id)
+    if new_team_id != previous_team_id:
+        old_team = db.get(Team, previous_team_id)
+        if old_team is not None and old_team.captain_player_id == player_id:
+            old_team.captain_player_id = None
+            old_team.captain = None
     for k, v in payload.items():
         setattr(player, k, v)
     try:
@@ -365,6 +401,7 @@ def admin_player_match_appearances(
             joinedload(MatchPlayerStat.match).joinedload(Match.season).joinedload(Season.league),
             joinedload(MatchPlayerStat.match).joinedload(Match.home_team),
             joinedload(MatchPlayerStat.match).joinedload(Match.away_team),
+            joinedload(MatchPlayerStat.match).joinedload(Match.result),
         )
         .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
     )
@@ -377,6 +414,7 @@ def admin_player_match_appearances(
         lg = m.season.league.name if m.season and m.season.league else None
         sn = m.season.name if m.season else None
         ov = float(st.overs) if st.overs is not None else None
+        pom_id = m.result.player_of_match_player_id if m.result else None
         out.append(
             PlayerMatchAppearanceOut(
                 stat_id=st.id,
@@ -392,6 +430,7 @@ def admin_player_match_appearances(
                 season_name=sn,
                 season_id=m.season_id,
                 side_team_id=st.team_id,
+                player_of_match=pom_id == player_id,
                 runs=st.runs,
                 balls_faced=st.balls_faced,
                 fours=st.fours,
@@ -620,6 +659,28 @@ def admin_create_match(
     return m  # type: ignore[return-value]
 
 
+@router.get("/matches/{match_id}", response_model=MatchDetailOut)
+def admin_get_match(
+    match_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> Match:
+    m = db.scalar(
+        select(Match)
+        .options(
+            joinedload(Match.home_team),
+            joinedload(Match.away_team),
+            joinedload(Match.season).joinedload(Season.league),
+            joinedload(Match.result),
+            selectinload(Match.player_stats),
+        )
+        .where(Match.id == match_id),
+    )
+    if m is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    return m  # type: ignore[return-value]
+
+
 @router.patch("/matches/{match_id}", response_model=MatchDetailOut)
 def admin_update_match(
     match_id: int,
@@ -630,6 +691,7 @@ def admin_update_match(
     m = db.get(Match, match_id)
     if m is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    previous_status = m.status
     payload = body.model_dump(exclude_unset=True)
     ht = payload.get("home_team_id", m.home_team_id)
     at = payload.get("away_team_id", m.away_team_id)
@@ -641,6 +703,27 @@ def admin_update_match(
         setattr(m, k, v)
     sid = m.season_id
     _assert_match_teams_in_season(db, sid, m.home_team_id, m.away_team_id)
+    next_status = payload.get("status", m.status)
+    if next_status == "completed" and previous_status != "completed":
+        has_result = m.result is not None
+        has_scorecard = db.scalar(
+            select(MatchPlayerStat.id).where(MatchPlayerStat.match_id == match_id).limit(1),
+        ) is not None
+        if not has_result and not has_scorecard:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "validation",
+                    "message": "Use Result & scorecard to mark a match completed.",
+                },
+            )
+    affected_ids = affected_player_ids_for_match(db, match_id)
+    if previous_status == "completed" and next_status != "completed":
+        db.execute(delete(MatchResult).where(MatchResult.match_id == match_id))
+        db.execute(delete(MatchPlayerStat).where(MatchPlayerStat.match_id == match_id))
+        recompute_player_career_stats(db, affected_ids)
+    elif previous_status == "completed" or next_status == "completed":
+        recompute_player_career_stats(db, affected_ids)
     db.commit()
     db.refresh(m)
     write_audit(db, actor_user_id=actor.id, action="update", entity_type="match", entity_id=m.id, summary=m.title)
@@ -657,6 +740,26 @@ def admin_update_match(
         .where(Match.id == match_id),
     )
     return m2  # type: ignore[return-value]
+
+
+@router.post("/players/recompute-stats", response_model=dict)
+def admin_recompute_player_stats(
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super_admin),
+) -> dict:
+    """Backfill career totals on all players from completed-match scorecards."""
+    count = recompute_all_player_career_stats(db)
+    db.commit()
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="recompute_stats",
+        entity_type="player",
+        entity_id=0,
+        summary=f"Recomputed career stats for {count} player(s)",
+    )
+    db.commit()
+    return {"updated": count}
 
 
 @router.post("/matches/{match_id}/result", response_model=MatchDetailOut)
@@ -683,7 +786,11 @@ def admin_set_match_result(
         p = db.get(Player, body.player_of_match_player_id)
         if p is None:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "Invalid player_of_match_player_id"})
+    affected_player_ids = affected_player_ids_for_match(db, m.id)
     stats_in = body.player_stats
+    affected_player_ids.update(s.player_id for s in stats_in)
+    if body.player_of_match_player_id is not None:
+        affected_player_ids.add(body.player_of_match_player_id)
     pids = [s.player_id for s in stats_in]
     if len(pids) != len(set(pids)):
         raise HTTPException(
@@ -735,6 +842,7 @@ def admin_set_match_result(
                 notes=row.notes,
             )
         )
+    recompute_player_career_stats(db, affected_player_ids)
     db.commit()
     write_audit(
         db,
@@ -802,8 +910,11 @@ def admin_update_news(
     article = db.get(Article, article_id)
     if article is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Article not found"})
-    for k, v in body.model_dump(exclude_unset=True).items():
+    payload = body.model_dump(exclude_unset=True)
+    for k, v in payload.items():
         setattr(article, k, v)
+    if payload.get("status") == "published" and article.published_at is None:
+        article.published_at = datetime.now(timezone.utc)
     try:
         db.commit()
     except IntegrityError:
@@ -812,6 +923,18 @@ def admin_update_news(
     db.refresh(article)
     write_audit(db, actor_user_id=actor.id, action="update", entity_type="article", entity_id=article.id, summary=article.title)
     db.commit()
+    return article
+
+
+@router.get("/news/{article_id}", response_model=ArticleOut)
+def admin_get_news(
+    article_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> Article:
+    article = db.get(Article, article_id)
+    if article is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Article not found"})
     return article
 
 
@@ -863,6 +986,18 @@ def admin_create_gallery(
     db.refresh(item)
     write_audit(db, actor_user_id=actor.id, action="create", entity_type="gallery_item", entity_id=item.id, summary=item.title)
     db.commit()
+    return item
+
+
+@router.get("/gallery/{item_id}", response_model=GalleryItemOut)
+def admin_get_gallery(
+    item_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> GalleryItem:
+    item = db.get(GalleryItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Gallery item not found"})
     return item
 
 

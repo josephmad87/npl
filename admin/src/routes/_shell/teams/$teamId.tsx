@@ -7,6 +7,7 @@ import {
   Layers,
   SquarePen,
   UserPlus,
+  Archive,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -21,7 +22,7 @@ import logoFallbackSrc from '@/assets/logo.png'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { DetailFields } from '@/components/DetailFields'
-import { adminListAll, adminPatch } from '@/lib/admin-client'
+import { adminDelete, adminGet, adminListAll, adminPatch } from '@/lib/admin-client'
 import { BadgeImage } from '@/components/BadgeImage'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
@@ -75,8 +76,13 @@ function TeamDetailPage() {
   const [rosterError, setRosterError] = useState<string | null>(null)
   const [rosterBusy, setRosterBusy] = useState(false)
 
-  const [teamsQ, seasonsQ, leaguesQ, matchesQ, playersQ] = useQueries({
+  const [teamQ, teamsListQ, seasonsQ, leaguesQ, matchesQ, playersQ] = useQueries({
     queries: [
+      {
+        queryKey: ['admin', 'teams', tid],
+        queryFn: () => adminGet<TeamDto>(`/admin/teams/${tid}`),
+        enabled: Number.isFinite(tid),
+      },
       {
         queryKey: ['admin', 'teams'],
         queryFn: () => adminListAll<TeamDto>('/admin/teams'),
@@ -104,17 +110,18 @@ function TeamDetailPage() {
     ],
   })
 
-  const team = teamsQ.data?.find((t) => t.id === tid)
+  const team = teamQ.data
   const isEditing = mode === 'edit'
   const [patch, setPatch] = useState<Partial<TeamDto>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [isArchiving, setIsArchiving] = useState(false)
 
   const merged: TeamDto | null =
     team ? { ...team, ...patch } : null
 
   const teamById = useMemo(
-    () => new Map((teamsQ.data ?? []).map((t) => [t.id, t] as const)),
-    [teamsQ.data],
+    () => new Map((teamsListQ.data ?? []).map((t) => [t.id, t] as const)),
+    [teamsListQ.data],
   )
 
   const leagueById = useMemo(
@@ -261,7 +268,6 @@ function TeamDetailPage() {
         home_ground_location: merged.home_ground_location ?? null,
         home_ground_image_url: merged.home_ground_image_url ?? null,
         captain_player_id: merged.captain_player_id ?? null,
-        captain: merged.captain ?? null,
         coach: merged.coach ?? null,
         coach_image_url: merged.coach_image_url ?? null,
         manager: merged.manager ?? null,
@@ -271,20 +277,41 @@ function TeamDetailPage() {
         status: merged.status,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams', tid] })
       goView()
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Save failed')
     }
   }
 
+  const archiveTeam = async () => {
+    if (!team || isArchiving || isEditing) return
+    const ok = globalThis.confirm(
+      `Archive "${team.name}"? The team will be marked inactive on the public site.`,
+    )
+    if (!ok) return
+    setIsArchiving(true)
+    setSaveError(null)
+    try {
+      await adminDelete(`/admin/teams/${tid}`)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] })
+      void navigate({ to: '/teams' })
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : 'Archive failed')
+      setIsArchiving(false)
+    }
+  }
+
   const loading =
-    teamsQ.isLoading ||
+    teamQ.isLoading ||
+    teamsListQ.isLoading ||
     seasonsQ.isLoading ||
     leaguesQ.isLoading ||
     matchesQ.isLoading ||
     playersQ.isLoading
   const err =
-    teamsQ.error ??
+    teamQ.error ??
+    teamsListQ.error ??
     seasonsQ.error ??
     leaguesQ.error ??
     matchesQ.error ??
@@ -340,9 +367,23 @@ function TeamDetailPage() {
                 Edit team
               </button>
             ) : null}
+            {!isEditing && team.status === 'active' ? (
+              <button
+                type="button"
+                className="btn-ghost btn--with-icon"
+                onClick={() => void archiveTeam()}
+                disabled={isArchiving}
+              >
+                <Archive size={18} strokeWidth={2} aria-hidden />
+                {isArchiving ? 'Archiving…' : 'Archive team'}
+              </button>
+            ) : null}
           </>
         }
       />
+      {saveError && !isEditing ? (
+        <p className="login-error">{saveError}</p>
+      ) : null}
       {isEditing ? (
         <InlineEditForm
           error={saveError}

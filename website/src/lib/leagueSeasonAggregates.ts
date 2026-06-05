@@ -30,7 +30,7 @@ function num(r: Record<string, unknown>, k: string): number {
 /**
  * Convert bowling "overs" from the API (e.g. 67.1 = 67 overs 1 ball) to total balls.
  */
-function oversFieldToBalls(ov: unknown): number {
+export function oversFieldToBalls(ov: unknown): number {
   if (ov == null) return 0
   const raw = typeof ov === 'number' ? ov : Number(ov)
   if (Number.isNaN(raw) || raw <= 0) return 0
@@ -112,8 +112,8 @@ export function computeSeasonStandings(
     a.played += 1
     const w = m.result?.winning_team_id
     if (w == null) {
-      h.tied += 1
-      a.tied += 1
+      h.nr += 1
+      a.nr += 1
     } else if (w === home) {
       h.won += 1
       a.lost += 1

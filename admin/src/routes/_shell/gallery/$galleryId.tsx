@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Trash2, SquarePen } from 'lucide-react'
 import { useState } from 'react'
 import type { GalleryItemDto, TeamDto } from '@/lib/api-types'
-import { adminDelete, adminListAll, adminPatch } from '@/lib/admin-client'
+import { adminDelete, adminGet, adminListAll, adminPatch } from '@/lib/admin-client'
 import { BackNavLink } from '@/components/BackNavLink'
 import { DetailFields } from '@/components/DetailFields'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -26,16 +26,17 @@ function GalleryDetailPage() {
   const { mode } = Route.useSearch()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const listQ = useQuery({
-    queryKey: ['admin', 'gallery'],
-    queryFn: () => adminListAll<GalleryItemDto>('/admin/gallery'),
+  const itemQ = useQuery({
+    queryKey: ['admin', 'gallery', gid],
+    queryFn: () => adminGet<GalleryItemDto>(`/admin/gallery/${gid}`),
+    enabled: Number.isFinite(gid),
   })
   const teamsQ = useQuery({
     queryKey: ['admin', 'teams'],
     queryFn: () => adminListAll<TeamDto>('/admin/teams'),
     staleTime: 60_000,
   })
-  const item = listQ.data?.find((g) => g.id === gid)
+  const item = itemQ.data
   const isEditing = mode === 'edit'
   const [patch, setPatch] = useState<Partial<GalleryItemDto>>({})
   const [tagsText, setTagsText] = useState('')
@@ -87,6 +88,8 @@ function GalleryDetailPage() {
     try {
       await adminPatch<GalleryItemDto>(`/admin/gallery/${gid}`, {
         title: merged.title,
+        slug: merged.slug?.trim() || null,
+        description: merged.description?.trim() || null,
         media_type: merged.media_type,
         status: merged.status,
         tags: tags.length > 0 ? tags : null,
@@ -95,6 +98,7 @@ function GalleryDetailPage() {
         team_id: merged.team_id ?? null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'gallery', gid] })
       goView()
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Save failed')
@@ -119,11 +123,11 @@ function GalleryDetailPage() {
     }
   }
 
-  if (listQ.isLoading) {
+  if (itemQ.isLoading) {
     return <p className="muted">Loading…</p>
   }
-  if (listQ.isError) {
-    return <p className="login-error">{listQ.error.message}</p>
+  if (itemQ.isError) {
+    return <p className="login-error">{itemQ.error.message}</p>
   }
   if (!item || !merged || !Number.isFinite(gid)) {
     return (
@@ -198,6 +202,40 @@ function GalleryDetailPage() {
                   value={merged.title}
                   onChange={(e) =>
                     setPatch((p) => ({ ...p, title: e.target.value }))
+                  }
+                  disabled={isSaving}
+                />
+              ),
+            },
+            {
+              id: 'slug',
+              label: 'Slug (optional)',
+              control: (
+                <input
+                  id="slug"
+                  className="inline-edit__control"
+                  value={merged.slug ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({ ...p, slug: e.target.value || null }))
+                  }
+                  disabled={isSaving}
+                />
+              ),
+            },
+            {
+              id: 'description',
+              label: 'Description (optional)',
+              control: (
+                <textarea
+                  id="description"
+                  className="inline-edit__control"
+                  rows={3}
+                  value={merged.description ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      description: e.target.value || null,
+                    }))
                   }
                   disabled={isSaving}
                 />
@@ -386,6 +424,8 @@ function GalleryDetailPage() {
           <DetailFields
             items={[
               { label: 'Type', value: item.media_type },
+              { label: 'Slug', value: item.slug ?? '—' },
+              { label: 'Description', value: item.description ?? '—' },
               {
                 label: 'Team',
                 value: linkedTeamName ?? '—',

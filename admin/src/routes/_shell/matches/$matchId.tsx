@@ -3,7 +3,8 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ClipboardList, SquarePen, Table2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { LeagueDto, MatchDto, PlayerDto, SeasonDto, TeamDto } from '@/lib/api-types'
-import { adminListAll, adminPatch } from '@/lib/admin-client'
+import { adminGet, adminListAll, adminPatch } from '@/lib/admin-client'
+import { invalidateCompetitionDataQueries } from '@/lib/invalidate-competition-data'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { BadgeImage } from '@/components/BadgeImage'
@@ -36,6 +37,11 @@ const STATUSES = [
   'cancelled',
 ] as const
 
+function fixtureStatusOptions(current: string): readonly (typeof STATUSES)[number][] {
+  if (current === 'completed') return STATUSES
+  return STATUSES.filter((s) => s !== 'completed')
+}
+
 function MatchDetailPage() {
   const { matchId } = Route.useParams()
   const mid = Number(matchId)
@@ -56,15 +62,16 @@ function MatchDetailPage() {
     queryFn: () => adminListAll<LeagueDto>('/admin/leagues'),
   })
   const matchesQ = useQuery({
-    queryKey: ['admin', 'matches'],
-    queryFn: () => adminListAll<MatchDto>('/admin/matches'),
+    queryKey: ['admin', 'matches', mid],
+    queryFn: () => adminGet<MatchDto>(`/admin/matches/${mid}`),
+    enabled: Number.isFinite(mid),
   })
   const playersQ = useQuery({
     queryKey: ['admin', 'players'],
     queryFn: () => adminListAll<PlayerDto>('/admin/players'),
   })
 
-  const match = matchesQ.data?.find((m) => m.id === mid)
+  const match = matchesQ.data
   const homeName = useMemo(
     () =>
       match
@@ -142,19 +149,28 @@ function MatchDetailPage() {
       setSaveError('Home and away teams must differ.')
       return
     }
+    if (merged.status === 'completed' && match.status !== 'completed') {
+      setSaveError('Use Result & scorecard to mark a match completed.')
+      return
+    }
     try {
       await adminPatch<MatchDto>(`/admin/matches/${mid}`, {
         season_id: merged.season_id,
         category: merged.category,
         home_team_id: merged.home_team_id,
         away_team_id: merged.away_team_id,
-        title: merged.title,
+        title: merged.title?.trim() || null,
         venue: merged.venue,
         match_date: merged.match_date,
+        start_time: merged.start_time ?? null,
+        toss_info: merged.toss_info?.trim() || null,
+        umpires: merged.umpires?.trim() || null,
+        description: merged.description?.trim() || null,
         status: merged.status,
         cover_image_url: merged.cover_image_url ?? null,
       })
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
+      await invalidateCompetitionDataQueries(queryClient)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid] })
       goView()
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Save failed')
@@ -349,7 +365,9 @@ function MatchDetailPage() {
           players={playersQ.data ?? []}
           onCancel={goView}
           onSaved={() => {
-            void queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
+            void invalidateCompetitionDataQueries(queryClient).then(() =>
+              queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid] }),
+            )
             goView()
           }}
         />
@@ -448,6 +466,23 @@ function MatchDetailPage() {
               ),
             },
             {
+              id: 'title',
+              label: 'Title (optional)',
+              control: (
+                <input
+                  id="title"
+                  className="inline-edit__control"
+                  value={merged.title ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      title: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
               id: 'venue',
               label: 'Venue',
               control: (
@@ -483,6 +518,82 @@ function MatchDetailPage() {
               ),
             },
             {
+              id: 'start_time',
+              label: 'Start time (optional)',
+              control: (
+                <input
+                  id="start_time"
+                  type="datetime-local"
+                  className="inline-edit__control"
+                  value={
+                    merged.start_time
+                      ? merged.start_time.slice(0, 16)
+                      : ''
+                  }
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      start_time: e.target.value
+                        ? new Date(e.target.value).toISOString()
+                        : null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'toss_info',
+              label: 'Toss (optional)',
+              control: (
+                <input
+                  id="toss_info"
+                  className="inline-edit__control"
+                  value={merged.toss_info ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      toss_info: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'umpires',
+              label: 'Umpires (optional)',
+              control: (
+                <input
+                  id="umpires"
+                  className="inline-edit__control"
+                  value={merged.umpires ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      umpires: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
+              id: 'description',
+              label: 'Notes (optional)',
+              control: (
+                <textarea
+                  id="description"
+                  className="inline-edit__control"
+                  rows={3}
+                  value={merged.description ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      description: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
               id: 'cover_image_url',
               label: 'Cover image (optional)',
               control: (
@@ -509,7 +620,7 @@ function MatchDetailPage() {
                     setPatch((p) => ({ ...p, status: e.target.value }))
                   }
                 >
-                  {STATUSES.map((s) => (
+                  {fixtureStatusOptions(match.status).map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
@@ -536,6 +647,13 @@ function MatchDetailPage() {
                   value: match.match_date ?? match.start_time ?? '—',
                 },
                 { label: 'Venue', value: match.venue ?? '—' },
+                { label: 'Title', value: match.title ?? '—' },
+                { label: 'Toss', value: match.toss_info ?? '—' },
+                { label: 'Umpires', value: match.umpires ?? '—' },
+                {
+                  label: 'Notes',
+                  value: match.description ?? '—',
+                },
                 { label: 'Category', value: match.category },
                 {
                   label: 'Home',

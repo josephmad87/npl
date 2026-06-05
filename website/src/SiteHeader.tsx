@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { extractList, fetchJson } from './lib/publicApi'
+import { fetchAllPaginatedList } from './lib/publicApi'
 import nplLogoUrl from './assets/logo.png'
 
 type ApiTeam = {
@@ -33,25 +33,28 @@ type HeaderSeason = {
 }
 
 async function fetchTeamsForCategory(category: NavTeamCategory): Promise<ApiTeam[]> {
-  const payload = await fetchJson<unknown>(
-    `/public/teams?page=1&page_size=100&category=${encodeURIComponent(category)}`,
+  return fetchAllPaginatedList<ApiTeam>(
+    (page) =>
+      `/public/teams?page=${page}&page_size=100&category=${encodeURIComponent(category)}`,
   )
-  return extractList<ApiTeam>(payload)
 }
 
 async function fetchLeaguesForCategory(category: NavTeamCategory): Promise<ApiLeague[]> {
-  const payload = await fetchJson<unknown>(
-    `/public/leagues?page=1&page_size=20&category=${encodeURIComponent(category)}`,
+  return fetchAllPaginatedList<ApiLeague>(
+    (page) =>
+      `/public/leagues?page=${page}&page_size=100&category=${encodeURIComponent(category)}`,
   )
-  return extractList<ApiLeague>(payload)
 }
 
 async function fetchSeasonsForLeagues(leagues: ApiLeague[]): Promise<HeaderSeason[]> {
   if (leagues.length === 0) return []
   const seasonLists = await Promise.all(
     leagues.map(async (league) => {
-      const payload = await fetchJson<unknown>(`/public/leagues/${league.slug}/seasons?page=1&page_size=10`)
-      return extractList<ApiSeason>(payload).map((season) => ({
+      const seasons = await fetchAllPaginatedList<ApiSeason>(
+        (page) => `/public/leagues/${league.slug}/seasons?page=${page}&page_size=50`,
+        5,
+      )
+      return seasons.map((season) => ({
         ...season,
         leagueSlug: league.slug,
       }))

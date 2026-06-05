@@ -4,7 +4,7 @@ import { ErrorNotice } from './components/ErrorNotice'
 import { SiteLogoPlaceholder } from './components/SiteLogoPlaceholder'
 import { parseArticleCompetitionCategory } from './lib/competitionCategories'
 import { formatCategoryLabel } from './lib/formatters'
-import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type ApiNewsArticle = {
   id: number
@@ -15,6 +15,7 @@ type ApiNewsArticle = {
   featured_image_url: string | null
   author_name: string | null
   published_at: string | null
+  created_at: string | null
   category: string | null
 }
 
@@ -24,8 +25,10 @@ async function fetchNewsArticle(slug: string): Promise<ApiNewsArticle> {
 
 async function fetchRecentNews(category?: string | null): Promise<ApiNewsArticle[]> {
   const suffix = category ? `&category=${encodeURIComponent(category)}` : ''
-  const payload = await fetchJson<unknown>(`/public/news?page=1&page_size=8${suffix}`)
-  return extractList<ApiNewsArticle>(payload)
+  return fetchAllPaginatedList<ApiNewsArticle>(
+    (page) => `/public/news?page=${page}&page_size=50${suffix}`,
+    10,
+  )
 }
 
 function formatPublishDate(value: string | null): string {
@@ -80,7 +83,7 @@ export default function NewsArticlePage() {
                   {categoryLine ? <p className="article-category">{categoryLine}</p> : null}
                   <h1>{article.title}</h1>
                   <p className="article-meta">
-                    By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at)}
+                    By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at ?? article.created_at)}
                   </p>
                   {article.excerpt ? <p className="article-excerpt">{article.excerpt}</p> : null}
                 </div>
@@ -90,7 +93,7 @@ export default function NewsArticlePage() {
                 {categoryLine ? <p className="article-category">{categoryLine}</p> : null}
                 <h1>{article.title}</h1>
                 <p className="article-meta">
-                  By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at)}
+                  By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at ?? article.created_at)}
                 </p>
                 {article.excerpt ? <p className="article-excerpt">{article.excerpt}</p> : null}
               </header>

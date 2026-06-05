@@ -61,7 +61,7 @@ function NewSeasonPage() {
         status,
         team_ids: team_ids.length > 0 ? team_ids : null,
       })
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'seasons', lid] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'seasons'] })
       void navigate({
         to: '/leagues/$leagueId/seasons/$seasonId',
         params: { leagueId: String(lid), seasonId: String(created.id) },

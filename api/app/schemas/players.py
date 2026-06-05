@@ -21,6 +21,7 @@ class PlayerMatchAppearanceOut(BaseModel):
     season_name: str | None
     season_id: int | None
     side_team_id: int
+    player_of_match: bool = False
     runs: int
     balls_faced: int
     fours: int

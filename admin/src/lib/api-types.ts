@@ -45,7 +45,13 @@ export type PlayerDto = {
   jersey_number: number | null
   role: string | null
   status: string
-  /** Career totals from player record (may differ from scorecard row count until synced). */
+  date_of_birth?: string | null
+  nationality?: string | null
+  batting_style?: string | null
+  bowling_style?: string | null
+  bio?: string | null
+  debut_info?: string | null
+  /** Career totals synced from completed-match scorecards. */
   matches_played?: number
   runs_scored?: number
   batting_average?: number | null
@@ -75,6 +81,7 @@ export type PlayerMatchAppearanceDto = {
   season_name: string | null
   season_id: number | null
   side_team_id: number
+  player_of_match?: boolean
   runs: number
   balls_faced: number
   fours: number

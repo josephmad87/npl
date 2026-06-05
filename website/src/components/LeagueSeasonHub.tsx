@@ -16,7 +16,7 @@ import {
   sortStandingsDesc,
 } from '../lib/leagueSeasonAggregates'
 import { type LeagueLite, type MatchLite, useTeamsMap } from '../lib/hooks'
-import { extractList, fetchJson } from '../lib/publicApi'
+import { extractList, fetchAllPaginatedList, fetchJson } from '../lib/publicApi'
 
 type LeagueDetail = {
   id: number
@@ -25,7 +25,6 @@ type LeagueDetail = {
   category: string | null
   banner_url: string | null
   logo_url: string | null
-  status: string
   description: string | null
   seasons: Array<{
     id: number
@@ -129,8 +128,8 @@ export function LeagueSeasonHub({
   const resultsQ = useQuery({
     queryKey: ['league-page-results', seasonId],
     queryFn: async () =>
-      extractList<MatchLite>(
-        await fetchJson<unknown>(`/public/results?page=1&page_size=100&season_id=${seasonId}`),
+      fetchAllPaginatedList<MatchLite>(
+        (page) => `/public/results?page=${page}&page_size=100&season_id=${seasonId}`,
       ),
     enabled: seasonId != null && seasonId > 0,
     retry: 1,
@@ -170,7 +169,7 @@ export function LeagueSeasonHub({
         <PageHero
           variant="siteLogo"
           title={data.name}
-          subtitle={`${formatCategoryLabel(data.category)} • ${data.status}`}
+          subtitle={formatCategoryLabel(data.category)}
         />
       ) : null}
       <main className="container">

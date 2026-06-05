@@ -47,9 +47,13 @@ type MatchDetail = {
   category: string
   home_team_id: number
   away_team_id: number
+  title: string | null
   venue: string | null
   match_date: string | null
   start_time: string | null
+  toss_info: string | null
+  umpires: string | null
+  description: string | null
   status: string
   result: MatchResultDetail | null
   player_stats: MatchPlayerStat[]
@@ -314,6 +318,30 @@ export default function MatchDetailPage() {
                     <dt>Venue</dt>
                     <dd>{data.venue?.trim() ? data.venue : '—'}</dd>
                   </div>
+                  {data.title?.trim() ? (
+                    <div className="match-centre-detail__row">
+                      <dt>Title</dt>
+                      <dd>{data.title}</dd>
+                    </div>
+                  ) : null}
+                  {data.toss_info?.trim() ? (
+                    <div className="match-centre-detail__row">
+                      <dt>Toss</dt>
+                      <dd>{data.toss_info}</dd>
+                    </div>
+                  ) : null}
+                  {data.umpires?.trim() ? (
+                    <div className="match-centre-detail__row">
+                      <dt>Umpires</dt>
+                      <dd>{data.umpires}</dd>
+                    </div>
+                  ) : null}
+                  {data.description?.trim() ? (
+                    <div className="match-centre-detail__row">
+                      <dt>Notes</dt>
+                      <dd>{data.description}</dd>
+                    </div>
+                  ) : null}
                   <div className="match-centre-detail__row">
                     <dt>Category</dt>
                     <dd>{formatCategoryLabel(data.category)}</dd>

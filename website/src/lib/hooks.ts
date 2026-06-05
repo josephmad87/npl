@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { extractList, fetchJson } from './publicApi'
+import { extractList, fetchAllPaginatedList, fetchJson } from './publicApi'
 
 export type TeamLite = {
   id: number
@@ -56,6 +56,7 @@ export type ArticleLite = {
   category?: string | null
   tags?: string[] | null
   published_at?: string | null
+  created_at?: string | null
 }
 
 export type MatchLite = {
@@ -89,8 +90,10 @@ export type MatchLite = {
 }
 
 async function fetchTeams(): Promise<TeamLite[]> {
-  const payload = await fetchJson<unknown>('/public/teams?page=1&page_size=100')
-  return extractList<TeamLite>(payload)
+  return fetchAllPaginatedList<TeamLite>(
+    (page) =>
+      `/public/teams?page=${page}&page_size=100&include_inactive=true`,
+  )
 }
 
 async function fetchLeagues(): Promise<LeagueLite[]> {

@@ -13,7 +13,7 @@ import playerPlaceholderSrc from './assets/player_avatar_placeholder.png'
 import { SiteLogoPlaceholder } from './components/SiteLogoPlaceholder'
 import { formatCategoryLabel } from './lib/formatters'
 import { type MatchLite, useTeamsMap } from './lib/hooks'
-import { extractList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type TeamDetail = {
   id: number
@@ -134,11 +134,10 @@ export function TeamDetailPage() {
 
   const playersQ = useQuery({
     queryKey: ['team-players', data?.id ?? 'none'],
-    queryFn: async () =>
-      extractList<PlayerRow>(
-        await fetchJson<unknown>(
-          `/public/players?page=1&page_size=80&team_id=${data?.id ?? -1}`,
-        ),
+    queryFn: () =>
+      fetchAllPaginatedList<PlayerRow>(
+        (page) =>
+          `/public/players?page=${page}&page_size=100&team_id=${data?.id ?? -1}`,
       ),
     enabled: Boolean(data?.id),
     retry: 1,
@@ -146,11 +145,10 @@ export function TeamDetailPage() {
 
   const galleryQ = useQuery({
     queryKey: ['team-gallery', data?.id ?? 'none'],
-    queryFn: async () =>
-      extractList<GalleryLightboxItem>(
-        await fetchJson<unknown>(
-          `/public/gallery?page=1&page_size=24&team_id=${data?.id ?? -1}`,
-        ),
+    queryFn: () =>
+      fetchAllPaginatedList<GalleryLightboxItem>(
+        (page) =>
+          `/public/gallery?page=${page}&page_size=100&team_id=${data?.id ?? -1}`,
       ),
     enabled: Boolean(data?.id),
     retry: 1,
@@ -158,11 +156,10 @@ export function TeamDetailPage() {
 
   const fixturesQ = useQuery({
     queryKey: ['team-fixtures', data?.id ?? 'none'],
-    queryFn: async () =>
-      extractList<MatchLite>(
-        await fetchJson<unknown>(
-          `/public/fixtures?page=1&page_size=20&team_id=${data?.id ?? -1}`,
-        ),
+    queryFn: () =>
+      fetchAllPaginatedList<MatchLite>(
+        (page) =>
+          `/public/fixtures?page=${page}&page_size=100&team_id=${data?.id ?? -1}`,
       ),
     enabled: Boolean(data?.id),
     retry: 1,
@@ -170,11 +167,10 @@ export function TeamDetailPage() {
 
   const resultsQ = useQuery({
     queryKey: ['team-results', data?.id ?? 'none'],
-    queryFn: async () =>
-      extractList<MatchLite>(
-        await fetchJson<unknown>(
-          `/public/results?page=1&page_size=20&team_id=${data?.id ?? -1}`,
-        ),
+    queryFn: () =>
+      fetchAllPaginatedList<MatchLite>(
+        (page) =>
+          `/public/results?page=${page}&page_size=100&team_id=${data?.id ?? -1}`,
       ),
     enabled: Boolean(data?.id),
     retry: 1,

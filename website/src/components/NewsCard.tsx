@@ -16,7 +16,7 @@ export function NewsCard({ article }: { article: ArticleLite }) {
       <div>
         <p>
           {article.category?.trim() ? formatCategoryLabel(article.category) : 'News'} •{' '}
-          {formatMatchDate(article.published_at)}
+          {formatMatchDate(article.published_at ?? article.created_at)}
         </p>
         <h3>{article.title}</h3>
         {article.excerpt ? <p>{article.excerpt}</p> : null}
