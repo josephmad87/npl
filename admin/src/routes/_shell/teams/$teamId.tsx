@@ -17,7 +17,7 @@ import type {
   SeasonDto,
   TeamDto,
 } from '@/lib/api-types'
-import logoFallbackSrc from '@/assets/logo.jpeg'
+import logoFallbackSrc from '@/assets/logo.png'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { DetailFields } from '@/components/DetailFields'

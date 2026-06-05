@@ -1,4 +1,4 @@
-import siteLogoUrl from '../assets/logo.jpeg'
+import siteLogoUrl from '../assets/logo.png'
 
 /** Decorative fill when a non-player card has no image yet (teams, news, gallery, venue, etc.). */
 export function SiteLogoPlaceholder({ className }: { className?: string }) {

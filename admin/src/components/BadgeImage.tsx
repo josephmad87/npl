@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import logoFallbackSrc from '@/assets/logo.jpeg'
+import logoFallbackSrc from '@/assets/logo.png'
 import { resolveBadgeSrc } from '@/lib/badgeSrc'
 
 type BadgeImageProps = Readonly<{

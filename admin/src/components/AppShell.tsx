@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-router'
 import { Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import nplLogoUrl from '@/assets/logo.jpeg'
+import nplLogoUrl from '@/assets/logo.png'
 import { adminRouteIconForPath } from '@/lib/adminRouteIcons'
 import { NAV_ITEMS, navVisibleForRole } from '@/lib/nav'
 import { clearSession, getSession, roleLabel } from '@/lib/session'

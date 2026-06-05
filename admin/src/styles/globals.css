@@ -1,37 +1,41 @@
 :root {
   color-scheme: dark;
 
-  /* Primary palette (brand spec) */
-  --color-persian-indigo: #340f78;
-  --color-pixie-powder: #391388;
-  --color-majorelle-blue: #4d16b3;
-  --color-orange-red: #ff6820;
-  --color-deep-saffron: #ff973d;
+  /* Primary palette (NPL brand spec) */
+  --color-rust-orange: #bf4927;
+  --color-marigold: #e58b1b;
+  --color-deep-maroon: #200001;
+  --color-grey: #4b4c4c;
   --color-white: #fcfcfc;
 
-  /* Secondary palette */
-  --color-maize: #f6c242;
-  --color-upsdell-red: #a9182c;
+  /* Semantic aliases (legacy names used in components) */
+  --color-persian-indigo: var(--color-deep-maroon);
+  --color-pixie-powder: #3a0a0c;
+  --color-majorelle-blue: var(--color-rust-orange);
+  --color-orange-red: var(--color-rust-orange);
+  --color-deep-saffron: var(--color-marigold);
+  --color-maize: var(--color-marigold);
+  --color-upsdell-red: #8f3218;
 
-  /* Surfaces — deep purple family */
-  --bg-deep: #0c051f;
-  --bg-panel: #15052f;
-  --bg-elevated: #1c0a42;
-  --bg-muted: #261050;
+  /* Surfaces — deep maroon family */
+  --bg-deep: var(--color-deep-maroon);
+  --bg-panel: #2e0809;
+  --bg-elevated: #3d0a0c;
+  --bg-muted: #4a1214;
   --border: rgba(252, 252, 252, 0.1);
   --text: var(--color-white);
-  --text-muted: #c4b8e0;
+  --text-muted: color-mix(in srgb, var(--color-grey) 55%, var(--color-white) 45%);
 
-  --accent: var(--color-orange-red);
-  --accent-soft: rgba(255, 104, 32, 0.2);
-  --accent-mid: var(--color-deep-saffron);
-  --brand-violet: var(--color-majorelle-blue);
-  --brand-violet-soft: rgba(77, 22, 179, 0.35);
+  --accent: var(--color-rust-orange);
+  --accent-soft: rgba(191, 73, 39, 0.2);
+  --accent-mid: var(--color-marigold);
+  --brand-violet: var(--color-rust-orange);
+  --brand-violet-soft: rgba(191, 73, 39, 0.35);
 
-  --danger: #e85a6a;
+  --danger: #d45a3a;
   --danger-deep: var(--color-upsdell-red);
   --success: #5cb88a;
-  --warning: var(--color-maize);
+  --warning: var(--color-marigold);
 
   --radius: 10px;
   --font-sans: 'Google Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -137,8 +141,8 @@ button {
   width: 260px;
   background: linear-gradient(
     165deg,
-    var(--color-pixie-powder) 0%,
-    var(--color-persian-indigo) 52%,
+    var(--bg-elevated) 0%,
+    var(--bg-panel) 52%,
     var(--bg-deep) 100%
   );
   border-right: 1px solid var(--border);
@@ -202,12 +206,12 @@ button {
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.14),
     0 10px 24px rgba(0, 0, 0, 0.26),
-    0 0 0 1px rgba(255, 104, 32, 0.4);
+    0 0 0 1px rgba(191, 73, 39, 0.4);
   transform: translateY(-1px);
 }
 
 .app-shell__brand-logo-card:focus-visible {
-  outline: 2px solid rgba(255, 104, 32, 0.85);
+  outline: 2px solid rgba(191, 73, 39, 0.85);
   outline-offset: 3px;
 }
 
@@ -274,7 +278,7 @@ button {
 .app-shell__nav a[data-active='true'] {
   background: var(--accent-soft);
   color: var(--text);
-  border: 1px solid rgba(255, 104, 32, 0.45);
+  border: 1px solid rgba(191, 73, 39, 0.45);
 }
 
 .app-shell__sidebar-footer {
@@ -307,7 +311,7 @@ button {
 .app-shell__sidebar-toggle:hover {
   background: rgba(252, 252, 252, 0.08);
   color: var(--text);
-  border-color: rgba(255, 104, 32, 0.35);
+  border-color: rgba(191, 73, 39, 0.35);
 }
 
 .app-shell--sidebar-collapsed .app-shell__sidebar-toggle-label {
@@ -341,12 +345,12 @@ button {
   background:
     radial-gradient(
       1000px 520px at 12% -8%,
-      rgba(77, 22, 179, 0.22),
+      rgba(191, 73, 39, 0.22),
       transparent 58%
     ),
     radial-gradient(
       800px 400px at 90% 0%,
-      rgba(255, 104, 32, 0.08),
+      rgba(191, 73, 39, 0.08),
       transparent 50%
     ),
     var(--bg-deep);
@@ -399,7 +403,7 @@ button {
 
 .app-shell__menu-btn:hover {
   background: rgba(252, 252, 252, 0.1);
-  border-color: rgba(255, 104, 32, 0.4);
+  border-color: rgba(191, 73, 39, 0.4);
 }
 
 .app-shell__header-title {
@@ -845,7 +849,7 @@ button {
   min-width: 11rem;
   background: radial-gradient(
     80% 80% at 50% 40%,
-    rgba(77, 22, 179, 0.35),
+    rgba(191, 73, 39, 0.35),
     var(--bg-muted) 100%
   );
 }
@@ -1069,8 +1073,8 @@ button {
 .section-hint-tip__trigger:hover,
 .section-hint-tip__trigger:focus-visible {
   color: var(--accent-mid);
-  border-color: rgba(255, 104, 32, 0.45);
-  background: rgba(255, 104, 32, 0.08);
+  border-color: rgba(191, 73, 39, 0.45);
+  background: rgba(191, 73, 39, 0.08);
   outline: none;
 }
 
@@ -1179,7 +1183,7 @@ button {
 }
 
 .dashboard-match-panel__tab.is-active {
-  background: rgba(255, 104, 32, 0.16);
+  background: rgba(191, 73, 39, 0.16);
   color: var(--text);
 }
 
@@ -1258,7 +1262,7 @@ button {
   text-transform: uppercase;
   text-align: center;
   color: #fff;
-  background: linear-gradient(120deg, #c9a227 0%, #7a5a0f 100%);
+  background: linear-gradient(120deg, #e58b1b 0%, #a86a12 100%);
   transform: rotate(38deg);
   transform-origin: center;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.28);
@@ -1335,7 +1339,7 @@ button {
 }
 
 .dashboard-module-card:hover {
-  border-color: rgba(255, 104, 32, 0.45);
+  border-color: rgba(191, 73, 39, 0.45);
   transform: translateY(-2px);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.42);
 }
@@ -1349,7 +1353,7 @@ button {
   border-radius: var(--radius);
   color: var(--accent-mid);
   background: var(--accent-soft);
-  border: 1px solid rgba(255, 104, 32, 0.35);
+  border: 1px solid rgba(191, 73, 39, 0.35);
 }
 
 .dashboard-module-card__glyph svg {
@@ -1691,7 +1695,7 @@ button {
 .list-view-mode__btn[data-active='true'] {
   color: var(--text);
   background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px rgba(255, 104, 32, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(191, 73, 39, 0.35);
 }
 
 .list-view-mode__btn--with-icon {
@@ -1809,7 +1813,7 @@ button.entity-thumb-card {
 }
 
 .entity-thumb-card:hover {
-  border-color: rgba(255, 104, 32, 0.4);
+  border-color: rgba(191, 73, 39, 0.4);
   transform: translateY(-2px);
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.4);
 }
@@ -1822,7 +1826,7 @@ button.entity-thumb-card {
   padding: 0.85rem 1rem;
   background: radial-gradient(
     120% 100% at 50% 0%,
-    rgba(77, 22, 179, 0.35),
+    rgba(191, 73, 39, 0.35),
     transparent 72%
   );
   border-bottom: 1px solid var(--border);
@@ -1996,7 +2000,7 @@ button.entity-thumb-card {
 
 .entity-thumb-card__badge-wrap--winner .entity-badge {
   box-shadow:
-    0 0 0 2px rgba(246, 194, 66, 0.55),
+    0 0 0 2px rgba(229, 139, 27, 0.55),
     0 6px 14px rgba(0, 0, 0, 0.35);
 }
 
@@ -2029,7 +2033,7 @@ button.entity-thumb-card {
   font-size: 1.1rem;
   color: var(--accent-mid);
   background: var(--accent-soft);
-  border: 1px solid rgba(255, 104, 32, 0.3);
+  border: 1px solid rgba(191, 73, 39, 0.3);
 }
 
 .entity-thumb-media-placeholder--wide {
@@ -2095,7 +2099,7 @@ button.entity-thumb-card {
 }
 
 .badge--draft {
-  background: rgba(246, 194, 66, 0.18);
+  background: rgba(229, 139, 27, 0.18);
   color: var(--warning);
 }
 
@@ -2105,13 +2109,13 @@ button.entity-thumb-card {
 }
 
 .badge--archived {
-  background: rgba(196, 184, 224, 0.12);
+  background: rgba(75, 76, 76, 0.12);
   color: var(--text-muted);
 }
 
 .badge--scheduled {
-  background: rgba(77, 22, 179, 0.28);
-  color: #d4c4f7;
+  background: rgba(191, 73, 39, 0.28);
+  color: #ffd6ba;
 }
 
 .badge--role {
@@ -2125,8 +2129,8 @@ button.entity-thumb-card {
 }
 
 .badge--media-image {
-  background: rgba(196, 184, 224, 0.16);
-  color: #d4c4f7;
+  background: rgba(75, 76, 76, 0.16);
+  color: #e8e0dc;
 }
 
 .table-wrap {
@@ -2228,7 +2232,7 @@ table.data-table tbody tr.data-table__row--clickable {
 }
 
 table.data-table tbody tr.data-table__row--clickable:hover {
-  background: rgba(255, 104, 32, 0.08);
+  background: rgba(191, 73, 39, 0.08);
 }
 
 .detail-panel {
@@ -2390,10 +2394,10 @@ table.data-table button.sort {
 .btn-primary {
   background: linear-gradient(
     135deg,
-    var(--color-orange-red) 0%,
-    var(--color-deep-saffron) 100%
+    var(--color-rust-orange) 0%,
+    var(--color-marigold) 100%
   );
-  color: #1a0810;
+  color: var(--color-deep-maroon);
   border: none;
   border-radius: 999px;
   padding: 0.55rem 1.15rem;
@@ -2427,12 +2431,12 @@ table.data-table button.sort {
   background:
     radial-gradient(
       900px 500px at 75% 5%,
-      rgba(255, 104, 32, 0.14),
+      rgba(191, 73, 39, 0.14),
       transparent 55%
     ),
     radial-gradient(
       700px 400px at 10% 90%,
-      rgba(77, 22, 179, 0.35),
+      rgba(191, 73, 39, 0.35),
       transparent 55%
     ),
     var(--bg-deep);
@@ -2672,7 +2676,7 @@ table.data-table button.sort {
 
 .rich-text-toolbar__btn:hover:not(:disabled) {
   color: var(--text);
-  background: rgba(255, 104, 32, 0.08);
+  background: rgba(191, 73, 39, 0.08);
 }
 
 .rich-text-toolbar__btn:disabled {
@@ -2682,8 +2686,8 @@ table.data-table button.sort {
 
 .rich-text-toolbar__btn[data-active='true'] {
   color: var(--accent);
-  border-color: rgba(255, 104, 32, 0.45);
-  background: rgba(255, 104, 32, 0.12);
+  border-color: rgba(191, 73, 39, 0.45);
+  background: rgba(191, 73, 39, 0.12);
 }
 
 .rich-text-toolbar__btn--icon {
@@ -2759,7 +2763,7 @@ table.data-table button.sort {
 .rich-text-editor__content .ProseMirror blockquote {
   margin: 0.75em 0;
   padding: 0.35rem 0 0.35rem 0.85rem;
-  border-left: 3px solid rgba(255, 104, 32, 0.55);
+  border-left: 3px solid rgba(191, 73, 39, 0.55);
   color: var(--text-muted);
 }
 
@@ -2880,7 +2884,7 @@ video.article-view__hero-img {
 .article-view__body blockquote {
   margin: 1em 0;
   padding-left: 1rem;
-  border-left: 3px solid rgba(255, 104, 32, 0.5);
+  border-left: 3px solid rgba(191, 73, 39, 0.5);
   color: var(--text-muted);
 }
 
@@ -3048,7 +3052,7 @@ video.article-view__hero-img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 104, 32, 0.24);
+  background: rgba(191, 73, 39, 0.24);
   color: #ffd6ba;
   margin-bottom: 0.1rem;
 }
@@ -3065,11 +3069,11 @@ video.article-view__hero-img {
 }
 
 .media-url-field:not(.media-url-field--locked) .media-url-field__drop:hover {
-  border-color: rgba(255, 104, 32, 0.55);
-  box-shadow: 0 0 0 1px rgba(255, 104, 32, 0.12);
+  border-color: rgba(191, 73, 39, 0.55);
+  box-shadow: 0 0 0 1px rgba(191, 73, 39, 0.12);
   background: linear-gradient(
     160deg,
-    rgba(255, 104, 32, 0.08) 0%,
+    rgba(191, 73, 39, 0.08) 0%,
     var(--bg-elevated) 100%
   );
 }

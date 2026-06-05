@@ -12,7 +12,7 @@ import {
 } from '../lib/match-result'
 import { resolveMediaUrl } from '../lib/publicApi'
 import type { MatchLite, TeamLite } from '../lib/hooks'
-import nplLogoUrl from '../assets/logo.jpeg'
+import nplLogoUrl from '../assets/logo.png'
 
 function TeamLogoBadge({
   logoUrl,

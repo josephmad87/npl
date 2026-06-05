@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { extractList, fetchJson } from './lib/publicApi'
-import nplLogoUrl from './assets/logo.jpeg'
+import nplLogoUrl from './assets/logo.png'
 
 type ApiTeam = {
   id: number

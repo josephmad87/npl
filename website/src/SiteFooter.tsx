@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import nplLogoUrl from './assets/logo.jpeg'
+import nplLogoUrl from './assets/logo.png'
 import { fetchJson } from './lib/publicApi'
 
 type FooterAboutContent = {

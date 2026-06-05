@@ -275,13 +275,13 @@
   font-size: 0.76rem;
   font-weight: 700;
   color: var(--color-primary);
-  background: #f7b500;
+  background: #e58b1b;
   cursor: pointer;
 }
 
 .utility-pill-live {
   color: var(--color-surface);
-  background: #e84e1b;
+  background: #bf4927;
   border-radius: 999px;
 }
 
@@ -1561,15 +1561,15 @@
   line-height: 1.45;
 }
 
-/* Standings (points table) — brand palette (Indigo / Pixie / Majorelle / white) */
+/* Standings (points table) — brand palette (Maroon / Rust / Marigold / white) */
 .league-standings-panel {
-  --brand-indigo: #340f78;
-  --brand-pixie: #391388;
-  --brand-majorelle: #4d16b3;
-  --brand-orange: #ff6820;
-  --brand-saffron: #ff973d;
+  --brand-indigo: #200001;
+  --brand-pixie: #3a0a0c;
+  --brand-majorelle: #bf4927;
+  --brand-orange: #bf4927;
+  --brand-saffron: #e58b1b;
   --brand-white: #fcfcfc;
-  --brand-maize: #f6c242;
+  --brand-maize: #e58b1b;
   --st-navy: var(--brand-indigo);
   --st-hdr: var(--brand-pixie);
   --st-row-a: var(--brand-white);
@@ -1592,7 +1592,7 @@ table.league-standings-table {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.75rem;
-  color: #1a0d2e;
+  color: #200001;
   margin: 0;
   background: var(--st-row-a);
   border-radius: 0.4rem;
@@ -1694,14 +1694,14 @@ table.league-standings-table tbody tr:last-child td:last-child {
 }
 
 .league-stats-panel {
-  --brand-indigo: #340f78;
-  --brand-pixie: #391388;
-  --brand-majorelle: #4d16b3;
-  --brand-orange: #ff6820;
-  --brand-saffron: #ff973d;
+  --brand-indigo: #200001;
+  --brand-pixie: #3a0a0c;
+  --brand-majorelle: #bf4927;
+  --brand-orange: #bf4927;
+  --brand-saffron: #e58b1b;
   --brand-white: #fcfcfc;
-  --brand-maize: #f6c242;
-  --brand-crimson: #a9182c;
+  --brand-maize: #e58b1b;
+  --brand-crimson: #8f3218;
   --ls-navy: var(--brand-indigo);
   --ls-navy2: var(--brand-pixie);
   --ls-accent: var(--brand-saffron);
@@ -1710,7 +1710,7 @@ table.league-standings-table tbody tr:last-child td:last-child {
     165deg,
     var(--brand-pixie) 0%,
     var(--brand-indigo) 48%,
-    color-mix(in srgb, var(--brand-indigo) 88%, #120433) 100%
+    color-mix(in srgb, var(--brand-indigo) 88%, #100001) 100%
   );
   color: var(--brand-white);
   border-radius: 0.75rem;
@@ -2159,9 +2159,9 @@ table.league-stats-table {
   border: 1px solid color-mix(in srgb, var(--color-border) 55%, var(--color-primary));
   background: linear-gradient(
     160deg,
-    #14082e 0%,
-    #1e0c42 50%,
-    #160a36 100%
+    var(--color-primary-alt) 0%,
+    color-mix(in srgb, var(--color-deep-maroon) 85%, #000 15%) 50%,
+    var(--color-deep-maroon) 100%
   );
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
   transition:
@@ -2185,7 +2185,7 @@ table.league-stats-table {
   padding: 1.2rem 1.6rem 1.35rem;
   background: radial-gradient(
     120% 100% at 50% 0%,
-    rgba(77, 22, 179, 0.42),
+    rgba(191, 73, 39, 0.42),
     transparent 72%
   );
   border-bottom: 1px solid color-mix(in srgb, var(--color-surface) 10%, transparent);
@@ -2200,7 +2200,7 @@ table.league-stats-table {
 
 .ui-match-card__badge-wrap--winner .ui-match-card__badge {
   box-shadow:
-    0 0 0 2px rgba(246, 194, 66, 0.55),
+    0 0 0 2px rgba(229, 139, 27, 0.55),
     0 6px 14px rgba(0, 0, 0, 0.35);
 }
 
@@ -2317,13 +2317,13 @@ table.league-stats-table {
 }
 
 .ui-match-card__status-pill--completed {
-  background: color-mix(in srgb, var(--color-accent) 40%, #2a1a50);
-  color: #f0e8ff;
+  background: color-mix(in srgb, var(--color-accent) 40%, var(--color-deep-maroon));
+  color: #fff0e6;
 }
 
 .ui-match-card__status-pill--scheduled {
-  background: rgba(77, 22, 179, 0.35);
-  color: #d4c4f7;
+  background: rgba(191, 73, 39, 0.35);
+  color: #ffd6ba;
 }
 
 .ui-match-card__status-pill--live {
@@ -2332,7 +2332,7 @@ table.league-stats-table {
 }
 
 .ui-match-card__status-pill--inactive {
-  background: rgba(196, 184, 224, 0.15);
+  background: rgba(75, 76, 76, 0.15);
   color: color-mix(in srgb, var(--color-surface) 80%, #aaa);
 }
 
@@ -2353,13 +2353,13 @@ table.league-stats-table {
 }
 
 .ui-match-card.ui-match-card--result-sheet {
-  --brand-indigo: #340f78;
-  --brand-pixie: #391388;
-  --brand-majorelle: #4d16b3;
-  --brand-orange: #ff6820;
-  --brand-saffron: #ff973d;
+  --brand-indigo: #200001;
+  --brand-pixie: #3a0a0c;
+  --brand-majorelle: #bf4927;
+  --brand-orange: #bf4927;
+  --brand-saffron: #e58b1b;
   --brand-white: #fcfcfc;
-  --brand-maize: #f6c242;
+  --brand-maize: #e58b1b;
   --rs-navy: var(--brand-indigo);
   --rs-cta: var(--brand-maize);
   --rs-cta-text: var(--brand-indigo);
@@ -2759,7 +2759,7 @@ table.league-stats-table {
   text-transform: uppercase;
   text-align: center;
   color: #fff;
-  background: linear-gradient(120deg, #c9a227 0%, #7a5a0f 100%);
+  background: linear-gradient(120deg, #e58b1b 0%, #a86a12 100%);
   transform: rotate(32deg);
   transform-origin: center center;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.28);
@@ -2838,7 +2838,7 @@ table.league-stats-table {
 
 .ui-gallery-card__badge--image {
   color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-accent) 12%, #f0ecf8);
+  background: color-mix(in srgb, var(--color-accent) 12%, #f8f0ec);
   border-color: color-mix(in srgb, var(--color-primary) 22%, var(--color-border));
 }
 
@@ -4335,9 +4335,9 @@ table.player-public-table {
   color: rgba(255, 255, 255, 0.95);
   background: linear-gradient(
     160deg,
-    #14082e 0%,
-    #1e0c42 50%,
-    #160a36 100%
+    var(--color-primary-alt) 0%,
+    color-mix(in srgb, var(--color-deep-maroon) 85%, #000 15%) 50%,
+    var(--color-deep-maroon) 100%
   );
   border-bottom: 1px solid color-mix(in srgb, #fff 8%, transparent);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
@@ -4359,7 +4359,7 @@ table.player-public-table {
 
 .match-centre-hero__badge-wrap--winner .match-centre-hero__logo {
   box-shadow:
-    0 0 0 2px rgba(246, 194, 66, 0.55),
+    0 0 0 2px rgba(229, 139, 27, 0.55),
     0 6px 14px rgba(0, 0, 0, 0.35);
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState, useSearch } from '@tanstack/react-router'
-import nplLogoUrl from './assets/logo.jpeg'
+import nplLogoUrl from './assets/logo.png'
 import { EmptyState } from './components/EmptyState'
 import { ErrorNotice } from './components/ErrorNotice'
 import { LeagueSeasonHub } from './components/LeagueSeasonHub'

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import siteLogoUrl from '../assets/logo.jpeg'
+import siteLogoUrl from '../assets/logo.png'
 import { extractList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
 
 type HeroGalleryItem = {

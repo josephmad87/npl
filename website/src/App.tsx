@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import nplLogoUrl from './assets/logo.jpeg'
+import nplLogoUrl from './assets/logo.png'
 import './App.css'
 import { EmptyState } from './components/EmptyState'
 import { GalleryCard } from './components/GalleryCard'

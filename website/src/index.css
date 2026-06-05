@@ -3,18 +3,23 @@
   line-height: 1.5;
   font-weight: 400;
   color: #fcfcfc;
-  background-color: #340f78;
-  --color-primary: #340f78;
-  --color-primary-alt: #39198b;
-  --color-accent: #4d18b5;
-  --color-highlight: #ff5e20;
-  --color-highlight-soft: #fea733;
+  background-color: #200001;
+  /* Primary palette (NPL brand spec) */
+  --color-rust-orange: #bf4927;
+  --color-marigold: #e58b1b;
+  --color-deep-maroon: #200001;
+  --color-grey: #4b4c4c;
+  --color-primary: var(--color-deep-maroon);
+  --color-primary-alt: #3a0a0c;
+  --color-accent: var(--color-rust-orange);
+  --color-highlight: var(--color-rust-orange);
+  --color-highlight-soft: var(--color-marigold);
   --color-surface: #fcfcfc;
-  --color-secondary: #f6c242;
-  --color-danger: #a9182c;
-  --color-text: #1f1640;
-  --color-muted: #6f6792;
-  --color-border: #ddd5f3;
+  --color-secondary: var(--color-marigold);
+  --color-danger: #8f3218;
+  --color-text: var(--color-deep-maroon);
+  --color-muted: var(--color-grey);
+  --color-border: color-mix(in srgb, var(--color-grey) 28%, var(--color-surface) 72%);
   /* Must match `.nav-row` + `.site-brand--inline` so hero text can align with header logo */
   --header-content-max: 1200px;
   --header-nav-inline-pad: 7.2rem;
@@ -37,9 +42,9 @@ body {
   background:
     linear-gradient(
       120deg,
-      var(--color-primary) 0%,
+      var(--color-deep-maroon) 0%,
       var(--color-primary-alt) 35%,
-      var(--color-accent) 100%
+      var(--color-rust-orange) 100%
     );
 }
 

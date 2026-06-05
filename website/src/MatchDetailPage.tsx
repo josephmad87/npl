@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
-import nplLogoUrl from './assets/logo.jpeg'
+import nplLogoUrl from './assets/logo.png'
 import { ErrorNotice } from './components/ErrorNotice'
 import { Spinner } from './components/Spinner'
 import { formatCategoryLabel, formatMatchDate } from './lib/formatters'
