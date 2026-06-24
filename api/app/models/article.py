@@ -15,6 +15,7 @@ class Article(Base):
     excerpt: Mapped[str | None] = mapped_column(Text)
     body: Mapped[str | None] = mapped_column(Text)
     featured_image_url: Mapped[str | None] = mapped_column(String(512))
+    body_image_url: Mapped[str | None] = mapped_column(String(512))
     author_name: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False, index=True)
     category: Mapped[str | None] = mapped_column(String(128), index=True)

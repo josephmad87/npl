@@ -13,6 +13,7 @@ type ApiNewsArticle = {
   excerpt: string | null
   body: string | null
   featured_image_url: string | null
+  body_image_url: string | null
   author_name: string | null
   published_at: string | null
   created_at: string | null
@@ -57,6 +58,7 @@ export default function NewsArticlePage() {
   })
 
   const heroImage = resolveMediaUrl(article?.featured_image_url)
+  const bodyImage = resolveMediaUrl(article?.body_image_url)
   const sidebarNews = recentNews.filter((item) => item.slug !== slug).slice(0, 5)
   const categoryLine =
     article?.category?.trim() ? formatCategoryLabel(article.category) : null
@@ -85,7 +87,6 @@ export default function NewsArticlePage() {
                   <p className="article-meta">
                     By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at ?? article.created_at)}
                   </p>
-                  {article.excerpt ? <p className="article-excerpt">{article.excerpt}</p> : null}
                 </div>
               </header>
             ) : (
@@ -95,14 +96,21 @@ export default function NewsArticlePage() {
                 <p className="article-meta">
                   By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at ?? article.created_at)}
                 </p>
-                {article.excerpt ? <p className="article-excerpt">{article.excerpt}</p> : null}
               </header>
             )}
             <div className="article-page__content">
               <div className="article-page__main">
+                {article.excerpt ? (
+                  <p className="article-lead">{article.excerpt}</p>
+                ) : null}
+                {bodyImage ? (
+                  <figure className="article-body-image">
+                    <img src={bodyImage} alt="" />
+                  </figure>
+                ) : null}
                 {article.body ? (
                   <section className="article-body" dangerouslySetInnerHTML={{ __html: article.body }} />
-                ) : (
+                ) : article.excerpt ? null : (
                   <p className="article-empty">Full story coming soon.</p>
                 )}
               </div>

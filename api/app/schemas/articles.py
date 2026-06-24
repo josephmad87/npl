@@ -14,6 +14,7 @@ class ArticleBase(BaseModel):
     excerpt: str | None = None
     body: str | None = None
     featured_image_url: str | None = None
+    body_image_url: str | None = None
     author_name: str | None = None
     status: str = "draft"
     category: str | None = None
@@ -34,6 +35,7 @@ class ArticleUpdate(BaseModel):
     excerpt: str | None = None
     body: str | None = None
     featured_image_url: str | None = None
+    body_image_url: str | None = None
     author_name: str | None = None
     status: str | None = None
     category: CompetitionArticleCategory | None = None
@@ -51,6 +53,7 @@ class ArticleOut(ORMModel):
     excerpt: str | None
     body: str | None
     featured_image_url: str | None
+    body_image_url: str | None
     author_name: str | None
     status: str
     category: str | None

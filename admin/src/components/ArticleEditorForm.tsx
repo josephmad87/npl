@@ -17,6 +17,7 @@ export type ArticleEditorValues = {
   excerpt: string | null
   body: string | null
   featured_image_url: string | null
+  body_image_url: string | null
   author_name: string | null
   status: (typeof STATUSES)[number]
   category: CompetitionCategoryValue
@@ -41,6 +42,7 @@ function emptyArticleValues(): ArticleEditorValues {
     excerpt: null,
     body: null,
     featured_image_url: null,
+    body_image_url: null,
     author_name: null,
     status: 'draft',
     category: 'mens',
@@ -57,6 +59,7 @@ function fromArticle(a: ArticleDto): ArticleEditorValues {
     excerpt: a.excerpt,
     body: a.body,
     featured_image_url: a.featured_image_url,
+    body_image_url: a.body_image_url ?? null,
     author_name: a.author_name,
     status: STATUSES.find((s) => s === a.status) ?? 'draft',
     category: normalizeCompetitionCategory(a.category),
@@ -98,6 +101,9 @@ export function ArticleEditorForm({
   const [featuredImageUrl, setFeaturedImageUrl] = useState(
     initial.featured_image_url ?? '',
   )
+  const [bodyImageUrl, setBodyImageUrl] = useState(
+    initial.body_image_url ?? '',
+  )
   const [authorName, setAuthorName] = useState(initial.author_name ?? '')
   const [category, setCategory] = useState<CompetitionCategoryValue>(initial.category)
   const [status, setStatus] = useState<(typeof STATUSES)[number]>(initial.status)
@@ -122,6 +128,7 @@ export function ArticleEditorForm({
       body:
         bodyHtml.trim() && bodyHtml.trim() !== '<p></p>' ? bodyHtml : null,
       featured_image_url: featuredImageUrl.trim() || null,
+      body_image_url: bodyImageUrl.trim() || null,
       author_name: authorName.trim() || null,
       status,
       category: normalizeCompetitionCategory(category),
@@ -258,6 +265,21 @@ export function ArticleEditorForm({
             accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
             value={featuredImageUrl}
             onChange={(next) => setFeaturedImageUrl(next ?? '')}
+            disabled={isSubmitting}
+          />
+          <label className="article-editor__label" htmlFor="article-body-image">
+            Body image
+          </label>
+          <p className="muted article-editor__hint">
+            Optional image shown in the article body (below the header, not
+            covered by title text).
+          </p>
+          <MediaUrlField
+            id="article-body-image"
+            uploadKind="news"
+            accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+            value={bodyImageUrl}
+            onChange={(next) => setBodyImageUrl(next ?? '')}
             disabled={isSubmitting}
           />
         </div>

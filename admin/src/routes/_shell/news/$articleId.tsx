@@ -37,6 +37,7 @@ function ArticleDetailPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [heroFailedFor, setHeroFailedFor] = useState<string | null>(null)
+  const [bodyImageFailedFor, setBodyImageFailedFor] = useState<string | null>(null)
 
   const goView = () => {
     if (!article) return
@@ -73,6 +74,7 @@ function ArticleDetailPage() {
         excerpt: values.excerpt,
         body: values.body,
         featured_image_url: values.featured_image_url,
+        body_image_url: values.body_image_url,
         author_name: values.author_name,
         status: values.status,
         category: values.category,
@@ -107,7 +109,9 @@ function ArticleDetailPage() {
 
   const safeBody = sanitizeArticleHtml(article.body ?? '')
   const heroSrc = resolveAdminMediaUrl(article.featured_image_url)
+  const bodyImgSrc = resolveAdminMediaUrl(article.body_image_url)
   const showHero = Boolean(heroSrc && heroFailedFor !== heroSrc)
+  const showBodyImage = Boolean(bodyImgSrc && bodyImageFailedFor !== bodyImgSrc)
 
   return (
     <>
@@ -152,6 +156,18 @@ function ArticleDetailPage() {
                   onError={() => setHeroFailedFor(heroSrc)}
                 />
               </div>
+            ) : null}
+            {article.excerpt ? (
+              <p className="article-view__lead">{article.excerpt}</p>
+            ) : null}
+            {showBodyImage ? (
+              <figure className="article-view__body-image">
+                <img
+                  src={bodyImgSrc ?? ''}
+                  alt=""
+                  onError={() => setBodyImageFailedFor(bodyImgSrc)}
+                />
+              </figure>
             ) : null}
             {safeBody ? (
               <section
