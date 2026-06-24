@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -8,6 +8,8 @@ import {
   getSortedRowModel,
   type ColumnDef,
   type ColumnFiltersState,
+  type OnChangeFn,
+  type RowSelectionState,
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
@@ -19,6 +21,11 @@ type EntityTableProps<T> = {
   hideToolbar?: boolean
   /** When set, each body row opens the detail view (click or Enter / Space). */
   onRowClick?: (row: T) => void
+  enableRowSelection?: boolean
+  getRowId?: (row: T) => string
+  rowSelection?: RowSelectionState
+  onRowSelectionChange?: (selection: RowSelectionState) => void
+  bulkActions?: ReactNode
 }
 
 export function EntityTable<T>({
@@ -27,18 +34,82 @@ export function EntityTable<T>({
   globalFilterPlaceholder = 'Search…',
   hideToolbar = false,
   onRowClick,
+  enableRowSelection = false,
+  getRowId,
+  rowSelection: controlledRowSelection,
+  onRowSelectionChange,
+  bulkActions,
 }: EntityTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+  const [internalRowSelection, setInternalRowSelection] =
+    useState<RowSelectionState>({})
+  const rowSelection = controlledRowSelection ?? internalRowSelection
 
-  const table = useReactTable({
+  const handleRowSelectionChange: OnChangeFn<RowSelectionState> = (updater) => {
+    const next =
+      typeof updater === 'function' ? updater(rowSelection) : updater
+    if (onRowSelectionChange) {
+      onRowSelectionChange(next)
+    } else {
+      setInternalRowSelection(next)
+    }
+  }
+
+  const tableColumns = useMemo((): ColumnDef<T, unknown>[] => {
+    if (!enableRowSelection) return columns
+    const selectCol: ColumnDef<T, unknown> = {
+      id: 'select',
+      header: ({ table }) => (
+        <input
+          type="checkbox"
+          aria-label="Select all on page"
+          checked={table.getIsAllPageRowsSelected()}
+          ref={(el) => {
+            if (el) {
+              el.indeterminate =
+                table.getIsSomePageRowsSelected() &&
+                !table.getIsAllPageRowsSelected()
+            }
+          }}
+          onChange={table.getToggleAllPageRowsSelectedHandler()}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+      cell: ({ row }) => (
+        <input
+          type="checkbox"
+          aria-label="Select row"
+          checked={row.getIsSelected()}
+          onChange={row.getToggleSelectedHandler()}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+      enableSorting: false,
+    }
+    return [selectCol, ...columns]
+  }, [columns, enableRowSelection])
+
+  const table = useReactTable<T>({
     data,
-    columns,
-    state: { sorting, columnFilters, globalFilter },
+    columns: tableColumns,
+    state: {
+      sorting,
+      columnFilters,
+      globalFilter,
+      ...(enableRowSelection ? { rowSelection } : {}),
+    },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
+    ...(enableRowSelection
+      ? {
+          enableRowSelection: true,
+          onRowSelectionChange: handleRowSelectionChange,
+          getRowId: getRowId ?? ((_unused: T, index: number) => String(index)),
+        }
+      : {}),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -51,6 +122,7 @@ export function EntityTable<T>({
   const pageIndex = table.getState().pagination.pageIndex
   const pageCount = table.getPageCount()
   const total = table.getFilteredRowModel().rows.length
+  const selectedCount = table.getFilteredSelectedRowModel().rows.length
 
   return (
     <div className="table-wrap">
@@ -68,6 +140,9 @@ export function EntityTable<T>({
           </span>
         </div>
       )}
+      {enableRowSelection && selectedCount > 0 && bulkActions ? (
+        <div className="table-bulk-actions">{bulkActions}</div>
+      ) : null}
       <div className="table-scroll">
         <table className="data-table">
           <thead>
@@ -75,7 +150,13 @@ export function EntityTable<T>({
               <tr key={hg.id}>
                 {hg.headers.map((header) => (
                   <th key={header.id}>
-                    {header.isPlaceholder ? null : (
+                    {header.isPlaceholder ? null : header.id ===
+                      'select' ? (
+                      flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )
+                    ) : (
                       <button
                         type="button"
                         className="sort"
@@ -109,7 +190,14 @@ export function EntityTable<T>({
                 aria-label={onRowClick ? 'View row details' : undefined}
                 onClick={
                   onRowClick
-                    ? () => {
+                    ? (e) => {
+                        const target = e.target as HTMLElement
+                        if (
+                          target.closest('input[type="checkbox"]') ||
+                          target.closest('button')
+                        ) {
+                          return
+                        }
                         onRowClick(row.original)
                       }
                     : undefined
@@ -138,6 +226,9 @@ export function EntityTable<T>({
       <div className="table-footer">
         <span>
           Page {pageIndex + 1} of {Math.max(pageCount, 1)}
+          {enableRowSelection && selectedCount > 0
+            ? ` · ${selectedCount} selected`
+            : ''}
         </span>
         <div className="pager">
           <button

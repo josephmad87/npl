@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
-import type { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef, RowSelectionState } from '@tanstack/react-table'
 import type { PlayerDto, TeamDto } from '@/lib/api-types'
-import { adminListAll } from '@/lib/admin-client'
+import { adminListAll, adminPost } from '@/lib/admin-client'
 import { BadgeImage } from '@/components/BadgeImage'
 import { CatalogFilterGrid } from '@/components/CatalogFilterGrid'
 import { EntityTable } from '@/components/EntityTable'
@@ -26,8 +26,10 @@ type PlayerRow = PlayerDto & {
 function PlayersPage() {
   const [mode, setMode] = useListViewMode('players')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null)
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [teamsQ, playersQ] = useQueries({
     queries: [
       {
@@ -135,6 +137,37 @@ function PlayersPage() {
   const loading = teamsQ.isLoading || playersQ.isLoading
   const err = teamsQ.error ?? playersQ.error
 
+  const selectedPlayerIds = useMemo(
+    () =>
+      Object.entries(rowSelection)
+        .filter(([, selected]) => selected)
+        .map(([id]) => Number(id))
+        .filter((id) => Number.isFinite(id)),
+    [rowSelection],
+  )
+
+  const bulkSetStatus = async (status: 'active' | 'inactive') => {
+    if (selectedPlayerIds.length === 0) return
+    const label = status === 'inactive' ? 'inactive' : 'active'
+    if (
+      !confirm(
+        `Mark ${selectedPlayerIds.length} selected player(s) as ${label}?`,
+      )
+    ) {
+      return
+    }
+    try {
+      await adminPost('/admin/players/bulk-status', {
+        player_ids: selectedPlayerIds,
+        status,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'players'] })
+      setRowSelection({})
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Bulk update failed')
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -231,6 +264,28 @@ function PlayersPage() {
           columns={columns}
           data={queryFilteredRows}
           hideToolbar
+          enableRowSelection
+          getRowId={(row) => String(row.id)}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          bulkActions={
+            <>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => void bulkSetStatus('inactive')}
+              >
+                Mark inactive
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => void bulkSetStatus('active')}
+              >
+                Mark active
+              </button>
+            </>
+          }
           onRowClick={(row) =>
             void navigate({
               to: '/players/$playerId',

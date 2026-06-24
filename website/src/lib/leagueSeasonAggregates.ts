@@ -1,4 +1,5 @@
 import type { MatchLite } from './hooks'
+import { sumTeamExtras } from './match-extras'
 
 export type StandingRow = {
   teamId: number
@@ -147,6 +148,16 @@ export function computeSeasonStandings(
           acc.ballsBowled += oversFieldToBalls(row.overs)
         }
       }
+    }
+    // Team extras (byes/leg-byes etc.) are not in per-player batting runs; add for NRR runsFor.
+    const hres = m.result as Record<string, unknown> | null | undefined
+    if (hres) {
+      const homeExtras = sumTeamExtras(hres, 'home')
+      const awayExtras = sumTeamExtras(hres, 'away')
+      const hAcc = byId.get(m.home_team_id)
+      const aAcc = byId.get(m.away_team_id)
+      if (hAcc) hAcc.runsFor += homeExtras
+      if (aAcc) aAcc.runsFor += awayExtras
     }
   }
 

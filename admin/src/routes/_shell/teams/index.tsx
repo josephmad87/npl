@@ -1,10 +1,10 @@
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
-import type { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef, RowSelectionState } from '@tanstack/react-table'
 import type { LeagueDto, SeasonDto, TeamDto } from '@/lib/api-types'
-import { adminListAll } from '@/lib/admin-client'
+import { adminListAll, adminPost } from '@/lib/admin-client'
 import { BadgeImage } from '@/components/BadgeImage'
 import { CatalogFilterGrid } from '@/components/CatalogFilterGrid'
 import { EntityTable } from '@/components/EntityTable'
@@ -44,8 +44,10 @@ const columns: ColumnDef<TeamDto, unknown>[] = [
 function TeamsPage() {
   const [mode, setMode] = useListViewMode('teams')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedLeagueId, setSelectedLeagueId] = useState<number | null>(null)
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [teamsQ, seasonsQ, leaguesQ] = useQueries({
     queries: [
       {
@@ -109,6 +111,37 @@ function TeamsPage() {
       </select>
     </div>
   )
+
+  const selectedTeamIds = useMemo(
+    () =>
+      Object.entries(rowSelection)
+        .filter(([, selected]) => selected)
+        .map(([id]) => Number(id))
+        .filter((id) => Number.isFinite(id)),
+    [rowSelection],
+  )
+
+  const bulkArchive = async () => {
+    if (selectedTeamIds.length === 0) return
+    const names = queryFilteredData
+      .filter((t) => selectedTeamIds.includes(t.id))
+      .map((t) => t.name)
+      .join(', ')
+    if (
+      !confirm(
+        `Archive ${selectedTeamIds.length} team(s)? They will be hidden from the public site.\n\n${names}`,
+      )
+    ) {
+      return
+    }
+    try {
+      await adminPost('/admin/teams/bulk-archive', { team_ids: selectedTeamIds })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] })
+      setRowSelection({})
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Bulk archive failed')
+    }
+  }
 
   return (
     <>
@@ -198,6 +231,19 @@ function TeamsPage() {
           columns={columns}
           data={queryFilteredData}
           hideToolbar
+          enableRowSelection
+          getRowId={(row) => String(row.id)}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          bulkActions={
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => void bulkArchive()}
+            >
+              Archive selected
+            </button>
+          }
           onRowClick={(row) =>
             void navigate({
               to: '/teams/$teamId',

@@ -78,6 +78,14 @@ export type MatchLite = {
     score_summary?: string | null
     innings_breakdown?: string | null
     player_of_match_player_id?: number | null
+    home_extras_wides?: number
+    home_extras_byes?: number
+    home_extras_no_balls?: number
+    home_extras_leg_byes?: number
+    away_extras_wides?: number
+    away_extras_byes?: number
+    away_extras_no_balls?: number
+    away_extras_leg_byes?: number
   } | null
   season?: {
     id: number

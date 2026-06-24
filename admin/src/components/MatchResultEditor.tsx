@@ -12,6 +12,13 @@ import type { MatchDto, MatchPlayerStatDto, PlayerDto } from '@/lib/api-types'
 import { adminPost } from '@/lib/admin-client'
 import { invalidateCompetitionDataQueries } from '@/lib/invalidate-competition-data'
 
+type ExtrasFields = {
+  wides: number
+  byes: number
+  no_balls: number
+  leg_byes: number
+}
+
 type StatRow = {
   key: string
   player_id: number
@@ -29,6 +36,32 @@ type StatRow = {
   stumpings: number
   run_outs: number
   notes: string
+}
+
+function emptyExtras(): ExtrasFields {
+  return { wides: 0, byes: 0, no_balls: 0, leg_byes: 0 }
+}
+
+function extrasFromResult(
+  res: MatchDto['result'],
+  side: 'home' | 'away',
+): ExtrasFields {
+  if (!res) return emptyExtras()
+  const p = side === 'home' ? 'home_extras_' : 'away_extras_'
+  const num = (key: string) => {
+    const v = res[key as keyof typeof res]
+    return typeof v === 'number' && !Number.isNaN(v) ? v : 0
+  }
+  return {
+    wides: num(`${p}wides`),
+    byes: num(`${p}byes`),
+    no_balls: num(`${p}no_balls`),
+    leg_byes: num(`${p}leg_byes`),
+  }
+}
+
+function extrasTotal(e: ExtrasFields): number {
+  return e.wides + e.byes + e.no_balls + e.leg_byes
 }
 
 function newKey(): string {
@@ -116,6 +149,13 @@ export function MatchResultEditor({
       : '',
   )
   const [matchReport, setMatchReport] = useState(res?.match_report ?? '')
+
+  const [homeExtras, setHomeExtras] = useState<ExtrasFields>(() =>
+    extrasFromResult(res, 'home'),
+  )
+  const [awayExtras, setAwayExtras] = useState<ExtrasFields>(() =>
+    extrasFromResult(res, 'away'),
+  )
 
   const [statRows, setStatRows] = useState<StatRow[]>(() =>
     fromServer(match.player_stats ?? []),
@@ -217,6 +257,14 @@ export function MatchResultEditor({
         player_of_match_player_id: pomId ? Number(pomId) : null,
         result_status: res?.result_status ?? 'official',
         match_report: matchReport.trim() || null,
+        home_extras_wides: homeExtras.wides,
+        home_extras_byes: homeExtras.byes,
+        home_extras_no_balls: homeExtras.no_balls,
+        home_extras_leg_byes: homeExtras.leg_byes,
+        away_extras_wides: awayExtras.wides,
+        away_extras_byes: awayExtras.byes,
+        away_extras_no_balls: awayExtras.no_balls,
+        away_extras_leg_byes: awayExtras.leg_byes,
         player_stats,
       })
       await invalidateCompetitionDataQueries(
@@ -315,6 +363,54 @@ export function MatchResultEditor({
               onChange={(e) => setMatchReport(e.target.value)}
             />
           </label>
+        </div>
+      </section>
+
+      <section className="match-result-editor__section">
+        <h2 className="match-result-editor__h">Innings extras</h2>
+        <p className="muted match-result-editor__lead">
+          Team extras count toward the official innings total and NPL net run rate.
+        </p>
+        <div className="match-result-editor__extras-grid">
+          {(
+            [
+              { label: homeLabel, state: homeExtras, set: setHomeExtras },
+              { label: awayLabel, state: awayExtras, set: setAwayExtras },
+            ] as const
+          ).map(({ label, state, set }) => (
+            <div key={label} className="match-result-editor__extras-side">
+              <h3 className="match-result-editor__extras-title">{label}</h3>
+              <div className="match-result-editor__grid">
+                {(
+                  [
+                    ['wides', 'Wides'],
+                    ['byes', 'Byes'],
+                    ['no_balls', 'No-balls'],
+                    ['leg_byes', 'Leg-byes'],
+                  ] as const
+                ).map(([key, fieldLabel]) => (
+                  <label key={key} className="match-result-editor__field">
+                    <span>{fieldLabel}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      className="inline-edit__control"
+                      value={state[key]}
+                      onChange={(e) =>
+                        set((prev) => ({
+                          ...prev,
+                          [key]: Number(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                  </label>
+                ))}
+                <p className="match-result-editor__field muted">
+                  Total extras: <strong>{extrasTotal(state)}</strong>
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 

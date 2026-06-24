@@ -22,7 +22,7 @@ import logoFallbackSrc from '@/assets/logo.png'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { DetailFields } from '@/components/DetailFields'
-import { adminDelete, adminGet, adminListAll, adminPatch } from '@/lib/admin-client'
+import { adminDelete, adminGet, adminListAll, adminPatch, adminPost } from '@/lib/admin-client'
 import { BadgeImage } from '@/components/BadgeImage'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
@@ -180,6 +180,38 @@ function TeamDetailPage() {
       ),
     [players],
   )
+
+  const bulkSquadStatus = useCallback(
+    async (status: 'active' | 'inactive') => {
+      const label = status === 'inactive' ? 'inactive' : 'active'
+      const count =
+        status === 'inactive'
+          ? players.filter((p) => p.status === 'active').length
+          : players.filter((p) => p.status === 'inactive').length
+      if (count === 0) {
+        alert(`No players to mark ${label}.`)
+        return
+      }
+      if (
+        !confirm(
+          `Mark ${count} squad player(s) as ${label}?`,
+        )
+      ) {
+        return
+      }
+      try {
+        await adminPost(`/admin/teams/${tid}/players/bulk-status`, {
+          status,
+          only_statuses: status === 'inactive' ? ['active'] : ['inactive'],
+        })
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'players'] })
+      } catch (e: unknown) {
+        alert(e instanceof Error ? e.message : 'Bulk update failed')
+      }
+    },
+    [players, queryClient, tid],
+  )
+
   const captainSelectValue = useMemo(() => {
     const pid = merged?.captain_player_id
     if (pid != null && Number.isFinite(pid) && players.some((p) => p.id === pid)) {
@@ -1304,9 +1336,29 @@ function TeamDetailPage() {
 
           {activeTab === 'players' ? (
             <section className="team-hub-section">
-            <h2 className="team-hub-section__title">
-              Players ({players.length})
-            </h2>
+            <div className="team-hub-section-head">
+              <h2 className="team-hub-section__title">
+                Players ({players.length})
+              </h2>
+              {players.length > 0 ? (
+                <div className="match-result-editor__toolbar">
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={() => void bulkSquadStatus('inactive')}
+                  >
+                    Mark all squad inactive
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={() => void bulkSquadStatus('active')}
+                  >
+                    Mark all squad active
+                  </button>
+                </div>
+              ) : null}
+            </div>
             {players.length === 0 ? (
               <p className="muted">
                 No players assigned to this squad.{' '}

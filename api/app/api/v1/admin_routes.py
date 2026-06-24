@@ -36,12 +36,20 @@ from app.schemas.auth import AdminUserCreate, UserMe
 from app.schemas.gallery import GalleryItemCreate, GalleryItemOut, GalleryItemUpdate
 from app.schemas.leagues import LeagueCreate, LeagueOut, LeagueUpdate
 from app.schemas.seasons import SeasonCreate, SeasonOut, SeasonPublicOut, SeasonUpdate
-from app.schemas.matches import MatchCreate, MatchDetailOut, MatchResultIn, MatchUpdate
+from app.schemas.matches import MatchBulkCancelIn, MatchCreate, MatchDetailOut, MatchResultIn, MatchUpdate
 from app.schemas.media_upload import MediaUploadOut
 from app.schemas.platform_settings import PlatformSettingsOut, PlatformSettingsPatch
 from app.schemas.sponsor import SponsorCreate, SponsorOut, SponsorUpdate
-from app.schemas.players import PlayerCreate, PlayerMatchAppearanceOut, PlayerOut, PlayerUpdate
-from app.schemas.teams import TeamCreate, TeamOut, TeamUpdate
+from app.schemas.players import (
+    PlayerBulkStatusIn,
+    PlayerCreate,
+    PlayerMatchAppearanceOut,
+    PlayerOut,
+    PlayerUpdate,
+    SeasonMarkNonRosterInactiveIn,
+    TeamPlayersBulkStatusIn,
+)
+from app.schemas.teams import TeamBulkArchiveIn, TeamCreate, TeamOut, TeamUpdate
 from app.services.audit import write_audit
 from app.services.player_stats import (
     affected_player_ids_for_match,
@@ -147,6 +155,22 @@ def _assert_match_teams_in_season(db: Session, season_id: int | None, home_id: i
                 "message": "When a season has a roster, home and away teams must be in that roster.",
             },
         )
+
+
+_PLAYER_STATUSES = frozenset({"active", "inactive", "injured"})
+
+
+def _validate_player_status(status: str) -> str:
+    s = status.strip().lower()
+    if s not in _PLAYER_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "validation",
+                "message": f"status must be one of: {', '.join(sorted(_PLAYER_STATUSES))}",
+            },
+        )
+    return s
 
 
 @router.post("/users", response_model=UserMe, status_code=status.HTTP_201_CREATED)
@@ -299,6 +323,29 @@ def admin_delete_team(
     db.commit()
 
 
+@router.post("/teams/bulk-archive", response_model=dict)
+def admin_bulk_archive_teams(
+    body: TeamBulkArchiveIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_competition_writer),
+) -> dict:
+    updated = 0
+    skipped = 0
+    for tid in body.team_ids:
+        team = db.get(Team, tid)
+        if team is None:
+            skipped += 1
+            continue
+        if team.status == "inactive":
+            skipped += 1
+            continue
+        team.status = "inactive"
+        updated += 1
+        write_audit(db, actor_user_id=actor.id, action="archive", entity_type="team", entity_id=team.id, summary=team.name)
+    db.commit()
+    return {"updated": updated, "skipped": skipped}
+
+
 @router.get("/players", response_model=dict)
 def admin_list_players(
     db: Session = Depends(get_db),
@@ -338,6 +385,63 @@ def admin_create_player(
     write_audit(db, actor_user_id=actor.id, action="create", entity_type="player", entity_id=player.id, summary=player.full_name)
     db.commit()
     return player
+
+
+@router.post("/players/bulk-status", response_model=dict)
+def admin_bulk_player_status(
+    body: PlayerBulkStatusIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_competition_writer),
+) -> dict:
+    status_value = _validate_player_status(body.status)
+    ids = list({pid for pid in body.player_ids if pid > 0})
+    if not ids:
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "player_ids required"})
+    players = list(db.scalars(select(Player).where(Player.id.in_(ids))).all())
+    for player in players:
+        player.status = status_value
+    db.commit()
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="bulk_status",
+        entity_type="player",
+        entity_id=0,
+        summary=f"Set status={status_value} on {len(players)} player(s)",
+    )
+    db.commit()
+    return {"updated": len(players)}
+
+
+@router.post("/teams/{team_id}/players/bulk-status", response_model=dict)
+def admin_team_players_bulk_status(
+    team_id: int,
+    body: TeamPlayersBulkStatusIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_competition_writer),
+) -> dict:
+    if db.get(Team, team_id) is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Team not found"})
+    status_value = _validate_player_status(body.status)
+    stmt = select(Player).where(Player.team_id == team_id)
+    if body.only_statuses:
+        allowed = {_validate_player_status(s) for s in body.only_statuses}
+        stmt = stmt.where(Player.status.in_(allowed))
+    players = list(db.scalars(stmt).all())
+    for player in players:
+        player.status = status_value
+    db.commit()
+    team = db.get(Team, team_id)
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="bulk_status",
+        entity_type="player",
+        entity_id=team_id,
+        summary=f"Set status={status_value} on {len(players)} player(s) for team {team.name if team else team_id}",
+    )
+    db.commit()
+    return {"updated": len(players)}
 
 
 @router.get("/players/{player_id}", response_model=PlayerOut)
@@ -591,6 +695,41 @@ def admin_update_season(
     return _season_public(db, season)
 
 
+@router.post("/seasons/{season_id}/mark-non-roster-inactive", response_model=dict)
+def admin_season_mark_non_roster_inactive(
+    season_id: int,
+    body: SeasonMarkNonRosterInactiveIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_competition_writer),
+) -> dict:
+    season = db.get(Season, season_id)
+    if season is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Season not found"})
+    roster_ids = set(_season_team_ids(db, season_id))
+    stmt = select(Player)
+    if roster_ids:
+        stmt = stmt.where(Player.team_id.notin_(roster_ids))
+    if body.only_statuses:
+        allowed = {_validate_player_status(s) for s in body.only_statuses}
+        stmt = stmt.where(Player.status.in_(allowed))
+    players = list(db.scalars(stmt).all())
+    team_ids_affected: set[int] = set()
+    for player in players:
+        player.status = "inactive"
+        team_ids_affected.add(player.team_id)
+    db.commit()
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="bulk_status",
+        entity_type="player",
+        entity_id=season_id,
+        summary=f"Marked {len(players)} non-roster player(s) inactive for season {season.name}",
+    )
+    db.commit()
+    return {"updated": len(players), "team_ids_affected": sorted(team_ids_affected)}
+
+
 @router.get("/matches", response_model=dict)
 def admin_list_matches(
     db: Session = Depends(get_db),
@@ -657,6 +796,42 @@ def admin_create_match(
         .where(Match.id == m.id),
     )
     return m  # type: ignore[return-value]
+
+
+@router.post("/matches/bulk-cancel", response_model=dict)
+def admin_bulk_cancel_matches(
+    body: MatchBulkCancelIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_competition_writer),
+) -> dict:
+    ids = list({mid for mid in body.match_ids if mid > 0})
+    if not ids:
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "match_ids required"})
+    matches = list(db.scalars(select(Match).where(Match.id.in_(ids))).all())
+    affected_player_ids: set[int] = set()
+    updated = 0
+    skipped = 0
+    for m in matches:
+        if m.status == "cancelled":
+            skipped += 1
+            continue
+        if m.status == "completed":
+            affected_player_ids.update(affected_player_ids_for_match(db, m.id))
+        m.status = "cancelled"
+        updated += 1
+    if affected_player_ids:
+        recompute_player_career_stats(db, affected_player_ids)
+    db.commit()
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="bulk_cancel",
+        entity_type="match",
+        entity_id=0,
+        summary=f"Cancelled {updated} match(es)",
+    )
+    db.commit()
+    return {"updated": updated, "skipped": skipped}
 
 
 @router.get("/matches/{match_id}", response_model=MatchDetailOut)

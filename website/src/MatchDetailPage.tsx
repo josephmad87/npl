@@ -10,6 +10,7 @@ import {
   matchResultSummaryLine,
   matchWinnerSide,
 } from './lib/match-result'
+import { formatExtrasBreakdown } from './lib/match-extras'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type MatchResultDetail = {
@@ -20,6 +21,14 @@ type MatchResultDetail = {
   top_performers: string | null
   player_of_match_player_id: number | null
   match_report: string | null
+  home_extras_wides?: number
+  home_extras_byes?: number
+  home_extras_no_balls?: number
+  home_extras_leg_byes?: number
+  away_extras_wides?: number
+  away_extras_byes?: number
+  away_extras_no_balls?: number
+  away_extras_leg_byes?: number
 }
 
 type MatchPlayerStat = {
@@ -221,6 +230,9 @@ export default function MatchDetailPage() {
   const matchLite = data as unknown as MatchLite
   const headerWinner = data ? matchWinnerSide(matchLite) : null
   const resultLine = data ? matchResultSummaryLine(matchLite) : null
+  const extrasLine = data?.result
+    ? formatExtrasBreakdown(data.result, scorecardSide)
+    : null
 
   const descriptionLine = useMemo(() => {
     if (!data) return ''
@@ -485,6 +497,9 @@ export default function MatchDetailPage() {
             </div>
             {playersLoading ? (
               <p className="match-centre-muted">Loading player names…</p>
+            ) : null}
+            {extrasLine ? (
+              <p className="match-centre-muted">{extrasLine}</p>
             ) : null}
             {playerStats.length > 0 ? (
               <div className="match-centre-table-wrap">

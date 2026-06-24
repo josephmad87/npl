@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { SquarePen } from 'lucide-react'
-import { useState } from 'react'
-import type { SeasonDto } from '@/lib/api-types'
-import { adminListAll, adminPatch } from '@/lib/admin-client'
+import { useMemo, useState } from 'react'
+import type { PlayerDto, SeasonDto } from '@/lib/api-types'
+import { adminListAll, adminPatch, adminPost } from '@/lib/admin-client'
 import { BackNavLink } from '@/components/BackNavLink'
 import { DetailFields } from '@/components/DetailFields'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -35,6 +35,11 @@ function SeasonDetailPage() {
     enabled: Number.isFinite(lid),
   })
 
+  const playersQ = useQuery({
+    queryKey: ['admin', 'players'],
+    queryFn: () => adminListAll<PlayerDto>('/admin/players'),
+  })
+
   const season = seasonsQ.data?.find((s) => s.id === sid)
   const isEditing = mode === 'edit'
   const [patch, setPatch] = useState<Partial<SeasonDto>>({})
@@ -43,6 +48,38 @@ function SeasonDetailPage() {
 
   const merged: SeasonDto | null =
     season ? { ...season, ...patch } : null
+
+  const nonRosterActiveCount = useMemo(() => {
+    if (!season) return 0
+    const roster = new Set(season.team_ids ?? [])
+    return (playersQ.data ?? []).filter(
+      (p) => !roster.has(p.team_id) && p.status === 'active',
+    ).length
+  }, [playersQ.data, season])
+
+  const markNonRosterInactive = async () => {
+    if (!season) return
+    if (nonRosterActiveCount === 0) {
+      alert('No active players on teams outside this season roster.')
+      return
+    }
+    if (
+      !confirm(
+        `Mark ${nonRosterActiveCount} active player(s) inactive? They are on teams not in this season's roster.`,
+      )
+    ) {
+      return
+    }
+    try {
+      await adminPost(
+        `/admin/seasons/${season.id}/mark-non-roster-inactive`,
+        { only_statuses: ['active'] },
+      )
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'players'] })
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Roster maintenance failed')
+    }
+  }
 
   const goView = () => {
     if (!season) return
@@ -277,6 +314,23 @@ function SeasonDetailPage() {
           ]}
         />
       )}
+      {!isEditing ? (
+        <section className="team-hub-section" style={{ marginTop: '1.5rem' }}>
+          <h2 className="team-hub-section__title">Roster maintenance</h2>
+          <p className="muted">
+            Mark inactive all <strong>active</strong> players whose squads are
+            not on this season&apos;s roster ({nonRosterActiveCount} player
+            {nonRosterActiveCount === 1 ? '' : 's'} would be affected).
+          </p>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => void markNonRosterInactive()}
+          >
+            Mark non-roster players inactive
+          </button>
+        </section>
+      ) : null}
     </>
   )
 }

@@ -59,6 +59,14 @@ class MatchResult(Base):
     player_of_match_player_id: Mapped[int | None] = mapped_column(ForeignKey("players.id", ondelete="SET NULL"))
     result_status: Mapped[str] = mapped_column(String(64), default="official", nullable=False)
     match_report: Mapped[str | None] = mapped_column(Text)
+    home_extras_wides: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    home_extras_byes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    home_extras_no_balls: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    home_extras_leg_byes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    away_extras_wides: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    away_extras_byes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    away_extras_no_balls: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    away_extras_leg_byes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     match: Mapped["Match"] = relationship(back_populates="result")
 

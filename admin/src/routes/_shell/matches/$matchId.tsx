@@ -21,6 +21,7 @@ import { SectionHintTip } from '@/components/SectionHintTip'
 import { StatusBadge } from '@/components/StatusBadge'
 import { normalizeCompetitionCategory } from '@/lib/competitionCategories'
 import { parseDetailRouteSearch } from '@/lib/detail-route-search'
+import { formatExtrasBreakdown } from '@/lib/match-extras'
 import { matchResultSummaryLine, matchWinnerSide } from '@/lib/match-winner'
 
 export const Route = createFileRoute('/_shell/matches/$matchId')({
@@ -235,6 +236,9 @@ function MatchDetailPage() {
       }),
     [playerStats, scorecardSide, match?.home_team_id, match?.away_team_id],
   )
+  const extrasLine = match?.result
+    ? formatExtrasBreakdown(match.result, scorecardSide)
+    : null
 
   if (loading) {
     return <p className="muted">Loading…</p>
@@ -817,6 +821,7 @@ function MatchDetailPage() {
               </button>
             </div>
           </div>
+          {extrasLine ? <p className="muted">{extrasLine}</p> : null}
           {playerStats.length > 0 ? (
             <div className="table-wrap">
               <div className="table-scroll table-scroll--sticky-first match-stats-scroll">

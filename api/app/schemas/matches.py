@@ -93,6 +93,14 @@ class MatchResultIn(BaseModel):
     player_of_match_player_id: int | None = None
     result_status: str = "official"
     match_report: str | None = None
+    home_extras_wides: int = Field(default=0, ge=0)
+    home_extras_byes: int = Field(default=0, ge=0)
+    home_extras_no_balls: int = Field(default=0, ge=0)
+    home_extras_leg_byes: int = Field(default=0, ge=0)
+    away_extras_wides: int = Field(default=0, ge=0)
+    away_extras_byes: int = Field(default=0, ge=0)
+    away_extras_no_balls: int = Field(default=0, ge=0)
+    away_extras_leg_byes: int = Field(default=0, ge=0)
     player_stats: list[MatchPlayerStatIn] = Field(default_factory=list)
 
 
@@ -107,6 +115,14 @@ class MatchResultOut(ORMModel):
     player_of_match_player_id: int | None
     result_status: str
     match_report: str | None
+    home_extras_wides: int = 0
+    home_extras_byes: int = 0
+    home_extras_no_balls: int = 0
+    home_extras_leg_byes: int = 0
+    away_extras_wides: int = 0
+    away_extras_byes: int = 0
+    away_extras_no_balls: int = 0
+    away_extras_leg_byes: int = 0
 
 
 class LeagueBriefOut(ORMModel):
@@ -121,6 +137,10 @@ class SeasonBriefOut(ORMModel):
     name: str
     slug: str
     league: LeagueBriefOut
+
+
+class MatchBulkCancelIn(BaseModel):
+    match_ids: list[int] = Field(min_length=1)
 
 
 class MatchDetailOut(ORMModel):

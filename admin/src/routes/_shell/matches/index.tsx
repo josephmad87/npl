@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
-import type { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef, RowSelectionState } from '@tanstack/react-table'
 import type { LeagueDto, MatchDto, SeasonDto, TeamDto } from '@/lib/api-types'
-import { adminListAll } from '@/lib/admin-client'
+import { adminListAll, adminPost } from '@/lib/admin-client'
+import { invalidateCompetitionDataQueries } from '@/lib/invalidate-competition-data'
 import { BadgeImage } from '@/components/BadgeImage'
 import { MatchTableTeamCell } from '@/components/MatchTableTeamCell'
 import { CatalogFilterGrid } from '@/components/CatalogFilterGrid'
@@ -38,9 +39,11 @@ function formatWhen(m: MatchDto): string {
 function MatchesPage() {
   const [mode, setMode] = useListViewMode('matches')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedLeagueId, setSelectedLeagueId] = useState<number | null>(null)
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(null)
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   const [teamsQ, matchesQ, seasonsQ, leaguesQ] = useQueries({
     queries: [
@@ -215,6 +218,38 @@ function MatchesPage() {
     </div>
   )
 
+  const selectedMatchIds = useMemo(
+    () =>
+      Object.entries(rowSelection)
+        .filter(([, selected]) => selected)
+        .map(([id]) => Number(id))
+        .filter((id) => Number.isFinite(id)),
+    [rowSelection],
+  )
+
+  const bulkCancel = async () => {
+    if (selectedMatchIds.length === 0) return
+    const selected = queryFilteredRows.filter((m) =>
+      selectedMatchIds.includes(m.id),
+    )
+    const completedCount = selected.filter((m) => m.status === 'completed').length
+    let msg = `Cancel ${selectedMatchIds.length} fixture(s)? They will be removed from standings.`
+    if (completedCount > 0) {
+      msg += `\n\n${completedCount} completed match(es) will also update player career stats.`
+    }
+    if (!confirm(msg)) return
+    try {
+      await adminPost('/admin/matches/bulk-cancel', {
+        match_ids: selectedMatchIds,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
+      await invalidateCompetitionDataQueries(queryClient)
+      setRowSelection({})
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Bulk cancel failed')
+    }
+  }
+
   return (
     <>
       <PageHeader
@@ -357,6 +392,19 @@ function MatchesPage() {
           columns={columns}
           data={queryFilteredRows}
           hideToolbar
+          enableRowSelection
+          getRowId={(row) => String(row.id)}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          bulkActions={
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => void bulkCancel()}
+            >
+              Cancel selected
+            </button>
+          }
           onRowClick={(row) =>
             void navigate({
               to: '/matches/$matchId',

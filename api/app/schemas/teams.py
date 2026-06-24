@@ -76,6 +76,10 @@ class TeamUpdate(BaseModel):
     social_links: dict | None = None
 
 
+class TeamBulkArchiveIn(BaseModel):
+    team_ids: list[int] = Field(min_length=1)
+
+
 class TeamOut(ORMModel):
     id: int
     name: str

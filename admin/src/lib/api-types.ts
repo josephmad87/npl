@@ -144,6 +144,14 @@ export type MatchResultDto = {
   player_of_match_player_id: number | null
   result_status: string
   match_report: string | null
+  home_extras_wides?: number
+  home_extras_byes?: number
+  home_extras_no_balls?: number
+  home_extras_leg_byes?: number
+  away_extras_wides?: number
+  away_extras_byes?: number
+  away_extras_no_balls?: number
+  away_extras_leg_byes?: number
 }
 
 export type MatchPlayerStatDto = {
@@ -196,6 +204,7 @@ export type ArticleDto = {
   excerpt: string | null
   body: string | null
   featured_image_url: string | null
+  body_image_url?: string | null
   author_name: string | null
   status: string
   category: string | null

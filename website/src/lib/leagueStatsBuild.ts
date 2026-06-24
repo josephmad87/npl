@@ -1,5 +1,6 @@
 import type { MatchLite } from './hooks'
 import { ballsToOversLabel, oversFieldToBalls } from './leagueSeasonAggregates'
+import { sumTeamExtras } from './match-extras'
 
 export function statRows(match: MatchLite): Array<Record<string, unknown>> {
   return Array.isArray(match.player_stats) ? (match.player_stats as Array<Record<string, unknown>>) : []
@@ -188,10 +189,43 @@ export function aggregateForPlayer(matches: MatchLite[], playerId: number) {
 
 export type TourneyKpi = { label: string; value: string | number }
 
+function aggregateExtrasFromMatches(
+  matches: MatchLite[],
+  teamId?: number,
+  playerId?: number,
+): number {
+  let total = 0
+  for (const m of matches) {
+    if (m.status !== 'completed') continue
+    const res = m.result as Record<string, unknown> | null | undefined
+    if (!res) continue
+    if (playerId != null) {
+      const rows = statRows(m).filter(
+        (r) => Number(r.player_id) === playerId,
+      )
+      const teamIds = new Set(rows.map((r) => Number(r.team_id)))
+      for (const tid of teamIds) {
+        if (m.home_team_id === tid) total += sumTeamExtras(res, 'home')
+        else if (m.away_team_id === tid) total += sumTeamExtras(res, 'away')
+      }
+      continue
+    }
+    if (teamId == null) {
+      total += sumTeamExtras(res, 'home') + sumTeamExtras(res, 'away')
+    } else if (m.home_team_id === teamId) {
+      total += sumTeamExtras(res, 'home')
+    } else if (m.away_team_id === teamId) {
+      total += sumTeamExtras(res, 'away')
+    }
+  }
+  return total
+}
+
 function kpisFromMaps(
   batting: Map<number, BattingAgg>,
   bowling: Map<number, BowlingAgg>,
   matchCount: number,
+  extras: number,
 ): TourneyKpi[] {
   let runs = 0
   let ballsFaced = 0
@@ -230,7 +264,6 @@ function kpisFromMaps(
   const estDots = Math.max(0, ballsFaced - runFrom1s2s3s - fours - sixes)
   const dotPct = ballsFaced > 0 ? (estDots / ballsFaced) * 100 : 0
   const boundaryPct = runs > 0 ? (boundaryRuns / runs) * 100 : 0
-  const extras = 0
 
   return [
     { label: 'Matches', value: matchCount },
@@ -263,17 +296,20 @@ function kpisFromMaps(
 
 export function kpiTournamentList(matches: MatchLite[]): TourneyKpi[] {
   const { batting, bowling, matchCount } = aggregateTournament(matches)
-  return kpisFromMaps(batting, bowling, matchCount)
+  const extras = aggregateExtrasFromMatches(matches)
+  return kpisFromMaps(batting, bowling, matchCount, extras)
 }
 
 export function kpiTeamList(matches: MatchLite[], teamId: number): TourneyKpi[] {
   const { batting, bowling, matchCount } = aggregateForTeam(matches, teamId)
-  return kpisFromMaps(batting, bowling, matchCount)
+  const extras = aggregateExtrasFromMatches(matches, teamId)
+  return kpisFromMaps(batting, bowling, matchCount, extras)
 }
 
 export function kpiPlayerList(matches: MatchLite[], playerId: number): TourneyKpi[] {
   const { batting, bowling, matchCount } = aggregateForPlayer(matches, playerId)
-  return kpisFromMaps(batting, bowling, matchCount)
+  const extras = aggregateExtrasFromMatches(matches, undefined, playerId)
+  return kpisFromMaps(batting, bowling, matchCount, extras)
 }
 
 function battingAverage(b: BattingAgg): string {

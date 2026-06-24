@@ -102,6 +102,20 @@ class PlayerUpdate(BaseModel):
     player_of_match_awards: int | None = None
 
 
+class PlayerBulkStatusIn(BaseModel):
+    player_ids: list[int] = Field(min_length=1)
+    status: str = Field(min_length=1, max_length=32)
+
+
+class TeamPlayersBulkStatusIn(BaseModel):
+    status: str = Field(min_length=1, max_length=32)
+    only_statuses: list[str] | None = None
+
+
+class SeasonMarkNonRosterInactiveIn(BaseModel):
+    only_statuses: list[str] | None = None
+
+
 class PlayerOut(ORMModel):
     id: int
     full_name: str
