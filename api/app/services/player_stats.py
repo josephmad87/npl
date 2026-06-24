@@ -10,30 +10,58 @@ from sqlalchemy.orm import Session
 
 from app.models.match import Match, MatchPlayerStat, MatchResult
 from app.models.player import Player
+from app.services.cricket_overs import normalize_cricket_overs
+
+DID_NOT_BAT = "did not bat"
+NOT_OUT = "not out"
+RETIRED_HURT = "retired hurt"
+
+
+def _normalize_dismissal(dismissal: str | None) -> str:
+    return dismissal.strip().lower() if dismissal and dismissal.strip() else ""
+
+
+def is_did_not_bat(dismissal: str | None) -> bool:
+    return _normalize_dismissal(dismissal) == DID_NOT_BAT
+
+
+def is_batting_out(dismissal: str | None) -> bool:
+    t = _normalize_dismissal(dismissal)
+    if not t or t in (NOT_OUT, RETIRED_HURT, DID_NOT_BAT):
+        return False
+    return True
+
+
+def counts_batting_innings(
+    dismissal: str | None,
+    runs: int,
+    balls_faced: int,
+) -> bool:
+    if is_did_not_bat(dismissal):
+        return False
+    t = _normalize_dismissal(dismissal)
+    if runs > 0 or balls_faced > 0:
+        return True
+    if t in (NOT_OUT, RETIRED_HURT):
+        return True
+    return is_batting_out(dismissal)
 
 
 def overs_to_balls(overs: Decimal | float | int | None) -> int:
     """Convert cricket overs (e.g. 4.3 = 4 overs and 3 balls) to total balls."""
-    if overs is None:
+    normalized = normalize_cricket_overs(overs)
+    if normalized is None:
         return 0
-    raw = float(overs)
+    raw = float(normalized)
     if raw <= 0:
         return 0
-    n = round(raw, 1)
-    s = f"{n:.1f}".rstrip("0").rstrip(".")
+    s = format(normalized, "f").rstrip("0").rstrip(".")
     if "." not in s:
         return int(s) * 6
     whole, frac = s.split(".", 1)
     w = int(whole) if whole else 0
     b = min(5, int(frac[0]) if frac else 0)
     return w * 6 + b
-
-
-def is_batting_out(dismissal: str | None) -> bool:
-    if not dismissal or not dismissal.strip():
-        return False
-    t = dismissal.strip().lower()
-    return t not in ("not out", "retired hurt")
 
 
 def _round_rate(value: float | None) -> float | None:
@@ -77,11 +105,12 @@ def recompute_player_career_stats(db: Session, player_ids: Iterable[int]) -> Non
 
         for st, _match in stat_rows:
             match_ids.add(st.match_id)
-            runs += st.runs
-            balls_faced += st.balls_faced
-            highest_score = max(highest_score, st.runs)
-            if is_batting_out(st.dismissal):
-                outs += 1
+            if counts_batting_innings(st.dismissal, st.runs, st.balls_faced):
+                runs += st.runs
+                balls_faced += st.balls_faced
+                highest_score = max(highest_score, st.runs)
+                if is_batting_out(st.dismissal):
+                    outs += 1
             wickets += st.wickets
             runs_conceded += st.runs_conceded
             bowling_balls += overs_to_balls(st.overs)

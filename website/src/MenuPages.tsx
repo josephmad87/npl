@@ -21,12 +21,13 @@ import {
   type ArticleLite,
   type MatchLite,
   type TeamLite,
+  useFeaturedTeams,
   useLatestResults,
   useRecentNews,
   useTeamsMap,
   useUpcomingFixtures,
 } from './lib/hooks'
-import { extractList, fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { extractList, fetchAllPaginatedList, fetchJson, postJson, resolveMediaUrl } from './lib/publicApi'
 
 type GalleryItem = {
   id: number
@@ -38,15 +39,7 @@ type GalleryItem = {
 
 function CategoryHomePage({ category }: { category: string }) {
   const categoryLabel = formatCategoryLabel(category)
-  const { data: teams = [] } = useQuery({
-    queryKey: ['category-teams', category],
-    queryFn: () =>
-      fetchAllPaginatedList<TeamLite>(
-        (page) =>
-          `/public/teams?page=${page}&page_size=100&category=${encodeURIComponent(category)}`,
-      ),
-    retry: 1,
-  })
+  const { data: featuredTeams = [] } = useFeaturedTeams(category)
   const { map: teamsMap } = useTeamsMap()
   const { data: fixtures = [] } = useUpcomingFixtures(category, 4)
   const { data: results = [] } = useLatestResults(category, 10)
@@ -61,7 +54,7 @@ function CategoryHomePage({ category }: { category: string }) {
       />
     <main className="container">
         <FeaturedTeamsCarousel
-          teams={teams.slice(0, 16)}
+          teams={featuredTeams}
           title={`${categoryLabel} Teams`}
           linkTo={`/${category}/teams`}
         />
@@ -1056,28 +1049,41 @@ function ContactUsPageImpl() {
   const [senderPhone, setSenderPhone] = useState('')
   const [senderEmail, setSenderEmail] = useState('')
   const [message, setMessage] = useState('')
+  const [website, setWebsite] = useState('')
+  const [submitState, setSubmitState] = useState<
+    'idle' | 'sending' | 'success' | 'error'
+  >('idle')
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const isMessageReady =
-    primaryEmail !== '' &&
     fullName.trim() !== '' &&
     senderEmail.trim() !== '' &&
-    message.trim() !== ''
+    message.trim() !== '' &&
+    submitState !== 'sending'
 
-  const handleMessageSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleMessageSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!isMessageReady) return
 
-    const subject = encodeURIComponent('Contact form enquiry')
-    const body = encodeURIComponent(
-      [
-        `Full name: ${fullName.trim() || 'Not provided'}`,
-        `Phone number: ${senderPhone.trim() || 'Not provided'}`,
-        `Email: ${senderEmail.trim() || 'Not provided'}`,
-        '',
-        'Message:',
-        message.trim(),
-      ].join('\n'),
-    )
-    window.location.href = `mailto:${primaryEmail}?subject=${subject}&body=${body}`
+    setSubmitState('sending')
+    setSubmitError(null)
+    try {
+      await postJson('/public/contact', {
+        full_name: fullName.trim(),
+        email: senderEmail.trim(),
+        phone: senderPhone.trim() || null,
+        message: message.trim(),
+        website: website.trim() || null,
+      })
+      setSubmitState('success')
+      setFullName('')
+      setSenderPhone('')
+      setSenderEmail('')
+      setMessage('')
+      setWebsite('')
+    } catch {
+      setSubmitState('error')
+      setSubmitError('Could not send your message. Please try again or email us directly.')
+    }
   }
 
   return (
@@ -1104,7 +1110,17 @@ function ContactUsPageImpl() {
             <div className="contact-page__content">
               <section className="contact-page__message-box">
                 <h2>Send us a message</h2>
-                <form className="contact-page__message-form" onSubmit={handleMessageSubmit}>
+                <form className="contact-page__message-form" onSubmit={(e) => void handleMessageSubmit(e)}>
+                  <input
+                    type="text"
+                    name="website"
+                    className="contact-page__honeypot"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden
+                    value={website}
+                    onChange={(event) => setWebsite(event.target.value)}
+                  />
                   <label htmlFor="contact-full-name" className="contact-page__message-label">
                     Full name
                   </label>
@@ -1154,8 +1170,24 @@ function ContactUsPageImpl() {
                     className="contact-page__message-submit"
                     disabled={!isMessageReady}
                   >
-                    Send message
+                    {submitState === 'sending' ? 'Sending…' : 'Send message'}
                   </button>
+                  {submitState === 'success' ? (
+                    <p className="contact-page__message-note" role="status">
+                      Thank you — your message has been received. We will get back to you soon.
+                    </p>
+                  ) : null}
+                  {submitState === 'error' && submitError ? (
+                    <p className="login-error contact-page__message-note" role="alert">
+                      {submitError}
+                      {primaryEmail ? (
+                        <>
+                          {' '}
+                          <a href={`mailto:${primaryEmail}`}>Email us directly</a>
+                        </>
+                      ) : null}
+                    </p>
+                  ) : null}
                 </form>
               </section>
               <div className="contact-page__cards-column">
@@ -1204,11 +1236,6 @@ function ContactUsPageImpl() {
                 </article>
               </div>
             </div>
-          ) : null}
-          {!aboutQ.isLoading && !aboutQ.isError && hasAnyContact && !primaryEmail ? (
-            <p className="muted contact-page__message-note">
-              A public email address is required before messages can be sent from this page.
-            </p>
           ) : null}
         </section>
       </main>

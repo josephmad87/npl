@@ -86,6 +86,7 @@ class MatchPlayerStatOut(ORMModel):
 
 class MatchResultIn(BaseModel):
     winning_team_id: int | None = None
+    batting_first_team_id: int | None = None
     margin_text: str | None = None
     score_summary: str | None = None
     innings_breakdown: str | None = None
@@ -108,6 +109,7 @@ class MatchResultOut(ORMModel):
     id: int
     match_id: int
     winning_team_id: int | None
+    batting_first_team_id: int | None = None
     margin_text: str | None
     score_summary: str | None
     innings_breakdown: str | None

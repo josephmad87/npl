@@ -21,6 +21,7 @@ from app.db.session import get_db
 from app.models.about_content import AboutContent
 from app.models.article import Article
 from app.models.audit import AuditLog
+from app.models.contact_message import ContactMessage
 from app.models.gallery import GalleryItem
 from app.models.sponsor import Sponsor
 from app.models.league import League, Season, SeasonTeam
@@ -30,6 +31,7 @@ from app.models.player import Player
 from app.models.team import Team
 from app.models.user import User
 from app.schemas.about_content import AboutContentBody, AboutContentOut
+from app.schemas.contact_message import ContactMessageOut, ContactMessageUpdate
 from app.schemas.articles import ArticleCreate, ArticleOut, ArticleUpdate
 from app.schemas.audit import AuditLogOut
 from app.schemas.auth import AdminUserCreate, UserMe
@@ -51,6 +53,7 @@ from app.schemas.players import (
 )
 from app.schemas.teams import TeamBulkArchiveIn, TeamCreate, TeamOut, TeamUpdate
 from app.services.audit import write_audit
+from app.services.cricket_overs import normalize_cricket_overs
 from app.services.player_stats import (
     affected_player_ids_for_match,
     recompute_all_player_career_stats,
@@ -59,6 +62,32 @@ from app.services.player_stats import (
 from app.services.uploads import build_media_public_url, save_upload_file
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _normalize_sponsor_link_url(link_url: str | None) -> str | None:
+    if link_url is None:
+        return None
+    trimmed = link_url.strip()
+    if not trimmed:
+        return None
+    if not trimmed.startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "link_url must start with http:// or https://"},
+        )
+    return trimmed
+
+
+def _sponsor_out(sp: Sponsor, team_name: str | None) -> SponsorOut:
+    return SponsorOut(
+        id=sp.id,
+        name=sp.name,
+        image_url=sp.image_url,
+        link_url=sp.link_url,
+        team_id=sp.team_id,
+        team_name=team_name,
+        created_at=sp.created_at,
+    )
 
 
 @router.post("/uploads", response_model=MediaUploadOut, status_code=status.HTTP_201_CREATED)
@@ -957,6 +986,12 @@ def admin_set_match_result(
             status_code=400,
             detail={"code": "validation", "message": "winning_team_id must be home or away team"},
         )
+    bft = body.batting_first_team_id
+    if bft is not None and bft not in (m.home_team_id, m.away_team_id):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "batting_first_team_id must be home or away team"},
+        )
     if body.player_of_match_player_id is not None:
         p = db.get(Player, body.player_of_match_player_id)
         if p is None:
@@ -995,7 +1030,7 @@ def admin_set_match_result(
     m.status = "completed"
     db.execute(delete(MatchPlayerStat).where(MatchPlayerStat.match_id == m.id))
     for row in stats_in:
-        ovr = None if row.overs is None else Decimal(str(row.overs))
+        ovr = normalize_cricket_overs(row.overs)
         db.add(
             MatchPlayerStat(
                 match_id=m.id,
@@ -1338,14 +1373,7 @@ def admin_list_sponsors(
     )
     rows = list(db.execute(stmt).all())
     items = [
-        SponsorOut(
-            id=sp.id,
-            name=sp.name,
-            image_url=sp.image_url,
-            team_id=sp.team_id,
-            team_name=tn,
-            created_at=sp.created_at,
-        )
+        _sponsor_out(sp, tn)
         for sp, tn in rows
     ]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
@@ -1368,14 +1396,7 @@ def admin_get_sponsor(
     if found is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Sponsor not found"})
     sp, team_name = found[0], found[1]
-    return SponsorOut(
-        id=sp.id,
-        name=sp.name,
-        image_url=sp.image_url,
-        team_id=sp.team_id,
-        team_name=team_name,
-        created_at=sp.created_at,
-    )
+    return _sponsor_out(sp, team_name)
 
 
 @router.post("/sponsors", response_model=SponsorOut, status_code=status.HTTP_201_CREATED)
@@ -1392,6 +1413,7 @@ def admin_create_sponsor(
     sp = Sponsor(
         name=body.name.strip(),
         image_url=(body.image_url or "").strip(),
+        link_url=_normalize_sponsor_link_url(body.link_url),
         team_id=body.team_id,
     )
     db.add(sp)
@@ -1407,14 +1429,7 @@ def admin_create_sponsor(
         summary=sp.name,
     )
     db.commit()
-    return SponsorOut(
-        id=sp.id,
-        name=sp.name,
-        image_url=sp.image_url,
-        team_id=sp.team_id,
-        team_name=team_name,
-        created_at=sp.created_at,
-    )
+    return _sponsor_out(sp, team_name)
 
 
 @router.patch("/sponsors/{sponsor_id}", response_model=SponsorOut)
@@ -1437,6 +1452,8 @@ def admin_update_sponsor(
         sp.name = up["name"].strip()
     if "image_url" in up and up["image_url"] is not None:
         sp.image_url = up["image_url"].strip()
+    if "link_url" in up:
+        sp.link_url = _normalize_sponsor_link_url(up["link_url"])
     if "team_id" in up:
         sp.team_id = up["team_id"]
     db.commit()
@@ -1451,14 +1468,7 @@ def admin_update_sponsor(
         summary=sp.name,
     )
     db.commit()
-    return SponsorOut(
-        id=sp.id,
-        name=sp.name,
-        image_url=sp.image_url,
-        team_id=sp.team_id,
-        team_name=team_name,
-        created_at=sp.created_at,
-    )
+    return _sponsor_out(sp, team_name)
 
 
 @router.delete("/sponsors/{sponsor_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -1482,3 +1492,53 @@ def admin_delete_sponsor(
         summary=title,
     )
     db.commit()
+
+
+@router.get("/contact-messages", response_model=dict)
+def admin_list_contact_messages(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+    page_params: PageParams = Depends(),
+) -> dict:
+    stmt = select(ContactMessage).order_by(ContactMessage.created_at.desc())
+    rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
+    items = [ContactMessageOut.model_validate(r) for r in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.get("/contact-messages/{message_id}", response_model=ContactMessageOut)
+def admin_get_contact_message(
+    message_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> ContactMessageOut:
+    msg = db.get(ContactMessage, message_id)
+    if msg is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Contact message not found"})
+    return ContactMessageOut.model_validate(msg)
+
+
+@router.patch("/contact-messages/{message_id}", response_model=ContactMessageOut)
+def admin_update_contact_message(
+    message_id: int,
+    body: ContactMessageUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> ContactMessageOut:
+    msg = db.get(ContactMessage, message_id)
+    if msg is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Contact message not found"})
+    if body.read is not None:
+        msg.read_at = datetime.now(timezone.utc) if body.read else None
+    db.commit()
+    db.refresh(msg)
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="update",
+        entity_type="contact_message",
+        entity_id=msg.id,
+        summary=f"Marked {'read' if body.read else 'unread'}",
+    )
+    db.commit()
+    return ContactMessageOut.model_validate(msg)

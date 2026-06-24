@@ -3289,3 +3289,34 @@ video.article-view__hero-img {
 .media-url-field__url-input {
   max-width: none;
 }
+
+.innings-scorecard-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.innings-scorecard-panels__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.innings-scorecard-panels__h {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.match-stats-table__dismissal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 10rem;
+}
+
+.inline-edit__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

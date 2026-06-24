@@ -1,4 +1,5 @@
 import type { MatchLite } from './hooks'
+import { countsBattingInnings } from './cricket'
 import { sumTeamExtras } from './match-extras'
 
 export type StandingRow = {
@@ -133,10 +134,11 @@ export function computeSeasonStandings(
       if (!acc) continue
       const runs = num(row, 'runs')
       const ballsFaced = num(row, 'balls_faced')
+      const dismiss = typeof row.dismissal === 'string' ? row.dismissal : null
       const wk = num(row, 'wickets')
       const rCon = num(row, 'runs_conceded')
       const o = num(row, 'overs')
-      const isBatting = ballsFaced > 0 || runs > 0
+      const isBatting = countsBattingInnings(dismiss, runs, ballsFaced)
       const isBowling = o > 0 || wk > 0 || rCon > 0
       if (isBatting) {
         acc.runsFor += runs

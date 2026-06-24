@@ -43,6 +43,8 @@ class TeamBase(BaseModel):
     team_photo_urls: list[str] | None = None
     year_founded: int | None = None
     status: str = "active"
+    is_featured: bool = False
+    featured_sort_order: int | None = None
     social_links: dict | None = None
 
 
@@ -73,6 +75,8 @@ class TeamUpdate(BaseModel):
     team_photo_urls: list[str] | None = None
     year_founded: int | None = None
     status: str | None = None
+    is_featured: bool | None = None
+    featured_sort_order: int | None = None
     social_links: dict | None = None
 
 
@@ -105,4 +109,6 @@ class TeamOut(ORMModel):
     team_photo_urls: list[str] | None
     year_founded: int | None
     status: str
+    is_featured: bool = False
+    featured_sort_order: int | None = None
     social_links: dict | None

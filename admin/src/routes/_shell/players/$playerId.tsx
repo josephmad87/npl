@@ -20,6 +20,13 @@ import { SectionHintTip } from '@/components/SectionHintTip'
 import { StatusBadge } from '@/components/StatusBadge'
 import { normalizeCompetitionCategory } from '@/lib/competitionCategories'
 import { parseDetailRouteSearch } from '@/lib/detail-route-search'
+import {
+  countsBattingInnings,
+  formatCricketOvers,
+  formatDismissalDisplay,
+  isBattingOut,
+  oversFieldToBalls,
+} from '@/lib/cricket'
 
 export const Route = createFileRoute('/_shell/players/$playerId')({
   validateSearch: parseDetailRouteSearch,
@@ -31,21 +38,6 @@ const STATUSES = ['active', 'inactive', 'injured'] as const
 function fmtRate(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return '—'
   return n.toFixed(2)
-}
-
-function oversToBalls(overs: string | number | null | undefined): number {
-  if (overs == null) return 0
-  const raw = String(overs).trim()
-  if (!raw) return 0
-  if (!raw.includes('.')) {
-    const whole = Number(raw)
-    return Number.isFinite(whole) ? whole * 6 : 0
-  }
-  const [wholePart, fracPart = '0'] = raw.split('.')
-  const whole = Number(wholePart)
-  const balls = Number(fracPart.slice(0, 1))
-  if (!Number.isFinite(whole) || !Number.isFinite(balls)) return 0
-  return whole * 6 + Math.max(0, Math.min(5, balls))
 }
 
 function PlayerDetailPage() {
@@ -201,20 +193,18 @@ function PlayerDetailPage() {
         }
 
       next.matchIds.add(row.match_id)
-      next.runs += row.runs ?? 0
-      next.ballsFaced += row.balls_faced ?? 0
-      next.highestScore = Math.max(next.highestScore, row.runs ?? 0)
+      if (countsBattingInnings(row.dismissal, row.runs ?? 0, row.balls_faced ?? 0)) {
+        next.runs += row.runs ?? 0
+        next.ballsFaced += row.balls_faced ?? 0
+        next.highestScore = Math.max(next.highestScore, row.runs ?? 0)
+        if (isBattingOut(row.dismissal)) next.outs += 1
+      }
       next.wickets += row.wickets ?? 0
       next.runsConceded += row.runs_conceded ?? 0
-      next.bowlingBalls += oversToBalls(row.overs)
+      next.bowlingBalls += oversFieldToBalls(row.overs)
       next.catches += row.catches ?? 0
       next.stumpings += row.stumpings ?? 0
       if (row.player_of_match) next.potm += 1
-
-      const dismissal = (row.dismissal ?? '').trim().toLowerCase()
-      if (dismissal && dismissal !== 'not out' && dismissal !== 'retired hurt') {
-        next.outs += 1
-      }
 
       const wkts = row.wickets ?? 0
       const conceded = row.runs_conceded ?? 0
@@ -843,9 +833,11 @@ function PlayerDetailPage() {
                             <td>{row.balls_faced}</td>
                             <td>{row.fours}</td>
                             <td>{row.sixes}</td>
-                            <td>{row.dismissal ?? '—'}</td>
+                            <td>{formatDismissalDisplay(row.dismissal)}</td>
                             <td>
-                              {row.overs != null ? String(row.overs) : '—'}
+                              {row.overs != null
+                                ? formatCricketOvers(row.overs) || '—'
+                                : '—'}
                             </td>
                             <td>{row.maidens}</td>
                             <td>{row.runs_conceded}</td>

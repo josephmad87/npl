@@ -12,6 +12,7 @@ class Sponsor(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     image_url: Mapped[str] = mapped_column(String(1024), nullable=False, server_default="")
+    link_url: Mapped[str | None] = mapped_column(String(1024))
     team_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("teams.id", ondelete="SET NULL"),

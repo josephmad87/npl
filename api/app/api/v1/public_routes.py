@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.api.pagination import PageParams, paginate_select, to_paginated
 from app.db.session import get_db
 from app.models.about_content import AboutContent
+from app.models.contact_message import ContactMessage
 from app.models.article import Article
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season, SeasonTeam
@@ -16,6 +17,7 @@ from app.models.player import Player
 from app.models.sponsor import Sponsor
 from app.models.team import Team
 from app.schemas.about_content import AboutContentBody, AboutContentOut
+from app.schemas.contact_message import ContactMessageCreate, ContactMessageOut
 from app.schemas.articles import ArticleOut
 from app.schemas.gallery import GalleryItemOut
 from app.schemas.leagues import LeagueDetailPublicOut, LeagueOut
@@ -59,16 +61,23 @@ def list_teams(
     category: str | None = Query(default=None),
     q: str | None = Query(default=None, description="Search name or slug"),
     include_inactive: bool = Query(default=False),
+    featured: bool = Query(default=False),
 ) -> dict:
     stmt = select(Team)
-    if not include_inactive:
-        stmt = stmt.where(Team.status == "active")
-    if category:
+    if featured:
+        stmt = stmt.where(Team.is_featured.is_(True), Team.status == "active")
+        stmt = stmt.order_by(Team.featured_sort_order.asc().nulls_last(), Team.name)
+    else:
+        if not include_inactive:
+            stmt = stmt.where(Team.status == "active")
+        if category:
+            stmt = stmt.where(Team.category == category)
+        if q:
+            like = f"%{q}%"
+            stmt = stmt.where(or_(Team.name.ilike(like), Team.slug.ilike(like)))
+        stmt = stmt.order_by(Team.name)
+    if featured and category:
         stmt = stmt.where(Team.category == category)
-    if q:
-        like = f"%{q}%"
-        stmt = stmt.where(or_(Team.name.ilike(like), Team.slug.ilike(like)))
-    stmt = stmt.order_by(Team.name)
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
     items = [TeamOut.model_validate(r) for r in rows]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
@@ -509,6 +518,7 @@ def list_public_sponsors(
             id=sp.id,
             name=sp.name,
             image_url=sp.image_url,
+            link_url=sp.link_url,
             team_id=sp.team_id,
             team_name=tn,
             created_at=sp.created_at,
@@ -516,3 +526,20 @@ def list_public_sponsors(
         for sp, tn in rows
     ]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+
+@router.post("/contact", response_model=ContactMessageOut, status_code=status.HTTP_201_CREATED)
+def submit_contact_message(
+    body: ContactMessageCreate,
+    db: Session = Depends(get_db),
+) -> ContactMessageOut:
+    msg = ContactMessage(
+        full_name=body.full_name.strip(),
+        email=body.email.strip(),
+        phone=body.phone.strip() if body.phone and body.phone.strip() else None,
+        message=body.message.strip(),
+    )
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+    return ContactMessageOut.model_validate(msg)

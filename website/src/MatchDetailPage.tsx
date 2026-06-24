@@ -3,7 +3,9 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import nplLogoUrl from './assets/logo.png'
 import { ErrorNotice } from './components/ErrorNotice'
+import { InningsScorecardPanels } from './components/InningsScorecardPanels'
 import { Spinner } from './components/Spinner'
+import { getInningsSides, type InningsNumber } from './lib/cricket'
 import { formatCategoryLabel, formatMatchDate } from './lib/formatters'
 import { type MatchLite, useTeamsMap } from './lib/hooks'
 import {
@@ -15,6 +17,7 @@ import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicA
 
 type MatchResultDetail = {
   winning_team_id: number | null
+  batting_first_team_id: number | null
   margin_text: string | null
   score_summary: string | null
   innings_breakdown: string | null
@@ -162,7 +165,7 @@ function MatchCentreHeroLogo({ logoUrl, isWinner }: { logoUrl: string | null; is
 export default function MatchDetailPage() {
   const { matchId } = useParams({ from: '/matches/$matchId' })
   const { map: teamsMap } = useTeamsMap()
-  const [scorecardSide, setScorecardSide] = useState<'home' | 'away'>('home')
+  const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['match-detail', matchId],
@@ -207,22 +210,20 @@ export default function MatchDetailPage() {
   }, [homePlayersQ.data, awayPlayersQ.data])
 
   const playerStats = data?.player_stats ?? NO_PLAYER_STATS
-
-  const scorecardRows = useMemo(
-    () =>
-      playerStats
-        .filter((s) =>
-          scorecardSide === 'home'
-            ? s.team_id === (data?.home_team_id ?? -1)
-            : s.team_id === (data?.away_team_id ?? -1),
-        )
-        .sort((a, b) => {
-          const runsDelta = b.runs - a.runs
-          if (runsDelta !== 0) return runsDelta
-          return a.balls_faced - b.balls_faced
-        }),
-    [playerStats, scorecardSide, data?.home_team_id, data?.away_team_id],
-  )
+  const battingFirstTeamId = data?.result?.batting_first_team_id ?? null
+  const inningsExtrasLine = useMemo(() => {
+    if (!data?.result) return null
+    const sides = getInningsSides(
+      scorecardInnings,
+      battingFirstTeamId,
+      data.home_team_id,
+      data.away_team_id,
+    )
+    if (!sides) return null
+    const side =
+      sides.battingTeamId === data.home_team_id ? 'home' : 'away'
+    return formatExtrasBreakdown(data.result, side)
+  }, [data, scorecardInnings, battingFirstTeamId])
 
   const title = data
     ? `${homeName} vs ${awayName}`
@@ -230,9 +231,6 @@ export default function MatchDetailPage() {
   const matchLite = data as unknown as MatchLite
   const headerWinner = data ? matchWinnerSide(matchLite) : null
   const resultLine = data ? matchResultSummaryLine(matchLite) : null
-  const extrasLine = data?.result
-    ? formatExtrasBreakdown(data.result, scorecardSide)
-    : null
 
   const descriptionLine = useMemo(() => {
     if (!data) return ''
@@ -471,99 +469,46 @@ export default function MatchDetailPage() {
               <div
                 className="match-centre-tabs"
                 role="tablist"
-                aria-label="Scorecard by team"
+                aria-label="Scorecard innings"
               >
                 <button
                   type="button"
-                  className={
-                    scorecardSide === 'home' ? 'is-active' : ''
-                  }
-                  onClick={() => setScorecardSide('home')}
+                  className={scorecardInnings === 1 ? 'is-active' : ''}
+                  onClick={() => setScorecardInnings(1)}
                   role="tab"
-                  aria-selected={scorecardSide === 'home'}
+                  aria-selected={scorecardInnings === 1}
                 >
-                  {homeName}
-              </button>
+                  1st innings
+                </button>
                 <button
                   type="button"
-                  className={scorecardSide === 'away' ? 'is-active' : ''}
-                  onClick={() => setScorecardSide('away')}
+                  className={scorecardInnings === 2 ? 'is-active' : ''}
+                  onClick={() => setScorecardInnings(2)}
                   role="tab"
-                  aria-selected={scorecardSide === 'away'}
+                  aria-selected={scorecardInnings === 2}
                 >
-                  {awayName}
-              </button>
+                  2nd innings
+                </button>
               </div>
             </div>
             {playersLoading ? (
               <p className="match-centre-muted">Loading player names…</p>
             ) : null}
-            {extrasLine ? (
-              <p className="match-centre-muted">{extrasLine}</p>
-            ) : null}
             {playerStats.length > 0 ? (
-              <div className="match-centre-table-wrap">
-                <table className="match-centre-stat-table">
-                <thead>
-                  <tr>
-                      <th>Player</th>
-                      <th>Side</th>
-                      <th>R</th>
-                      <th>BF</th>
-                    <th>4s</th>
-                    <th>6s</th>
-                      <th>How out</th>
-                      <th>Ov</th>
-                      <th>M</th>
-                      <th>Conc</th>
-                      <th>W</th>
-                      <th>Ct</th>
-                      <th>St</th>
-                      <th>RO</th>
-                      <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                    {scorecardRows.map((s) => (
-                      <tr key={s.id}>
-                        <td>
-                          {playerById.get(s.player_id) ?? `#${s.player_id}`}
-                        </td>
-                        <td>
-                          {s.team_id === data.home_team_id
-                            ? homeName
-                            : s.team_id === data.away_team_id
-                              ? awayName
-                              : `#${s.team_id}`}
-                        </td>
-                        <td>{s.runs}</td>
-                        <td>{s.balls_faced}</td>
-                        <td>{s.fours}</td>
-                        <td>{s.sixes}</td>
-                        <td>{s.dismissal ?? '—'}</td>
-                        <td>
-                          {s.overs != null && s.overs !== ''
-                            ? String(s.overs)
-                            : '—'}
-                        </td>
-                        <td>{s.maidens}</td>
-                        <td>{s.runs_conceded}</td>
-                        <td>{s.wickets}</td>
-                        <td>{s.catches}</td>
-                        <td>{s.stumpings}</td>
-                        <td>{s.run_outs}</td>
-                        <td>{s.notes?.trim() ? s.notes : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
+              <InningsScorecardPanels
+                innings={scorecardInnings}
+                battingFirstTeamId={battingFirstTeamId}
+                homeTeamId={data.home_team_id}
+                awayTeamId={data.away_team_id}
+                homeLabel={homeName}
+                awayLabel={awayName}
+                stats={playerStats}
+                playerName={(id) => playerById.get(id) ?? `#${id}`}
+                extrasLine={inningsExtrasLine}
+              />
             ) : (
               <p className="match-centre-muted">No per-player rows yet.</p>
             )}
-            {playerStats.length > 0 && scorecardRows.length === 0 ? (
-              <p className="match-centre-muted">No scorecard rows for this side yet.</p>
-        ) : null}
           </section>
       </section>
     </main>

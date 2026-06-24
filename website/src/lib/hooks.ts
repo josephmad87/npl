@@ -109,6 +109,21 @@ async function fetchLeagues(): Promise<LeagueLite[]> {
   return extractList<LeagueLite>(payload)
 }
 
+export function useFeaturedTeams(category?: string) {
+  const suffix = category
+    ? `&category=${encodeURIComponent(category)}`
+    : ''
+  return useQuery({
+    queryKey: ['featured-teams', category ?? 'all'],
+    queryFn: () =>
+      fetchAllPaginatedList<TeamLite>(
+        (page) =>
+          `/public/teams?page=${page}&page_size=24&featured=true${suffix}`,
+      ),
+    retry: 1,
+  })
+}
+
 export function useTeamsMap() {
   const query = useQuery({
     queryKey: ['teams-map'],

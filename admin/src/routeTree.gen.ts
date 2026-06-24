@@ -23,6 +23,7 @@ import { Route as ShellNewsIndexRouteImport } from './routes/_shell/news/index'
 import { Route as ShellMatchesIndexRouteImport } from './routes/_shell/matches/index'
 import { Route as ShellLeaguesIndexRouteImport } from './routes/_shell/leagues/index'
 import { Route as ShellGalleryIndexRouteImport } from './routes/_shell/gallery/index'
+import { Route as ShellContactMessagesIndexRouteImport } from './routes/_shell/contact-messages/index'
 import { Route as ShellAuditIndexRouteImport } from './routes/_shell/audit/index'
 import { Route as ShellAboutIndexRouteImport } from './routes/_shell/about/index'
 import { Route as ShellUsersNewRouteImport } from './routes/_shell/users/new'
@@ -42,6 +43,7 @@ import { Route as ShellLeaguesNewRouteImport } from './routes/_shell/leagues/new
 import { Route as ShellLeaguesLeagueIdRouteImport } from './routes/_shell/leagues/$leagueId'
 import { Route as ShellGalleryNewRouteImport } from './routes/_shell/gallery/new'
 import { Route as ShellGalleryGalleryIdRouteImport } from './routes/_shell/gallery/$galleryId'
+import { Route as ShellContactMessagesMessageIdRouteImport } from './routes/_shell/contact-messages/$messageId'
 import { Route as ShellAuditAuditIdRouteImport } from './routes/_shell/audit/$auditId'
 import { Route as ShellLeaguesLeagueIdSeasonsIndexRouteImport } from './routes/_shell/leagues/$leagueId/seasons/index'
 import { Route as ShellLeaguesLeagueIdSeasonsNewRouteImport } from './routes/_shell/leagues/$leagueId/seasons/new'
@@ -116,6 +118,12 @@ const ShellGalleryIndexRoute = ShellGalleryIndexRouteImport.update({
   path: '/gallery/',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellContactMessagesIndexRoute =
+  ShellContactMessagesIndexRouteImport.update({
+    id: '/contact-messages/',
+    path: '/contact-messages/',
+    getParentRoute: () => ShellRoute,
+  } as any)
 const ShellAuditIndexRoute = ShellAuditIndexRouteImport.update({
   id: '/audit/',
   path: '/audit/',
@@ -211,6 +219,12 @@ const ShellGalleryGalleryIdRoute = ShellGalleryGalleryIdRouteImport.update({
   path: '/gallery/$galleryId',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellContactMessagesMessageIdRoute =
+  ShellContactMessagesMessageIdRouteImport.update({
+    id: '/contact-messages/$messageId',
+    path: '/contact-messages/$messageId',
+    getParentRoute: () => ShellRoute,
+  } as any)
 const ShellAuditAuditIdRoute = ShellAuditAuditIdRouteImport.update({
   id: '/audit/$auditId',
   path: '/audit/$auditId',
@@ -241,6 +255,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof ShellSettingsRouteRouteWithChildren
   '/profile': typeof ShellProfileRoute
   '/audit/$auditId': typeof ShellAuditAuditIdRoute
+  '/contact-messages/$messageId': typeof ShellContactMessagesMessageIdRoute
   '/gallery/$galleryId': typeof ShellGalleryGalleryIdRoute
   '/gallery/new': typeof ShellGalleryNewRoute
   '/leagues/$leagueId': typeof ShellLeaguesLeagueIdRouteWithChildren
@@ -260,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/users/new': typeof ShellUsersNewRoute
   '/about/': typeof ShellAboutIndexRoute
   '/audit/': typeof ShellAuditIndexRoute
+  '/contact-messages/': typeof ShellContactMessagesIndexRoute
   '/gallery/': typeof ShellGalleryIndexRoute
   '/leagues/': typeof ShellLeaguesIndexRoute
   '/matches/': typeof ShellMatchesIndexRoute
@@ -278,6 +294,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ShellProfileRoute
   '/': typeof ShellIndexRoute
   '/audit/$auditId': typeof ShellAuditAuditIdRoute
+  '/contact-messages/$messageId': typeof ShellContactMessagesMessageIdRoute
   '/gallery/$galleryId': typeof ShellGalleryGalleryIdRoute
   '/gallery/new': typeof ShellGalleryNewRoute
   '/leagues/$leagueId': typeof ShellLeaguesLeagueIdRouteWithChildren
@@ -297,6 +314,7 @@ export interface FileRoutesByTo {
   '/users/new': typeof ShellUsersNewRoute
   '/about': typeof ShellAboutIndexRoute
   '/audit': typeof ShellAuditIndexRoute
+  '/contact-messages': typeof ShellContactMessagesIndexRoute
   '/gallery': typeof ShellGalleryIndexRoute
   '/leagues': typeof ShellLeaguesIndexRoute
   '/matches': typeof ShellMatchesIndexRoute
@@ -318,6 +336,7 @@ export interface FileRoutesById {
   '/_shell/profile': typeof ShellProfileRoute
   '/_shell/': typeof ShellIndexRoute
   '/_shell/audit/$auditId': typeof ShellAuditAuditIdRoute
+  '/_shell/contact-messages/$messageId': typeof ShellContactMessagesMessageIdRoute
   '/_shell/gallery/$galleryId': typeof ShellGalleryGalleryIdRoute
   '/_shell/gallery/new': typeof ShellGalleryNewRoute
   '/_shell/leagues/$leagueId': typeof ShellLeaguesLeagueIdRouteWithChildren
@@ -337,6 +356,7 @@ export interface FileRoutesById {
   '/_shell/users/new': typeof ShellUsersNewRoute
   '/_shell/about/': typeof ShellAboutIndexRoute
   '/_shell/audit/': typeof ShellAuditIndexRoute
+  '/_shell/contact-messages/': typeof ShellContactMessagesIndexRoute
   '/_shell/gallery/': typeof ShellGalleryIndexRoute
   '/_shell/leagues/': typeof ShellLeaguesIndexRoute
   '/_shell/matches/': typeof ShellMatchesIndexRoute
@@ -358,6 +378,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/profile'
     | '/audit/$auditId'
+    | '/contact-messages/$messageId'
     | '/gallery/$galleryId'
     | '/gallery/new'
     | '/leagues/$leagueId'
@@ -377,6 +398,7 @@ export interface FileRouteTypes {
     | '/users/new'
     | '/about/'
     | '/audit/'
+    | '/contact-messages/'
     | '/gallery/'
     | '/leagues/'
     | '/matches/'
@@ -395,6 +417,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/'
     | '/audit/$auditId'
+    | '/contact-messages/$messageId'
     | '/gallery/$galleryId'
     | '/gallery/new'
     | '/leagues/$leagueId'
@@ -414,6 +437,7 @@ export interface FileRouteTypes {
     | '/users/new'
     | '/about'
     | '/audit'
+    | '/contact-messages'
     | '/gallery'
     | '/leagues'
     | '/matches'
@@ -434,6 +458,7 @@ export interface FileRouteTypes {
     | '/_shell/profile'
     | '/_shell/'
     | '/_shell/audit/$auditId'
+    | '/_shell/contact-messages/$messageId'
     | '/_shell/gallery/$galleryId'
     | '/_shell/gallery/new'
     | '/_shell/leagues/$leagueId'
@@ -453,6 +478,7 @@ export interface FileRouteTypes {
     | '/_shell/users/new'
     | '/_shell/about/'
     | '/_shell/audit/'
+    | '/_shell/contact-messages/'
     | '/_shell/gallery/'
     | '/_shell/leagues/'
     | '/_shell/matches/'
@@ -570,6 +596,13 @@ declare module '@tanstack/react-router' {
       path: '/gallery'
       fullPath: '/gallery/'
       preLoaderRoute: typeof ShellGalleryIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/contact-messages/': {
+      id: '/_shell/contact-messages/'
+      path: '/contact-messages'
+      fullPath: '/contact-messages/'
+      preLoaderRoute: typeof ShellContactMessagesIndexRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/audit/': {
@@ -705,6 +738,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellGalleryGalleryIdRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/contact-messages/$messageId': {
+      id: '/_shell/contact-messages/$messageId'
+      path: '/contact-messages/$messageId'
+      fullPath: '/contact-messages/$messageId'
+      preLoaderRoute: typeof ShellContactMessagesMessageIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/audit/$auditId': {
       id: '/_shell/audit/$auditId'
       path: '/audit/$auditId'
@@ -770,6 +810,7 @@ interface ShellRouteChildren {
   ShellProfileRoute: typeof ShellProfileRoute
   ShellIndexRoute: typeof ShellIndexRoute
   ShellAuditAuditIdRoute: typeof ShellAuditAuditIdRoute
+  ShellContactMessagesMessageIdRoute: typeof ShellContactMessagesMessageIdRoute
   ShellGalleryGalleryIdRoute: typeof ShellGalleryGalleryIdRoute
   ShellGalleryNewRoute: typeof ShellGalleryNewRoute
   ShellLeaguesLeagueIdRoute: typeof ShellLeaguesLeagueIdRouteWithChildren
@@ -788,6 +829,7 @@ interface ShellRouteChildren {
   ShellUsersNewRoute: typeof ShellUsersNewRoute
   ShellAboutIndexRoute: typeof ShellAboutIndexRoute
   ShellAuditIndexRoute: typeof ShellAuditIndexRoute
+  ShellContactMessagesIndexRoute: typeof ShellContactMessagesIndexRoute
   ShellGalleryIndexRoute: typeof ShellGalleryIndexRoute
   ShellLeaguesIndexRoute: typeof ShellLeaguesIndexRoute
   ShellMatchesIndexRoute: typeof ShellMatchesIndexRoute
@@ -803,6 +845,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellProfileRoute: ShellProfileRoute,
   ShellIndexRoute: ShellIndexRoute,
   ShellAuditAuditIdRoute: ShellAuditAuditIdRoute,
+  ShellContactMessagesMessageIdRoute: ShellContactMessagesMessageIdRoute,
   ShellGalleryGalleryIdRoute: ShellGalleryGalleryIdRoute,
   ShellGalleryNewRoute: ShellGalleryNewRoute,
   ShellLeaguesLeagueIdRoute: ShellLeaguesLeagueIdRouteWithChildren,
@@ -821,6 +864,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellUsersNewRoute: ShellUsersNewRoute,
   ShellAboutIndexRoute: ShellAboutIndexRoute,
   ShellAuditIndexRoute: ShellAuditIndexRoute,
+  ShellContactMessagesIndexRoute: ShellContactMessagesIndexRoute,
   ShellGalleryIndexRoute: ShellGalleryIndexRoute,
   ShellLeaguesIndexRoute: ShellLeaguesIndexRoute,
   ShellMatchesIndexRoute: ShellMatchesIndexRoute,

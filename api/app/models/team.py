@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -39,6 +39,8 @@ class Team(Base):
     team_photo_urls: Mapped[list[str] | None] = mapped_column(JSON)
     year_founded: Mapped[int | None] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False, index=True)
+    is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    featured_sort_order: Mapped[int | None] = mapped_column(Integer)
     social_links: Mapped[dict | None] = mapped_column(JSON)
 
     players: Mapped[list["Player"]] = relationship(

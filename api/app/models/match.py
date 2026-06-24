@@ -52,6 +52,10 @@ class MatchResult(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     match_id: Mapped[int] = mapped_column(ForeignKey("matches.id", ondelete="CASCADE"), unique=True, nullable=False)
     winning_team_id: Mapped[int | None] = mapped_column(ForeignKey("teams.id", ondelete="SET NULL"))
+    batting_first_team_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teams.id", ondelete="SET NULL"),
+        index=True,
+    )
     margin_text: Mapped[str | None] = mapped_column(String(255))
     score_summary: Mapped[str | None] = mapped_column(String(512))
     innings_breakdown: Mapped[str | None] = mapped_column(Text)

@@ -11,6 +11,13 @@ import { useCallback, useMemo, useState } from 'react'
 import type { MatchDto, MatchPlayerStatDto, PlayerDto } from '@/lib/api-types'
 import { adminPost } from '@/lib/admin-client'
 import { invalidateCompetitionDataQueries } from '@/lib/invalidate-competition-data'
+import {
+  getInningsSides,
+  isDidNotBat,
+  normalizeCricketOversInput,
+  type InningsNumber,
+} from '@/lib/cricket'
+import { DismissalField } from '@/components/DismissalField'
 
 type ExtrasFields = {
   wides: number
@@ -148,7 +155,24 @@ export function MatchResultEditor({
       ? String(res.player_of_match_player_id)
       : '',
   )
+  const [battingFirstTeamId, setBattingFirstTeamId] = useState(
+    res?.batting_first_team_id != null
+      ? String(res.batting_first_team_id)
+      : String(match.home_team_id),
+  )
   const [matchReport, setMatchReport] = useState(res?.match_report ?? '')
+
+  const [inningsTab, setInningsTab] = useState<InningsNumber>(1)
+
+  const battingFirstId = battingFirstTeamId
+    ? Number(battingFirstTeamId)
+    : null
+  const inningsSides = getInningsSides(
+    inningsTab,
+    battingFirstId,
+    match.home_team_id,
+    match.away_team_id,
+  )
 
   const [homeExtras, setHomeExtras] = useState<ExtrasFields>(() =>
     extrasFromResult(res, 'home'),
@@ -172,24 +196,47 @@ export function MatchResultEditor({
 
   const pomOptions = useMemo(() => rosterPlayers, [rosterPlayers])
 
-  const addBlankRow = useCallback(() => {
-    setStatRows((prev) => [...prev, emptyRow(match.home_team_id)])
-  }, [match.home_team_id])
+  const rosterForTeam = useCallback(
+    (teamId: number) => rosterPlayers.filter((p) => p.team_id === teamId),
+    [rosterPlayers],
+  )
 
-  const fillRoster = useCallback(() => {
-    setStatRows((prev) => {
-      const used = new Set(
-        prev.map((r) => r.player_id).filter((id) => id > 0),
-      )
-      const additions = rosterPlayers
-        .filter((p) => !used.has(p.id))
-        .map((p) => ({
-          ...emptyRow(p.team_id),
-          player_id: p.id,
-        }))
-      return [...prev, ...additions]
-    })
-  }, [rosterPlayers])
+  const findRowByPlayer = useCallback(
+    (playerId: number) => statRows.find((r) => r.player_id === playerId),
+    [statRows],
+  )
+
+  const addBattingRow = useCallback(
+    (teamId: number) => {
+      setStatRows((prev) => [...prev, emptyRow(teamId)])
+    },
+    [],
+  )
+
+  const addBowlingRow = useCallback(
+    (teamId: number) => {
+      setStatRows((prev) => [...prev, emptyRow(teamId)])
+    },
+    [],
+  )
+
+  const fillRosterForTeam = useCallback(
+    (teamId: number) => {
+      setStatRows((prev) => {
+        const used = new Set(
+          prev.map((r) => r.player_id).filter((id) => id > 0),
+        )
+        const additions = rosterForTeam(teamId)
+          .filter((p) => !used.has(p.id))
+          .map((p) => ({
+            ...emptyRow(teamId),
+            player_id: p.id,
+          }))
+        return [...prev, ...additions]
+      })
+    },
+    [rosterForTeam],
+  )
 
   const removeRow = useCallback((key: string) => {
     setStatRows((prev) => prev.filter((r) => r.key !== key))
@@ -221,16 +268,17 @@ export function MatchResultEditor({
     setSaving(true)
     try {
       const player_stats = validRows.map((r, idx) => {
-        const ov = r.overs.trim()
+        const ov = normalizeCricketOversInput(r.overs)
+        const dismissal = r.dismissal.trim()
         return {
           player_id: r.player_id,
           team_id: r.team_id,
           lineup_order: idx,
-          runs: r.runs,
-          balls_faced: r.balls_faced,
-          fours: r.fours,
-          sixes: r.sixes,
-          dismissal: r.dismissal.trim() || null,
+          runs: isDidNotBat(dismissal) ? 0 : r.runs,
+          balls_faced: isDidNotBat(dismissal) ? 0 : r.balls_faced,
+          fours: isDidNotBat(dismissal) ? 0 : r.fours,
+          sixes: isDidNotBat(dismissal) ? 0 : r.sixes,
+          dismissal: dismissal || null,
           overs: ov === '' ? null : Number(ov),
           maidens: r.maidens,
           runs_conceded: r.runs_conceded,
@@ -250,6 +298,7 @@ export function MatchResultEditor({
       }
       await adminPost<MatchDto>(`/admin/matches/${matchId}/result`, {
         winning_team_id: winningTeamId ? Number(winningTeamId) : null,
+        batting_first_team_id: battingFirstId,
         margin_text: marginText.trim() || null,
         score_summary: scoreSummary.trim() || null,
         innings_breakdown: inningsBreakdown.trim() || null,
@@ -293,6 +342,17 @@ export function MatchResultEditor({
       <section className="match-result-editor__section">
         <h2 className="match-result-editor__h">Match summary</h2>
         <div className="match-result-editor__grid">
+          <label className="match-result-editor__field">
+            <span>Team batting first</span>
+            <select
+              className="inline-edit__control"
+              value={battingFirstTeamId}
+              onChange={(e) => setBattingFirstTeamId(e.target.value)}
+            >
+              <option value={String(match.home_team_id)}>{homeLabel}</option>
+              <option value={String(match.away_team_id)}>{awayLabel}</option>
+            </select>
+          </label>
           <label className="match-result-editor__field">
             <span>Winning side</span>
             <select
@@ -417,256 +477,398 @@ export function MatchResultEditor({
       <section className="match-result-editor__section">
         <div className="match-result-editor__section-head">
           <h2 className="match-result-editor__h">Player scorecard</h2>
-          <div className="match-result-editor__toolbar">
-            <button
-              type="button"
-              className="btn-ghost btn--with-icon"
-              onClick={addBlankRow}
-            >
-              <Plus size={18} strokeWidth={2} aria-hidden />
-              Add row
-            </button>
-            <button
-              type="button"
-              className="btn-ghost btn--with-icon"
-              onClick={fillRoster}
-            >
-              <UserPlus size={18} strokeWidth={2} aria-hidden />
-              Add all roster players
-            </button>
-          </div>
         </div>
-        <div className="table-scroll match-stats-scroll">
-          <table className="data-table match-stats-table">
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Side</th>
-                <th>R</th>
-                <th>BF</th>
-                <th>4s</th>
-                <th>6s</th>
-                <th>How out</th>
-                <th>Ov</th>
-                <th>M</th>
-                <th>Conc</th>
-                <th>W</th>
-                <th>Ct</th>
-                <th>St</th>
-                <th>RO</th>
-                <th>Notes</th>
-                <th className="match-stats-table__remove-col" aria-label="Remove row" />
-              </tr>
-            </thead>
-            <tbody>
-              {statRows.map((row) => (
-                <tr key={row.key}>
-                  <td>
-                    <select
-                      className="inline-edit__control match-stats-table__select"
-                      value={row.player_id || ''}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          player_id: Number(e.target.value),
-                        })
-                      }
-                    >
-                      <option value="">— Select —</option>
-                      {rosterPlayers.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.full_name}
-                        </option>
+        <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Innings">
+          <button
+            type="button"
+            className={`dashboard-match-panel__tab${inningsTab === 1 ? ' is-active' : ''}`}
+            onClick={() => setInningsTab(1)}
+            role="tab"
+            aria-selected={inningsTab === 1}
+          >
+            1st innings
+          </button>
+          <button
+            type="button"
+            className={`dashboard-match-panel__tab${inningsTab === 2 ? ' is-active' : ''}`}
+            onClick={() => setInningsTab(2)}
+            role="tab"
+            aria-selected={inningsTab === 2}
+          >
+            2nd innings
+          </button>
+        </div>
+        {!inningsSides ? (
+          <p className="muted">Select which team batted first above.</p>
+        ) : (
+          <div className="innings-scorecard-panels">
+            <section className="innings-scorecard-panels__section">
+              <div className="match-result-editor__section-head">
+                <h3 className="innings-scorecard-panels__h">
+                  Batting —{' '}
+                  {inningsSides.battingTeamId === match.home_team_id
+                    ? homeLabel
+                    : awayLabel}
+                </h3>
+                <div className="match-result-editor__toolbar">
+                  <button
+                    type="button"
+                    className="btn-ghost btn--with-icon"
+                    onClick={() => addBattingRow(inningsSides.battingTeamId)}
+                  >
+                    <Plus size={18} strokeWidth={2} aria-hidden />
+                    Add row
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost btn--with-icon"
+                    onClick={() => fillRosterForTeam(inningsSides.battingTeamId)}
+                  >
+                    <UserPlus size={18} strokeWidth={2} aria-hidden />
+                    Add all roster
+                  </button>
+                </div>
+              </div>
+              <div className="table-scroll match-stats-scroll">
+                <table className="data-table match-stats-table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>R</th>
+                      <th>BF</th>
+                      <th>4s</th>
+                      <th>6s</th>
+                      <th>How out</th>
+                      <th className="match-stats-table__remove-col" aria-label="Remove row" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statRows
+                      .filter((r) => r.team_id === inningsSides.battingTeamId)
+                      .map((row) => (
+                        <tr key={row.key}>
+                          <td>
+                            <select
+                              className="inline-edit__control match-stats-table__select"
+                              value={row.player_id || ''}
+                              onChange={(e) => {
+                                const pid = Number(e.target.value)
+                                const existing = findRowByPlayer(pid)
+                                if (
+                                  pid > 0 &&
+                                  existing &&
+                                  existing.key !== row.key
+                                ) {
+                                  setSaveError(
+                                    'Each player can appear only once in the scorecard.',
+                                  )
+                                  return
+                                }
+                                setSaveError(null)
+                                updateRow(row.key, { player_id: pid })
+                              }}
+                            >
+                              <option value="">— Select —</option>
+                              {rosterForTeam(inningsSides.battingTeamId).map(
+                                (p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.full_name}
+                                  </option>
+                                ),
+                              )}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.runs}
+                              disabled={isDidNotBat(row.dismissal)}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  runs: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.balls_faced}
+                              disabled={isDidNotBat(row.dismissal)}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  balls_faced: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.fours}
+                              disabled={isDidNotBat(row.dismissal)}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  fours: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.sixes}
+                              disabled={isDidNotBat(row.dismissal)}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  sixes: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <DismissalField
+                              value={row.dismissal}
+                              onChange={(dismissal) =>
+                                updateRow(row.key, {
+                                  dismissal,
+                                  ...(isDidNotBat(dismissal)
+                                    ? {
+                                        runs: 0,
+                                        balls_faced: 0,
+                                        fours: 0,
+                                        sixes: 0,
+                                      }
+                                    : {}),
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="match-stats-table__remove-col">
+                            <button
+                              type="button"
+                              className="btn-ghost btn--with-icon match-stats-table__remove-btn"
+                              onClick={() => removeRow(row.key)}
+                            >
+                              <Trash2 size={16} strokeWidth={2} aria-hidden />
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
                       ))}
-                    </select>
-                  </td>
-                  <td>
-                    <select
-                      className="inline-edit__control match-stats-table__select"
-                      value={row.team_id}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          team_id: Number(e.target.value),
-                        })
-                      }
-                    >
-                      <option value={match.home_team_id}>{homeLabel}</option>
-                      <option value={match.away_team_id}>{awayLabel}</option>
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.runs}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          runs: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.balls_faced}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          balls_faced: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.fours}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          fours: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.sixes}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          sixes: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="inline-edit__control match-stats-table__dismissal"
-                      value={row.dismissal}
-                      onChange={(e) =>
-                        updateRow(row.key, { dismissal: e.target.value })
-                      }
-                      placeholder="not out"
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.overs}
-                      onChange={(e) =>
-                        updateRow(row.key, { overs: e.target.value })
-                      }
-                      placeholder="4.0"
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.maidens}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          maidens: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.runs_conceded}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          runs_conceded: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.wickets}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          wickets: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.catches}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          catches: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.stumpings}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          stumpings: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min={0}
-                      className="inline-edit__control match-stats-table__num"
-                      value={row.run_outs}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          run_outs: Number(e.target.value) || 0,
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="inline-edit__control match-stats-table__notes"
-                      value={row.notes}
-                      onChange={(e) =>
-                        updateRow(row.key, { notes: e.target.value })
-                      }
-                    />
-                  </td>
-                  <td className="match-stats-table__remove-col">
-                    <button
-                      type="button"
-                      className="btn-ghost btn--with-icon match-stats-table__remove-btn"
-                      onClick={() => removeRow(row.key)}
-                    >
-                      <Trash2 size={16} strokeWidth={2} aria-hidden />
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            <section className="innings-scorecard-panels__section">
+              <div className="match-result-editor__section-head">
+                <h3 className="innings-scorecard-panels__h">
+                  Bowling —{' '}
+                  {inningsSides.bowlingTeamId === match.home_team_id
+                    ? homeLabel
+                    : awayLabel}
+                </h3>
+                <div className="match-result-editor__toolbar">
+                  <button
+                    type="button"
+                    className="btn-ghost btn--with-icon"
+                    onClick={() => addBowlingRow(inningsSides.bowlingTeamId)}
+                  >
+                    <Plus size={18} strokeWidth={2} aria-hidden />
+                    Add row
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost btn--with-icon"
+                    onClick={() => fillRosterForTeam(inningsSides.bowlingTeamId)}
+                  >
+                    <UserPlus size={18} strokeWidth={2} aria-hidden />
+                    Add all roster
+                  </button>
+                </div>
+              </div>
+              <div className="table-scroll match-stats-scroll">
+                <table className="data-table match-stats-table">
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Ov</th>
+                      <th>M</th>
+                      <th>Conc</th>
+                      <th>W</th>
+                      <th>Ct</th>
+                      <th>St</th>
+                      <th>RO</th>
+                      <th>Notes</th>
+                      <th className="match-stats-table__remove-col" aria-label="Remove row" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statRows
+                      .filter((r) => r.team_id === inningsSides.bowlingTeamId)
+                      .map((row) => (
+                        <tr key={row.key}>
+                          <td>
+                            <select
+                              className="inline-edit__control match-stats-table__select"
+                              value={row.player_id || ''}
+                              onChange={(e) => {
+                                const pid = Number(e.target.value)
+                                const existing = findRowByPlayer(pid)
+                                if (
+                                  pid > 0 &&
+                                  existing &&
+                                  existing.key !== row.key
+                                ) {
+                                  setSaveError(
+                                    'Each player can appear only once in the scorecard.',
+                                  )
+                                  return
+                                }
+                                setSaveError(null)
+                                updateRow(row.key, { player_id: pid })
+                              }}
+                            >
+                              <option value="">— Select —</option>
+                              {rosterForTeam(inningsSides.bowlingTeamId).map(
+                                (p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.full_name}
+                                  </option>
+                                ),
+                              )}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.overs}
+                              onChange={(e) =>
+                                updateRow(row.key, { overs: e.target.value })
+                              }
+                              onBlur={(e) =>
+                                updateRow(row.key, {
+                                  overs: normalizeCricketOversInput(
+                                    e.target.value,
+                                  ),
+                                })
+                              }
+                              placeholder="4.0"
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.maidens}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  maidens: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.runs_conceded}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  runs_conceded: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.wickets}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  wickets: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.catches}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  catches: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.stumpings}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  stumpings: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              className="inline-edit__control match-stats-table__num"
+                              value={row.run_outs}
+                              onChange={(e) =>
+                                updateRow(row.key, {
+                                  run_outs: Number(e.target.value) || 0,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="inline-edit__control match-stats-table__notes"
+                              value={row.notes}
+                              onChange={(e) =>
+                                updateRow(row.key, { notes: e.target.value })
+                              }
+                            />
+                          </td>
+                          <td className="match-stats-table__remove-col">
+                            <button
+                              type="button"
+                              className="btn-ghost btn--with-icon match-stats-table__remove-btn"
+                              onClick={() => removeRow(row.key)}
+                            >
+                              <Trash2 size={16} strokeWidth={2} aria-hidden />
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        )}
       </section>
 
       <div className="match-result-editor__actions">

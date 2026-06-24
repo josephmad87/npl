@@ -33,6 +33,8 @@ export type TeamDto = {
   trophies?: string[] | null
   team_photo_urls?: string[] | null
   status: string
+  is_featured?: boolean
+  featured_sort_order?: number | null
 }
 
 export type PlayerDto = {
@@ -137,6 +139,7 @@ export type MatchResultDto = {
   id: number
   match_id: number
   winning_team_id: number | null
+  batting_first_team_id: number | null
   margin_text: string | null
   score_summary: string | null
   innings_breakdown: string | null
@@ -272,9 +275,20 @@ export type SponsorDto = {
   id: number
   name: string
   image_url: string
+  link_url: string | null
   team_id: number | null
   team_name: string | null
   created_at: string
+}
+
+export type ContactMessageDto = {
+  id: number
+  full_name: string
+  email: string
+  phone: string | null
+  message: string
+  created_at: string
+  read_at: string | null
 }
 
 export type PlatformSettingsDto = {

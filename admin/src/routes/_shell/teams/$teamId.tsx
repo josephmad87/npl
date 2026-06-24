@@ -307,6 +307,8 @@ function TeamDetailPage() {
         history: merged.history ?? null,
         trophies: merged.trophies ?? null,
         status: merged.status,
+        is_featured: merged.is_featured ?? false,
+        featured_sort_order: merged.featured_sort_order ?? null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams', tid] })
@@ -699,6 +701,44 @@ function TeamDetailPage() {
               ),
             },
             {
+              id: 'is_featured',
+              label: 'Featured on homepage',
+              control: (
+                <label className="inline-edit__checkbox">
+                  <input
+                    id="is_featured"
+                    type="checkbox"
+                    checked={merged.is_featured ?? false}
+                    onChange={(e) =>
+                      setPatch((p) => ({ ...p, is_featured: e.target.checked }))
+                    }
+                  />
+                  <span>Show in featured teams carousel</span>
+                </label>
+              ),
+            },
+            {
+              id: 'featured_sort_order',
+              label: 'Featured sort order',
+              control: (
+                <input
+                  id="featured_sort_order"
+                  type="number"
+                  min={0}
+                  className="inline-edit__control"
+                  value={merged.featured_sort_order ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value.trim()
+                    setPatch((p) => ({
+                      ...p,
+                      featured_sort_order: v === '' ? null : Number(v),
+                    }))
+                  }}
+                  placeholder="Lower appears first"
+                />
+              ),
+            },
+            {
               id: 'status',
               label: 'Status',
               control: (
@@ -955,6 +995,19 @@ function TeamDetailPage() {
                       (team.team_photo_urls ?? []).length > 0
                         ? `${team.team_photo_urls?.length ?? 0} URL(s)`
                         : '—',
+                  },
+                  {
+                    label: 'Featured',
+                    value: team.is_featured ? (
+                      <>
+                        Yes
+                        {team.featured_sort_order != null
+                          ? ` (order ${team.featured_sort_order})`
+                          : ''}
+                      </>
+                    ) : (
+                      'No'
+                    ),
                   },
                   {
                     label: 'Status',

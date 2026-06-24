@@ -11,7 +11,7 @@ import { MatchCarousel } from './components/MatchCarousel'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
-import { useLatestResults, useRecentNews, useTeamsMap, useUpcomingFixtures } from './lib/hooks'
+import { useLatestResults, useRecentNews, useFeaturedTeams, useTeamsMap, useUpcomingFixtures } from './lib/hooks'
 import { extractList, fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type GalleryItem = GalleryLightboxItem
@@ -19,6 +19,7 @@ type PublicSponsor = {
   id: number
   name: string
   image_url: string
+  link_url: string | null
   team_id: number | null
   team_name: string | null
 }
@@ -43,7 +44,8 @@ function App() {
   const { data: newsArticles = [] } = useRecentNews(36)
   const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 6)
   const { data: latestResults = [] } = useLatestResults(undefined, 6)
-  const { data: teams = [], map: teamsMap } = useTeamsMap()
+  const { map: teamsMap } = useTeamsMap()
+  const { data: featuredTeams = [] } = useFeaturedTeams()
   const { data: gallery = [] } = useQuery({
     queryKey: ['home-gallery'],
     queryFn: async () => extractList<GalleryItem>(await fetchJson<unknown>('/public/gallery?page=1&page_size=6')),
@@ -163,7 +165,7 @@ function App() {
         ) : null}
       </section>
 
-      <FeaturedTeamsCarousel teams={teams.slice(0, 16)} />
+      <FeaturedTeamsCarousel teams={featuredTeams} />
 
       <section className="home-section">
         <SectionHeader title="Gallery Preview" linkTo="/gallery" />
@@ -179,17 +181,33 @@ function App() {
           <SectionHeader title="Partners & Sponsors" />
           <div className="home-sponsors-marquee" aria-label="Partners and sponsors">
             <div className="home-sponsors-track" role="list">
-              {[...sponsors, ...sponsors].map((sponsor, idx) => (
-                <article
-                  key={`${sponsor.id}-${idx}`}
-                  className="home-sponsors-card"
-                  role="listitem"
-                >
+              {[...sponsors, ...sponsors].map((sponsor, idx) => {
+                const card = (
                   <div className="home-sponsors-card__logo">
                     <HomeSponsorImage url={sponsor.image_url} alt={sponsor.name} />
                   </div>
-                </article>
-              ))}
+                )
+                return (
+                  <article
+                    key={`${sponsor.id}-${idx}`}
+                    className="home-sponsors-card"
+                    role="listitem"
+                  >
+                    {sponsor.link_url?.trim() ? (
+                      <a
+                        href={sponsor.link_url.trim()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={sponsor.name}
+                      >
+                        {card}
+                      </a>
+                    ) : (
+                      card
+                    )}
+                  </article>
+                )
+              })}
             </div>
           </div>
         </section>

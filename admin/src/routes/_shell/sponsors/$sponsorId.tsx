@@ -36,6 +36,7 @@ function SponsorDetailPage() {
   const isEditing = mode === 'edit'
   const [name, setName] = useState('')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [linkUrl, setLinkUrl] = useState('')
   const [teamId, setTeamId] = useState<number | ''>('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -53,6 +54,7 @@ function SponsorDetailPage() {
     if (editPrimed.current === item.id) return
     setName(item.name)
     setImageUrl(item.image_url || null)
+    setLinkUrl(item.link_url ?? '')
     setTeamId(item.team_id != null ? item.team_id : '')
     setSaveError(null)
     editPrimed.current = item.id
@@ -89,6 +91,7 @@ function SponsorDetailPage() {
       await adminPatch<SponsorDto>(`/admin/sponsors/${sid}`, {
         name: n,
         image_url: (imageUrl ?? '').trim(),
+        link_url: linkUrl.trim() || null,
         team_id: teamId === '' ? null : teamId,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'sponsors'] })
@@ -208,6 +211,22 @@ function SponsorDetailPage() {
               ),
             },
             {
+              id: 'link_url',
+              label: 'Website link (optional)',
+              control: (
+                <input
+                  id="link_url"
+                  className="inline-edit__control"
+                  type="url"
+                  placeholder="https://example.com"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  disabled={isSaving}
+                  maxLength={1024}
+                />
+              ),
+            },
+            {
               id: 'team_id',
               label: 'Team',
               control: (
@@ -237,6 +256,16 @@ function SponsorDetailPage() {
           items={[
             { label: 'Name', value: item.name },
             { label: 'Team', value: item.team_name ?? '—' },
+            {
+              label: 'Website link',
+              value: item.link_url?.trim() ? (
+                <a href={item.link_url} target="_blank" rel="noopener noreferrer">
+                  {item.link_url}
+                </a>
+              ) : (
+                '—'
+              ),
+            },
             {
               label: 'Image',
               value: resolvedImg ? (

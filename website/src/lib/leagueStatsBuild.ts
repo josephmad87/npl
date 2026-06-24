@@ -1,4 +1,5 @@
 import type { MatchLite } from './hooks'
+import { countsBattingInnings, isBattingOut } from './cricket'
 import { ballsToOversLabel, oversFieldToBalls } from './leagueSeasonAggregates'
 import { sumTeamExtras } from './match-extras'
 
@@ -16,13 +17,6 @@ export function num(r: Record<string, unknown>, k: string): number {
 function str(r: Record<string, unknown>, k: string): string {
   const v = r[k]
   return typeof v === 'string' ? v : ''
-}
-
-function isNotOut(dismissal: string): boolean {
-  const t = dismissal.trim()
-  if (!t) return true
-  if (/not out/i.test(t)) return true
-  return false
 }
 
 export type BattingAgg = {
@@ -82,7 +76,7 @@ function accumulate(matches: MatchLite[], filter: RowFilter) {
       const st = num(row, 'stumpings')
 
       let touched = false
-      if (ballsFaced > 0 || runs > 0 || fours > 0 || sixes > 0) {
+      if (countsBattingInnings(dismiss, runs, ballsFaced)) {
         let b = batting.get(pid)
         if (!b) {
           b = {
@@ -108,7 +102,7 @@ function accumulate(matches: MatchLite[], filter: RowFilter) {
         b.fours += fours
         b.sixes += sixes
         b.highScore = Math.max(b.highScore, runs)
-        if (isNotOut(dismiss)) b.notOuts += 1
+        if (!isBattingOut(dismiss)) b.notOuts += 1
         if (runs >= 100) b.scores100 += 1
         else if (runs >= 50) b.scores50 += 1
         touched = true

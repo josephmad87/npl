@@ -5440,3 +5440,37 @@ table.player-public-table {
 .about-page__phone-line a:focus-visible {
   text-decoration: underline;
 }
+
+.contact-page__honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.innings-scorecard-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.innings-scorecard-panels__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.innings-scorecard-panels__h {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.home-sponsors-card a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}

@@ -21,6 +21,7 @@ function NewSponsorPage() {
   })
   const [name, setName] = useState('')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [linkUrl, setLinkUrl] = useState('')
   const [teamId, setTeamId] = useState<number | ''>('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -40,6 +41,7 @@ function NewSponsorPage() {
       const created = await adminPost<SponsorDto>('/admin/sponsors', {
         name: n,
         image_url: (imageUrl ?? '').trim(),
+        link_url: linkUrl.trim() || null,
         team_id: teamId === '' ? null : teamId,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'sponsors'] })
@@ -105,6 +107,22 @@ function NewSponsorPage() {
                 value={imageUrl}
                 onChange={setImageUrl}
                 disabled={isSaving}
+              />
+            ),
+          },
+          {
+            id: 'link_url',
+            label: 'Website link (optional)',
+            control: (
+              <input
+                id="link_url"
+                className="inline-edit__control"
+                type="url"
+                placeholder="https://example.com"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                disabled={isSaving}
+                maxLength={1024}
               />
             ),
           },

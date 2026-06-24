@@ -9,6 +9,7 @@ import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelec
 import { BackNavLink } from '@/components/BackNavLink'
 import { BadgeImage } from '@/components/BadgeImage'
 import { MatchResultEditor } from '@/components/MatchResultEditor'
+import { InningsScorecardPanels } from '@/components/InningsScorecardPanels'
 import {
   MatchTableTeamCell,
   type MatchTableTeamRow,
@@ -22,6 +23,7 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { normalizeCompetitionCategory } from '@/lib/competitionCategories'
 import { parseDetailRouteSearch } from '@/lib/detail-route-search'
 import { formatExtrasBreakdown } from '@/lib/match-extras'
+import { getInningsSides, type InningsNumber } from '@/lib/cricket'
 import { matchResultSummaryLine, matchWinnerSide } from '@/lib/match-winner'
 
 export const Route = createFileRoute('/_shell/matches/$matchId')({
@@ -115,7 +117,7 @@ function MatchDetailPage() {
 
   const isEditing = mode === 'edit'
   const isResultMode = mode === 'result'
-  const [scorecardSide, setScorecardSide] = useState<'home' | 'away'>('home')
+  const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
   const [patch, setPatch] = useState<Partial<MatchDto>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -222,23 +224,26 @@ function MatchDetailPage() {
   const teamOptions = teamsQ.data ?? []
   const seasonOptions = seasonsQ.data ?? []
   const playerStats = useMemo(() => match?.player_stats ?? [], [match?.player_stats])
-  const scorecardRows = useMemo(
-    () =>
-      playerStats.filter((s) =>
-        scorecardSide === 'home'
-          ? s.team_id === (match?.home_team_id ?? -1)
-          : s.team_id === (match?.away_team_id ?? -1),
-      )
-      .sort((a, b) => {
-        const runsDelta = (b.runs ?? 0) - (a.runs ?? 0)
-        if (runsDelta !== 0) return runsDelta
-        return (a.balls_faced ?? 0) - (b.balls_faced ?? 0)
-      }),
-    [playerStats, scorecardSide, match?.home_team_id, match?.away_team_id],
-  )
-  const extrasLine = match?.result
-    ? formatExtrasBreakdown(match.result, scorecardSide)
-    : null
+  const battingFirstTeamId = match?.result?.batting_first_team_id ?? null
+  const inningsExtrasLine = useMemo(() => {
+    if (!match?.result || !match.home_team_id || !match.away_team_id) return null
+    const sides = getInningsSides(
+      scorecardInnings,
+      battingFirstTeamId,
+      match.home_team_id,
+      match.away_team_id,
+    )
+    if (!sides) return null
+    const side =
+      sides.battingTeamId === match.home_team_id ? 'home' : 'away'
+    return formatExtrasBreakdown(match.result, side)
+  }, [
+    match?.result,
+    match?.home_team_id,
+    match?.away_team_id,
+    scorecardInnings,
+    battingFirstTeamId,
+  ])
 
   if (loading) {
     return <p className="muted">Loading…</p>
@@ -800,88 +805,41 @@ function MatchDetailPage() {
                 </span>
               </SectionHintTip>
             </div>
-            <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Scorecard side">
+            <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Scorecard innings">
               <button
                 type="button"
-                className={`dashboard-match-panel__tab${scorecardSide === 'home' ? ' is-active' : ''}`}
-                onClick={() => setScorecardSide('home')}
+                className={`dashboard-match-panel__tab${scorecardInnings === 1 ? ' is-active' : ''}`}
+                onClick={() => setScorecardInnings(1)}
                 role="tab"
-                aria-selected={scorecardSide === 'home'}
+                aria-selected={scorecardInnings === 1}
               >
-                {homeName ?? 'Home'}
+                1st innings
               </button>
               <button
                 type="button"
-                className={`dashboard-match-panel__tab${scorecardSide === 'away' ? ' is-active' : ''}`}
-                onClick={() => setScorecardSide('away')}
+                className={`dashboard-match-panel__tab${scorecardInnings === 2 ? ' is-active' : ''}`}
+                onClick={() => setScorecardInnings(2)}
                 role="tab"
-                aria-selected={scorecardSide === 'away'}
+                aria-selected={scorecardInnings === 2}
               >
-                {awayName ?? 'Away'}
+                2nd innings
               </button>
             </div>
           </div>
-          {extrasLine ? <p className="muted">{extrasLine}</p> : null}
           {playerStats.length > 0 ? (
-            <div className="table-wrap">
-              <div className="table-scroll table-scroll--sticky-first match-stats-scroll">
-                <table className="data-table data-table--sticky-first data-table--no-wrap match-stats-table">
-                  <thead>
-                    <tr>
-                      <th>Player</th>
-                      <th>Side</th>
-                      <th>R</th>
-                      <th>BF</th>
-                      <th>4s</th>
-                      <th>6s</th>
-                      <th>How out</th>
-                      <th>Ov</th>
-                      <th>M</th>
-                      <th>Conc</th>
-                      <th>W</th>
-                      <th>Ct</th>
-                      <th>St</th>
-                      <th>RO</th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scorecardRows.map((s) => (
-                      <tr key={s.id}>
-                        <td>{playerById.get(s.player_id) ?? `#${s.player_id}`}</td>
-                        <td>
-                          {s.team_id === match.home_team_id
-                            ? (homeName ?? 'Home')
-                            : s.team_id === match.away_team_id
-                              ? (awayName ?? 'Away')
-                              : `#${s.team_id}`}
-                        </td>
-                        <td>{s.runs}</td>
-                        <td>{s.balls_faced}</td>
-                        <td>{s.fours}</td>
-                        <td>{s.sixes}</td>
-                        <td>{s.dismissal ?? '—'}</td>
-                        <td>{s.overs != null && s.overs !== '' ? String(s.overs) : '—'}</td>
-                        <td>{s.maidens}</td>
-                        <td>{s.runs_conceded}</td>
-                        <td>{s.wickets}</td>
-                        <td>{s.catches}</td>
-                        <td>{s.stumpings}</td>
-                        <td>{s.run_outs}</td>
-                        <td>{s.notes ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <InningsScorecardPanels
+              innings={scorecardInnings}
+              battingFirstTeamId={battingFirstTeamId}
+              homeTeamId={match.home_team_id}
+              awayTeamId={match.away_team_id}
+              homeLabel={homeName ?? 'Home'}
+              awayLabel={awayName ?? 'Away'}
+              stats={playerStats}
+              playerName={(id) => playerById.get(id) ?? `#${id}`}
+              extrasLine={inningsExtrasLine}
+            />
           ) : (
             <p className="muted">No per-player rows yet.</p>
-          )}
-          {playerStats.length > 0 && scorecardRows.length === 0 ? (
-            <p className="muted">No scorecard rows for this side yet.</p>
-          ) : (
-            null
           )}
         </section>
         </>

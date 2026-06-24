@@ -50,6 +50,16 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    to: '/contact-messages',
+    label: 'Contact messages',
+    roles: [
+      'super_admin',
+      'competition_manager',
+      'content_editor',
+      'read_only_admin',
+    ],
+  },
+  {
     to: '/sponsors',
     label: 'Sponsors',
     roles: [

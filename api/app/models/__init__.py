@@ -1,4 +1,5 @@
 from app.models.about_content import AboutContent
+from app.models.contact_message import ContactMessage
 from app.models.article import Article
 from app.models.audit import AuditLog
 from app.models.gallery import GalleryItem
@@ -13,6 +14,7 @@ from app.models.user import User
 __all__ = [
     "AboutContent",
     "Article",
+    "ContactMessage",
     "AuditLog",
     "GalleryItem",
     "League",
