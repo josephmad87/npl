@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   dismissalKindFromValue,
   dismissalValueFromKind,
@@ -10,15 +11,27 @@ type DismissalFieldProps = Readonly<{
 }>
 
 export function DismissalField({ value, onChange }: DismissalFieldProps) {
-  const kind = dismissalKindFromValue(value)
-  const detail =
-    kind === 'out' && value.trim() ? value.trim() : ''
+  const derivedKind = dismissalKindFromValue(value)
+  const [outPending, setOutPending] = useState(false)
+
+  useEffect(() => {
+    if (derivedKind !== 'empty') {
+      setOutPending(false)
+    }
+  }, [derivedKind])
+
+  const kind: DismissalKind =
+    derivedKind !== 'empty' ? derivedKind : outPending ? 'out' : 'empty'
 
   const setKind = (next: DismissalKind) => {
     if (next === 'out') {
-      onChange(detail || '')
+      setOutPending(true)
+      if (derivedKind === 'not_out' || derivedKind === 'dnb' || derivedKind === 'retired_hurt') {
+        onChange('')
+      }
       return
     }
+    setOutPending(false)
     onChange(dismissalValueFromKind(next, ''))
   }
 
@@ -38,9 +51,10 @@ export function DismissalField({ value, onChange }: DismissalFieldProps) {
       {kind === 'out' ? (
         <input
           className="inline-edit__control match-stats-table__dismissal"
-          value={detail}
+          value={derivedKind === 'out' || outPending ? value : ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder="c Smith b Jones"
+          autoFocus={outPending && !value.trim()}
         />
       ) : null}
     </div>
