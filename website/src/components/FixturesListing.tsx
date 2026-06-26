@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { EmptyState } from './EmptyState'
 import { ErrorNotice } from './ErrorNotice'
 import { MatchCarousel } from './MatchCarousel'
+import { SectionHeader } from './SectionHeader'
 import { Spinner } from './Spinner'
 import type { MatchLite, TeamLite } from '../lib/hooks'
 import { useTeamsMap } from '../lib/hooks'
@@ -13,9 +14,19 @@ type FixturesListingProps = Readonly<{
   category?: string
 }>
 
+const LATEST_RESULTS_LIMIT = 10
+
+function resultsLinkForCategory(category?: string): string {
+  if (category === 'mens') return '/mens/results'
+  if (category === 'women') return '/women/results'
+  if (category === 'youth') return '/youth/results'
+  return '/results'
+}
+
 export function FixturesListing({ category }: FixturesListingProps) {
   const [selectedTeamId, setSelectedTeamId] = useState<number | ''>('')
   const { map: teamsMap } = useTeamsMap()
+  const resultsLink = resultsLinkForCategory(category)
 
   const teamsQ = useQuery({
     queryKey: ['fixtures-filter-teams', category ?? 'all'],
@@ -44,6 +55,23 @@ export function FixturesListing({ category }: FixturesListingProps) {
     retry: 1,
   })
 
+  const resultsQ = useQuery({
+    queryKey: ['fixtures-page-results', category ?? 'all', selectedTeamId],
+    queryFn: () =>
+      fetchAllPaginatedList<MatchLite>(
+        (page) => {
+          const p = new URLSearchParams()
+          p.set('page', String(page))
+          p.set('page_size', String(LATEST_RESULTS_LIMIT))
+          if (category) p.set('category', category)
+          if (selectedTeamId !== '') p.set('team_id', String(selectedTeamId))
+          return `/public/results?${p.toString()}`
+        },
+        1,
+      ),
+    retry: 1,
+  })
+
   const teamOptions = useMemo(
     () =>
       [...(teamsQ.data ?? [])].sort((a, b) => a.name.localeCompare(b.name)),
@@ -55,12 +83,14 @@ export function FixturesListing({ category }: FixturesListingProps) {
     [fixturesQ.data],
   )
 
-  const isLoading = fixturesQ.isLoading || teamsQ.isLoading
-  const isError = fixturesQ.isError || teamsQ.isError
+  const latestResults = resultsQ.data ?? []
+
+  const fixturesLoading = fixturesQ.isLoading || teamsQ.isLoading
+  const fixturesError = fixturesQ.isError || teamsQ.isError
 
   const teamFilter = (
     <label className="fixtures-listing__filter">
-      <span className="fixtures-listing__filter-label">Team</span>
+      <span className="fixtures-listing__filter-label">Filter by team</span>
       <select
         className="fixtures-listing__select"
         value={selectedTeamId === '' ? '' : String(selectedTeamId)}
@@ -81,33 +111,40 @@ export function FixturesListing({ category }: FixturesListingProps) {
   )
 
   return (
-    <>
-      {isLoading ? <Spinner label="Loading fixtures…" /> : null}
-      {isError ? <ErrorNotice message="Could not load fixtures." /> : null}
+    <div className="fixtures-listing">
+      <section
+        className="fixtures-listing__section fixtures-carousel-section"
+        aria-label="Upcoming fixtures"
+      >
+        <header className="fixtures-listing__header">
+          <div className="fixtures-listing__heading">
+            <h2 className="fixtures-listing__title">Upcoming Fixtures</h2>
+            {!fixturesLoading && !fixturesError && fixtures.length > 0 ? (
+              <p className="fixtures-listing__subtitle">
+                {fixtures.length} scheduled — nearest first · scroll for more
+              </p>
+            ) : null}
+          </div>
+        </header>
 
-      {!isLoading && !isError && fixtures.length === 0 ? (
-        <>
-          <div className="fixtures-listing__filters">{teamFilter}</div>
-          <EmptyState
-            title="No fixtures to show"
-            description={
-              selectedTeamId !== ''
-                ? 'Try another team or view all teams.'
-                : 'Check back when the schedule is published, or browse another competition.'
-            }
-          />
-        </>
-      ) : null}
+        {fixturesLoading ? <Spinner label="Loading fixtures…" /> : null}
+        {fixturesError ? <ErrorNotice message="Could not load fixtures." /> : null}
 
-      {!isLoading && !isError && fixtures.length > 0 ? (
-        <section
-          className="fixtures-carousel-section"
-          aria-label="Upcoming fixtures"
-        >
-          <p className="fixtures-listing__count muted">
-            {fixtures.length} upcoming fixture{fixtures.length === 1 ? '' : 's'}{' '}
-            — nearest first; scroll sideways to see more
-          </p>
+        {!fixturesLoading && !fixturesError && fixtures.length === 0 ? (
+          <>
+            <div className="fixtures-listing__filters">{teamFilter}</div>
+            <EmptyState
+              title="No fixtures to show"
+              description={
+                selectedTeamId !== ''
+                  ? 'Try another team or view all teams.'
+                  : 'Check back when the schedule is published, or browse another competition.'
+              }
+            />
+          </>
+        ) : null}
+
+        {!fixturesLoading && !fixturesError && fixtures.length > 0 ? (
           <MatchCarousel
             matches={fixtures}
             teamsMap={teamsMap}
@@ -116,8 +153,38 @@ export function FixturesListing({ category }: FixturesListingProps) {
             layout="fixtures-page"
             filterSlot={teamFilter}
           />
-        </section>
-      ) : null}
-    </>
+        ) : null}
+      </section>
+
+      <section
+        className="fixtures-listing__section fixtures-results-section home-match-carousel-section home-match-carousel-section--category-results"
+        aria-label="Latest results"
+      >
+        {resultsQ.isLoading ? <Spinner label="Loading latest results…" /> : null}
+        {resultsQ.isError ? (
+          <ErrorNotice message="Could not load latest results." />
+        ) : null}
+
+        {!resultsQ.isLoading && !resultsQ.isError && latestResults.length === 0 ? (
+          <>
+            <SectionHeader title="Latest Results" linkTo={resultsLink} />
+            <EmptyState
+              title="No results yet"
+              description="Completed matches will appear here once results are published."
+            />
+          </>
+        ) : null}
+
+        {!resultsQ.isLoading && !resultsQ.isError && latestResults.length > 0 ? (
+          <MatchCarousel
+            title="Latest Results"
+            linkTo={resultsLink}
+            matches={latestResults}
+            teamsMap={teamsMap}
+            mode="result"
+          />
+        ) : null}
+      </section>
+    </div>
   )
 }

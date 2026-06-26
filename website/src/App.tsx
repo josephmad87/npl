@@ -6,7 +6,6 @@ import './App.css'
 import { EmptyState } from './components/EmptyState'
 import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
-import { MatchCard } from './components/MatchCard'
 import { MatchCarousel } from './components/MatchCarousel'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
@@ -42,7 +41,7 @@ function HomeSponsorImage({ url, alt }: { url: string | null | undefined; alt: s
 
 function App() {
   const { data: newsArticles = [] } = useRecentNews(36)
-  const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 6)
+  const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 10)
   const { data: latestResults = [] } = useLatestResults(undefined, 6)
   const { map: teamsMap } = useTeamsMap()
   const { data: featuredTeams = [] } = useFeaturedTeams()
@@ -137,14 +136,22 @@ function App() {
 
       <HomeNewsCarousel articles={newsArticles} />
 
-      <section className="home-section">
-        <SectionHeader title="Upcoming Fixtures" linkTo="/fixtures" />
-        <div className="home-grid home-grid--matches">
-          {upcomingFixtures.map((match) => (
-            <MatchCard key={match.id} match={match} teamsMap={teamsMap} />
-          ))}
-        </div>
-        {upcomingFixtures.length === 0 ? <EmptyState title="No upcoming fixtures yet" /> : null}
+      <section className="home-section home-match-carousel-section">
+        {upcomingFixtures.length > 0 ? (
+          <MatchCarousel
+            title="Upcoming Fixtures"
+            linkTo="/fixtures"
+            matches={upcomingFixtures}
+            teamsMap={teamsMap}
+            mode="fixture"
+          />
+        ) : null}
+        {upcomingFixtures.length === 0 ? (
+          <>
+            <SectionHeader title="Upcoming Fixtures" linkTo="/fixtures" />
+            <EmptyState title="No upcoming fixtures yet" />
+          </>
+        ) : null}
       </section>
 
       <section className="home-section home-match-carousel-section">

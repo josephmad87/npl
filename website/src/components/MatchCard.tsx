@@ -191,10 +191,12 @@ export function MatchCard({
   match,
   teamsMap,
   mode = 'fixture',
+  compact = false,
 }: {
   match: MatchLite
   teamsMap: Record<number, TeamLite>
   mode?: 'fixture' | 'result'
+  compact?: boolean
 }) {
   const home = teamsMap[match.home_team_id]
   const away = teamsMap[match.away_team_id]
@@ -221,7 +223,7 @@ export function MatchCard({
     <Link
       to="/matches/$matchId"
       params={{ matchId: String(match.id) }}
-      className={`ui-match-card ui-match-card--duo ui-match-card--${mode}`}
+      className={`ui-match-card ui-match-card--duo ui-match-card--${mode}${compact ? ' ui-match-card--compact' : ''}`}
     >
       <div className="ui-match-card__media">
         <span
@@ -253,12 +255,23 @@ export function MatchCard({
         </span>
       </div>
       <div className="ui-match-card__body">
-        <h3
-          className="ui-match-card__title"
-          title={`${homeName} vs ${awayName}`}
-        >
-          {homeName} vs {awayName}
-        </h3>
+        {compact ? (
+          <h3
+            className="ui-match-card__title ui-match-card__title--stacked"
+            title={`${homeName} vs ${awayName}`}
+          >
+            <span className="ui-match-card__team-line">{homeName}</span>
+            <span className="ui-match-card__versus">vs</span>
+            <span className="ui-match-card__team-line">{awayName}</span>
+          </h3>
+        ) : (
+          <h3
+            className="ui-match-card__title"
+            title={`${homeName} vs ${awayName}`}
+          >
+            {homeName} vs {awayName}
+          </h3>
+        )}
         <div className="ui-match-card__meta">
           <span
             className="ui-match-card__meta-date"
@@ -268,7 +281,7 @@ export function MatchCard({
             {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
           </span>
           <span
-            className="ui-match-card__venue"
+            className={`ui-match-card__venue${compact ? ' ui-match-card__venue--wrap' : ''}`}
             title={match.venue ?? 'Venue TBC'}
           >
             {match.venue ?? 'Venue TBC'}

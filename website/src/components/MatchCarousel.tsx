@@ -77,7 +77,12 @@ export function MatchCarousel({
       <div ref={trackRef} className={trackClass}>
         {matches.map((match) => (
           <div key={match.id} className="match-carousel__cell">
-            <MatchCard match={match} teamsMap={teamsMap} mode={mode} />
+            <MatchCard
+              match={match}
+              teamsMap={teamsMap}
+              mode={mode}
+              compact={layout === 'fixtures-page' && mode === 'fixture'}
+            />
           </div>
         ))}
       </div>

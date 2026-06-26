@@ -42,7 +42,7 @@ function CategoryHomePage({ category }: { category: string }) {
   const categoryLabel = formatCategoryLabel(category)
   const { data: featuredTeams = [] } = useFeaturedTeams(category)
   const { map: teamsMap } = useTeamsMap()
-  const { data: fixtures = [] } = useUpcomingFixtures(category, 4)
+  const { data: fixtures = [] } = useUpcomingFixtures(category, 10)
   const { data: results = [] } = useLatestResults(category, 10)
   const { data: news = [] } = useRecentNews(4, category)
 
@@ -59,13 +59,22 @@ function CategoryHomePage({ category }: { category: string }) {
           title={`${categoryLabel} Teams`}
           linkTo={`/${category}/teams`}
         />
-      <section className="home-section">
-        <SectionHeader title="Upcoming Fixtures" linkTo={`/${category}/fixtures`} />
-        <div className="home-grid home-grid--matches">
-          {fixtures.map((match) => (
-            <MatchCard key={match.id} match={match} teamsMap={teamsMap} />
-          ))}
-        </div>
+      <section className="home-section home-match-carousel-section">
+        {fixtures.length > 0 ? (
+          <MatchCarousel
+            title="Upcoming Fixtures"
+            linkTo={`/${category}/fixtures`}
+            matches={fixtures}
+            teamsMap={teamsMap}
+            mode="fixture"
+          />
+        ) : null}
+        {fixtures.length === 0 ? (
+          <>
+            <SectionHeader title="Upcoming Fixtures" linkTo={`/${category}/fixtures`} />
+            <EmptyState title="No upcoming fixtures yet" />
+          </>
+        ) : null}
       </section>
         <section className="home-section home-match-carousel-section home-match-carousel-section--category-results">
           {results.length > 0 ? (
