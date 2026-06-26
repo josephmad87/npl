@@ -9,6 +9,7 @@ import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox } from './components/GalleryLightbox'
 import { MatchCard } from './components/MatchCard'
 import { MatchCarousel } from './components/MatchCarousel'
+import { FixturesListing } from './components/FixturesListing'
 import { NewsCard } from './components/NewsCard'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { PageHero } from './components/PageHero'
@@ -112,10 +113,27 @@ function resultLeagueLabel(match: MatchLite): string {
   return 'Unknown league'
 }
 
-function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fixtures' | 'results' }) {
-  const endpoint = mode === 'fixtures' ? '/public/fixtures' : '/public/results'
+function FixturesPageContent({ category }: { category?: string }) {
+  const title = `${category ? `${formatCategoryLabel(category)} ` : ''}Fixtures`
+  const pageSubtitle = category
+    ? `Upcoming and scheduled ${formatCategoryLabel(category).toLowerCase()} matches.`
+    : 'Upcoming and scheduled matches across all competitions.'
+  return (
+    <>
+      <PageHero variant="siteLogo" title={title} subtitle={pageSubtitle} />
+      <main className="container">
+        <section className="menu-page listings-page listings-page--fixtures">
+          <FixturesListing category={category} />
+        </section>
+      </main>
+    </>
+  )
+}
+
+function ResultsPageContent({ category }: { category?: string }) {
+  const endpoint = '/public/results'
   const { data = [], isLoading, isError } = useQuery({
-    queryKey: [endpoint, 'all-pages', category ?? 'all', mode],
+    queryKey: [endpoint, 'all-pages', category ?? 'all'],
     queryFn: async () => {
       const buildPath = (page: number) => {
         const p = new URLSearchParams()
@@ -129,18 +147,13 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
     retry: 1,
   })
   const { map: teamsMap } = useTeamsMap()
-  const title = `${category ? `${formatCategoryLabel(category)} ` : ''}${mode === 'fixtures' ? 'Fixtures' : 'Results'}`
+  const title = `${category ? `${formatCategoryLabel(category)} ` : ''}Results`
   const pageSubtitle = useMemo(() => {
     const cat = category ? formatCategoryLabel(category).toLowerCase() : null
-    if (mode === 'fixtures') {
-      return cat
-        ? `Upcoming and scheduled ${cat} matches.`
-        : 'Upcoming and scheduled matches across all competitions.'
-    }
     return cat
       ? `Completed ${cat} match results and scorelines.`
       : 'Completed match results and scorelines across all competitions.'
-  }, [mode, category])
+  }, [category])
   const [selectedYear, setSelectedYear] = useState('all')
   const [selectedLeague, setSelectedLeague] = useState('all')
 
@@ -164,13 +177,12 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
   }, [data, selectedYear])
 
   const filteredResults = useMemo(() => {
-    if (mode !== 'results') return data
     return data.filter((match) => {
       if (selectedYear !== 'all' && resultYearLabel(match) !== selectedYear) return false
       if (selectedLeague !== 'all' && resultLeagueLabel(match) !== selectedLeague) return false
       return true
     })
-  }, [data, mode, selectedYear, selectedLeague])
+  }, [data, selectedYear, selectedLeague])
 
   useEffect(() => {
     if (selectedYear !== 'all' && !yearTabs.includes(selectedYear)) {
@@ -189,99 +201,87 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
       <PageHero variant="siteLogo" title={title} subtitle={pageSubtitle} />
     <main className="container">
         <section className="menu-page listings-page">
-          {isLoading ? <Spinner label={mode === 'fixtures' ? 'Loading fixtures…' : 'Loading results…'} /> : null}
-          {isError ? <ErrorNotice message={`Could not load ${mode === 'fixtures' ? 'fixtures' : 'results'}.`} /> : null}
+          {isLoading ? <Spinner label="Loading results…" /> : null}
+          {isError ? <ErrorNotice message="Could not load results." /> : null}
           {!isLoading && !isError && data.length === 0 ? (
             <EmptyState
-              title={mode === 'fixtures' ? 'No fixtures to show' : 'No results to show yet'}
-              description={
-                mode === 'fixtures'
-                  ? 'Check back when the schedule is published, or browse another competition.'
-                  : 'Results will appear here once matches are completed.'
-              }
+              title="No results to show yet"
+              description="Results will appear here once matches are completed."
             />
           ) : null}
           {!isLoading && !isError && data.length > 0 ? (
             <>
-            {mode === 'results' ? (
-              <div className="results-tabs" aria-label="Filter results by year and league">
-                <div className="results-tabs__row">
-                  <span className="results-tabs__label">Year</span>
-                  <div className="results-tabs__list" role="tablist" aria-label="Years">
+            <div className="results-tabs" aria-label="Filter results by year and league">
+              <div className="results-tabs__row">
+                <span className="results-tabs__label">Year</span>
+                <div className="results-tabs__list" role="tablist" aria-label="Years">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={selectedYear === 'all'}
+                    className={`results-tabs__btn${selectedYear === 'all' ? ' is-active' : ''}`}
+                    onClick={() => {
+                      setSelectedYear('all')
+                      setSelectedLeague('all')
+                    }}
+                  >
+                    All
+                  </button>
+                  {yearTabs.map((year) => (
                     <button
+                      key={year}
                       type="button"
                       role="tab"
-                      aria-selected={selectedYear === 'all'}
-                      className={`results-tabs__btn${selectedYear === 'all' ? ' is-active' : ''}`}
+                      aria-selected={selectedYear === year}
+                      className={`results-tabs__btn${selectedYear === year ? ' is-active' : ''}`}
                       onClick={() => {
-                        setSelectedYear('all')
+                        setSelectedYear(year)
                         setSelectedLeague('all')
                       }}
                     >
-                      All
+                      {year}
                     </button>
-                    {yearTabs.map((year) => (
-                      <button
-                        key={year}
-                        type="button"
-                        role="tab"
-                        aria-selected={selectedYear === year}
-                        className={`results-tabs__btn${selectedYear === year ? ' is-active' : ''}`}
-                        onClick={() => {
-                          setSelectedYear(year)
-                          setSelectedLeague('all')
-                        }}
-                      >
-                        {year}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="results-tabs__row">
-                  <span className="results-tabs__label">League</span>
-                  <div className="results-tabs__list" role="tablist" aria-label="Leagues">
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={selectedLeague === 'all'}
-                      className={`results-tabs__btn${selectedLeague === 'all' ? ' is-active' : ''}`}
-                      onClick={() => setSelectedLeague('all')}
-                    >
-                      All
-                    </button>
-                    {leagueTabs.map((league) => (
-                      <button
-                        key={league}
-                        type="button"
-                        role="tab"
-                        aria-selected={selectedLeague === league}
-                        className={`results-tabs__btn${selectedLeague === league ? ' is-active' : ''}`}
-                        onClick={() => setSelectedLeague(league)}
-                      >
-                        {league}
-                      </button>
-                    ))}
-                  </div>
+                  ))}
                 </div>
               </div>
-            ) : null}
-            <div
-              className={
-                mode === 'results'
-                  ? 'home-grid home-grid--matches home-grid--results-list'
-                  : 'home-grid home-grid--matches'
-              }
-            >
-            {(mode === 'results' ? filteredResults : data).map((match) => (
+              <div className="results-tabs__row">
+                <span className="results-tabs__label">League</span>
+                <div className="results-tabs__list" role="tablist" aria-label="Leagues">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={selectedLeague === 'all'}
+                    className={`results-tabs__btn${selectedLeague === 'all' ? ' is-active' : ''}`}
+                    onClick={() => setSelectedLeague('all')}
+                  >
+                    All
+                  </button>
+                  {leagueTabs.map((league) => (
+                    <button
+                      key={league}
+                      type="button"
+                      role="tab"
+                      aria-selected={selectedLeague === league}
+                      className={`results-tabs__btn${selectedLeague === league ? ' is-active' : ''}`}
+                      onClick={() => setSelectedLeague(league)}
+                    >
+                      {league}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="home-grid home-grid--matches home-grid--results-list">
+            {filteredResults.map((match) => (
                 <MatchCard
                   key={match.id}
                   match={match}
                   teamsMap={teamsMap}
-                  mode={mode === 'fixtures' ? 'fixture' : 'result'}
+                  mode="result"
                 />
             ))}
           </div>
-          {mode === 'results' && filteredResults.length === 0 ? (
+          {filteredResults.length === 0 ? (
             <EmptyState title="No results for this year and league filter" />
           ) : null}
           </>
@@ -290,6 +290,13 @@ function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fix
     </main>
     </>
   )
+}
+
+function FixturesResultsPage({ category, mode }: { category?: string; mode: 'fixtures' | 'results' }) {
+  if (mode === 'fixtures') {
+    return <FixturesPageContent category={category} />
+  }
+  return <ResultsPageContent category={category} />
 }
 
 function TeamsListPage({ category }: { category: string }) {

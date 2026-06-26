@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, type ReactNode } from 'react'
 import { SectionHeader } from './SectionHeader'
 import { MatchCard } from './MatchCard'
 import type { MatchLite, TeamLite } from '../lib/hooks'
@@ -9,12 +9,18 @@ export function MatchCarousel({
   matches,
   teamsMap,
   mode,
+  showHeader = true,
+  layout = 'default',
+  filterSlot,
 }: {
-  title: string
-  linkTo: string
+  title?: string
+  linkTo?: string
   matches: MatchLite[]
   teamsMap: Record<number, TeamLite>
   mode: 'fixture' | 'result'
+  showHeader?: boolean
+  layout?: 'default' | 'fixtures-page'
+  filterSlot?: ReactNode
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
 
@@ -29,13 +35,26 @@ export function MatchCarousel({
 
   if (matches.length === 0) return null
 
+  const trackClass =
+    layout === 'fixtures-page'
+      ? 'match-carousel__track match-carousel__track--fixtures-page'
+      : 'match-carousel__track'
+
   return (
     <>
       <div className="match-carousel__toolbar">
-        <div className="match-carousel__header-wrap">
-          <SectionHeader title={title} linkTo={linkTo} />
-        </div>
-        <div className="match-carousel__nav" aria-label={mode === 'result' ? 'Scroll results' : 'Scroll fixtures'}>
+        {showHeader && title && linkTo ? (
+          <div className="match-carousel__header-wrap">
+            <SectionHeader title={title} linkTo={linkTo} />
+          </div>
+        ) : null}
+        {filterSlot ? (
+          <div className="match-carousel__filter-slot">{filterSlot}</div>
+        ) : null}
+        <div
+          className="match-carousel__nav"
+          aria-label={mode === 'result' ? 'Scroll results' : 'Scroll fixtures'}
+        >
           <button
             type="button"
             className="match-carousel__nav-btn"
@@ -55,7 +74,7 @@ export function MatchCarousel({
         </div>
       </div>
 
-      <div ref={trackRef} className="match-carousel__track">
+      <div ref={trackRef} className={trackClass}>
         {matches.map((match) => (
           <div key={match.id} className="match-carousel__cell">
             <MatchCard match={match} teamsMap={teamsMap} mode={mode} />

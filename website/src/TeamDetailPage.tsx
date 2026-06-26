@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ErrorNotice } from './components/ErrorNotice'
 import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
+import { MatchCarousel } from './components/MatchCarousel'
 import { MatchCard } from './components/MatchCard'
 import { PageHero } from './components/PageHero'
 import { PlayerCard } from './components/PlayerCard'
@@ -14,6 +15,7 @@ import { SiteLogoPlaceholder } from './components/SiteLogoPlaceholder'
 import { formatCategoryLabel } from './lib/formatters'
 import { type MatchLite, useTeamsMap } from './lib/hooks'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { sortFixturesByDateAsc } from './lib/sortFixtures'
 
 type TeamDetail = {
   id: number
@@ -223,6 +225,11 @@ export function TeamDetailPage() {
       a.full_name.localeCompare(b.full_name, undefined, { sensitivity: 'base' }),
     )
   }, [playersQ.data])
+
+  const teamFixturesSorted = useMemo(
+    () => sortFixturesByDateAsc(fixturesQ.data ?? []),
+    [fixturesQ.data],
+  )
 
   const captainPhotoUrl = useMemo(() => {
     if (!data) return null
@@ -469,14 +476,16 @@ export function TeamDetailPage() {
                 <section className="team-page__section" aria-label="Fixtures">
                 <SectionHeader title="Fixtures" />
                 {fixturesQ.isLoading ? <Spinner label="Loading fixtures…" /> : null}
-                {(fixturesQ.data ?? []).length === 0 && !fixturesQ.isLoading ? (
+                {teamFixturesSorted.length === 0 && !fixturesQ.isLoading ? (
                   <p className="muted">No upcoming fixtures listed.</p>
                 ) : (
-                  <div className="home-grid home-grid--matches team-page__match-grid">
-                    {(fixturesQ.data ?? []).map((match) => (
-                      <MatchCard key={match.id} match={match} teamsMap={teamsMap} />
-                    ))}
-                  </div>
+                  <MatchCarousel
+                    matches={teamFixturesSorted}
+                    teamsMap={teamsMap}
+                    mode="fixture"
+                    showHeader={false}
+                    layout="fixtures-page"
+                  />
                 )}
                 </section>
               ) : null}
