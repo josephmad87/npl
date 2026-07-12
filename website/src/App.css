@@ -5677,3 +5677,166 @@ table.player-public-table {
   color: inherit;
   text-decoration: none;
 }
+
+/* =========================================================
+   Scorecard display fix
+   Applies to all match scorecards
+   ========================================================= */
+
+.match-centre {
+  width: min(100% - 32px, 1200px);
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.match-centre-scorecard {
+  width: 100%;
+  max-width: 1200px;
+  margin: 2rem auto 0;
+  padding: 1.25rem;
+  background: #ffffff;
+  border: 1px solid rgba(32, 0, 1, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 12px 30px rgba(32, 0, 1, 0.08);
+  color: var(--color-text, #200001);
+}
+
+.match-centre-scorecard__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.innings-scorecard-panels {
+  display: grid;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.innings-scorecard-panels__section {
+  width: 100%;
+  min-width: 0;
+}
+
+.innings-scorecard-panels__h {
+  margin: 1rem 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-text, #200001);
+}
+
+/* This gives the scorecard clean horizontal scroll when needed */
+.table-scroll,
+.match-stats-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid rgba(32, 0, 1, 0.12);
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+/* Main scorecard table styling */
+.match-centre-scorecard-table {
+  width: 100%;
+  min-width: 850px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: var(--color-text, #200001);
+}
+
+.match-centre-scorecard-table th,
+.match-centre-scorecard-table td {
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid rgba(32, 0, 1, 0.1);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.match-centre-scorecard-table th {
+  background: #f7f3f1;
+  font-weight: 800;
+  color: var(--color-text, #200001);
+}
+
+.match-centre-scorecard-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Player column */
+.match-centre-scorecard-table th:first-child,
+.match-centre-scorecard-table td:first-child {
+  min-width: 230px;
+  white-space: normal;
+  font-weight: 700;
+}
+
+/* How out / Notes column */
+.match-centre-scorecard-table th:last-child,
+.match-centre-scorecard-table td:last-child {
+  min-width: 280px;
+  white-space: normal;
+}
+
+/* Innings buttons */
+.match-centre-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.match-centre-tabs button {
+  cursor: pointer;
+  border: 1px solid rgba(32, 0, 1, 0.16);
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  background: #ffffff;
+  color: var(--color-text, #200001);
+  font-weight: 700;
+}
+
+.match-centre-tabs button.is-active {
+  background: var(--color-primary, #200001);
+  color: #ffffff;
+}
+
+/* Laptop screens */
+@media (max-width: 1366px) {
+  .match-centre {
+    width: min(100% - 28px, 1120px);
+  }
+
+  .match-centre-scorecard {
+    max-width: 1120px;
+  }
+}
+
+/* Tablets and phones */
+@media (max-width: 768px) {
+  .match-centre {
+    width: min(100% - 20px, 100%);
+  }
+
+  .match-centre-scorecard {
+    padding: 1rem;
+    border-radius: 14px;
+  }
+
+  .match-centre-scorecard-table {
+    min-width: 780px;
+    font-size: 0.88rem;
+  }
+
+  .match-centre-scorecard-table th,
+  .match-centre-scorecard-table td {
+    padding: 0.65rem 0.7rem;
+  }
+}
