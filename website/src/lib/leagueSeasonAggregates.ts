@@ -114,9 +114,83 @@ function bowlingBallsForTeam(match: MatchLite, teamId: number): number {
 
     balls += oversFieldToBalls(row.overs)
   }
+  
 
   return balls
 }
+
+function isWicketDismissal(value: unknown): boolean {
+  if (typeof value !== 'string') {
+    return false
+  }
+
+  const dismissal = value.trim().toLowerCase()
+
+  if (!dismissal) {
+    return false
+  }
+
+  return ![
+    'not out',
+    'did not bat',
+    'dnb',
+    'retired hurt',
+    'retired not out',
+    'absent',
+  ].includes(dismissal)
+}
+
+function battingWicketsLostForTeam(match: MatchLite, teamId: number): number {
+  let wickets = 0
+
+  for (const row of statRows(match)) {
+    if (row.team_id !== teamId) continue
+    if (!isEnteredBattingRow(row)) continue
+
+    if (isWicketDismissal(row.dismissal)) {
+      wickets += 1
+    }
+  }
+
+  return wickets
+}
+
+function inferAllottedBalls(
+  homeActualBalls: number,
+  awayActualBalls: number,
+): number {
+  const maxActualBalls = Math.max(homeActualBalls, awayActualBalls)
+
+  if (maxActualBalls <= 0) {
+    return 0
+  }
+
+  // T20 or shorter
+  if (maxActualBalls <= 120) {
+    return 120
+  }
+
+  // Super 40 / 40-over cricket
+  if (maxActualBalls <= 240) {
+    return 240
+  }
+
+  // 50-over cricket
+  return 300
+}
+
+function nrrBallsForInnings(
+  actualBalls: number,
+  wicketsLost: number,
+  allottedBalls: number,
+): number {
+  if (wicketsLost >= 10 && allottedBalls > 0) {
+    return allottedBalls
+  }
+
+  return actualBalls
+}
+
 function nrrFrom(runsFor: number, ballsFaced: number, runsAgainst: number, ballsBowled: number): number {
   const of = ballsFaced / 6
   const oa = ballsBowled / 6
@@ -221,20 +295,37 @@ export function computeSeasonStandings(
     const homeTotalRuns = homeBatting.runs + homeExtras
     const awayTotalRuns = awayBatting.runs + awayExtras
 
-    const homeBowlingBalls = bowlingBallsForTeam(m, home)
-    const awayBowlingBalls = bowlingBallsForTeam(m, away)
+   const homeBowlingBalls = bowlingBallsForTeam(m, home)
+const awayBowlingBalls = bowlingBallsForTeam(m, away)
 
-    const homeBallsFaced =
-      awayBowlingBalls > 0 ? awayBowlingBalls : homeBatting.balls
+const homeActualBallsFaced =
+  awayBowlingBalls > 0 ? awayBowlingBalls : homeBatting.balls
 
-    const awayBallsFaced =
-      homeBowlingBalls > 0 ? homeBowlingBalls : awayBatting.balls
+const awayActualBallsFaced =
+  homeBowlingBalls > 0 ? homeBowlingBalls : awayBatting.balls
 
-    const homeBallsBowled =
-      homeBowlingBalls > 0 ? homeBowlingBalls : awayBallsFaced
+const allottedBalls = inferAllottedBalls(
+  homeActualBallsFaced,
+  awayActualBallsFaced,
+)
 
-    const awayBallsBowled =
-      awayBowlingBalls > 0 ? awayBowlingBalls : homeBallsFaced
+const homeWicketsLost = battingWicketsLostForTeam(m, home)
+const awayWicketsLost = battingWicketsLostForTeam(m, away)
+
+const homeBallsFaced = nrrBallsForInnings(
+  homeActualBallsFaced,
+  homeWicketsLost,
+  allottedBalls,
+)
+
+const awayBallsFaced = nrrBallsForInnings(
+  awayActualBallsFaced,
+  awayWicketsLost,
+  allottedBalls,
+)
+
+const homeBallsBowled = awayBallsFaced
+const awayBallsBowled = homeBallsFaced
 
     h.runsFor += homeTotalRuns
     h.ballsFaced += homeBallsFaced
