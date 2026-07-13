@@ -88,6 +88,8 @@ class MatchPlayerStat(Base):
     player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="RESTRICT"), index=True, nullable=False)
     team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="RESTRICT"), index=True, nullable=False)
     lineup_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    batting_order: Mapped[int | None] = mapped_column(Integer)
+    bowling_order: Mapped[int | None] = mapped_column(Integer)
     runs: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     balls_faced: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     fours: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
