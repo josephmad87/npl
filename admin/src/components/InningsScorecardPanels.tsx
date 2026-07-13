@@ -2,10 +2,11 @@ import {
   formatCricketOvers,
   formatDismissalDisplay,
   getInningsSides,
+  hasBattingLine,
   hasBowlingLine,
   oversFieldToBalls,
   type InningsNumber,
-} from '../lib/cricket'
+} from '@/lib/cricket'
 
 type ScorecardStat = {
   id: number
@@ -146,7 +147,7 @@ const battingRows = stats
   .filter(
     (s) =>
       s.team_id === sides.battingTeamId &&
-      s.batting_order != null,
+      (s.batting_order != null || hasBattingLine(s)),
   )
   .sort(compareBattingOrder)
 
@@ -154,7 +155,6 @@ const bowlingRows = stats
   .filter(
     (s) =>
       s.team_id === sides.bowlingTeamId &&
-      s.bowling_order != null &&
       hasBowlingLine(s),
   )
   .sort(compareBowlingOrder)
