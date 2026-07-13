@@ -5813,6 +5813,32 @@ table.player-public-table {
   color: #ffffff;
 }
 
+.stats-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.stats-pager__button {
+  min-width: 6.5rem;
+}
+
+.stats-pager__label {
+  color: var(--muted-text, #6b7280);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .stats-pager {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+
 /* Laptop screens */
 @media (max-width: 1366px) {
   .match-centre {

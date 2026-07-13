@@ -17,6 +17,77 @@ import {
 
 type Pl = { id: number; full_name: string; team_id: number; profile_photo_url: string | null }
 
+
+const STAT_PAGE_SIZE = 15
+
+function clampPage(page: number, totalItems: number): number {
+  const totalPages = Math.max(1, Math.ceil(totalItems / STAT_PAGE_SIZE))
+  return Math.min(Math.max(page, 0), totalPages - 1)
+}
+
+function pagedStats<T>(
+  rows: T[],
+  page: number,
+): {
+  visibleRows: T[]
+  currentPage: number
+  totalPages: number
+} {
+  const totalPages = Math.max(1, Math.ceil(rows.length / STAT_PAGE_SIZE))
+  const currentPage = clampPage(page, rows.length)
+  const start = currentPage * STAT_PAGE_SIZE
+
+  return {
+    visibleRows: rows.slice(start, start + STAT_PAGE_SIZE),
+    currentPage,
+    totalPages,
+  }
+}
+
+function StatsPager({
+  currentPage,
+  totalPages,
+  onPrevious,
+  onNext,
+}: Readonly<{
+  currentPage: number
+  totalPages: number
+  onPrevious: () => void
+  onNext: () => void
+}>) {
+  if (totalPages <= 1) {
+    return null
+  }
+
+  return (
+    <div className="stats-pager">
+      <button
+        type="button"
+        className="btn-ghost stats-pager__button"
+        disabled={currentPage <= 0}
+        onClick={onPrevious}
+      >
+        ← Previous
+      </button>
+
+      <span className="stats-pager__label">
+        Page {currentPage + 1} of {totalPages}
+      </span>
+
+      <button
+        type="button"
+        className="btn-ghost stats-pager__button"
+        disabled={currentPage >= totalPages - 1}
+        onClick={onNext}
+      >
+        Next →
+      </button>
+    </div>
+  )
+}
+
+
+
 function useSeasonPlayerNames(teamIds: number[]) {
   return useQuery({
     queryKey: ['season-players', teamIds.join(',')],
@@ -94,6 +165,8 @@ export function LeagueStatsPanel({
   const [bSort, setBSort] = useState<BSort>('runs')
   const [wSort, setWSort] = useState<WSort>('wickets')
   const [batBowTab, setBatBowTab] = useState<'batting' | 'bowling'>('batting')
+  const [battingStatsPage, setBattingStatsPage] = useState(0)
+  const [bowlingStatsPage, setBowlingStatsPage] = useState(0)
 
   const playerOptions = useMemo(() => {
     return [...playerById.values()].sort((a, b) => a.full_name.localeCompare(b.full_name))
@@ -127,15 +200,56 @@ export function LeagueStatsPanel({
   }, [resultMatches, scope, effectiveTeamId, effectivePlayerId])
 
   const tops = useMemo(() => topPerformers(resultMatches), [resultMatches])
-  const batRows = useMemo(
-    () => sortBattingRows(buildBattingLeaderboard(resultMatches), bSort),
-    [resultMatches, bSort],
-  )
-  const bowlRows = useMemo(
-    () => sortBowlRows(buildBowlingLeaderboard(resultMatches), wSort),
-    [resultMatches, wSort],
-  )
+ const allBatRows = useMemo(
+  () => sortBattingRows(buildBattingLeaderboard(resultMatches), bSort),
+  [resultMatches, bSort],
+)
 
+const allBowlRows = useMemo(
+  () => sortBowlRows(buildBowlingLeaderboard(resultMatches), wSort),
+  [resultMatches, wSort],
+)
+
+const batRows = useMemo(() => {
+  const filtered = allBatRows.filter((row) => {
+    if (scope === 'team' && effectiveTeamId != null) {
+      return row.teamId === effectiveTeamId
+    }
+
+    if (scope === 'player' && effectivePlayerId != null) {
+      return row.playerId === effectivePlayerId
+    }
+
+    return true
+  })
+
+  return filtered.map((row, index) => ({
+    ...row,
+    pos: index + 1,
+  }))
+}, [allBatRows, scope, effectiveTeamId, effectivePlayerId])
+
+const bowlRows = useMemo(() => {
+  const filtered = allBowlRows.filter((row) => {
+    if (scope === 'team' && effectiveTeamId != null) {
+      return row.teamId === effectiveTeamId
+    }
+
+    if (scope === 'player' && effectivePlayerId != null) {
+      return row.playerId === effectivePlayerId
+    }
+
+    return true
+  })
+
+  return filtered.map((row, index) => ({
+    ...row,
+    pos: index + 1,
+  }))
+}, [allBowlRows, scope, effectiveTeamId, effectivePlayerId])
+
+const battingPage = pagedStats(batRows, battingStatsPage)
+const bowlingPage = pagedStats(bowlRows, bowlingStatsPage)
   if (resultMatches.length === 0) {
     return <EmptyState title="No match statistics for this season yet" />
   }
@@ -317,7 +431,7 @@ export function LeagueStatsPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {batRows.map((r) => (
+                  {battingPage.visibleRows.map((r) => (
                     <tr key={r.playerId}>
                       <td>{r.pos}</td>
                       <td>
@@ -345,6 +459,17 @@ export function LeagueStatsPanel({
                   ))}
                 </tbody>
               </table>
+<StatsPager
+  currentPage={battingPage.currentPage}
+  totalPages={battingPage.totalPages}
+  onPrevious={() =>
+    setBattingStatsPage((page) => clampPage(page - 1, batRows.length))
+  }
+  onNext={() =>
+    setBattingStatsPage((page) => clampPage(page + 1, batRows.length))
+  }
+/>
+    
             </div>
           </div>
         ) : (
@@ -382,7 +507,7 @@ export function LeagueStatsPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {bowlRows.map((r) => (
+                  {bowlingPage.visibleRows.map((r) => (
                     <tr key={r.playerId}>
                       <td>{r.pos}</td>
                       <td>
@@ -407,6 +532,17 @@ export function LeagueStatsPanel({
                   ))}
                 </tbody>
               </table>
+<StatsPager
+  currentPage={bowlingPage.currentPage}
+  totalPages={bowlingPage.totalPages}
+  onPrevious={() =>
+    setBowlingStatsPage((page) => clampPage(page - 1, bowlRows.length))
+  }
+  onNext={() =>
+    setBowlingStatsPage((page) => clampPage(page + 1, bowlRows.length))
+  }
+/>
+              
             </div>
           </div>
         )}
