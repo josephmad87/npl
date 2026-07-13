@@ -5672,6 +5672,11 @@ table.player-public-table {
   color: var(--color-primary);
 }
 
+.batting-scorecard-table__extras td {
+  font-weight: 700;
+  background: rgba(58, 0, 0, 0.03);
+}
+
 .home-sponsors-card a {
   display: block;
   color: inherit;
