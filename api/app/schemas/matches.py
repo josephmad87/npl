@@ -48,6 +48,8 @@ class MatchPlayerStatIn(BaseModel):
     player_id: int = Field(ge=1)
     team_id: int = Field(ge=1)
     lineup_order: int = Field(default=0, ge=0)
+    batting_order: int | None = Field(default=None, ge=0)
+    bowling_order: int | None = Field(default=None, ge=0)
     runs: int = Field(default=0, ge=0)
     balls_faced: int = Field(default=0, ge=0)
     fours: int = Field(default=0, ge=0)
@@ -69,6 +71,8 @@ class MatchPlayerStatOut(ORMModel):
     player_id: int
     team_id: int
     lineup_order: int
+    batting_order: int | None
+    bowling_order: int | None
     runs: int
     balls_faced: int
     fours: int
