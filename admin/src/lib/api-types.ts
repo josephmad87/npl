@@ -163,6 +163,8 @@ export type MatchPlayerStatDto = {
   player_id: number
   team_id: number
   lineup_order: number
+  batting_order: number | null
+  bowling_order: number | null
   runs: number
   balls_faced: number
   fours: number
