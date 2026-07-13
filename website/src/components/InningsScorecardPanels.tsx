@@ -2,6 +2,7 @@ import {
   formatCricketOvers,
   formatDismissalDisplay,
   getInningsSides,
+  hasBattingLine,
   hasBowlingLine,
   oversFieldToBalls,
   type InningsNumber,
@@ -145,22 +146,21 @@ export function InningsScorecardPanels({
     awayLabel,
   )
 
-  const battingRows = stats
-    .filter(
-      (s) =>
-        s.team_id === sides.battingTeamId &&
-        s.batting_order != null,
-    )
-    .sort(compareBattingOrder)
+ const battingRows = stats
+  .filter(
+    (s) =>
+      s.team_id === sides.battingTeamId &&
+      (s.batting_order != null || hasBattingLine(s)),
+  )
+  .sort(compareBattingOrder)
 
-  const bowlingRows = stats
-    .filter(
-      (s) =>
-        s.team_id === sides.bowlingTeamId &&
-        s.bowling_order != null &&
-        hasBowlingLine(s),
-    )
-    .sort(compareBowlingOrder)
+ const bowlingRows = stats
+  .filter(
+    (s) =>
+      s.team_id === sides.bowlingTeamId &&
+      hasBowlingLine(s),
+  )
+  .sort(compareBowlingOrder)
 
   return (
     <div className="innings-scorecard-panels">
