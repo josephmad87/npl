@@ -2,7 +2,6 @@ import {
   formatCricketOvers,
   formatDismissalDisplay,
   getInningsSides,
-  hasBattingLine,
   hasBowlingLine,
   oversFieldToBalls,
   type InningsNumber,
@@ -11,6 +10,8 @@ import {
 type ScorecardStat = {
   id: number
   lineup_order?: number
+  batting_order?: number | null
+  bowling_order?: number | null
   player_id: number
   team_id: number
   runs: number
@@ -51,6 +52,7 @@ function teamLabel(
   if (teamId === awayTeamId) return awayLabel
   return `#${teamId}`
 }
+
 function formatEconomyRate(
   runsConceded: number,
   overs: string | number | null,
@@ -77,6 +79,30 @@ function formatStrikeRate(
   return (((runs ?? 0) * 100) / balls).toFixed(2)
 }
 
+function compareBattingOrder(a: ScorecardStat, b: ScorecardStat): number {
+  const orderDelta =
+    (a.batting_order ?? a.lineup_order ?? 0) -
+    (b.batting_order ?? b.lineup_order ?? 0)
+
+  if (orderDelta !== 0) {
+    return orderDelta
+  }
+
+  return a.id - b.id
+}
+
+function compareBowlingOrder(a: ScorecardStat, b: ScorecardStat): number {
+  const orderDelta =
+    (a.bowling_order ?? a.lineup_order ?? 0) -
+    (b.bowling_order ?? b.lineup_order ?? 0)
+
+  if (orderDelta !== 0) {
+    return orderDelta
+  }
+
+  return a.id - b.id
+}
+
 export function InningsScorecardPanels({
   innings,
   battingFirstTeamId,
@@ -94,6 +120,7 @@ export function InningsScorecardPanels({
     homeTeamId,
     awayTeamId,
   )
+
   if (!sides) {
     return (
       <p className="match-centre-muted">
@@ -109,6 +136,7 @@ export function InningsScorecardPanels({
     homeLabel,
     awayLabel,
   )
+
   const bowlingLabel = teamLabel(
     sides.bowlingTeamId,
     homeTeamId,
@@ -117,38 +145,41 @@ export function InningsScorecardPanels({
     awayLabel,
   )
 
-function compareScorecardOrder(a: ScorecardStat, b: ScorecardStat): number {
-  const orderDelta = (a.lineup_order ?? 0) - (b.lineup_order ?? 0)
+  const battingRows = stats
+    .filter(
+      (s) =>
+        s.team_id === sides.battingTeamId &&
+        s.batting_order != null,
+    )
+    .sort(compareBattingOrder)
 
-  if (orderDelta !== 0) {
-    return orderDelta
-  }
-
-  return a.id - b.id
-}
-
-const battingRows = stats
-  .filter((s) => s.team_id === sides.battingTeamId && hasBattingLine(s))
-  .sort(compareScorecardOrder)
-
-const bowlingRows = stats
-  .filter((s) => s.team_id === sides.bowlingTeamId && hasBowlingLine(s))
-  .sort(compareScorecardOrder)
+  const bowlingRows = stats
+    .filter(
+      (s) =>
+        s.team_id === sides.bowlingTeamId &&
+        s.bowling_order != null &&
+        hasBowlingLine(s),
+    )
+    .sort(compareBowlingOrder)
 
   return (
     <div className="innings-scorecard-panels">
       {extrasLine ? <p className="match-centre-muted">{extrasLine}</p> : null}
+
       <section className="innings-scorecard-panels__section">
-        <h3 className="innings-scorecard-panels__h">Batting — {battingLabel}</h3>
+        <h3 className="innings-scorecard-panels__h">
+          Batting — {battingLabel}
+        </h3>
+
         {battingRows.length > 0 ? (
           <div className="table-scroll match-stats-scroll">
-            <table className="match-centre-scorecard-table">
+            <table className="match-centre-scorecard-table batting-scorecard-table">
               <thead>
                 <tr>
                   <th>Batter</th>
                   <th>How out</th>
                   <th>R</th>
-                  <th>BF</th>
+                  <th>B</th>
                   <th>4s</th>
                   <th>6s</th>
                   <th>SR</th>
@@ -156,15 +187,15 @@ const bowlingRows = stats
               </thead>
               <tbody>
                 {battingRows.map((s) => (
-                 <tr key={`bat-${s.id}`}>
-  <td>{playerName(s.player_id)}</td>
-<td>{formatDismissalDisplay(s.dismissal)}</td>
-<td>{s.runs}</td>
-<td>{s.balls_faced}</td>
-<td>{s.fours}</td>
-<td>{s.sixes}</td>
-<td>{formatStrikeRate(s.runs, s.balls_faced)}</td>
-</tr>
+                  <tr key={`bat-${s.id}`}>
+                    <td>{playerName(s.player_id)}</td>
+                    <td>{formatDismissalDisplay(s.dismissal)}</td>
+                    <td>{s.runs}</td>
+                    <td>{s.balls_faced}</td>
+                    <td>{s.fours}</td>
+                    <td>{s.sixes}</td>
+                    <td>{formatStrikeRate(s.runs, s.balls_faced)}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -173,27 +204,34 @@ const bowlingRows = stats
           <p className="match-centre-muted">No batting rows for this innings.</p>
         )}
       </section>
+
       <section className="innings-scorecard-panels__section">
-        <h3 className="innings-scorecard-panels__h">Bowling — {bowlingLabel}</h3>
+        <h3 className="innings-scorecard-panels__h">
+          Bowling — {bowlingLabel}
+        </h3>
+
         {bowlingRows.length > 0 ? (
           <div className="table-scroll match-stats-scroll">
-            <table className="match-centre-scorecard-table">
+            <table className="match-centre-scorecard-table bowling-scorecard-table">
               <thead>
                 <tr>
                   <th>Bowler</th>
-                  <th>Ov</th>
+                  <th>O</th>
                   <th>M</th>
-                  <th>Conc</th>
+                  <th>R</th>
                   <th>W</th>
                   <th>Econ</th>
-         
                 </tr>
               </thead>
               <tbody>
                 {bowlingRows.map((s) => (
                   <tr key={`bowl-${s.id}`}>
                     <td>{playerName(s.player_id)}</td>
-                    <td>{s.overs != null && s.overs !== '' ? formatCricketOvers(s.overs) : '—'}</td>
+                    <td>
+                      {s.overs != null && s.overs !== ''
+                        ? formatCricketOvers(s.overs)
+                        : '—'}
+                    </td>
                     <td>{s.maidens}</td>
                     <td>{s.runs_conceded}</td>
                     <td>{s.wickets}</td>
