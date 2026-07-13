@@ -9,6 +9,7 @@ import {
 
 type ScorecardStat = {
   id: number
+  lineup_order?: number
   player_id: number
   team_id: number
   runs: number
@@ -90,17 +91,23 @@ export function InningsScorecardPanels({
     awayLabel,
   )
 
-  const battingRows = stats
-    .filter((s) => s.team_id === sides.battingTeamId && hasBattingLine(s))
-    .sort((a, b) => {
-      const runsDelta = (b.runs ?? 0) - (a.runs ?? 0)
-      if (runsDelta !== 0) return runsDelta
-      return (a.balls_faced ?? 0) - (b.balls_faced ?? 0)
-    })
+function compareScorecardOrder(a: ScorecardStat, b: ScorecardStat): number {
+  const orderDelta = (a.lineup_order ?? 0) - (b.lineup_order ?? 0)
 
-  const bowlingRows = stats
-    .filter((s) => s.team_id === sides.bowlingTeamId && hasBowlingLine(s))
-    .sort((a, b) => (b.wickets ?? 0) - (a.wickets ?? 0))
+  if (orderDelta !== 0) {
+    return orderDelta
+  }
+
+  return a.id - b.id
+}
+
+const battingRows = stats
+  .filter((s) => s.team_id === sides.battingTeamId && hasBattingLine(s))
+  .sort(compareScorecardOrder)
+
+const bowlingRows = stats
+  .filter((s) => s.team_id === sides.bowlingTeamId && hasBowlingLine(s))
+  .sort(compareScorecardOrder)
 
   return (
     <div className="innings-scorecard-panels">
