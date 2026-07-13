@@ -4,6 +4,7 @@ import {
   getInningsSides,
   hasBattingLine,
   hasBowlingLine,
+  oversFieldToBalls,
   type InningsNumber,
 } from '../lib/cricket'
 
@@ -49,6 +50,18 @@ function teamLabel(
   if (teamId === homeTeamId) return homeLabel
   if (teamId === awayTeamId) return awayLabel
   return `#${teamId}`
+}
+function formatEconomyRate(
+  runsConceded: number,
+  overs: string | number | null,
+): string {
+  const balls = oversFieldToBalls(overs)
+
+  if (balls <= 0) {
+    return '—'
+  }
+
+  return ((runsConceded * 6) / balls).toFixed(2)
 }
 
 export function InningsScorecardPanels({
@@ -119,7 +132,7 @@ const bowlingRows = stats
             <table className="match-centre-scorecard-table">
               <thead>
                 <tr>
-                  <th>Player</th>
+                  <th>Batter</th>
                   <th>How out</th>
                   <th>R</th>
                   <th>BF</th>
@@ -152,7 +165,7 @@ const bowlingRows = stats
             <table className="match-centre-scorecard-table">
               <thead>
                 <tr>
-                  <th>Player</th>
+                  <th>Bowler</th>
                   <th>Ov</th>
                   <th>M</th>
                   <th>Conc</th>
@@ -167,18 +180,11 @@ const bowlingRows = stats
                 {bowlingRows.map((s) => (
                   <tr key={`bowl-${s.id}`}>
                     <td>{playerName(s.player_id)}</td>
-                    <td>
-                      {s.overs != null && s.overs !== ''
-                        ? formatCricketOvers(s.overs)
-                        : '—'}
-                    </td>
+                    <td>{s.overs != null && s.overs !== '' ? formatCricketOvers(s.overs) : '—'}</td>
                     <td>{s.maidens}</td>
                     <td>{s.runs_conceded}</td>
                     <td>{s.wickets}</td>
-                    <td>{s.catches}</td>
-                    <td>{s.stumpings}</td>
-                    <td>{s.run_outs}</td>
-                    <td>{s.notes ?? '—'}</td>
+                    <td>{formatEconomyRate(s.runs_conceded, s.overs)}</td>
                   </tr>
                 ))}
               </tbody>
