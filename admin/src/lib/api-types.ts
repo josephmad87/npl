@@ -155,6 +155,8 @@ export type MatchResultDto = {
   away_extras_byes?: number
   away_extras_no_balls?: number
   away_extras_leg_byes?: number
+  home_allotted_overs?: string | number | null
+  away_allotted_overs?: string | number | null
 }
 
 export type MatchPlayerStatDto = {

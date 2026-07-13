@@ -73,6 +73,26 @@ function extrasTotal(e: ExtrasFields): number {
   return e.wides + e.byes + e.no_balls + e.leg_byes
 }
 
+function defaultAllottedOversForMatch(match: MatchDto): string {
+  const text = [
+    match.season?.league?.slug,
+    match.season?.league?.name,
+    match.season?.slug,
+    match.season?.name,
+    match.title,
+    match.category,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  if (text.includes('t20') || text.includes('twenty20')) {
+    return '20.0'
+  }
+
+  return '40.0'
+}
+
 function newKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
@@ -199,6 +219,7 @@ export function MatchResultEditor({
 }: MatchResultEditorProps) {
   const queryClient = useQueryClient()
   const res = match.result
+  const defaultAllottedOvers = defaultAllottedOversForMatch(match)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -242,6 +263,18 @@ export function MatchResultEditor({
     extrasFromResult(res, 'away'),
   )
 
+const [homeAllottedOvers, setHomeAllottedOvers] = useState(
+  res?.home_allotted_overs != null
+    ? String(res.home_allotted_overs)
+    : defaultAllottedOvers,
+)
+
+const [awayAllottedOvers, setAwayAllottedOvers] = useState(
+  res?.away_allotted_overs != null
+    ? String(res.away_allotted_overs)
+    : defaultAllottedOvers,
+)
+  
   const [statRows, setStatRows] = useState<StatRow[]>(() =>
     fromServer(match.player_stats ?? []),
   )
@@ -480,6 +513,22 @@ const fillRosterForTeam = useCallback(
           return
         }
       }
+
+      const normalizedHomeAllottedOvers =
+  normalizeCricketOversInput(homeAllottedOvers) || defaultAllottedOvers
+
+const normalizedAwayAllottedOvers =
+  normalizeCricketOversInput(awayAllottedOvers) || defaultAllottedOvers
+
+if (
+  Number.isNaN(Number(normalizedHomeAllottedOvers)) ||
+  Number.isNaN(Number(normalizedAwayAllottedOvers))
+) {
+  setSaveError('Invalid allotted overs value.')
+  setSaving(false)
+  return
+}
+   
       await adminPost<MatchDto>(`/admin/matches/${matchId}/result`, {
         winning_team_id: winningTeamId ? Number(winningTeamId) : null,
         batting_first_team_id: battingFirstId,
@@ -490,6 +539,8 @@ const fillRosterForTeam = useCallback(
         player_of_match_player_id: pomId ? Number(pomId) : null,
         result_status: res?.result_status ?? 'official',
         match_report: matchReport.trim() || null,
+        home_allotted_overs: Number(normalizedHomeAllottedOvers),
+        away_allotted_overs: Number(normalizedAwayAllottedOvers),
         home_extras_wides: homeExtras.wides,
         home_extras_byes: homeExtras.byes,
         home_extras_no_balls: homeExtras.no_balls,
@@ -526,6 +577,37 @@ const fillRosterForTeam = useCallback(
       <section className="match-result-editor__section">
         <h2 className="match-result-editor__h">Match summary</h2>
         <div className="match-result-editor__grid">
+
+<label className="match-result-editor__field">
+  <span>{homeLabel} allotted overs for NRR</span>
+  <input
+    className="inline-edit__control"
+    value={homeAllottedOvers}
+    onChange={(e) => setHomeAllottedOvers(e.target.value)}
+    onBlur={(e) =>
+      setHomeAllottedOvers(
+        normalizeCricketOversInput(e.target.value) || defaultAllottedOvers,
+      )
+    }
+    placeholder={defaultAllottedOvers}
+  />
+</label>
+
+<label className="match-result-editor__field">
+  <span>{awayLabel} allotted overs for NRR</span>
+  <input
+    className="inline-edit__control"
+    value={awayAllottedOvers}
+    onChange={(e) => setAwayAllottedOvers(e.target.value)}
+    onBlur={(e) =>
+      setAwayAllottedOvers(
+        normalizeCricketOversInput(e.target.value) || defaultAllottedOvers,
+      )
+    }
+    placeholder={defaultAllottedOvers}
+  />
+</label>
+          
           <label className="match-result-editor__field">
             <span>Team batting first</span>
             <select

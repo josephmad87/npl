@@ -1037,6 +1037,8 @@ def admin_set_match_result(
                 player_id=row.player_id,
                 team_id=row.team_id,
                 lineup_order=row.lineup_order,
+                batting_order=row.batting_order,
+                bowling_order=row.bowling_order,
                 runs=row.runs,
                 balls_faced=row.balls_faced,
                 fours=row.fours,
