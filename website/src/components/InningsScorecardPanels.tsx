@@ -220,13 +220,6 @@ export function InningsScorecardPanels({
     awayLabel,
   )
 
-  const bowlingLabel = teamLabel(
-    sides.bowlingTeamId,
-    homeTeamId,
-    awayTeamId,
-    homeLabel,
-    awayLabel,
-  )
 
  const battingRows = stats
   .filter(
