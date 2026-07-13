@@ -2,14 +2,16 @@ import {
   formatCricketOvers,
   formatDismissalDisplay,
   getInningsSides,
-  hasBattingLine,
   hasBowlingLine,
+  oversFieldToBalls,
   type InningsNumber,
-} from '@/lib/cricket'
+} from '../lib/cricket'
 
 type ScorecardStat = {
-  lineup_order?: number
   id: number
+  lineup_order?: number
+  batting_order?: number | null
+  bowling_order?: number | null
   player_id: number
   team_id: number
   runs: number
@@ -50,7 +52,55 @@ function teamLabel(
   if (teamId === awayTeamId) return awayLabel
   return `#${teamId}`
 }
+function formatEconomyRate(
+  runsConceded: number,
+  overs: string | number | null,
+): string {
+  const balls = oversFieldToBalls(overs)
 
+  if (balls <= 0) {
+    return '—'
+  }
+
+  return ((runsConceded * 6) / balls).toFixed(2)
+}
+
+function formatStrikeRate(
+  runs: number | null | undefined,
+  ballsFaced: number | null | undefined,
+): string {
+  const balls = ballsFaced ?? 0
+
+  if (balls <= 0) {
+    return '—'
+  }
+
+  return (((runs ?? 0) * 100) / balls).toFixed(2)
+}
+
+function compareBattingOrder(a: ScorecardStat, b: ScorecardStat): number {
+  const orderDelta =
+    (a.batting_order ?? a.lineup_order ?? 0) -
+    (b.batting_order ?? b.lineup_order ?? 0)
+
+  if (orderDelta !== 0) {
+    return orderDelta
+  }
+
+  return a.id - b.id
+}
+
+function compareBowlingOrder(a: ScorecardStat, b: ScorecardStat): number {
+  const orderDelta =
+    (a.bowling_order ?? a.lineup_order ?? 0) -
+    (b.bowling_order ?? b.lineup_order ?? 0)
+
+  if (orderDelta !== 0) {
+    return orderDelta
+  }
+
+  return a.id - b.id
+}
 export function InningsScorecardPanels({
   innings,
   battingFirstTeamId,
@@ -92,17 +142,22 @@ export function InningsScorecardPanels({
     awayLabel,
   )
 
-  const battingRows = stats
-    .filter((s) => s.team_id === sides.battingTeamId && hasBattingLine(s))
-    .sort((a, b) => {
-      const runsDelta = (b.runs ?? 0) - (a.runs ?? 0)
-      if (runsDelta !== 0) return runsDelta
-      return (a.balls_faced ?? 0) - (b.balls_faced ?? 0)
-    })
+const battingRows = stats
+  .filter(
+    (s) =>
+      s.team_id === sides.battingTeamId &&
+      s.batting_order != null,
+  )
+  .sort(compareBattingOrder)
 
-  const bowlingRows = stats
-    .filter((s) => s.team_id === sides.bowlingTeamId && hasBowlingLine(s))
-    .sort((a, b) => (b.wickets ?? 0) - (a.wickets ?? 0))
+const bowlingRows = stats
+  .filter(
+    (s) =>
+      s.team_id === sides.bowlingTeamId &&
+      s.bowling_order != null &&
+      hasBowlingLine(s),
+  )
+  .sort(compareBowlingOrder)
 
   return (
     <div className="innings-scorecard-panels">
@@ -114,23 +169,25 @@ export function InningsScorecardPanels({
             <table className="data-table match-stats-table">
               <thead>
                 <tr>
-                  <th>Player</th>
+                  <th>Batter</th>
+                  <th>How out</th>
                   <th>R</th>
-                  <th>BF</th>
+                  <th>B</th>
                   <th>4s</th>
                   <th>6s</th>
-                  <th>How out</th>
+                  <th>SR</th>
                 </tr>
               </thead>
               <tbody>
                 {battingRows.map((s) => (
                   <tr key={`bat-${s.id}`}>
                     <td>{playerName(s.player_id)}</td>
+                    <td>{formatDismissalDisplay(s.dismissal)}</td>
                     <td>{s.runs}</td>
                     <td>{s.balls_faced}</td>
                     <td>{s.fours}</td>
                     <td>{s.sixes}</td>
-                    <td>{formatDismissalDisplay(s.dismissal)}</td>
+                    <td>{formatStrikeRate(s.runs, s.balls_faced)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -147,33 +204,23 @@ export function InningsScorecardPanels({
             <table className="data-table match-stats-table">
               <thead>
                 <tr>
-                  <th>Player</th>
-                  <th>Ov</th>
+                 <th>Bowler</th>
+                  <th>O</th>
                   <th>M</th>
-                  <th>Conc</th>
+                  <th>R</th>
                   <th>W</th>
-                  <th>Ct</th>
-                  <th>St</th>
-                  <th>RO</th>
-                  <th>Notes</th>
+                  <th>Econ</th>
                 </tr>
               </thead>
               <tbody>
                 {bowlingRows.map((s) => (
                   <tr key={`bowl-${s.id}`}>
                     <td>{playerName(s.player_id)}</td>
-                    <td>
-                      {s.overs != null && s.overs !== ''
-                        ? formatCricketOvers(s.overs)
-                        : '—'}
-                    </td>
+                    <td>{s.overs != null && s.overs !== '' ? formatCricketOvers(s.overs) : '—'}</td>
                     <td>{s.maidens}</td>
                     <td>{s.runs_conceded}</td>
                     <td>{s.wickets}</td>
-                    <td>{s.catches}</td>
-                    <td>{s.stumpings}</td>
-                    <td>{s.run_outs}</td>
-                    <td>{s.notes ?? '—'}</td>
+                    <td>{formatEconomyRate(s.runs_conceded, s.overs)}</td>
                   </tr>
                 ))}
               </tbody>
