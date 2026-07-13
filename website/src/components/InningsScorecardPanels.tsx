@@ -253,10 +253,9 @@ const battingHeading = formatInningsHeading(
   
   return (
     <div className="innings-scorecard-panels">
-      {extrasLine ? <p className="match-centre-muted">{extrasLine}</p> : null}
-
-      <section className="innings-scorecard-panels__section">
-       <h3 className="innings-scorecard-panels__h">
+  <section className="innings-scorecard-panels__section">
+       
+    <h3 className="innings-scorecard-panels__h">
             {battingHeading}
                 </h3>
 
@@ -274,19 +273,27 @@ const battingHeading = formatInningsHeading(
                   <th>SR</th>
                 </tr>
               </thead>
-              <tbody>
-                {battingRows.map((s) => (
-                  <tr key={`bat-${s.id}`}>
-                    <td>{playerName(s.player_id)}</td>
-                    <td>{formatDismissalDisplay(s.dismissal)}</td>
-                    <td>{s.runs}</td>
-                    <td>{s.balls_faced}</td>
-                    <td>{s.fours}</td>
-                    <td>{s.sixes}</td>
-                    <td>{formatStrikeRate(s.runs, s.balls_faced)}</td>
-                  </tr>
-                ))}
-              </tbody>
+               <tbody>
+                    {battingRows.map((s) => (
+                        <tr key={`bat-${s.id}`}>
+                          <td>{playerName(s.player_id)}</td>
+                          <td>{formatDismissalDisplay(s.dismissal)}</td>
+                          <td>{s.runs}</td>
+                          <td>{s.balls_faced}</td>
+                          <td>{s.fours}</td>
+                          <td>{s.sixes}</td>
+                          <td>{formatStrikeRate(s.runs, s.balls_faced)}</td>
+                </tr>
+              ))}
+
+            {extrasLine ? (
+              <tr className="batting-scorecard-table__extras">
+                  <td>Extras</td>
+                    <td colSpan={6}>{extrasLine.replace(/^Extras\s*/i, '')}</td>
+                       </tr>
+  ) : null}
+</tbody>
+                
             </table>
           </div>
         ) : (
