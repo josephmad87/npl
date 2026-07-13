@@ -64,6 +64,19 @@ function formatEconomyRate(
   return ((runsConceded * 6) / balls).toFixed(2)
 }
 
+function formatStrikeRate(
+  runs: number | null | undefined,
+  ballsFaced: number | null | undefined,
+): string {
+  const balls = ballsFaced ?? 0
+
+  if (balls <= 0) {
+    return '—'
+  }
+
+  return (((runs ?? 0) * 100) / balls).toFixed(2)
+}
+
 export function InningsScorecardPanels({
   innings,
   battingFirstTeamId,
@@ -138,17 +151,19 @@ const bowlingRows = stats
                   <th>BF</th>
                   <th>4s</th>
                   <th>6s</th>
+                  <th>SR</th>
                 </tr>
               </thead>
               <tbody>
                 {battingRows.map((s) => (
                  <tr key={`bat-${s.id}`}>
   <td>{playerName(s.player_id)}</td>
-  <td>{formatDismissalDisplay(s.dismissal)}</td>
-  <td>{s.runs}</td>
-  <td>{s.balls_faced}</td>
-  <td>{s.fours}</td>
-  <td>{s.sixes}</td>
+<td>{formatDismissalDisplay(s.dismissal)}</td>
+<td>{s.runs}</td>
+<td>{s.balls_faced}</td>
+<td>{s.fours}</td>
+<td>{s.sixes}</td>
+<td>{formatStrikeRate(s.runs, s.balls_faced)}</td>
 </tr>
                 ))}
               </tbody>
