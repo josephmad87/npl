@@ -8,6 +8,7 @@ import {
 } from '@/lib/cricket'
 
 type ScorecardStat = {
+  lineup_order?: number
   id: number
   player_id: number
   team_id: number
