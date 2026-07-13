@@ -16,6 +16,7 @@ import { formatCategoryLabel } from './lib/formatters'
 import { type MatchLite, useTeamsMap } from './lib/hooks'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { sortFixturesByDateAsc } from './lib/sortFixtures'
+import { SponsorMarquee } from './components/SponsorMarquee'
 
 type TeamDetail = {
   id: number
@@ -66,6 +67,16 @@ type PlayerRow = {
   jersey_number: number | null
   profile_photo_url: string | null
 }
+
+type PublicSponsor = {
+  id: number
+  name: string
+  image_url: string
+  link_url: string | null
+  team_id: number | null
+  team_name: string | null
+}
+
 
 type TeamSectionTabId =
   | 'leadership'
@@ -178,6 +189,16 @@ export function TeamDetailPage() {
     retry: 1,
   })
 
+const sponsorsQ = useQuery({
+  queryKey: ['team-sponsors', data?.id ?? 'none'],
+  queryFn: () =>
+    fetchAllPaginatedList<PublicSponsor>(
+      (page) => `/public/sponsors?page=${page}&page_size=100`,
+    ),
+  enabled: Boolean(data?.id),
+  retry: 1,
+})
+  
   const coverHero = data ? resolveMediaUrl(data.cover_image_url) : null
   const firstTeamPhoto = data?.team_photo_urls?.[0]
     ? resolveMediaUrl(data.team_photo_urls[0])
@@ -230,6 +251,16 @@ export function TeamDetailPage() {
     () => sortFixturesByDateAsc(fixturesQ.data ?? []),
     [fixturesQ.data],
   )
+
+  const teamSponsors = useMemo(() => {
+  if (!data) {
+    return []
+  }
+
+  return (sponsorsQ.data ?? []).filter(
+    (sponsor) => sponsor.team_id === data.id,
+  )
+}, [sponsorsQ.data, data])
 
   const captainPhotoUrl = useMemo(() => {
     if (!data) return null
@@ -310,30 +341,36 @@ export function TeamDetailPage() {
               </div>
 
               {activeTab === 'leadership' ? (
-                <section className="team-page__section" aria-label="Leadership">
-                <SectionHeader title="Leadership" />
-                <div className="team-page__staff-grid">
-                  <StaffCard
-                    role="Captain"
-                    name={data.captain}
-                    imageUrl={captainPhotoUrl}
-                    placeholderKind="player"
-                  />
-                  <StaffCard
-                    role="Coach"
-                    name={data.coach}
-                    imageUrl={data.coach_image_url ?? null}
-                    placeholderKind="brand"
-                  />
-                  <StaffCard
-                    role="Manager"
-                    name={data.manager}
-                    imageUrl={data.manager_image_url ?? null}
-                    placeholderKind="brand"
-                  />
-                </div>
-                </section>
-              ) : null}
+  <section className="team-page__section" aria-label="Leadership">
+    <SectionHeader title="Leadership" />
+
+    <div className="team-page__staff-grid">
+      <StaffCard
+        role="Captain"
+        name={data.captain}
+        imageUrl={captainPhotoUrl}
+        placeholderKind="player"
+      />
+      <StaffCard
+        role="Coach"
+        name={data.coach}
+        imageUrl={data.coach_image_url ?? null}
+        placeholderKind="brand"
+      />
+      <StaffCard
+        role="Manager"
+        name={data.manager}
+        imageUrl={data.manager_image_url ?? null}
+        placeholderKind="brand"
+      />
+    </div>
+
+    <SponsorMarquee
+      title={`${data.name} Partners & Sponsors`}
+      sponsors={teamSponsors}
+    />
+  </section>
+) : null}
 
               {activeTab === 'home-ground' ? (
                 <section className="team-page__section" aria-label="Home ground">
