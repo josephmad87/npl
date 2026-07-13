@@ -104,6 +104,88 @@ function compareBowlingOrder(a: ScorecardStat, b: ScorecardStat): number {
   return a.id - b.id
 }
 
+function ballsToOversLabel(balls: number): string {
+  if (balls <= 0) {
+    return '0'
+  }
+
+  const overs = Math.floor(balls / 6)
+  const extraBalls = balls % 6
+
+  if (extraBalls === 0) {
+    return String(overs)
+  }
+
+  return `${overs}.${extraBalls}`
+}
+
+function extrasRunsFromLine(extrasLine?: string | null): number {
+  if (!extrasLine) {
+    return 0
+  }
+
+  const match = extrasLine.match(/extras\s+(\d+)/i)
+
+  if (!match) {
+    return 0
+  }
+
+  return Number(match[1]) || 0
+}
+
+function isWicketDismissal(dismissal: string | null): boolean {
+  if (!dismissal) {
+    return false
+  }
+
+  const value = dismissal.trim().toLowerCase()
+
+  if (!value) {
+    return false
+  }
+
+  return ![
+    'not out',
+    'did not bat',
+    'dnb',
+    'retired hurt',
+    'retired not out',
+    'absent',
+    'absent hurt',
+  ].includes(value)
+}
+
+function formatInningsHeading(
+  teamName: string,
+  battingRows: ScorecardStat[],
+  bowlingRows: ScorecardStat[],
+  extrasLine?: string | null,
+): string {
+  const batterRuns = battingRows.reduce((total, row) => total + row.runs, 0)
+  const extras = extrasRunsFromLine(extrasLine)
+  const totalRuns = batterRuns + extras
+
+  const wickets = battingRows.filter((row) =>
+    isWicketDismissal(row.dismissal),
+  ).length
+
+  const bowlingBalls = bowlingRows.reduce(
+    (total, row) => total + oversFieldToBalls(row.overs),
+    0,
+  )
+
+  const battingBalls = battingRows.reduce(
+    (total, row) => total + row.balls_faced,
+    0,
+  )
+
+  const ballsFaced = bowlingBalls > 0 ? bowlingBalls : battingBalls
+  const oversLabel = ballsToOversLabel(ballsFaced)
+
+  return `${teamName} ${totalRuns}/${wickets} (${oversLabel} overs)`
+}
+
+
 export function InningsScorecardPanels({
   innings,
   battingFirstTeamId,
@@ -162,14 +244,21 @@ export function InningsScorecardPanels({
   )
   .sort(compareBowlingOrder)
 
+const battingHeading = formatInningsHeading(
+  battingLabel,
+  battingRows,
+  bowlingRows,
+  extrasLine,
+)
+  
   return (
     <div className="innings-scorecard-panels">
       {extrasLine ? <p className="match-centre-muted">{extrasLine}</p> : null}
 
       <section className="innings-scorecard-panels__section">
-        <h3 className="innings-scorecard-panels__h">
-          Batting — {battingLabel}
-        </h3>
+       <h3 className="innings-scorecard-panels__h">
+            {battingHeading}
+                </h3>
 
         {battingRows.length > 0 ? (
           <div className="table-scroll match-stats-scroll">
