@@ -5839,4 +5839,8 @@ table.player-public-table {
   .match-centre-scorecard-table td {
     padding: 0.65rem 0.7rem;
   }
+
+  .batting-scorecard-table {
+  min-width: 840px;
+}
 }
