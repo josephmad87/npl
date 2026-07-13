@@ -185,10 +185,8 @@ const bowlingRows = stats
                   <th>M</th>
                   <th>Conc</th>
                   <th>W</th>
-                  <th>Ct</th>
-                  <th>St</th>
-                  <th>RO</th>
-                  <th>Notes</th>
+                  <th>Econ</th>
+         
                 </tr>
               </thead>
               <tbody>
