@@ -113,23 +113,23 @@ export function InningsScorecardPanels({
               <thead>
                 <tr>
                   <th>Player</th>
+                  <th>How out</th>
                   <th>R</th>
                   <th>BF</th>
                   <th>4s</th>
                   <th>6s</th>
-                  <th>How out</th>
                 </tr>
               </thead>
               <tbody>
                 {battingRows.map((s) => (
-                  <tr key={`bat-${s.id}`}>
-                    <td>{playerName(s.player_id)}</td>
-                    <td>{s.runs}</td>
-                    <td>{s.balls_faced}</td>
-                    <td>{s.fours}</td>
-                    <td>{s.sixes}</td>
-                    <td>{formatDismissalDisplay(s.dismissal)}</td>
-                  </tr>
+                 <tr key={`bat-${s.id}`}>
+  <td>{playerName(s.player_id)}</td>
+  <td>{formatDismissalDisplay(s.dismissal)}</td>
+  <td>{s.runs}</td>
+  <td>{s.balls_faced}</td>
+  <td>{s.fours}</td>
+  <td>{s.sixes}</td>
+</tr>
                 ))}
               </tbody>
             </table>
