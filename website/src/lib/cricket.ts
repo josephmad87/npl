@@ -117,16 +117,5 @@ export function hasBowlingLine(row: {
   run_outs?: number
   notes?: string | null
 }): boolean {
-  const ov = row.overs
-  const hasOvers = ov != null && ov !== '' && Number(ov) > 0
-  return (
-    hasOvers ||
-    (row.maidens ?? 0) > 0 ||
-    (row.runs_conceded ?? 0) > 0 ||
-    (row.wickets ?? 0) > 0 ||
-    (row.catches ?? 0) > 0 ||
-    (row.stumpings ?? 0) > 0 ||
-    (row.run_outs ?? 0) > 0 ||
-    (row.notes?.trim() ?? '') !== ''
-  )
+  return oversFieldToBalls(row.overs) > 0
 }
