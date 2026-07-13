@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import nplLogoUrl from './assets/logo.png'
 import './App.css'
 import { EmptyState } from './components/EmptyState'
 import { GalleryCard } from './components/GalleryCard'
@@ -10,10 +9,23 @@ import { MatchCarousel } from './components/MatchCarousel'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
-import { useLatestResults, useRecentNews, useFeaturedTeams, useTeamsMap, useUpcomingFixtures } from './lib/hooks'
-import { extractList, fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { SponsorMarquee } from './components/SponsorMarquee'
+import {
+  useLatestResults,
+  useRecentNews,
+  useFeaturedTeams,
+  useTeamsMap,
+  useUpcomingFixtures,
+} from './lib/hooks'
+import {
+  extractList,
+  fetchAllPaginatedList,
+  fetchJson,
+  resolveMediaUrl,
+} from './lib/publicApi'
 
 type GalleryItem = GalleryLightboxItem
+
 type PublicSponsor = {
   id: number
   name: string
@@ -23,33 +35,22 @@ type PublicSponsor = {
   team_name: string | null
 }
 
-function HomeSponsorImage({ url, alt }: { url: string | null | undefined; alt: string }) {
-  const resolved = resolveMediaUrl(url?.trim() ?? '') ?? nplLogoUrl
-  return (
-    <img
-      src={resolved}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      onError={(e) => {
-        e.currentTarget.onerror = null
-        e.currentTarget.src = nplLogoUrl
-      }}
-    />
-  )
-}
-
 function App() {
   const { data: newsArticles = [] } = useRecentNews(36)
   const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 10)
   const { data: latestResults = [] } = useLatestResults(undefined, 6)
   const { map: teamsMap } = useTeamsMap()
   const { data: featuredTeams = [] } = useFeaturedTeams()
+
   const { data: gallery = [] } = useQuery({
     queryKey: ['home-gallery'],
-    queryFn: async () => extractList<GalleryItem>(await fetchJson<unknown>('/public/gallery?page=1&page_size=6')),
+    queryFn: async () =>
+      extractList<GalleryItem>(
+        await fetchJson<unknown>('/public/gallery?page=1&page_size=6'),
+      ),
     retry: 1,
   })
+
   const { data: sponsors = [] } = useQuery({
     queryKey: ['home-sponsors'],
     queryFn: async () =>
@@ -58,6 +59,9 @@ function App() {
       ),
     retry: 1,
   })
+
+  const homepageSponsors = sponsors.filter((sponsor) => sponsor.team_id == null)
+
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
 
@@ -79,7 +83,9 @@ function App() {
 
     return () => globalThis.clearInterval(timer)
   }, [heroSlides.length])
-  const currentSlideIndex = heroSlides.length > 0 ? activeSlideIndex % heroSlides.length : 0
+
+  const currentSlideIndex =
+    heroSlides.length > 0 ? activeSlideIndex % heroSlides.length : 0
 
   return (
     <main className="container">
@@ -88,19 +94,31 @@ function App() {
           <>
             {heroSlides.map((slide, index) => {
               const isActive = index === currentSlideIndex
+
               return (
                 <article
                   key={slide.id}
                   className={`hero-slide${isActive ? ' is-active' : ''}`}
                   aria-hidden={!isActive}
                 >
-                  {slide.heroImage ? <img src={slide.heroImage} alt={slide.title} /> : null}
+                  {slide.heroImage ? (
+                    <img src={slide.heroImage} alt={slide.title} />
+                  ) : null}
+
                   <div className="hero-slide-overlay">
                     <p className="hero-slide-eyebrow">Latest News</p>
                     <h2>{slide.title}</h2>
-                    <p>{slide.excerpt ?? 'Catch up on the latest match analysis and updates.'}</p>
+                    <p>
+                      {slide.excerpt ??
+                        'Catch up on the latest match analysis and updates.'}
+                    </p>
+
                     {slide.slug ? (
-                      <Link to="/news/$slug" params={{ slug: slide.slug }} className="hero-readmore-btn">
+                      <Link
+                        to="/news/$slug"
+                        params={{ slug: slide.slug }}
+                        className="hero-readmore-btn"
+                      >
                         Read More
                       </Link>
                     ) : null}
@@ -108,13 +126,16 @@ function App() {
                 </article>
               )
             })}
+
             {heroSlides.length > 1 ? (
               <div className="hero-carousel-dots" aria-hidden="true">
                 {heroSlides.map((slide, index) => (
                   <button
                     key={slide.id}
                     type="button"
-                    className={`hero-carousel-dot${index === currentSlideIndex ? ' is-active' : ''}`}
+                    className={`hero-carousel-dot${
+                      index === currentSlideIndex ? ' is-active' : ''
+                    }`}
                     onClick={() => setActiveSlideIndex(index)}
                   >
                     <span className="sr-only">Show slide {index + 1}</span>
@@ -128,7 +149,10 @@ function App() {
             <div className="hero-slide-overlay">
               <p className="hero-slide-eyebrow">Latest News</p>
               <h2>No published news yet</h2>
-              <p>Add and publish a news article with a featured image to populate this carousel.</p>
+              <p>
+                Add and publish a news article with a featured image to populate
+                this carousel.
+              </p>
             </div>
           </article>
         )}
@@ -146,6 +170,7 @@ function App() {
             mode="fixture"
           />
         ) : null}
+
         {upcomingFixtures.length === 0 ? (
           <>
             <SectionHeader title="Upcoming Fixtures" linkTo="/fixtures" />
@@ -164,6 +189,7 @@ function App() {
             mode="result"
           />
         ) : null}
+
         {latestResults.length === 0 ? (
           <>
             <SectionHeader title="Latest Results" linkTo="/results" />
@@ -183,44 +209,12 @@ function App() {
         </div>
       </section>
 
-      {sponsors.length > 0 ? (
-        <section className="home-section">
-          <SectionHeader title="Partners & Sponsors" />
-          <div className="home-sponsors-marquee" aria-label="Partners and sponsors">
-            <div className="home-sponsors-track" role="list">
-              {[...sponsors, ...sponsors].map((sponsor, idx) => {
-                const card = (
-                  <div className="home-sponsors-card__logo">
-                    <HomeSponsorImage url={sponsor.image_url} alt={sponsor.name} />
-                  </div>
-                )
-                return (
-                  <article
-                    key={`${sponsor.id}-${idx}`}
-                    className="home-sponsors-card"
-                    role="listitem"
-                  >
-                    {sponsor.link_url?.trim() ? (
-                      <a
-                        href={sponsor.link_url.trim()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={sponsor.name}
-                      >
-                        {card}
-                      </a>
-                    ) : (
-                      card
-                    )}
-                  </article>
-                )
-              })}
-            </div>
-          </div>
-        </section>
-      ) : null}
+      <SponsorMarquee sponsors={homepageSponsors} />
 
-      <GalleryLightbox active={galleryActive} onClose={() => setGalleryActive(null)} />
+      <GalleryLightbox
+        active={galleryActive}
+        onClose={() => setGalleryActive(null)}
+      />
     </main>
   )
 }
