@@ -30,6 +30,8 @@ type StatRow = {
   key: string
   player_id: number
   team_id: number
+  batting_order: number | null
+  bowling_order: number | null
   runs: number
   balls_faced: number
   fours: number
@@ -80,6 +82,8 @@ function emptyRow(teamId: number): StatRow {
     key: newKey(),
     player_id: 0,
     team_id: teamId,
+    batting_order: null,
+    bowling_order: null,
     runs: 0,
     balls_faced: 0,
     fours: 0,
@@ -95,12 +99,32 @@ function emptyRow(teamId: number): StatRow {
     notes: '',
   }
 }
+function nextOrder(
+  rows: StatRow[],
+  teamId: number,
+  kind: 'batting' | 'bowling',
+): number {
+  const field = kind === 'batting' ? 'batting_order' : 'bowling_order'
+
+  const existingOrders = rows
+    .filter((r) => r.team_id === teamId && r[field] != null)
+    .map((r) => r[field] ?? 0)
+
+  if (existingOrders.length === 0) {
+    return 1
+  }
+
+  return Math.max(...existingOrders) + 1
+}
+
 
 function fromServer(rows: MatchPlayerStatDto[]): StatRow[] {
   return rows.map((s) => ({
     key: String(s.id),
     player_id: s.player_id,
-    team_id: s.team_id,
+     team_id: s.team_id,
+    batting_order: s.batting_order ?? null,
+    bowling_order: s.bowling_order ?? null,
     runs: s.runs,
     balls_faced: s.balls_faced,
     fours: s.fours,
@@ -201,42 +225,71 @@ export function MatchResultEditor({
     [rosterPlayers],
   )
 
-  const findRowByPlayer = useCallback(
-    (playerId: number) => statRows.find((r) => r.player_id === playerId),
-    [statRows],
-  )
 
-  const addBattingRow = useCallback(
-    (teamId: number) => {
-      setStatRows((prev) => [...prev, emptyRow(teamId)])
-    },
-    [],
-  )
+const addBattingRow = useCallback(
+  (teamId: number) => {
+    setStatRows((prev) => [
+      ...prev,
+      {
+        ...emptyRow(teamId),
+        batting_order: nextOrder(prev, teamId, 'batting'),
+      },
+    ])
+  },
+  [],
+)
 
-  const addBowlingRow = useCallback(
-    (teamId: number) => {
-      setStatRows((prev) => [...prev, emptyRow(teamId)])
-    },
-    [],
-  )
+const addBowlingRow = useCallback(
+  (teamId: number) => {
+    setStatRows((prev) => [
+      ...prev,
+      {
+        ...emptyRow(teamId),
+        bowling_order: nextOrder(prev, teamId, 'bowling'),
+      },
+    ])
+  },
+  [],
+)
 
-  const fillRosterForTeam = useCallback(
-    (teamId: number) => {
-      setStatRows((prev) => {
-        const used = new Set(
-          prev.map((r) => r.player_id).filter((id) => id > 0),
-        )
-        const additions = rosterForTeam(teamId)
-          .filter((p) => !used.has(p.id))
-          .map((p) => ({
-            ...emptyRow(teamId),
-            player_id: p.id,
-          }))
-        return [...prev, ...additions]
-      })
-    },
-    [rosterForTeam],
-  )
+const fillRosterForTeam = useCallback(
+  (teamId: number, kind: 'batting' | 'bowling') => {
+    setStatRows((prev) => {
+      const field = kind === 'batting' ? 'batting_order' : 'bowling_order'
+      let order = nextOrder(prev, teamId, kind)
+      const next = [...prev]
+
+      for (const player of rosterForTeam(teamId)) {
+        const existingIndex = next.findIndex((r) => r.player_id === player.id)
+
+        if (existingIndex >= 0) {
+          const existing = next[existingIndex]
+
+          if (existing.team_id === teamId && existing[field] == null) {
+            next[existingIndex] = {
+              ...existing,
+              [field]: order,
+            }
+            order += 1
+          }
+
+          continue
+        }
+
+        next.push({
+          ...emptyRow(teamId),
+          player_id: player.id,
+          [field]: order,
+        })
+
+        order += 1
+      }
+
+      return next
+    })
+  },
+  [rosterForTeam],
+)
 
   const removeRow = useCallback((key: string) => {
     setStatRows((prev) => prev.filter((r) => r.key !== key))
@@ -247,6 +300,90 @@ export function MatchResultEditor({
       prev.map((r) => (r.key === key ? { ...r, ...patch } : r)),
     )
   }, [])
+
+  const assignPlayerToRow = useCallback(
+  (key: string, playerId: number, kind: 'batting' | 'bowling') => {
+    setStatRows((prev) => {
+      const current = prev.find((r) => r.key === key)
+
+      if (!current) {
+        return prev
+      }
+
+      if (playerId <= 0) {
+        return prev.map((r) =>
+          r.key === key
+            ? {
+                ...r,
+                player_id: 0,
+              }
+            : r,
+        )
+      }
+
+      const existing = prev.find(
+        (r) => r.player_id === playerId && r.key !== key,
+      )
+
+      if (!existing) {
+        return prev.map((r) =>
+          r.key === key
+            ? {
+                ...r,
+                player_id: playerId,
+              }
+            : r,
+        )
+      }
+
+      if (kind === 'batting') {
+        return prev
+          .map((r) =>
+            r.key === existing.key
+              ? {
+                  ...r,
+                  batting_order:
+                    r.batting_order ??
+                    current.batting_order ??
+                    nextOrder(prev, current.team_id, 'batting'),
+                  runs: current.runs,
+                  balls_faced: current.balls_faced,
+                  fours: current.fours,
+                  sixes: current.sixes,
+                  dismissal: current.dismissal,
+                }
+              : r,
+          )
+          .filter((r) => r.key !== key)
+      }
+
+      return prev
+        .map((r) =>
+          r.key === existing.key
+            ? {
+                ...r,
+                bowling_order:
+                  r.bowling_order ??
+                  current.bowling_order ??
+                  nextOrder(prev, current.team_id, 'bowling'),
+                overs: current.overs,
+                maidens: current.maidens,
+                runs_conceded: current.runs_conceded,
+                wickets: current.wickets,
+                catches: current.catches,
+                stumpings: current.stumpings,
+                run_outs: current.run_outs,
+                notes: current.notes,
+              }
+            : r,
+        )
+        .filter((r) => r.key !== key)
+    })
+
+    setSaveError(null)
+  },
+  [],
+)
 
   const save = async () => {
     const validRows = statRows.filter((r) => r.player_id > 0)
@@ -274,6 +411,8 @@ export function MatchResultEditor({
           player_id: r.player_id,
           team_id: r.team_id,
           lineup_order: idx,
+          batting_order: r.batting_order,
+          bowling_order: r.bowling_order,
           runs: isDidNotBat(dismissal) ? 0 : r.runs,
           balls_faced: isDidNotBat(dismissal) ? 0 : r.balls_faced,
           fours: isDidNotBat(dismissal) ? 0 : r.fours,
@@ -522,7 +661,7 @@ export function MatchResultEditor({
                   <button
                     type="button"
                     className="btn-ghost btn--with-icon"
-                    onClick={() => fillRosterForTeam(inningsSides.battingTeamId)}
+                    onClick={() => fillRosterForTeam(inningsSides.battingTeamId, 'batting')}
                   >
                     <UserPlus size={18} strokeWidth={2} aria-hidden />
                     Add all roster
@@ -544,30 +683,21 @@ export function MatchResultEditor({
                   </thead>
                   <tbody>
                     {statRows
-                      .filter((r) => r.team_id === inningsSides.battingTeamId)
+                      .filter(
+  (r) =>
+    r.team_id === inningsSides.battingTeamId &&
+    r.batting_order != null,
+)
+                    .sort((a, b) => (a.batting_order ?? 0) - (b.batting_order ?? 0))
                       .map((row) => (
                         <tr key={row.key}>
                           <td>
                             <select
                               className="inline-edit__control match-stats-table__select"
                               value={row.player_id || ''}
-                              onChange={(e) => {
-                                const pid = Number(e.target.value)
-                                const existing = findRowByPlayer(pid)
-                                if (
-                                  pid > 0 &&
-                                  existing &&
-                                  existing.key !== row.key
-                                ) {
-                                  setSaveError(
-                                    'Each player can appear only once in the scorecard.',
-                                  )
-                                  return
-                                }
-                                setSaveError(null)
-                                updateRow(row.key, { player_id: pid })
-                              }}
-                            >
+                             onChange={(e) => {
+                              assignPlayerToRow(row.key, Number(e.target.value), 'batting')
+                              }}                            >
                               <option value="">— Select —</option>
                               {rosterForTeam(inningsSides.battingTeamId).map(
                                 (p) => (
@@ -688,7 +818,7 @@ export function MatchResultEditor({
                   <button
                     type="button"
                     className="btn-ghost btn--with-icon"
-                    onClick={() => fillRosterForTeam(inningsSides.bowlingTeamId)}
+                    onClick={() => fillRosterForTeam(inningsSides.bowlingTeamId, 'bowling')}
                   >
                     <UserPlus size={18} strokeWidth={2} aria-hidden />
                     Add all roster
@@ -713,7 +843,12 @@ export function MatchResultEditor({
                   </thead>
                   <tbody>
                     {statRows
-                      .filter((r) => r.team_id === inningsSides.bowlingTeamId)
+                      .filter(
+                  (r) =>
+                    r.team_id === inningsSides.bowlingTeamId &&
+                    r.bowling_order != null,
+)
+                      .sort((a, b) => (a.bowling_order ?? 0) - (b.bowling_order ?? 0))
                       .map((row) => (
                         <tr key={row.key}>
                           <td>
@@ -721,21 +856,8 @@ export function MatchResultEditor({
                               className="inline-edit__control match-stats-table__select"
                               value={row.player_id || ''}
                               onChange={(e) => {
-                                const pid = Number(e.target.value)
-                                const existing = findRowByPlayer(pid)
-                                if (
-                                  pid > 0 &&
-                                  existing &&
-                                  existing.key !== row.key
-                                ) {
-                                  setSaveError(
-                                    'Each player can appear only once in the scorecard.',
-                                  )
-                                  return
-                                }
-                                setSaveError(null)
-                                updateRow(row.key, { player_id: pid })
-                              }}
+                              assignPlayerToRow(row.key, Number(e.target.value), 'bowling')
+                            }}
                             >
                               <option value="">— Select —</option>
                               {rosterForTeam(inningsSides.bowlingTeamId).map(
