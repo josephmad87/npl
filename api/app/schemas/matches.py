@@ -98,6 +98,8 @@ class MatchResultIn(BaseModel):
     player_of_match_player_id: int | None = None
     result_status: str = "official"
     match_report: str | None = None
+    home_allotted_overs: float = Field(default=40.0, ge=0, le=300)
+    away_allotted_overs: float = Field(default=40.0, ge=0, le=300)
     home_extras_wides: int = Field(default=0, ge=0)
     home_extras_byes: int = Field(default=0, ge=0)
     home_extras_no_balls: int = Field(default=0, ge=0)
@@ -121,6 +123,8 @@ class MatchResultOut(ORMModel):
     player_of_match_player_id: int | None
     result_status: str
     match_report: str | None
+    home_allotted_overs: Decimal = Decimal("40.0")
+    away_allotted_overs: Decimal = Decimal("40.0")
     home_extras_wides: int = 0
     home_extras_byes: int = 0
     home_extras_no_balls: int = 0
