@@ -302,10 +302,6 @@ const battingHeading = formatInningsHeading(
       </section>
 
       <section className="innings-scorecard-panels__section">
-        <h3 className="innings-scorecard-panels__h">
-          Bowling — {bowlingLabel}
-        </h3>
-
         {bowlingRows.length > 0 ? (
           <div className="table-scroll match-stats-scroll">
             <table className="match-centre-scorecard-table bowling-scorecard-table">
