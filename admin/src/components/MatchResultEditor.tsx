@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query'
+  import { useQueryClient } from '@tanstack/react-query'
 import {
   Loader2,
   Plus,
@@ -116,15 +116,31 @@ function nextOrder(
 
   return Math.max(...existingOrders) + 1
 }
+function hasServerBattingData(s: MatchPlayerStatDto): boolean {
+  return (
+    s.runs > 0 ||
+    s.balls_faced > 0 ||
+    s.fours > 0 ||
+    s.sixes > 0 ||
+    (s.dismissal?.trim() ?? '') !== ''
+  )
+}
 
+function hasServerBowlingData(s: MatchPlayerStatDto): boolean {
+  const overs = s.overs == null || s.overs === '' ? 0 : Number(s.overs)
+
+  return !Number.isNaN(overs) && overs > 0
+}
 
 function fromServer(rows: MatchPlayerStatDto[]): StatRow[] {
   return rows.map((s) => ({
     key: String(s.id),
     player_id: s.player_id,
      team_id: s.team_id,
-    batting_order: s.batting_order ?? null,
-    bowling_order: s.bowling_order ?? null,
+   batting_order:
+      s.batting_order ?? (hasServerBattingData(s) ? s.lineup_order : null),
+  bowling_order:
+      s.bowling_order ?? (hasServerBowlingData(s) ? s.lineup_order : null),
     runs: s.runs,
     balls_faced: s.balls_faced,
     fours: s.fours,
