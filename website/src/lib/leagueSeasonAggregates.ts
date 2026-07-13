@@ -48,7 +48,75 @@ export function oversFieldToBalls(ov: unknown): number {
   const b = Math.min(5, parseInt(f[0] ?? '0', 10) || 0)
   return w * 6 + b
 }
+function sideForTeam(match: MatchLite, teamId: number): 'home' | 'away' | null {
+  if (teamId === match.home_team_id) return 'home'
+  if (teamId === match.away_team_id) return 'away'
+  return null
+}
 
+function teamExtras(match: MatchLite, teamId: number): number {
+  const side = sideForTeam(match, teamId)
+
+  if (!side) {
+    return 0
+  }
+
+  return sumTeamExtras(
+    match.result as Record<string, unknown> | null | undefined,
+    side,
+  )
+}
+
+function isEnteredBattingRow(row: Record<string, unknown>): boolean {
+  if (row.batting_order != null) {
+    return true
+  }
+
+  const runs = num(row, 'runs')
+  const ballsFaced = num(row, 'balls_faced')
+  const dismissal = typeof row.dismissal === 'string' ? row.dismissal : null
+
+  return countsBattingInnings(dismissal, runs, ballsFaced)
+}
+
+function isEnteredBowlingRow(row: Record<string, unknown>): boolean {
+  if (row.bowling_order != null) {
+    return true
+  }
+
+  return num(row, 'overs') > 0
+}
+
+function battingPlayerTotals(
+  match: MatchLite,
+  teamId: number,
+): { runs: number; balls: number } {
+  let runs = 0
+  let balls = 0
+
+  for (const row of statRows(match)) {
+    if (row.team_id !== teamId) continue
+    if (!isEnteredBattingRow(row)) continue
+
+    runs += num(row, 'runs')
+    balls += num(row, 'balls_faced')
+  }
+
+  return { runs, balls }
+}
+
+function bowlingBallsForTeam(match: MatchLite, teamId: number): number {
+  let balls = 0
+
+  for (const row of statRows(match)) {
+    if (row.team_id !== teamId) continue
+    if (!isEnteredBowlingRow(row)) continue
+
+    balls += oversFieldToBalls(row.overs)
+  }
+
+  return balls
+}
 function nrrFrom(runsFor: number, ballsFaced: number, runsAgainst: number, ballsBowled: number): number {
   const of = ballsFaced / 6
   const oa = ballsBowled / 6
@@ -86,6 +154,7 @@ export function computeSeasonStandings(
   teamIds: number[],
 ): StandingRow[] {
   const inSeason = new Set(teamIds)
+
   type Acc = {
     played: number
     won: number
@@ -97,70 +166,85 @@ export function computeSeasonStandings(
     runsAgainst: number
     ballsBowled: number
   }
+
   const byId = new Map<number, Acc>()
+
   for (const id of teamIds) {
-    byId.set(id, { played: 0, won: 0, lost: 0, tied: 0, nr: 0, runsFor: 0, ballsFaced: 0, runsAgainst: 0, ballsBowled: 0 })
+    byId.set(id, {
+      played: 0,
+      won: 0,
+      lost: 0,
+      tied: 0,
+      nr: 0,
+      runsFor: 0,
+      ballsFaced: 0,
+      runsAgainst: 0,
+      ballsBowled: 0,
+    })
   }
 
   for (const m of matches) {
     if (m.status !== 'completed') continue
+
     const home = m.home_team_id
     const away = m.away_team_id
+
     if (!inSeason.has(home) || !inSeason.has(away)) continue
+
     const h = byId.get(home)
     const a = byId.get(away)
+
     if (!h || !a) continue
+
     h.played += 1
     a.played += 1
-    const w = m.result?.winning_team_id
-    if (w == null) {
+
+    const winnerId = m.result?.winning_team_id
+
+    if (winnerId == null) {
       h.nr += 1
       a.nr += 1
-    } else if (w === home) {
+    } else if (winnerId === home) {
       h.won += 1
       a.lost += 1
-    } else if (w === away) {
+    } else if (winnerId === away) {
       a.won += 1
       h.lost += 1
     }
-  }
 
-  for (const m of matches) {
-    if (m.status !== 'completed') continue
-    for (const row of statRows(m)) {
-      const tid = row.team_id
-      if (typeof tid !== 'number' || !inSeason.has(tid)) continue
-      const acc = byId.get(tid)
-      if (!acc) continue
-      const runs = num(row, 'runs')
-      const ballsFaced = num(row, 'balls_faced')
-      const dismiss = typeof row.dismissal === 'string' ? row.dismissal : null
-      const wk = num(row, 'wickets')
-      const rCon = num(row, 'runs_conceded')
-      const o = num(row, 'overs')
-      const isBatting = countsBattingInnings(dismiss, runs, ballsFaced)
-      const isBowling = o > 0 || wk > 0 || rCon > 0
-      if (isBatting) {
-        acc.runsFor += runs
-        acc.ballsFaced += ballsFaced
-      }
-      if (isBowling) {
-        acc.runsAgainst += rCon
-        if (o > 0) {
-          acc.ballsBowled += oversFieldToBalls(row.overs)
-        }
-      }
-    }
-    // Team extras (byes/leg-byes etc.) are not in per-player batting runs; add for NRR runsFor.
-    const hres = m.result as Record<string, unknown> | null | undefined
-    if (hres) {
-      const homeExtras = sumTeamExtras(hres, 'home')
-      const awayExtras = sumTeamExtras(hres, 'away')
-      const hAcc = byId.get(m.home_team_id)
-      const aAcc = byId.get(m.away_team_id)
-      if (hAcc) hAcc.runsFor += homeExtras
-      if (aAcc) aAcc.runsFor += awayExtras
-    }
+    const homeBatting = battingPlayerTotals(m, home)
+    const awayBatting = battingPlayerTotals(m, away)
+
+    const homeExtras = teamExtras(m, home)
+    const awayExtras = teamExtras(m, away)
+
+    const homeTotalRuns = homeBatting.runs + homeExtras
+    const awayTotalRuns = awayBatting.runs + awayExtras
+
+    const homeBowlingBalls = bowlingBallsForTeam(m, home)
+    const awayBowlingBalls = bowlingBallsForTeam(m, away)
+
+    const homeBallsFaced =
+      awayBowlingBalls > 0 ? awayBowlingBalls : homeBatting.balls
+
+    const awayBallsFaced =
+      homeBowlingBalls > 0 ? homeBowlingBalls : awayBatting.balls
+
+    const homeBallsBowled =
+      homeBowlingBalls > 0 ? homeBowlingBalls : awayBallsFaced
+
+    const awayBallsBowled =
+      awayBowlingBalls > 0 ? awayBowlingBalls : homeBallsFaced
+
+    h.runsFor += homeTotalRuns
+    h.ballsFaced += homeBallsFaced
+    h.runsAgainst += awayTotalRuns
+    h.ballsBowled += homeBallsBowled
+
+    a.runsFor += awayTotalRuns
+    a.ballsFaced += awayBallsFaced
+    a.runsAgainst += homeTotalRuns
+    a.ballsBowled += awayBallsBowled
   }
 
   return teamIds.map((teamId) => {
@@ -175,8 +259,16 @@ export function computeSeasonStandings(
       runsAgainst: 0,
       ballsBowled: 0,
     }
+
     const points = r.won * 2 + r.tied
-    const nrr = nrrFrom(r.runsFor, r.ballsFaced, r.runsAgainst, r.ballsBowled)
+
+    const nrr = nrrFrom(
+      r.runsFor,
+      r.ballsFaced,
+      r.runsAgainst,
+      r.ballsBowled,
+    )
+
     return {
       teamId,
       played: r.played,
@@ -193,7 +285,6 @@ export function computeSeasonStandings(
     }
   })
 }
-
 export function sortStandingsDesc(rows: StandingRow[]): StandingRow[] {
   return [...rows].sort((a, b) => {
     if (b.points !== a.points) {
