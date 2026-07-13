@@ -19,38 +19,69 @@ export type StandingRow = {
 }
 
 function statRows(match: MatchLite): Array<Record<string, unknown>> {
-  return Array.isArray(match.player_stats) ? (match.player_stats as Array<Record<string, unknown>>) : []
+  return Array.isArray(match.player_stats)
+    ? (match.player_stats as Array<Record<string, unknown>>)
+    : []
 }
 
 function num(r: Record<string, unknown>, k: string): number {
   const v = r[k]
-  if (typeof v === 'number' && !Number.isNaN(v)) return v
-  if (typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v))) return Number(v)
+
+  if (typeof v === 'number' && !Number.isNaN(v)) {
+    return v
+  }
+
+  if (typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v))) {
+    return Number(v)
+  }
+
   return 0
 }
 
 /**
- * Convert bowling "overs" from the API (e.g. 67.1 = 67 overs 1 ball) to total balls.
+ * Convert cricket overs from the API to total balls.
+ * Example: 27.2 = 27 overs and 2 balls = 164 balls.
  */
 export function oversFieldToBalls(ov: unknown): number {
-  if (ov == null) return 0
+  if (ov == null) {
+    return 0
+  }
+
   const raw = typeof ov === 'number' ? ov : Number(ov)
-  if (Number.isNaN(raw) || raw <= 0) return 0
+
+  if (Number.isNaN(raw) || raw <= 0) {
+    return 0
+  }
+
   const n = Math.round(raw * 10) / 10
   const s = n.toString()
+
   if (!s.includes('.')) {
     return Math.floor(n) * 6
   }
+
   const [whole, frac] = s.split('.')
   const w = parseInt(whole, 10) || 0
   const f = (frac ?? '').replace(/\D/g, '')
-  if (!f) return w * 6
+
+  if (!f) {
+    return w * 6
+  }
+
   const b = Math.min(5, parseInt(f[0] ?? '0', 10) || 0)
+
   return w * 6 + b
 }
+
 function sideForTeam(match: MatchLite, teamId: number): 'home' | 'away' | null {
-  if (teamId === match.home_team_id) return 'home'
-  if (teamId === match.away_team_id) return 'away'
+  if (teamId === match.home_team_id) {
+    return 'home'
+  }
+
+  if (teamId === match.away_team_id) {
+    return 'away'
+  }
+
   return null
 }
 
@@ -114,7 +145,6 @@ function bowlingBallsForTeam(match: MatchLite, teamId: number): number {
 
     balls += oversFieldToBalls(row.overs)
   }
-  
 
   return balls
 }
@@ -174,6 +204,7 @@ function isWicketDismissal(value: unknown): boolean {
     'retired hurt',
     'retired not out',
     'absent',
+    'absent hurt',
   ].includes(dismissal)
 }
 
@@ -204,83 +235,17 @@ function nrrBallsForInnings(
   return actualBalls
 }
 
-function isWicketDismissal(value: unknown): boolean {
-  if (typeof value !== 'string') {
-    return false
-  }
-
-  const dismissal = value.trim().toLowerCase()
-
-  if (!dismissal) {
-    return false
-  }
-
-  return ![
-    'not out',
-    'did not bat',
-    'dnb',
-    'retired hurt',
-    'retired not out',
-    'absent',
-  ].includes(dismissal)
-}
-
-function battingWicketsLostForTeam(match: MatchLite, teamId: number): number {
-  let wickets = 0
-
-  for (const row of statRows(match)) {
-    if (row.team_id !== teamId) continue
-    if (!isEnteredBattingRow(row)) continue
-
-    if (isWicketDismissal(row.dismissal)) {
-      wickets += 1
-    }
-  }
-
-  return wickets
-}
-
-function inferAllottedBalls(
-  homeActualBalls: number,
-  awayActualBalls: number,
+function nrrFrom(
+  runsFor: number,
+  ballsFaced: number,
+  runsAgainst: number,
+  ballsBowled: number,
 ): number {
-  const maxActualBalls = Math.max(homeActualBalls, awayActualBalls)
-
-  if (maxActualBalls <= 0) {
-    return 0
-  }
-
-  // T20 or shorter
-  if (maxActualBalls <= 120) {
-    return 120
-  }
-
-  // Super 40 / 40-over cricket
-  if (maxActualBalls <= 240) {
-    return 240
-  }
-
-  // 50-over cricket
-  return 300
-}
-
-function nrrBallsForInnings(
-  actualBalls: number,
-  wicketsLost: number,
-  allottedBalls: number,
-): number {
-  if (wicketsLost >= 10 && allottedBalls > 0) {
-    return allottedBalls
-  }
-
-  return actualBalls
-}
-
-function nrrFrom(runsFor: number, ballsFaced: number, runsAgainst: number, ballsBowled: number): number {
   const of = ballsFaced / 6
   const oa = ballsBowled / 6
   const rrf = of > 0 ? runsFor / of : 0
   const rra = oa > 0 ? runsAgainst / oa : 0
+
   return rrf - rra
 }
 
@@ -288,11 +253,14 @@ export function ballsToOversLabel(balls: number): string {
   if (balls <= 0) {
     return '0'
   }
+
   const o = Math.floor(balls / 6)
   const b = balls % 6
+
   if (b === 0) {
     return String(o)
   }
+
   return `${o}.${b}`
 }
 
@@ -305,6 +273,7 @@ export function formatRunsOversLine(runs: number, balls: number): string {
   if (balls <= 0 && runs <= 0) {
     return '0/0'
   }
+
   return `${runs}/${ballsToOversLabel(balls)}`
 }
 
@@ -380,35 +349,35 @@ export function computeSeasonStandings(
     const homeTotalRuns = homeBatting.runs + homeExtras
     const awayTotalRuns = awayBatting.runs + awayExtras
 
-   const homeBowlingBalls = bowlingBallsForTeam(m, home)
-const awayBowlingBalls = bowlingBallsForTeam(m, away)
+    const homeBowlingBalls = bowlingBallsForTeam(m, home)
+    const awayBowlingBalls = bowlingBallsForTeam(m, away)
 
-const homeActualBallsFaced =
-  awayBowlingBalls > 0 ? awayBowlingBalls : homeBatting.balls
+    const homeActualBallsFaced =
+      awayBowlingBalls > 0 ? awayBowlingBalls : homeBatting.balls
 
-const awayActualBallsFaced =
-  homeBowlingBalls > 0 ? homeBowlingBalls : awayBatting.balls
+    const awayActualBallsFaced =
+      homeBowlingBalls > 0 ? homeBowlingBalls : awayBatting.balls
 
-const homeAllottedBalls = allottedBallsForTeam(m, home)
-const awayAllottedBalls = allottedBallsForTeam(m, away)
+    const homeAllottedBalls = allottedBallsForTeam(m, home)
+    const awayAllottedBalls = allottedBallsForTeam(m, away)
 
-const homeWicketsLost = battingWicketsLostForTeam(m, home)
-const awayWicketsLost = battingWicketsLostForTeam(m, away)
+    const homeWicketsLost = battingWicketsLostForTeam(m, home)
+    const awayWicketsLost = battingWicketsLostForTeam(m, away)
 
-const homeBallsFaced = nrrBallsForInnings(
-  homeActualBallsFaced,
-  homeWicketsLost,
-  homeAllottedBalls,
-)
+    const homeBallsFaced = nrrBallsForInnings(
+      homeActualBallsFaced,
+      homeWicketsLost,
+      homeAllottedBalls,
+    )
 
-const awayBallsFaced = nrrBallsForInnings(
-  awayActualBallsFaced,
-  awayWicketsLost,
-  awayAllottedBalls,
-)
+    const awayBallsFaced = nrrBallsForInnings(
+      awayActualBallsFaced,
+      awayWicketsLost,
+      awayAllottedBalls,
+    )
 
-const homeBallsBowled = awayBallsFaced
-const awayBallsBowled = homeBallsFaced
+    const homeBallsBowled = awayBallsFaced
+    const awayBallsBowled = homeBallsFaced
 
     h.runsFor += homeTotalRuns
     h.ballsFaced += homeBallsFaced
@@ -459,67 +428,92 @@ const awayBallsBowled = homeBallsFaced
     }
   })
 }
+
 export function sortStandingsDesc(rows: StandingRow[]): StandingRow[] {
   return [...rows].sort((a, b) => {
     if (b.points !== a.points) {
       return b.points - a.points
     }
+
     if (b.nrr !== a.nrr) {
       return b.nrr - a.nrr
     }
+
     if (b.won !== a.won) {
       return b.won - a.won
     }
+
     if (a.lost !== b.lost) {
       return a.lost - b.lost
     }
+
     return a.teamId - b.teamId
   })
 }
 
 export function aggregatePlayerBatting(matches: MatchLite[]): Map<number, number> {
   const runs = new Map<number, number>()
+
   for (const m of matches) {
     for (const row of statRows(m)) {
       const pid = row.player_id
+
       if (typeof pid !== 'number') continue
+
       const r = row.runs
       const n = typeof r === 'number' ? r : 0
+
       runs.set(pid, (runs.get(pid) ?? 0) + n)
     }
   }
+
   return runs
 }
 
-export function aggregatePlayerBowlingWickets(matches: MatchLite[]): Map<number, number> {
+export function aggregatePlayerBowlingWickets(
+  matches: MatchLite[],
+): Map<number, number> {
   const wk = new Map<number, number>()
+
   for (const m of matches) {
     for (const row of statRows(m)) {
       const pid = row.player_id
+
       if (typeof pid !== 'number') continue
+
       const w = row.wickets
       const n = typeof w === 'number' ? w : 0
+
       wk.set(pid, (wk.get(pid) ?? 0) + n)
     }
   }
+
   return wk
 }
 
 export function aggregateTeamBattingRuns(matches: MatchLite[]): Map<number, number> {
   const tr = new Map<number, number>()
+
   for (const m of matches) {
     for (const row of statRows(m)) {
       const tid = row.team_id
+
       if (typeof tid !== 'number') continue
+
       const r = row.runs
       const n = typeof r === 'number' ? r : 0
+
       tr.set(tid, (tr.get(tid) ?? 0) + n)
     }
   }
+
   return tr
 }
 
-export function topNMap(m: Map<number, number>, n: number): Array<{ id: number; value: number }> {
+export function topNMap(
+  m: Map<number, number>,
+  n: number,
+): Array<{ id: number; value: number }> {
   return [...m.entries()]
     .map(([id, value]) => ({ id, value }))
     .sort((a, b) => b.value - a.value)
