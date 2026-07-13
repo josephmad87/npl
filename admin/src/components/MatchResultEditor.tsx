@@ -150,7 +150,28 @@ type MatchResultEditorProps = Readonly<{
   onCancel: () => void
   onSaved: () => void
 }>
+function hasBattingData(row: StatRow): boolean {
+  return (
+    row.runs > 0 ||
+    row.balls_faced > 0 ||
+    row.fours > 0 ||
+    row.sixes > 0 ||
+    row.dismissal.trim() !== ''
+  )
+}
 
+function hasBowlingData(row: StatRow): boolean {
+  return (
+    row.overs.trim() !== '' ||
+    row.maidens > 0 ||
+    row.runs_conceded > 0 ||
+    row.wickets > 0 ||
+    row.catches > 0 ||
+    row.stumpings > 0 ||
+    row.run_outs > 0 ||
+    row.notes.trim() !== ''
+  )
+}
 export function MatchResultEditor({
   match,
   matchId,
@@ -386,7 +407,15 @@ const fillRosterForTeam = useCallback(
 )
 
   const save = async () => {
-    const validRows = statRows.filter((r) => r.player_id > 0)
+   const validRows = statRows
+  .filter((r) => r.player_id > 0)
+  .map((r) => ({
+    ...r,
+    batting_order:
+      r.batting_order ?? (hasBattingData(r) ? nextOrder(statRows, r.team_id, 'batting') : null),
+    bowling_order:
+      r.bowling_order ?? (hasBowlingData(r) ? nextOrder(statRows, r.team_id, 'bowling') : null),
+  }))
     const pids = validRows.map((r) => r.player_id)
     if (new Set(pids).size !== pids.length) {
       setSaveError('Each player can appear only once in the scorecard.')
