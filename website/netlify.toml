@@ -1,8 +1,13 @@
 [build]
-  command = "npm run build"
-  publish = "dist"
+command = "npm run build"
+publish = "dist"
+edge_functions = "netlify/edge-functions"
+
+[[edge_functions]]
+function = "link-preview"
+path = "/*"
 
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+from = "/*"
+to = "/index.html"
+status = 200
