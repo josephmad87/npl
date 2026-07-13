@@ -73,6 +73,9 @@ export type MatchLite = {
   status?: string
   cover_image_url?: string | null
   result?: {
+    batting_first_team_id?: number | null
+    home_allotted_overs?: string | number | null
+    away_allotted_overs?: string | number | null
     winning_team_id?: number | null
     margin_text?: string | null
     score_summary?: string | null
