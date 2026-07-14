@@ -97,21 +97,21 @@ function MerchandisePage() {
 
   return (
     <>
-      <PageHeader
-        title="Merchandise"
-        subtitle="Add and manage merchandise products for the public store."
-        action={
-  <div className="admin-actions-row">
-    <Link to="/merchandise/orders" className="btn-ghost">
-      Orders
-    </Link>
+    <PageHeader
+  title="Merchandise"
+  description="Add and manage merchandise products for the public store."
+  actions={
+    <div className="admin-actions-row">
+      <Link to="/merchandise/orders" className="btn-ghost">
+        Orders
+      </Link>
 
-    <Link to="/merchandise/new" className="btn-primary">
-      <Plus size={16} /> New product
-    </Link>
-  </div>
-}
-      />
+      <Link to="/merchandise/new" className="btn-primary">
+        <Plus size={16} /> New product
+      </Link>
+    </div>
+  }
+/>
 
       {!q.isLoading && !q.isError ? (
         <div className="table-toolbar">
