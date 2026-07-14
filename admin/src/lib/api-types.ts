@@ -351,6 +351,7 @@ export type MerchandiseProductDto = {
   description: string | null
   price_text: string
   image_url: string
+  image_url_2: string
   sizes_text: string | null
   category: string
   audience: string
