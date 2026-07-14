@@ -7,7 +7,6 @@ import { adminListAll, adminPatch } from '@/lib/admin-client'
 import { BackNavLink } from '@/components/BackNavLink'
 import { EntityTable } from '@/components/EntityTable'
 import { PageHeader } from '@/components/PageHeader'
-import { StatusBadge } from '@/components/StatusBadge'
 
 export const Route = createFileRoute('/_shell/merchandise/orders')({
   component: MerchandiseOrdersPage,
@@ -19,6 +18,16 @@ function formatWhen(iso: string): string {
   } catch {
     return iso
   }
+}
+
+function OrderStatusBadge({ status }: Readonly<{ status: string }>) {
+  const label = status.replaceAll('_', ' ')
+
+  return (
+    <span className="badge badge--archived">
+      {label}
+    </span>
+  )
 }
 
 function MerchandiseOrdersPage() {
@@ -115,7 +124,7 @@ function MerchandiseOrdersPage() {
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ row }) => <StatusBadge value={row.original.status} />,
+      cell: ({ row }) => <OrderStatusBadge status={row.original.status} />,
     },
     {
       id: 'update_status',
