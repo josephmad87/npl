@@ -34,7 +34,7 @@ function NewMerchandisePage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [priceText, setPriceText] = useState('')
-  const [imageUrl, setImageUrl] = <string | null>(null)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [sizesText, setSizesText] = ('')
   const [status, setStatus] = useState('active')
   const [sortOrder, setSortOrder] = useState('0')
