@@ -721,6 +721,38 @@ const sponsorsQ = useQuery({
                 </section>
               ) : null}
 
+              {activeTab === 'shop' ? (
+  <section className="team-shop-panel">
+    <div className="team-shop-panel__header">
+      <h2>{data.name} shop</h2>
+      <p>
+        Merchandise linked to {data.name}. Select an item to place an order
+        request.
+      </p>
+    </div>
+
+    {merchandiseQ.isLoading ? (
+      <p className="muted">Loading team merchandise…</p>
+    ) : null}
+
+    {teamMerchandise.length === 0 && !merchandiseQ.isLoading ? (
+      <p className="muted">No merchandise is linked to this team yet.</p>
+    ) : null}
+
+    {teamMerchandise.length > 0 ? (
+      <div className="team-shop-grid">
+        {teamMerchandise.map((product) => (
+          <TeamMerchandiseCard
+            key={product.id}
+            product={product}
+            teamId={data.id}
+          />
+        ))}
+      </div>
+    ) : null}
+  </section>
+) : null}
+
               {activeTab === 'team-photos' && (data.team_photo_urls ?? []).length > 0 ? (
                 <section className="team-page__section" aria-label="Team photos">
                   <SectionHeader title="Team photos" />
