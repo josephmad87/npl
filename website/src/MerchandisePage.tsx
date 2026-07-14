@@ -143,19 +143,19 @@ export default function MerchandisePage() {
 
   return (
     <>
-      <PageHero
-        title="Merchandise"
-        subtitle="Official NPL merchandise and supporter gear."
-        variant="siteLogo"
-        fallbackMode="none"
-      />
+     <PageHero
+      title="Official NPL Merchandise"
+      variant="siteLogo"
+      fallbackMode="none"
+    />
 
       <main className="container">
         <section className="menu-page merchandise-page">
           <div className="menu-page__intro">
             <p className="muted">
-              Browse available merchandise and submit an order request. We will
-              contact you to confirm payment and collection or delivery.
+            Browse official National Premier League merchandise, including supporter
+            jerseys, caps and fan gear. Submit an order request and the NPL team will
+            contact you to confirm payment, collection or delivery.
             </p>
           </div>
 
