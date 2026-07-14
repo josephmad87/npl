@@ -374,6 +374,7 @@ const sponsorsQ = useQuery({
         { id: 'results', label: 'Results' },
         { id: 'squad', label: 'Squad' },
         { id: 'gallery', label: 'Gallery' },
+        { id: 'shop', label: 'Shop' },
         ...(data && (data.team_photo_urls ?? []).length > 0
           ? [{ id: 'team-photos', label: 'Team photos' }]
           : []),
