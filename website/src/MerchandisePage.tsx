@@ -11,6 +11,7 @@ type MerchandiseProduct = {
   description: string | null
   price_text: string
   image_url: string
+  image_url_2: string
   sizes_text: string | null
   status: string
   sort_order: number
@@ -37,6 +38,8 @@ function sizeOptions(sizesText: string | null): string[] {
     .filter(Boolean)
 }
 
+
+
 function MerchandiseImage({ product }: Readonly<{ product: MerchandiseProduct }>) {
   const src = resolveMediaUrl(product.image_url) ?? nplLogoUrl
 
@@ -53,6 +56,15 @@ function MerchandiseImage({ product }: Readonly<{ product: MerchandiseProduct }>
     />
   )
 }
+
+
+function merchandiseImages(product: MerchandiseProduct): string[] {
+  return [product.image_url, product.image_url_2]
+    .map((url) => url?.trim())
+    .filter((url): url is string => Boolean(url))
+}
+
+
 
 export default function MerchandisePage() {
 
@@ -185,9 +197,23 @@ export default function MerchandisePage() {
           <div className="merchandise-grid">
             {activeProducts.map((product) => (
               <article key={product.id} className="merchandise-card">
-                <div className="merchandise-card__media">
-                  <MerchandiseImage product={product} />
-                </div>
+               <div className="merchandise-card__media">
+  {merchandiseImages(product).length > 0 ? (
+    <div className="merchandise-card__image-stack">
+      {merchandiseImages(product).map((url, index) => (
+        <img
+          key={`${product.id}-${index}`}
+          src={resolveMediaUrl(url) ?? ''}
+          alt={`${product.name} image ${index + 1}`}
+          loading="lazy"
+          decoding="async"
+        />
+      ))}
+    </div>
+  ) : (
+    <SiteLogoPlaceholder />
+  )}
+</div>
 
                 <div className="merchandise-card__body">
                   <h2>{product.name}</h2>
