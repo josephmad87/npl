@@ -35,6 +35,7 @@ function NewMerchandisePage() {
   const [description, setDescription] = useState('')
   const [priceText, setPriceText] = useState('')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imageUrl2, setImageUrl2] = useState<string | null>(null)
   const [sizesText, setSizesText] = useState('')
   const [status, setStatus] = useState('active')
   const [sortOrder, setSortOrder] = useState('0')
@@ -62,6 +63,7 @@ function NewMerchandisePage() {
     description: description.trim() || null,
     price_text: priceText.trim(),
     image_url: (imageUrl ?? '').trim(),
+    image_url_2: (imageUrl2 ?? '').trim(),
     sizes_text: sizesText.trim() || null,
       category,
       audience,
@@ -139,20 +141,39 @@ void navigate({
               />
             ),
           },
-          {
-            id: 'image_url',
-            label: 'Image',
-            control: (
-              <MediaUrlField
-                id="image_url"
-                value={imageUrl}
-                onChange={setImageUrl}
-                disabled={isSaving}
-                uploadKind="merchandise"
-                accept="image/*"
-              />
-            ),
-          },
+          
+{
+  id: 'image_url',
+  label: 'Image',
+  control: (
+    <MediaUrlField
+      id="image_url"
+      value={imageUrl}
+      onChange={setImageUrl}
+      disabled={isSaving}
+      uploadKind="merchandise"
+      accept="image/*"
+    />
+  ),
+},
+{
+  id: 'image_url_2',
+  label: 'Second image optional',
+  control: (
+    <MediaUrlField
+      id="image_url_2"
+      value={imageUrl2}
+      onChange={setImageUrl2}
+      disabled={isSaving}
+      uploadKind="merchandise"
+      accept="image/*"
+    />
+  ),
+},
+
+          
+
+          
           {
             id: 'sizes_text',
             label: 'Sizes',

@@ -14,6 +14,7 @@ class MerchandiseProduct(Base):
     description: Mapped[str | None] = mapped_column(Text)
     price_text: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     image_url: Mapped[str] = mapped_column(String(1024), default="", nullable=False)
+    image_url_2: Mapped[str] = mapped_column(String(1024), default="", nullable=False)
     sizes_text: Mapped[str | None] = mapped_column(String(255))
     category: Mapped[str] = mapped_column(String(64), default="Other", nullable=False)
     audience: Mapped[str] = mapped_column(String(64), default="Unisex", nullable=False)

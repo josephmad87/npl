@@ -11,6 +11,7 @@ type MerchandiseProduct = {
   description: string | null
   price_text: string
   image_url: string
+  image_url_2: string
   sizes_text: string | null
   status: string
   sort_order: number
@@ -37,22 +38,60 @@ function sizeOptions(sizesText: string | null): string[] {
     .filter(Boolean)
 }
 
-function MerchandiseImage({ product }: Readonly<{ product: MerchandiseProduct }>) {
-  const src = resolveMediaUrl(product.image_url) ?? nplLogoUrl
+
+function merchandiseImages(product: MerchandiseProduct): string[] {
+  return [product.image_url, product.image_url_2]
+    .map((url) => url?.trim())
+    .filter((url): url is string => Boolean(url))
+}
+
+function MerchandiseImage({
+  product,
+}: Readonly<{ product: MerchandiseProduct }>) {
+  const images = merchandiseImages(product)
+
+  if (images.length === 0) {
+    return (
+      <img
+        src={nplLogoUrl}
+        alt="NPL logo"
+        loading="lazy"
+        decoding="async"
+      />
+    )
+  }
 
   return (
-    <img
-      src={src}
-      alt={product.name}
-      loading="lazy"
-      decoding="async"
-      onError={(e) => {
-        e.currentTarget.onerror = null
-        e.currentTarget.src = nplLogoUrl
-      }}
-    />
+    <div
+      className={
+        images.length > 1
+          ? 'merchandise-card__image-stack'
+          : 'merchandise-card__image-single'
+      }
+    >
+      {images.map((url, index) => {
+        const resolved = resolveMediaUrl(url)
+
+        if (!resolved) {
+          return null
+        }
+
+        return (
+          <img
+            key={`${product.id}-${index}`}
+            src={resolved}
+            alt={`${product.name} image ${index + 1}`}
+            loading="lazy"
+            decoding="async"
+          />
+        )
+      })}
+    </div>
   )
 }
+
+
+
 
 export default function MerchandisePage() {
 
@@ -185,9 +224,25 @@ export default function MerchandisePage() {
           <div className="merchandise-grid">
             {activeProducts.map((product) => (
               <article key={product.id} className="merchandise-card">
-                <div className="merchandise-card__media">
-                  <MerchandiseImage product={product} />
-                </div>
+               <div className="merchandise-card__media">
+  {merchandiseImages(product).length > 0 ? (
+    <div className="merchandise-card__image-stack">
+      {merchandiseImages(product).map((url, index) => (
+        <img
+          key={`${product.id}-${index}`}
+          src={resolveMediaUrl(url) ?? ''}
+          alt={`${product.name} image ${index + 1}`}
+          loading="lazy"
+          decoding="async"
+        />
+      ))}
+    </div>
+  ) : (
+    <div className="merchandise-card__media">
+  <MerchandiseImage product={product} />
+</div>
+  )}
+</div>
 
                 <div className="merchandise-card__body">
                   <h2>{product.name}</h2>
