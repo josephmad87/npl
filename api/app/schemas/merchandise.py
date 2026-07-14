@@ -8,6 +8,7 @@ class MerchandiseProductCreate(BaseModel):
     description: str | None = None
     price_text: str = Field(default="", max_length=64)
     image_url: str = Field(default="", max_length=1024)
+    image_url_2: str = ""
     sizes_text: str | None = Field(default=None, max_length=255)
     status: str = Field(default="active", max_length=32)
     category: str = Field(default="Other", max_length=64)
@@ -21,6 +22,7 @@ class MerchandiseProductUpdate(BaseModel):
     description: str | None = None
     price_text: str | None = Field(default=None, max_length=64)
     image_url: str | None = Field(default=None, max_length=1024)
+    image_url_2: str | None = None
     sizes_text: str | None = Field(default=None, max_length=255)
     status: str | None = Field(default=None, max_length=32)
     category: str | None = Field(default=None, max_length=64)
@@ -35,6 +37,7 @@ class MerchandiseProductOut(BaseModel):
     description: str | None
     price_text: str
     image_url: str
+    image_url_2: str
     sizes_text: str | None
     category: str
     audience: str
