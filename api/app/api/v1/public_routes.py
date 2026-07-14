@@ -537,12 +537,26 @@ def list_public_sponsors(
 def list_public_merchandise(
     db: Session = Depends(get_db),
     page_params: PageParams = Depends(),
+    team_id: int | None = Query(default=None),
+    category: str | None = Query(default=None),
+    audience: str | None = Query(default=None),
 ) -> dict:
     stmt = (
         select(MerchandiseProduct)
         .where(MerchandiseProduct.status == "active")
-        .order_by(MerchandiseProduct.sort_order, MerchandiseProduct.name)
     )
+
+    if team_id is not None:
+        stmt = stmt.where(MerchandiseProduct.team_id == team_id)
+
+    if category:
+        stmt = stmt.where(MerchandiseProduct.category == category)
+
+    if audience:
+        stmt = stmt.where(MerchandiseProduct.audience == audience)
+
+    stmt = stmt.order_by(MerchandiseProduct.sort_order, MerchandiseProduct.name)
+
     rows, total = paginate_select(
         db,
         stmt,
