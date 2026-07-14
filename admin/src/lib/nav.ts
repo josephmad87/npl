@@ -69,6 +69,18 @@ export const NAV_ITEMS: NavItem[] = [
       'read_only_admin',
     ],
   },
+
+{
+  to: '/merchandise',
+  label: 'Merchandise',
+  roles: [
+    'super_admin',
+    'competition_manager',
+    'content_editor',
+    'read_only_admin',
+  ],
+},
+  
   {
     to: '/users',
     label: 'Admin users',
