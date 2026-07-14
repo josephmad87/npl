@@ -243,16 +243,11 @@ async function previewForSeason(leagueSlug, seasonSlug, request) {
 }
 
 async function previewForMerchandise(request) {
-  const products = await fetchApi('/public/merchandise?page=1&page_size=12')
-
-  const items = Array.isArray(products?.items) ? products.items : []
-  const firstProductWithImage = items.find((item) => item?.image_url)
-
   return {
     title: 'Official NPL Merchandise',
     description:
       'Shop official National Premier League supporter gear, jerseys, caps and fan merchandise. Submit an order request and the NPL team will contact you to confirm payment and delivery.',
-    image: absoluteUrl(firstProductWithImage?.image_url, request.url),
+    image: new URL(DEFAULT_IMAGE_PATH, request.url).toString(),
     type: 'website',
   }
 }
