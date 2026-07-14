@@ -35,12 +35,11 @@ function NewMerchandisePage() {
   const [description, setDescription] = useState('')
   const [priceText, setPriceText] = useState('')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [sizesText, setSizesText] = ('')
+  const [sizesText, setSizesText] = useState('')
   const [status, setStatus] = useState('active')
   const [sortOrder, setSortOrder] = useState('0')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-
   const save = async () => {
     if (isSaving) return
 
