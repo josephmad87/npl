@@ -97,7 +97,6 @@ def _sponsor_out(sp: Sponsor, team_name: str | None) -> SponsorOut:
         created_at=sp.created_at,
     )
 
-
 @router.get("/merchandise", response_model=dict)
 def admin_list_merchandise(
     db: Session = Depends(get_db),
@@ -157,103 +156,6 @@ def admin_create_merchandise(
     db.commit()
 
     return MerchandiseProductOut.model_validate(product)
-
-
-@router.patch(
-    "/merchandise/{product_id}",
-    response_model=MerchandiseProductOut,
-)
-def admin_update_merchandise(
-    product_id: int,
-    body: MerchandiseProductUpdate,
-    db: Session = Depends(get_db),
-    actor: User = Depends(require_content_writer),
-) -> MerchandiseProductOut:
-    product = db.get(MerchandiseProduct, product_id)
-
-    if product is None:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "code": "not_found",
-                "message": "Merchandise product not found",
-            },
-        )
-
-    patch = body.model_dump(exclude_unset=True)
-
-    for k, v in patch.items():
-        setattr(product, k, v)
-
-    db.commit()
-    db.refresh(product)
-
-    write_audit(
-        db,
-        actor_user_id=actor.id,
-        action="update",
-        entity_type="merchandise_product",
-        entity_id=product.id,
-        summary=product.name,
-    )
-    db.commit()
-
-    return MerchandiseProductOut.model_validate(product)
-
-@router.get(
-    "/merchandise/{product_id}",
-    response_model=MerchandiseProductOut,
-)
-def admin_get_merchandise(
-    product_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_admin_reader),
-) -> MerchandiseProductOut:
-    product = db.get(MerchandiseProduct, product_id)
-
-    if product is None:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "code": "not_found",
-                "message": "Merchandise product not found",
-            },
-        )
-
-    return MerchandiseProductOut.model_validate(product)
-
-@router.delete(
-    "/merchandise/{product_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-def admin_archive_merchandise(
-    product_id: int,
-    db: Session = Depends(get_db),
-    actor: User = Depends(require_content_writer),
-) -> None:
-    product = db.get(MerchandiseProduct, product_id)
-
-    if product is None:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "code": "not_found",
-                "message": "Merchandise product not found",
-            },
-        )
-
-    product.status = "inactive"
-    db.commit()
-
-    write_audit(
-        db,
-        actor_user_id=actor.id,
-        action="archive",
-        entity_type="merchandise_product",
-        entity_id=product.id,
-        summary=product.name,
-    )
-    db.commit()
 
 
 @router.get("/merchandise/orders", response_model=dict)
@@ -323,6 +225,108 @@ def admin_update_merchandise_order(
         summary=f"{order.product_name} order from {order.customer_name}",
     )
     db.commit()
+
+    return MerchandiseOrderOut.model_validate(order)
+
+
+@router.get(
+    "/merchandise/{product_id}",
+    response_model=MerchandiseProductOut,
+)
+def admin_get_merchandise(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> MerchandiseProductOut:
+    product = db.get(MerchandiseProduct, product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "not_found",
+                "message": "Merchandise product not found",
+            },
+        )
+
+    return MerchandiseProductOut.model_validate(product)
+
+
+@router.patch(
+    "/merchandise/{product_id}",
+    response_model=MerchandiseProductOut,
+)
+def admin_update_merchandise(
+    product_id: int,
+    body: MerchandiseProductUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> MerchandiseProductOut:
+    product = db.get(MerchandiseProduct, product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "not_found",
+                "message": "Merchandise product not found",
+            },
+        )
+
+    patch = body.model_dump(exclude_unset=True)
+
+    for k, v in patch.items():
+        setattr(product, k, v)
+
+    db.commit()
+    db.refresh(product)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="update",
+        entity_type="merchandise_product",
+        entity_id=product.id,
+        summary=product.name,
+    )
+    db.commit()
+
+    return MerchandiseProductOut.model_validate(product)
+
+
+@router.delete(
+    "/merchandise/{product_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def admin_archive_merchandise(
+    product_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> None:
+    product = db.get(MerchandiseProduct, product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "not_found",
+                "message": "Merchandise product not found",
+            },
+        )
+
+    product.status = "inactive"
+    db.commit()
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="archive",
+        entity_type="merchandise_product",
+        entity_id=product.id,
+        summary=product.name,
+    )
+    db.commit()
+
 
     return MerchandiseOrderOut.model_validate(order)
 
