@@ -228,71 +228,80 @@ export default function MerchandisePage() {
               </p>
             ) : null}
 
-            <label>
-              <span>Name</span>
-              <input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </label>
+           <label>
+  <span>Full name *</span>
+  <input
+    value={customerName}
+    onChange={(e) => setCustomerName(e.target.value)}
+    disabled={isSubmitting}
+    placeholder="Enter your full name"
+    autoComplete="name"
+  />
+</label>
 
-            <label>
-              <span>Phone</span>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </label>
+<label>
+  <span>Phone number *</span>
+  <input
+    value={phone}
+    onChange={(e) => setPhone(e.target.value)}
+    disabled={isSubmitting}
+    placeholder="Enter your WhatsApp or phone number"
+    autoComplete="tel"
+  />
+</label>
 
-            <label>
-              <span>Email optional</span>
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </label>
+<label>
+  <span>Email address optional</span>
+  <input
+    type="email"
+    value={email}
+    onChange={(e) => setEmail(e.target.value)}
+    disabled={isSubmitting}
+    placeholder="Enter your email address"
+    autoComplete="email"
+  />
+</label>
 
-            {sizeOptions(selectedProduct.sizes_text).length > 0 ? (
-              <label>
-                <span>Size</span>
-                <select
-                  value={size}
-                  onChange={(e) => setSize(e.target.value)}
-                  disabled={isSubmitting}
-                >
-                  {sizeOptions(selectedProduct.sizes_text).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
+{sizeOptions(selectedProduct.sizes_text).length > 0 ? (
+  <label>
+    <span>Size</span>
+    <select
+      value={size}
+      onChange={(e) => setSize(e.target.value)}
+      disabled={isSubmitting}
+    >
+      {sizeOptions(selectedProduct.sizes_text).map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  </label>
+) : null}
 
-            <label>
-              <span>Quantity</span>
-              <input
-                type="number"
-                min="1"
-                max="99"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                disabled={isSubmitting}
-              />
-            </label>
+<label>
+  <span>Quantity</span>
+  <input
+    type="number"
+    min="1"
+    max="99"
+    value={quantity}
+    onChange={(e) => setQuantity(e.target.value)}
+    disabled={isSubmitting}
+    placeholder="Enter quantity"
+  />
+</label>
 
-            <label>
-              <span>Notes optional</span>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                disabled={isSubmitting}
-                rows={3}
-              />
-            </label>
+<label>
+  <span>Notes optional</span>
+  <textarea
+    value={notes}
+    onChange={(e) => setNotes(e.target.value)}
+    disabled={isSubmitting}
+    rows={3}
+    placeholder="Add delivery, collection, colour, or other notes"
+  />
+</label>
 
             {orderError ? <p className="form-error">{orderError}</p> : null}
             {orderMessage ? (
