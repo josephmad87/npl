@@ -66,7 +66,13 @@ function MerchandisePage() {
     {
       accessorKey: 'status',
       header: 'Status',
-      cell: ({ getValue }) => <StatusBadge value={String(getValue())} />,
+      cell: ({ row }) => (
+  <StatusBadge
+    status={row.original.status === 'active' ? 'active' : 'inactive'}
+  />
+),
+
+      
     },
     {
       accessorKey: 'sort_order',
