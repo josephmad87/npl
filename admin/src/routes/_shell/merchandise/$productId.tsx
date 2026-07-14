@@ -7,8 +7,6 @@ import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
 import { PageHeader } from '@/components/PageHeader'
-import { Spinner } from '@/components/Spinner'
-import { ErrorNotice } from '@/components/ErrorNotice'
 
 export const Route = createFileRoute('/_shell/merchandise/$productId')({
   component: EditMerchandisePage,
@@ -100,13 +98,13 @@ function EditMerchandisePage() {
     }
   }
 
-  if (productQ.isLoading) {
-    return <Spinner label="Loading merchandise product…" />
-  }
+ if (productQ.isLoading) {
+  return <p className="muted">Loading merchandise product…</p>
+}
 
   if (productQ.isError || !product) {
-    return <ErrorNotice message="Could not load merchandise product." />
-  }
+  return <p className="form-error">Could not load merchandise product.</p>
+}
 
   return (
     <>
