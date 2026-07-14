@@ -455,6 +455,38 @@ const sponsorsQ = useQuery({
       />
     </div>
 
+{teamMerchandise.length > 0 ? (
+  <section className="team-merchandise-strip">
+    <div className="team-merchandise-strip__header">
+      <h3>Team shop</h3>
+
+      <Link
+        to="/merchandise"
+        search={{ team_id: data.id }}
+        className="team-merchandise-strip__link"
+      >
+        View all
+      </Link>
+    </div>
+
+    <div
+      className="team-merchandise-marquee"
+      aria-label={`${data.name} merchandise`}
+    >
+      <div className="team-merchandise-track">
+        {[...teamMerchandise, ...teamMerchandise].map((product, idx) => (
+          <TeamMerchandiseCard
+            key={`${product.id}-${idx}`}
+            product={product}
+            teamId={data.id}
+          />
+        ))}
+      </div>
+    </div>
+  </section>
+) : null}
+    
+
     <SponsorMarquee
       title={`${data.name} Partners & Sponsors`}
       sponsors={teamSponsors}
