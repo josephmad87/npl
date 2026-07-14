@@ -220,7 +220,10 @@ export function SiteHeader() {
                 Home
               </Link>
               <Link to="/news" search={{ q: '' }} className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top" onClick={closeMobileNav}>
-                News
+              News
+              </Link>
+              <Link to="/merchandise" className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top" onClick={closeMobileNav}>
+              Merchandise
               </Link>
               <Link to="/about-us" className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top" onClick={closeMobileNav}>
                 About Us
@@ -518,14 +521,18 @@ export function SiteHeader() {
               News
             </Link>
             <div className="menu-item">
-              <Link to="/gallery">Gallery</Link>
-              <div className="dropdown">
-                <Link to="/gallery/images">Images</Link>
-                <Link to="/gallery/video">Video</Link>
-              </div>
-            </div>
-            <Link to="/about-us">About Us</Link>
-            <Link to="/contact-us">Contact Us</Link>
+             <div className="menu-item">
+  <Link to="/gallery">Gallery</Link>
+  <div className="dropdown">
+    <Link to="/gallery/images">Images</Link>
+    <Link to="/gallery/video">Video</Link>
+  </div>
+</div>
+
+<Link to="/merchandise">Merchandise</Link>
+
+<Link to="/about-us">About Us</Link>
+<Link to="/contact-us">Contact Us</Link>
           </nav>
         </div>
       </div>
