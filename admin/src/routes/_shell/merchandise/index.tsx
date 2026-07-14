@@ -101,10 +101,16 @@ function MerchandisePage() {
         title="Merchandise"
         subtitle="Add and manage merchandise products for the public store."
         action={
-          <Link to="/merchandise/new" className="btn-primary">
-            <Plus size={16} /> New product
-          </Link>
-        }
+  <div className="admin-actions-row">
+    <Link to="/merchandise/orders" className="btn-ghost">
+      Orders
+    </Link>
+
+    <Link to="/merchandise/new" className="btn-primary">
+      <Plus size={16} /> New product
+    </Link>
+  </div>
+}
       />
 
       {!q.isLoading && !q.isError ? (
