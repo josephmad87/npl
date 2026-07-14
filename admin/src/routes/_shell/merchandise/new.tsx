@@ -71,15 +71,14 @@ function NewMerchandisePage() {
   return (
     <>
       <PageHeader
-        title="New merchandise product"
-        subtitle="Add an item that can be shown on the public merchandise page."
-        eyebrow={<BackNavLink to="/merchandise">Merchandise</BackNavLink>}
-      />
+  title="New merchandise product"
+  description="Add an item that can be shown on the public merchandise page."
+  actions={<BackNavLink to="/merchandise">Merchandise</BackNavLink>}
+/>
 
-      <InlineEditForm
-        title="Product details"
+    <InlineEditForm
         error={saveError}
-        saving={isSaving}
+        isSaving={isSaving}
         onCancel={() => void navigate({ to: '/merchandise' })}
         onSave={() => void save()}
         fields={[
@@ -126,10 +125,12 @@ function NewMerchandisePage() {
             label: 'Image',
             control: (
               <MediaUrlField
+                id="image_url"
                 value={imageUrl}
                 onChange={setImageUrl}
                 disabled={isSaving}
                 uploadKind="merchandise"
+                accept="image/*"
               />
             ),
           },
