@@ -328,11 +328,6 @@ def admin_archive_merchandise(
     db.commit()
 
 
-    return MerchandiseOrderOut.model_validate(order)
-
-
-
-
 @router.post("/uploads", response_model=MediaUploadOut, status_code=status.HTTP_201_CREATED)
 def admin_upload_media(
     request: Request,
