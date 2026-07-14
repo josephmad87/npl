@@ -147,7 +147,7 @@ export default function MerchandisePage() {
         title="Merchandise"
         subtitle="Official NPL merchandise and supporter gear."
         variant="siteLogo"
-        fallbackMode="siteLogo"
+        fallbackMode="none"
       />
 
       <main className="container">
