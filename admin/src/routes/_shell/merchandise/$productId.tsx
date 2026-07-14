@@ -110,16 +110,15 @@ function EditMerchandisePage() {
 
   return (
     <>
-      <PageHeader
-        title={product.name}
-        subtitle="Edit merchandise product details."
-        eyebrow={<BackNavLink to="/merchandise">Merchandise</BackNavLink>}
-      />
+     <PageHeader
+          title={product.name}
+          description="Edit merchandise product details."
+          actions={<BackNavLink to="/merchandise">Merchandise</BackNavLink>}
+    />
 
       <InlineEditForm
-        title="Product details"
         error={saveError}
-        saving={isSaving}
+        isSaving={isSaving}
         onCancel={() => void navigate({ to: '/merchandise' })}
         onSave={() => void save()}
         fields={[
@@ -166,11 +165,13 @@ function EditMerchandisePage() {
             label: 'Image',
             control: (
               <MediaUrlField
-                value={imageUrl}
-                onChange={setImageUrl}
-                disabled={isSaving}
-                uploadKind="merchandise"
-              />
+                  id="image_url"
+                  value={imageUrl}
+                  onChange={setImageUrl}
+                  disabled={isSaving}
+                  uploadKind="merchandise"
+                  accept="image/*"
+                />
             ),
           },
           {
