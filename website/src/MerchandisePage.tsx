@@ -91,12 +91,6 @@ function MerchandiseImage({
 }
 
 
-function merchandiseImages(product: MerchandiseProduct): string[] {
-  return [product.image_url, product.image_url_2]
-    .map((url) => url?.trim())
-    .filter((url): url is string => Boolean(url))
-}
-
 
 
 export default function MerchandisePage() {
