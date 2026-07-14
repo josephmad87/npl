@@ -6068,3 +6068,37 @@ table.player-public-table {
   padding: 0.75rem;
   font-weight: 700;
 }
+.merchandise-order-modal__panel {
+  color: #3a0000;
+}
+
+.merchandise-order-modal__panel h2 {
+  margin: 0 2rem 0.25rem 0;
+  color: #3a0000;
+}
+
+.merchandise-order-modal__panel label {
+  color: #3a0000;
+}
+
+.merchandise-order-modal__panel label span {
+  color: #3a0000;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.merchandise-order-modal__panel input,
+.merchandise-order-modal__panel select,
+.merchandise-order-modal__panel textarea {
+  color: #3a0000;
+  background: #fff;
+}
+
+.merchandise-order-modal__panel input::placeholder,
+.merchandise-order-modal__panel textarea::placeholder {
+  color: rgba(58, 0, 0, 0.45);
+}
+
+.merchandise-order-modal__close {
+  color: #3a0000;
+}
