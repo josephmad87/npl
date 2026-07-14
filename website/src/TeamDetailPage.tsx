@@ -140,6 +140,63 @@ function StaffCard({
   )
 }
 
+function TeamMerchandiseCard({
+  product,
+  teamId,
+}: Readonly<{
+  product: PublicMerchandiseProduct
+  teamId: number
+}>) {
+  const resolvedImage = product.image_url?.trim()
+    ? resolveMediaUrl(product.image_url)
+    : null
+
+  return (
+    <article className="team-merchandise-card">
+      <div className="team-merchandise-card__media">
+        {resolvedImage ? (
+          <img
+            src={resolvedImage}
+            alt={product.name}
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <SiteLogoPlaceholder />
+        )}
+      </div>
+
+      <div className="team-merchandise-card__body">
+        <p className="team-merchandise-card__meta">
+          {product.category} · {product.audience}
+        </p>
+
+        <h3>{product.name}</h3>
+
+        {product.price_text.trim() ? (
+          <p className="team-merchandise-card__price">
+            {product.price_text}
+          </p>
+        ) : null}
+
+        {product.sizes_text?.trim() ? (
+          <p className="team-merchandise-card__sizes">
+            Sizes: {product.sizes_text}
+          </p>
+        ) : null}
+
+        <Link
+          to="/merchandise"
+          search={{ team_id: teamId }}
+          className="team-merchandise-card__link"
+        >
+          Shop
+        </Link>
+      </div>
+    </article>
+  )
+}
+
 export function TeamDetailPage() {
   const { slug } = useParams({ from: '/teams/$slug' })
   const { data, isLoading, isError } = useQuery({
