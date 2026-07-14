@@ -39,21 +39,54 @@ function sizeOptions(sizesText: string | null): string[] {
 }
 
 
+function merchandiseImages(product: MerchandiseProduct): string[] {
+  return [product.image_url, product.image_url_2]
+    .map((url) => url?.trim())
+    .filter((url): url is string => Boolean(url))
+}
 
-function MerchandiseImage({ product }: Readonly<{ product: MerchandiseProduct }>) {
-  const src = resolveMediaUrl(product.image_url) ?? nplLogoUrl
+function MerchandiseImage({
+  product,
+}: Readonly<{ product: MerchandiseProduct }>) {
+  const images = merchandiseImages(product)
+
+  if (images.length === 0) {
+    return (
+      <img
+        src={nplLogoUrl}
+        alt="NPL logo"
+        loading="lazy"
+        decoding="async"
+      />
+    )
+  }
 
   return (
-    <img
-      src={src}
-      alt={product.name}
-      loading="lazy"
-      decoding="async"
-      onError={(e) => {
-        e.currentTarget.onerror = null
-        e.currentTarget.src = nplLogoUrl
-      }}
-    />
+    <div
+      className={
+        images.length > 1
+          ? 'merchandise-card__image-stack'
+          : 'merchandise-card__image-single'
+      }
+    >
+      {images.map((url, index) => {
+        const resolved = resolveMediaUrl(url)
+
+        if (!resolved) {
+          return null
+        }
+
+        return (
+          <img
+            key={`${product.id}-${index}`}
+            src={resolved}
+            alt={`${product.name} image ${index + 1}`}
+            loading="lazy"
+            decoding="async"
+          />
+        )
+      })}
+    </div>
   )
 }
 
@@ -211,7 +244,9 @@ export default function MerchandisePage() {
       ))}
     </div>
   ) : (
-    <SiteLogoPlaceholder />
+    <div className="merchandise-card__media">
+  <MerchandiseImage product={product} />
+</div>
   )}
 </div>
 
