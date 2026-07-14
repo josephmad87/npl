@@ -12,7 +12,16 @@ from fastapi import HTTPException, UploadFile, status
 
 from app.core.config import Settings
 
-ALLOWED_KINDS = frozenset({"leagues", "teams", "players", "gallery", "news", "matches", "misc"})
+ALLOWED_KINDS = frozenset({
+    "leagues",
+    "teams",
+    "players",
+    "gallery",
+    "news",
+    "matches",
+    "merchandise",
+    "misc",
+})
 
 IMAGE_EXTENSIONS = frozenset(
     {".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".svg", ".bmp", ".tif", ".tiff", ".heic", ".heif"},
