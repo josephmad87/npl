@@ -44,6 +44,7 @@ function EditMerchandisePage() {
   const [description, setDescription] = useState('')
   const [priceText, setPriceText] = useState('')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [imageUrl2, setImageUrl2] = useState<string | null>(null)
   const [sizesText, setSizesText] = useState('')
   const [status, setStatus] = useState('active')
   const [sortOrder, setSortOrder] = useState('0')
@@ -60,6 +61,7 @@ function EditMerchandisePage() {
   setDescription(product.description ?? '')
   setPriceText(product.price_text)
   setImageUrl(product.image_url || null)
+  setImageUrl2(product.image_url_2 || null)
   setSizesText(product.sizes_text ?? '')
   setCategory(product.category || 'Other')
   setAudience(product.audience || 'Unisex')
@@ -89,6 +91,7 @@ function EditMerchandisePage() {
           description: description.trim() || null,
           price_text: priceText.trim(),
           image_url: (imageUrl ?? '').trim(),
+          image_url_2: (imageUrl2 ?? '').trim(),
           sizes_text: sizesText.trim() || null,
           category,
           audience,
@@ -110,6 +113,7 @@ function EditMerchandisePage() {
       setDescription(updated.description ?? '')
       setPriceText(updated.price_text)
       setImageUrl(updated.image_url || null)
+      setImageUrl2(updated.image_url_2 || null)
       setSizesText(updated.sizes_text ?? '')
       setStatus(updated.status)
       setCategory(updated.category || 'Other')
@@ -197,6 +201,24 @@ function EditMerchandisePage() {
                 />
             ),
           },
+
+
+           {
+            id: 'image_url_2',
+            label: 'Second image optional'
+            control: (
+              <MediaUrlField
+                  id="image_url_2"
+                  value={imageUrl2}
+                  onChange={setImageUrl2}
+                  disabled={isSaving}
+                  uploadKind="merchandise"
+                  accept="image/*"
+                />
+            ),
+          },
+
+          
           {
             id: 'sizes_text',
             label: 'Sizes',
