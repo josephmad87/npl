@@ -26,6 +26,7 @@ from app.models.gallery import GalleryItem
 from app.models.sponsor import Sponsor
 from app.models.league import League, Season, SeasonTeam
 from app.models.match import Match, MatchPlayerStat, MatchResult
+from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
 from app.models.team import Team
@@ -39,6 +40,13 @@ from app.schemas.gallery import GalleryItemCreate, GalleryItemOut, GalleryItemUp
 from app.schemas.leagues import LeagueCreate, LeagueOut, LeagueUpdate
 from app.schemas.seasons import SeasonCreate, SeasonOut, SeasonPublicOut, SeasonUpdate
 from app.schemas.matches import MatchBulkCancelIn, MatchCreate, MatchDetailOut, MatchResultIn, MatchUpdate
+from app.schemas.merchandise import (
+    MerchandiseOrderOut,
+    MerchandiseOrderUpdate,
+    MerchandiseProductCreate,
+    MerchandiseProductOut,
+    MerchandiseProductUpdate,
+)
 from app.schemas.media_upload import MediaUploadOut
 from app.schemas.platform_settings import PlatformSettingsOut, PlatformSettingsPatch
 from app.schemas.sponsor import SponsorCreate, SponsorOut, SponsorUpdate
@@ -88,6 +96,216 @@ def _sponsor_out(sp: Sponsor, team_name: str | None) -> SponsorOut:
         team_name=team_name,
         created_at=sp.created_at,
     )
+
+
+@router.get("/merchandise", response_model=dict)
+def admin_list_merchandise(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+    page_params: PageParams = Depends(),
+    status_filter: str | None = Query(default=None, alias="status"),
+) -> dict:
+    stmt = select(MerchandiseProduct)
+
+    if status_filter:
+        stmt = stmt.where(MerchandiseProduct.status == status_filter)
+
+    stmt = stmt.order_by(
+        MerchandiseProduct.sort_order,
+        MerchandiseProduct.name,
+    )
+
+    rows, total = paginate_select(
+        db,
+        stmt,
+        page=page_params.page,
+        page_size=page_params.page_size,
+    )
+
+    return to_paginated(
+        [MerchandiseProductOut.model_validate(r) for r in rows],
+        total,
+        page_params.page,
+        page_params.page_size,
+    ).model_dump()
+
+
+@router.post(
+    "/merchandise",
+    response_model=MerchandiseProductOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def admin_create_merchandise(
+    body: MerchandiseProductCreate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> MerchandiseProductOut:
+    product = MerchandiseProduct(**body.model_dump())
+
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="create",
+        entity_type="merchandise_product",
+        entity_id=product.id,
+        summary=product.name,
+    )
+    db.commit()
+
+    return MerchandiseProductOut.model_validate(product)
+
+
+@router.patch(
+    "/merchandise/{product_id}",
+    response_model=MerchandiseProductOut,
+)
+def admin_update_merchandise(
+    product_id: int,
+    body: MerchandiseProductUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> MerchandiseProductOut:
+    product = db.get(MerchandiseProduct, product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "not_found",
+                "message": "Merchandise product not found",
+            },
+        )
+
+    patch = body.model_dump(exclude_unset=True)
+
+    for k, v in patch.items():
+        setattr(product, k, v)
+
+    db.commit()
+    db.refresh(product)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="update",
+        entity_type="merchandise_product",
+        entity_id=product.id,
+        summary=product.name,
+    )
+    db.commit()
+
+    return MerchandiseProductOut.model_validate(product)
+
+
+@router.delete(
+    "/merchandise/{product_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def admin_archive_merchandise(
+    product_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> None:
+    product = db.get(MerchandiseProduct, product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "not_found",
+                "message": "Merchandise product not found",
+            },
+        )
+
+    product.status = "inactive"
+    db.commit()
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="archive",
+        entity_type="merchandise_product",
+        entity_id=product.id,
+        summary=product.name,
+    )
+    db.commit()
+
+
+@router.get("/merchandise/orders", response_model=dict)
+def admin_list_merchandise_orders(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+    page_params: PageParams = Depends(),
+    status_filter: str | None = Query(default=None, alias="status"),
+) -> dict:
+    stmt = select(MerchandiseOrder)
+
+    if status_filter:
+        stmt = stmt.where(MerchandiseOrder.status == status_filter)
+
+    stmt = stmt.order_by(MerchandiseOrder.created_at.desc())
+
+    rows, total = paginate_select(
+        db,
+        stmt,
+        page=page_params.page,
+        page_size=page_params.page_size,
+    )
+
+    return to_paginated(
+        [MerchandiseOrderOut.model_validate(r) for r in rows],
+        total,
+        page_params.page,
+        page_params.page_size,
+    ).model_dump()
+
+
+@router.patch(
+    "/merchandise/orders/{order_id}",
+    response_model=MerchandiseOrderOut,
+)
+def admin_update_merchandise_order(
+    order_id: int,
+    body: MerchandiseOrderUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> MerchandiseOrderOut:
+    order = db.get(MerchandiseOrder, order_id)
+
+    if order is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "not_found",
+                "message": "Merchandise order not found",
+            },
+        )
+
+    patch = body.model_dump(exclude_unset=True)
+
+    for k, v in patch.items():
+        setattr(order, k, v)
+
+    db.commit()
+    db.refresh(order)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="update",
+        entity_type="merchandise_order",
+        entity_id=order.id,
+        summary=f"{order.product_name} order from {order.customer_name}",
+    )
+    db.commit()
+
+    return MerchandiseOrderOut.model_validate(order)
+
+
 
 
 @router.post("/uploads", response_model=MediaUploadOut, status_code=status.HTTP_201_CREATED)

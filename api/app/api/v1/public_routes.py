@@ -13,6 +13,7 @@ from app.models.article import Article
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season, SeasonTeam
 from app.models.match import Match, MatchPlayerStat
+from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
 from app.models.player import Player
 from app.models.sponsor import Sponsor
 from app.models.team import Team
@@ -22,6 +23,11 @@ from app.schemas.articles import ArticleOut
 from app.schemas.gallery import GalleryItemOut
 from app.schemas.leagues import LeagueDetailPublicOut, LeagueOut
 from app.schemas.matches import MatchDetailOut
+from app.schemas.merchandise import (
+    MerchandiseOrderCreate,
+    MerchandiseOrderOut,
+    MerchandiseProductOut,
+)
 from app.schemas.players import PlayerMatchAppearanceOut, PlayerOut
 from app.schemas.seasons import SeasonPublicOut, SeasonSummaryOut
 from app.schemas.sponsor import SponsorOut
@@ -526,6 +532,71 @@ def list_public_sponsors(
         for sp, tn in rows
     ]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
+
+@router.get("/merchandise", response_model=dict)
+def list_public_merchandise(
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+) -> dict:
+    stmt = (
+        select(MerchandiseProduct)
+        .where(MerchandiseProduct.status == "active")
+        .order_by(MerchandiseProduct.sort_order, MerchandiseProduct.name)
+    )
+    rows, total = paginate_select(
+        db,
+        stmt,
+        page=page_params.page,
+        page_size=page_params.page_size,
+    )
+    items = [MerchandiseProductOut.model_validate(r) for r in rows]
+    return to_paginated(
+        items,
+        total,
+        page_params.page,
+        page_params.page_size,
+    ).model_dump()
+
+
+@router.post(
+    "/merchandise/orders",
+    response_model=MerchandiseOrderOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def submit_merchandise_order(
+    body: MerchandiseOrderCreate,
+    db: Session = Depends(get_db),
+) -> MerchandiseOrderOut:
+    product = db.get(MerchandiseProduct, body.product_id)
+
+    if product is None or product.status != "active":
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "not_found",
+                "message": "Merchandise product not found",
+            },
+        )
+
+    order = MerchandiseOrder(
+        product_id=product.id,
+        product_name=product.name,
+        customer_name=body.customer_name.strip(),
+        phone=body.phone.strip(),
+        email=body.email.strip() if body.email and body.email.strip() else None,
+        size=body.size.strip() if body.size and body.size.strip() else None,
+        quantity=body.quantity,
+        notes=body.notes.strip() if body.notes and body.notes.strip() else None,
+        status="new",
+    )
+
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+
+    return MerchandiseOrderOut.model_validate(order)
+
+
 
 
 @router.post("/contact", response_model=ContactMessageOut, status_code=status.HTTP_201_CREATED)
