@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router'
 import type { MerchandiseProductDto } from '@/lib/api-types'
@@ -39,17 +39,17 @@ function EditMerchandisePage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
-  useMemo(() => {
-    if (!product) return
+ useEffect(() => {
+  if (!product) return
 
-    setName(product.name)
-    setDescription(product.description ?? '')
-    setPriceText(product.price_text)
-    setImageUrl(product.image_url || null)
-    setSizesText(product.sizes_text ?? '')
-    setStatus(product.status)
-    setSortOrder(String(product.sort_order))
-  }, [product])
+  setName(product.name)
+  setDescription(product.description ?? '')
+  setPriceText(product.price_text)
+  setImageUrl(product.image_url || null)
+  setSizesText(product.sizes_text ?? '')
+  setStatus(product.status)
+  setSortOrder(String(product.sort_order))
+}, [product])
 
   const save = async () => {
     if (isSaving || !product) return
