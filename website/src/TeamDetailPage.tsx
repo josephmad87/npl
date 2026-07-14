@@ -268,6 +268,17 @@ const sponsorsQ = useQuery({
   enabled: Boolean(data?.id),
   retry: 1,
 })
+
+    const merchandiseQ = useQuery({
+    queryKey: ['team-merchandise', data?.id ?? 'none'],
+    queryFn: () =>
+      fetchAllPaginatedList<PublicMerchandiseProduct>(
+        (page) =>
+          `/public/merchandise?page=${page}&page_size=100&team_id=${data?.id ?? -1}`,
+      ),
+    enabled: Boolean(data?.id),
+    retry: 1,
+  })
   
   const coverHero = data ? resolveMediaUrl(data.cover_image_url) : null
   const firstTeamPhoto = data?.team_photo_urls?.[0]
@@ -320,6 +331,14 @@ const sponsorsQ = useQuery({
   const teamFixturesSorted = useMemo(
     () => sortFixturesByDateAsc(fixturesQ.data ?? []),
     [fixturesQ.data],
+  )
+
+    const teamMerchandise = useMemo(
+    () =>
+      [...(merchandiseQ.data ?? [])].sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
+      ),
+    [merchandiseQ.data],
   )
 
   const teamSponsors = useMemo(() => {
