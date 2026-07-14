@@ -5949,3 +5949,122 @@ table.player-public-table {
   min-width: 840px;
 }
 }
+.merchandise-page {
+  padding-block: 2rem;
+}
+
+.merchandise-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.merchandise-card {
+  overflow: hidden;
+  border: 1px solid rgba(58, 0, 0, 0.12);
+  border-radius: 1.25rem;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(58, 0, 0, 0.08);
+}
+
+.merchandise-card__media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14rem;
+  background: #fff7f4;
+}
+
+.merchandise-card__media img {
+  max-width: 100%;
+  max-height: 14rem;
+  object-fit: contain;
+  padding: 1rem;
+}
+
+.merchandise-card__body {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+}
+
+.merchandise-card__body h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.merchandise-card__price {
+  margin: 0;
+  color: #3a0000;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.merchandise-card__sizes {
+  margin: 0;
+}
+
+.merchandise-card__button {
+  justify-self: start;
+}
+
+.merchandise-order-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(20, 0, 0, 0.65);
+}
+
+.merchandise-order-modal__panel {
+  position: relative;
+  display: grid;
+  gap: 0.9rem;
+  width: min(100%, 34rem);
+  max-height: 90vh;
+  overflow: auto;
+  border-radius: 1.25rem;
+  background: #fff;
+  padding: 1.5rem;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.35);
+}
+
+.merchandise-order-modal__panel label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+
+.merchandise-order-modal__panel input,
+.merchandise-order-modal__panel select,
+.merchandise-order-modal__panel textarea {
+  width: 100%;
+  border: 1px solid rgba(58, 0, 0, 0.18);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  font: inherit;
+}
+
+.merchandise-order-modal__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.85rem;
+  border: 0;
+  background: transparent;
+  color: #3a0000;
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.merchandise-order-modal__success {
+  margin: 0;
+  border-radius: 0.75rem;
+  background: #e8fff1;
+  color: #075c2f;
+  padding: 0.75rem;
+  font-weight: 700;
+}
