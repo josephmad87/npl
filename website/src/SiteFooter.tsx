@@ -48,6 +48,7 @@ export function SiteFooter() {
               News
             </Link>
             <Link to="/gallery">Gallery</Link>
+            <Link to="/merchandise">Merchandise</Link>
           </nav>
         </div>
 
