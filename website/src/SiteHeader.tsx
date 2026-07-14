@@ -518,10 +518,10 @@ export function SiteHeader() {
             </div>
 
             <Link to="/news" search={{ q: '' }}>
-              News
-            </Link>
-            <div className="menu-item">
-             <div className="menu-item">
+  News
+</Link>
+
+<div className="menu-item">
   <Link to="/gallery">Gallery</Link>
   <div className="dropdown">
     <Link to="/gallery/images">Images</Link>
