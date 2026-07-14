@@ -10,6 +10,9 @@ class MerchandiseProductCreate(BaseModel):
     image_url: str = Field(default="", max_length=1024)
     sizes_text: str | None = Field(default=None, max_length=255)
     status: str = Field(default="active", max_length=32)
+    category: str = Field(default="Other", max_length=64)
+    audience: str = Field(default="Unisex", max_length=64)
+    team_id: int | None = None
     sort_order: int = 0
 
 
@@ -20,6 +23,9 @@ class MerchandiseProductUpdate(BaseModel):
     image_url: str | None = Field(default=None, max_length=1024)
     sizes_text: str | None = Field(default=None, max_length=255)
     status: str | None = Field(default=None, max_length=32)
+    category: str | None = Field(default=None, max_length=64)
+    audience: str | None = Field(default=None, max_length=64)
+    team_id: int | None = None
     sort_order: int | None = None
 
 
@@ -30,6 +36,9 @@ class MerchandiseProductOut(BaseModel):
     price_text: str
     image_url: str
     sizes_text: str | None
+    category: str
+    audience: str
+    team_id: int | None
     status: str
     sort_order: int
     created_at: datetime

@@ -352,6 +352,9 @@ export type MerchandiseProductDto = {
   price_text: string
   image_url: string
   sizes_text: string | null
+  category: string
+  audience: string
+  team_id: number | null
   status: string
   sort_order: number
   created_at: string

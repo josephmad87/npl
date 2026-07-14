@@ -1,3 +1,4 @@
+import { useSearch } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import nplLogoUrl from './assets/logo.png'
@@ -54,12 +55,16 @@ function MerchandiseImage({ product }: Readonly<{ product: MerchandiseProduct }>
 }
 
 export default function MerchandisePage() {
-  const { data: products = [], isLoading, isError } = useQuery({
-    queryKey: ['public-merchandise'],
+
+  const { team_id: teamId } = useSearch({ from: '/merchandise' })
+   const { data: products = [], isLoading, isError } = useQuery({
+    queryKey: ['public-merchandise', teamId ?? 'all'],
     queryFn: () =>
-      fetchAllPaginatedList<MerchandiseProduct>(
-        (page) => `/public/merchandise?page=${page}&page_size=100`,
-      ),
+      fetchAllPaginatedList<MerchandiseProduct>((page) => {
+        const teamFilter = teamId ? `&team_id=${teamId}` : ''
+
+        return `/public/merchandise?page=${page}&page_size=100${teamFilter}`
+      }),
     retry: 1,
   })
 
@@ -144,10 +149,15 @@ export default function MerchandisePage() {
   return (
     <>
      <PageHero
-      title="Official NPL Merchandise"
-      variant="siteLogo"
-      fallbackMode="none"
-    />
+  title={teamId ? 'Team Merchandise' : 'Official NPL Merchandise'}
+  subtitle={
+    teamId
+      ? 'Shop merchandise linked to this team.'
+      : 'Shop official National Premier League supporter gear, jerseys, caps and fan merchandise.'
+  }
+  variant="siteLogo"
+  fallbackMode="none"
+/>
 
       <main className="container">
         <section className="menu-page merchandise-page">
@@ -165,7 +175,11 @@ export default function MerchandisePage() {
           ) : null}
 
           {!isLoading && activeProducts.length === 0 ? (
-            <p className="muted">No merchandise is available yet.</p>
+            <p className="muted">
+  {teamId
+    ? 'No merchandise is available for this team yet.'
+    : 'No merchandise is available yet.'}
+</p>
           ) : null}
 
           <div className="merchandise-grid">

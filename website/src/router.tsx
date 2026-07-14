@@ -182,8 +182,27 @@ const galleryImagesRoute = createRoute({
   component: GalleryImagesPage,
 })
 
-const merchandiseRoute = createRoute({ getParentRoute: () => rootRoute, path: '/merchandise',
+const merchandiseRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/merchandise',
   component: MerchandisePage,
+  validateSearch: (search: Record<string, unknown>) => {
+    const rawTeamId = search.team_id
+
+    if (typeof rawTeamId === 'number' && Number.isFinite(rawTeamId)) {
+      return { team_id: rawTeamId }
+    }
+
+    if (
+      typeof rawTeamId === 'string' &&
+      rawTeamId.trim() !== '' &&
+      !Number.isNaN(Number(rawTeamId))
+    ) {
+      return { team_id: Number(rawTeamId) }
+    }
+
+    return { team_id: null }
+  },
 })
 
 const galleryVideoRoute = createRoute({

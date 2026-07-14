@@ -76,7 +76,19 @@ type PublicSponsor = {
   team_id: number | null
   team_name: string | null
 }
-
+type PublicMerchandiseProduct = {
+  id: number
+  name: string
+  description: string | null
+  price_text: string
+  image_url: string
+  sizes_text: string | null
+  category: string
+  audience: string
+  team_id: number | null
+  status: string
+  sort_order: number
+}
 
 type TeamSectionTabId =
   | 'leadership'
@@ -87,6 +99,7 @@ type TeamSectionTabId =
   | 'results'
   | 'squad'
   | 'gallery'
+  | 'shop'
   | 'team-photos'
 
 function StaffCard({
@@ -122,6 +135,63 @@ function StaffCard({
       <div className="team-page__staff-card-body">
         <p className="team-page__staff-card-role">{role}</p>
         <p className="team-page__staff-card-name">{name?.trim() || 'TBA'}</p>
+      </div>
+    </article>
+  )
+}
+
+function TeamMerchandiseCard({
+  product,
+  teamId,
+}: Readonly<{
+  product: PublicMerchandiseProduct
+  teamId: number
+}>) {
+  const resolvedImage = product.image_url?.trim()
+    ? resolveMediaUrl(product.image_url)
+    : null
+
+  return (
+    <article className="team-merchandise-card">
+      <div className="team-merchandise-card__media">
+        {resolvedImage ? (
+          <img
+            src={resolvedImage}
+            alt={product.name}
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <SiteLogoPlaceholder />
+        )}
+      </div>
+
+      <div className="team-merchandise-card__body">
+        <p className="team-merchandise-card__meta">
+          {product.category} · {product.audience}
+        </p>
+
+        <h3>{product.name}</h3>
+
+        {product.price_text.trim() ? (
+          <p className="team-merchandise-card__price">
+            {product.price_text}
+          </p>
+        ) : null}
+
+        {product.sizes_text?.trim() ? (
+          <p className="team-merchandise-card__sizes">
+            Sizes: {product.sizes_text}
+          </p>
+        ) : null}
+
+        <Link
+          to="/merchandise"
+          search={{ team_id: teamId }}
+          className="team-merchandise-card__link"
+        >
+          Shop
+        </Link>
       </div>
     </article>
   )
@@ -198,6 +268,17 @@ const sponsorsQ = useQuery({
   enabled: Boolean(data?.id),
   retry: 1,
 })
+
+    const merchandiseQ = useQuery({
+    queryKey: ['team-merchandise', data?.id ?? 'none'],
+    queryFn: () =>
+      fetchAllPaginatedList<PublicMerchandiseProduct>(
+        (page) =>
+          `/public/merchandise?page=${page}&page_size=100&team_id=${data?.id ?? -1}`,
+      ),
+    enabled: Boolean(data?.id),
+    retry: 1,
+  })
   
   const coverHero = data ? resolveMediaUrl(data.cover_image_url) : null
   const firstTeamPhoto = data?.team_photo_urls?.[0]
@@ -252,6 +333,14 @@ const sponsorsQ = useQuery({
     [fixturesQ.data],
   )
 
+    const teamMerchandise = useMemo(
+    () =>
+      [...(merchandiseQ.data ?? [])].sort(
+        (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
+      ),
+    [merchandiseQ.data],
+  )
+
   const teamSponsors = useMemo(() => {
   if (!data) {
     return []
@@ -285,6 +374,7 @@ const sponsorsQ = useQuery({
         { id: 'results', label: 'Results' },
         { id: 'squad', label: 'Squad' },
         { id: 'gallery', label: 'Gallery' },
+        { id: 'shop', label: 'Shop' },
         ...(data && (data.team_photo_urls ?? []).length > 0
           ? [{ id: 'team-photos', label: 'Team photos' }]
           : []),
@@ -364,6 +454,38 @@ const sponsorsQ = useQuery({
         placeholderKind="brand"
       />
     </div>
+
+{teamMerchandise.length > 0 ? (
+  <section className="team-merchandise-strip">
+    <div className="team-merchandise-strip__header">
+      <h3>Team shop</h3>
+
+      <Link
+        to="/merchandise"
+        search={{ team_id: data.id }}
+        className="team-merchandise-strip__link"
+      >
+        View all
+      </Link>
+    </div>
+
+    <div
+      className="team-merchandise-marquee"
+      aria-label={`${data.name} merchandise`}
+    >
+      <div className="team-merchandise-track">
+        {[...teamMerchandise, ...teamMerchandise].map((product, idx) => (
+          <TeamMerchandiseCard
+            key={`${product.id}-${idx}`}
+            product={product}
+            teamId={data.id}
+          />
+        ))}
+      </div>
+    </div>
+  </section>
+) : null}
+    
 
     <SponsorMarquee
       title={`${data.name} Partners & Sponsors`}
@@ -598,6 +720,38 @@ const sponsorsQ = useQuery({
                 )}
                 </section>
               ) : null}
+
+              {activeTab === 'shop' ? (
+  <section className="team-shop-panel">
+    <div className="team-shop-panel__header">
+      <h2>{data.name} shop</h2>
+      <p>
+        Merchandise linked to {data.name}. Select an item to place an order
+        request.
+      </p>
+    </div>
+
+    {merchandiseQ.isLoading ? (
+      <p className="muted">Loading team merchandise…</p>
+    ) : null}
+
+    {teamMerchandise.length === 0 && !merchandiseQ.isLoading ? (
+      <p className="muted">No merchandise is linked to this team yet.</p>
+    ) : null}
+
+    {teamMerchandise.length > 0 ? (
+      <div className="team-shop-grid">
+        {teamMerchandise.map((product) => (
+          <TeamMerchandiseCard
+            key={product.id}
+            product={product}
+            teamId={data.id}
+          />
+        ))}
+      </div>
+    ) : null}
+  </section>
+) : null}
 
               {activeTab === 'team-photos' && (data.team_photo_urls ?? []).length > 0 ? (
                 <section className="team-page__section" aria-label="Team photos">

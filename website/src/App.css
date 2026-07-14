@@ -6209,3 +6209,142 @@ table.player-public-table {
     height: 210px;
   }
 }
+.team-merchandise-strip {
+  margin-top: 2rem;
+}
+
+.team-merchandise-strip__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.team-merchandise-strip__header h3,
+.team-shop-panel__header h2 {
+  margin: 0;
+  color: #3a0000;
+}
+
+.team-merchandise-strip__link,
+.team-merchandise-card__link {
+  color: #3a0000;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.team-merchandise-strip__link:hover,
+.team-merchandise-card__link:hover {
+  text-decoration: underline;
+}
+
+.team-merchandise-marquee {
+  overflow: hidden;
+  padding-block: 0.25rem;
+}
+
+.team-merchandise-track {
+  display: flex;
+  width: max-content;
+  gap: 1rem;
+  animation: team-merchandise-scroll-right 28s linear infinite;
+}
+
+.team-merchandise-marquee:hover .team-merchandise-track {
+  animation-play-state: paused;
+}
+
+@keyframes team-merchandise-scroll-right {
+  from {
+    transform: translateX(-50%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.team-merchandise-card {
+  flex: 0 0 16rem;
+  overflow: hidden;
+  border: 1px solid rgba(58, 0, 0, 0.12);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 14px 36px rgba(58, 0, 0, 0.08);
+}
+
+.team-merchandise-card__media {
+  display: grid;
+  place-items: center;
+  height: 11rem;
+  background: #fff7f4;
+}
+
+.team-merchandise-card__media img {
+  display: block;
+  width: 88%;
+  height: 88%;
+  object-fit: contain;
+}
+
+.team-merchandise-card__body {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1rem;
+}
+
+.team-merchandise-card__body h3 {
+  margin: 0;
+  color: #3a0000;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.team-merchandise-card__meta,
+.team-merchandise-card__sizes {
+  margin: 0;
+  color: rgba(58, 0, 0, 0.68);
+  font-size: 0.85rem;
+}
+
+.team-merchandise-card__price {
+  margin: 0;
+  color: #3a0000;
+  font-weight: 900;
+}
+
+.team-shop-panel {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.team-shop-panel__header p {
+  margin: 0.35rem 0 0;
+  color: rgba(58, 0, 0, 0.72);
+}
+
+.team-shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 18rem));
+  justify-content: start;
+  gap: 1.25rem;
+}
+
+@media (max-width: 720px) {
+  .team-merchandise-track {
+    animation-duration: 22s;
+  }
+
+  .team-merchandise-card {
+    flex-basis: 14rem;
+  }
+
+  .team-shop-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+
+
