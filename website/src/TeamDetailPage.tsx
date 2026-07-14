@@ -76,7 +76,19 @@ type PublicSponsor = {
   team_id: number | null
   team_name: string | null
 }
-
+type PublicMerchandiseProduct = {
+  id: number
+  name: string
+  description: string | null
+  price_text: string
+  image_url: string
+  sizes_text: string | null
+  category: string
+  audience: string
+  team_id: number | null
+  status: string
+  sort_order: number
+}
 
 type TeamSectionTabId =
   | 'leadership'
@@ -87,6 +99,7 @@ type TeamSectionTabId =
   | 'results'
   | 'squad'
   | 'gallery'
+  | 'shop'
   | 'team-photos'
 
 function StaffCard({
