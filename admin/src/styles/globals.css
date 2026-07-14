@@ -3320,3 +3320,32 @@ video.article-view__hero-img {
   align-items: center;
   gap: 0.5rem;
 }
+
+.merchandise-admin-thumb {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.merchandise-admin-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Safety rule for any older admin thumbnails */
+.entity-thumb {
+  display: block;
+  width: 88px;
+  max-width: 88px;
+  height: 64px;
+  max-height: 64px;
+  object-fit: contain;
+  border-radius: 0.75rem;
+}

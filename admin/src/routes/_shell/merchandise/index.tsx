@@ -89,14 +89,15 @@ function MerchandisePage() {
         }
 
         return (
-          <img
-            src={u}
-            alt=""
-            className="entity-thumb"
-            loading="lazy"
-            decoding="async"
-          />
-        )
+            <div className="merchandise-admin-thumb">
+              <img
+                src={u}
+                alt={row.original.name}
+                loading="lazy"
+                decoding="async"
+              />
+          </div>
+              )
       },
     },
   ]
