@@ -134,11 +134,21 @@ def admin_list_merchandise(
     response_model=MerchandiseProductOut,
     status_code=status.HTTP_201_CREATED,
 )
+
+
 def admin_create_merchandise(
     body: MerchandiseProductCreate,
     db: Session = Depends(get_db),
     actor: User = Depends(require_content_writer),
 ) -> MerchandiseProductOut:
+        if body.team_id is not None and db.get(Team, body.team_id) is None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "validation",
+                "message": "Team not found for team_id.",
+            },
+        )
     product = MerchandiseProduct(**body.model_dump())
 
     db.add(product)
@@ -209,6 +219,17 @@ def admin_update_merchandise_order(
         )
 
     patch = body.model_dump(exclude_unset=True)
+
+    if "team_id" in patch and patch["team_id"] is not None:
+        if db.get(Team, patch["team_id"]) is None:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "validation",
+                    "message": "Team not found for team_id.",
+                },
+            )
+    
 
     for k, v in patch.items():
         setattr(order, k, v)
