@@ -40,27 +40,29 @@ function NewMerchandisePage() {
     setIsSaving(true)
 
     try {
-      const created = await adminPost<MerchandiseProductDto>(
-        '/admin/merchandise',
-        {
-          name: n,
-          description: description.trim() || null,
-          price_text: priceText.trim(),
-          image_url: (imageUrl ?? '').trim(),
-          sizes_text: sizesText.trim() || null,
-          status,
-          sort_order: Number(sortOrder) || 0,
-        },
-      )
 
-      await queryClient.invalidateQueries({
-        queryKey: ['admin', 'merchandise'],
-      })
+      await adminPost<MerchandiseProductDto>(
+  '/admin/merchandise',
+  {
+    name: n,
+    description: description.trim() || null,
+    price_text: priceText.trim(),
+    image_url: (imageUrl ?? '').trim(),
+    sizes_text: sizesText.trim() || null,
+    status,
+    sort_order: Number(sortOrder) || 0,
+  },
+)
 
-      void navigate({
-        to: '/merchandise/$productId',
-        params: { productId: String(created.id) },
-      })
+await queryClient.invalidateQueries({
+  queryKey: ['admin', 'merchandise'],
+})
+
+void navigate({
+  to: '/merchandise',
+})
+
+      
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Create failed')
     } finally {
