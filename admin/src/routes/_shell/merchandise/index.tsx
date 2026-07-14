@@ -38,6 +38,9 @@ function MerchandisePage() {
         r.description,
         r.price_text,
         r.sizes_text,
+        r.category,
+        r.audience,
+        String(r.team_id ?? ''),
         r.status,
         String(r.sort_order),
       ]
@@ -58,6 +61,18 @@ function MerchandisePage() {
       header: 'Price',
       cell: ({ getValue }) => String(getValue() || '—'),
     },
+
+    {
+      accessorKey: 'category',
+      header: 'Category',
+      cell: ({ getValue }) => String(getValue() || '—'),
+    },
+    {
+      accessorKey: 'audience',
+      header: 'Audience',
+      cell: ({ getValue }) => String(getValue() || '—'),
+    },
+    
     {
       accessorKey: 'sizes_text',
       header: 'Sizes',
