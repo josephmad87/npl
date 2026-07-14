@@ -200,6 +200,27 @@ def admin_update_merchandise(
 
     return MerchandiseProductOut.model_validate(product)
 
+@router.get(
+    "/merchandise/{product_id}",
+    response_model=MerchandiseProductOut,
+)
+def admin_get_merchandise(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> MerchandiseProductOut:
+    product = db.get(MerchandiseProduct, product_id)
+
+    if product is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "not_found",
+                "message": "Merchandise product not found",
+            },
+        )
+
+    return MerchandiseProductOut.model_validate(product)
 
 @router.delete(
     "/merchandise/{product_id}",
