@@ -140,9 +140,9 @@ function MerchandiseOrdersPage() {
   return (
     <>
       <PageHeader
-        title="Merchandise orders"
-        subtitle="View and manage customer merchandise order requests."
-        eyebrow={<BackNavLink to="/merchandise">Merchandise</BackNavLink>}
+          title="Merchandise orders"
+          description="View and manage customer merchandise order requests."
+          actions={<BackNavLink to="/merchandise">Merchandise</BackNavLink>}
       />
 
       {!q.isLoading && !q.isError ? (
