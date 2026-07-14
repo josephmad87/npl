@@ -187,37 +187,35 @@ function EditMerchandisePage() {
               />
             ),
           },
+
           {
-            id: 'image_url',
-            label: 'Image',
-            control: (
-              <MediaUrlField
-                  id="image_url"
-                  value={imageUrl}
-                  onChange={setImageUrl}
-                  disabled={isSaving}
-                  uploadKind="merchandise"
-                  accept="image/*"
-                />
-            ),
-          },
-
-
-           {
-            id: 'image_url_2',
-            label: 'Second image optional'
-            control: (
-              <MediaUrlField
-                  id="image_url_2"
-                  value={imageUrl2}
-                  onChange={setImageUrl2}
-                  disabled={isSaving}
-                  uploadKind="merchandise"
-                  accept="image/*"
-                />
-            ),
-          },
-
+  id: 'image_url',
+  label: 'Image',
+  control: (
+    <MediaUrlField
+      id="image_url"
+      value={imageUrl}
+      onChange={setImageUrl}
+      disabled={isSaving}
+      uploadKind="merchandise"
+      accept="image/*"
+    />
+  ),
+},
+{
+  id: 'image_url_2',
+  label: 'Second image optional',
+  control: (
+    <MediaUrlField
+      id="image_url_2"
+      value={imageUrl2}
+      onChange={setImageUrl2}
+      disabled={isSaving}
+      uploadKind="merchandise"
+      accept="image/*"
+    />
+  ),
+},
           
           {
             id: 'sizes_text',
