@@ -344,3 +344,30 @@ export type UserMePatch = {
   current_password?: string
   new_password?: string
 }
+
+export type MerchandiseProductDto = {
+  id: number
+  name: string
+  description: string | null
+  price_text: string
+  image_url: string
+  sizes_text: string | null
+  status: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export type MerchandiseOrderDto = {
+  id: number
+  product_id: number | null
+  product_name: string
+  customer_name: string
+  phone: string
+  email: string | null
+  size: string | null
+  quantity: number
+  notes: string | null
+  status: string
+  created_at: string
+}
