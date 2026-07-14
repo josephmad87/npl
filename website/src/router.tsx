@@ -31,6 +31,7 @@ import PlayerDetailPage from './PlayerDetailPage'
 import { LeagueDetailPage, SeasonDetailPage, TeamDetailPage } from './EntityDetailPages'
 import NewsArticlePage from './NewsArticlePage'
 import { RootLayout } from './RootLayout'
+import MerchandisePage from './MerchandisePage'
 
 const rootRoute = createRootRoute({
   component: RootLayout,
@@ -180,6 +181,11 @@ const galleryImagesRoute = createRoute({
   path: '/gallery/images',
   component: GalleryImagesPage,
 })
+
+const merchandiseRoute = createRoute({ getParentRoute: () => rootRoute, path: '/merchandise',
+  component: MerchandisePage,
+})
+
 const galleryVideoRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/gallery/video',
@@ -256,6 +262,7 @@ const routeTree = rootRoute.addChildren([
   newsRoute,
   searchRoute,
   galleryRoute,
+  merchandiseRoute,
   galleryImagesRoute,
   galleryVideoRoute,
   aboutUsRoute,
