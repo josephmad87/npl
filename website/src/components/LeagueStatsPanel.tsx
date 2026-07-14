@@ -495,11 +495,11 @@ const bowlingPage = pagedStats(bowlRows, bowlingStatsPage)
                     <th>Pos</th>
                     <th>Player</th>
                     <th>Team</th>
-                    <th>M</th>
-                    <th>W</th>
-                    <th>O</th>
-                    <th>R</th>
-                    <th>Maid</th>
+                    <th>Matches</th>
+                    <th>Overs</th>
+                    <th>Mdns</th>
+                    <th>Runs</th>
+                    <th>Wkts</th>
                     <th>Econ</th>
                     <th>SR</th>
                     <th>Ct</th>
@@ -509,25 +509,23 @@ const bowlingPage = pagedStats(bowlRows, bowlingStatsPage)
                 <tbody>
                   {bowlingPage.visibleRows.map((r) => (
                     <tr key={r.playerId}>
-                      <td>{r.pos}</td>
-                      <td>
-                        {playerById.get(r.playerId)?.full_name ?? `#${r.playerId}`}{' '}
-                        {isTeamCaptain(r.playerId, r.teamId, teamsMap, playerById) ? (
-                          <span className="league-stats-captain-badge league-stats-captain-badge--table">
-                            Captain
-                          </span>
-                        ) : null}
-                      </td>
-                      <td>{teamsMap[r.teamId]?.name ?? '—'}</td>
-                      <td>{r.m}</td>
-                      <td>{r.wk}</td>
-                      <td>{r.o}</td>
-                      <td>{r.r}</td>
-                      <td>{r.maid}</td>
-                      <td>{r.econ}</td>
-                      <td>{r.sr}</td>
-                      <td>{r.catches}</td>
-                      <td>{r.stumpings}</td>
+                     <td>{r.pos}</td>
+                        <td>
+                          {playerById.get(r.playerId)?.full_name ?? `#${r.playerId}`}{' '}
+                            {isTeamCaptain(r.playerId, r.teamId, teamsMap, playerById) ? (
+                              <span className="captain-badge">Captain</span>
+                            ) : null}
+                          </td>
+                          <td>{teamsMap[r.teamId]?.name ?? '—'}</td>
+                          <td>{r.m}</td>
+                          <td>{r.o}</td>
+                          <td>{r.maid}</td>
+                          <td>{r.r}</td>
+                          <td>{r.wk}</td>
+                          <td>{r.econ}</td>
+                          <td>{r.sr}</td>
+                          <td>{r.catches}</td>
+                          <td>{r.stumpings}</td>
                     </tr>
                   ))}
                 </tbody>
