@@ -197,7 +197,7 @@
   display: contents;
 }
 
-/* Mobile header + drawer: hidden on â‰¥721px */
+/* Mobile header + drawer: hidden on Ã¢â€°Â¥721px */
 .site-header-mobile {
   display: none;
 }
@@ -1020,7 +1020,7 @@
   );
 }
 
-/* Home: Latest Results â€” horizontal scroll like Featured Teams */
+/* Home: Latest Results Ã¢â‚¬â€ horizontal scroll like Featured Teams */
 .home-match-carousel-section .match-carousel__toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1112,7 +1112,7 @@
   min-height: 12.5rem;
 }
 
-/* Category home (menâ€™s / womenâ€™s / youth): wider result cards in the scrollable track. */
+/* Category home (menÃ¢â‚¬â„¢s / womenÃ¢â‚¬â„¢s / youth): wider result cards in the scrollable track. */
 .home-match-carousel-section--category-results .match-carousel__cell:has(.ui-match-card--result-sheet) {
   flex: 0 0 min(532px, 97vw);
   width: min(532px, 97vw);
@@ -1216,7 +1216,7 @@
   grid-template-columns: repeat(auto-fit, minmax(275px, 1fr));
 }
 
-/* /results (and category) listing â€” wider cards, clamped copy, row-height alignment */
+/* /results (and category) listing Ã¢â‚¬â€ wider cards, clamped copy, row-height alignment */
 .home-grid--results-list {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
   align-items: stretch;
@@ -1320,7 +1320,7 @@
   background: #fff;
 }
 
-/* Background cover only â€” badge lives in overlay */
+/* Background cover only Ã¢â‚¬â€ badge lives in overlay */
 .ui-page-hero > img {
   position: absolute;
   inset: 0;
@@ -1580,7 +1580,7 @@
   line-height: 1.45;
 }
 
-/* Standings (points table) â€” brand palette (Maroon / Rust / Marigold / white) */
+/* Standings (points table) Ã¢â‚¬â€ brand palette (Maroon / Rust / Marigold / white) */
 .league-standings-panel {
   --brand-indigo: #200001;
   --brand-pixie: #3a0a0c;
@@ -1707,7 +1707,7 @@ table.league-standings-table tbody tr:last-child td:last-child {
   margin-bottom: 1.5rem;
 }
 
-/* League season â€” stats tab (KPIs, top performers, leaderboards) */
+/* League season Ã¢â‚¬â€ stats tab (KPIs, top performers, leaderboards) */
 .league-season-stats {
   width: 100%;
 }
@@ -2165,7 +2165,7 @@ table.league-stats-table {
   text-decoration: none;
 }
 
-/* Match cards â€” aligned with admin entity-thumb â€œduoâ€ fixture/result cards */
+/* Match cards Ã¢â‚¬â€ aligned with admin entity-thumb Ã¢â‚¬Å“duoÃ¢â‚¬Â fixture/result cards */
 .ui-match-card.ui-match-card--duo {
   display: flex;
   flex-direction: column;
@@ -2355,7 +2355,7 @@ table.league-stats-table {
   color: color-mix(in srgb, var(--color-surface) 80%, #aaa);
 }
 
-/* Result tab / match centre row â€” white panel; cards elevated above it */
+/* Result tab / match centre row Ã¢â‚¬â€ white panel; cards elevated above it */
 .league-season-results {
   width: 100%;
   margin: 0 0 1rem;
@@ -2489,7 +2489,7 @@ table.league-stats-table {
   padding: 0 0.2rem;
 }
 
-/* Inset for content only â€” scoreboard background stays full-bleed to the card edge. */
+/* Inset for content only Ã¢â‚¬â€ scoreboard background stays full-bleed to the card edge. */
 .ui-match-card__scoreboard-main > .ui-match-card__team-col:nth-child(1) {
   padding: 0.85rem 0.2rem 0.55rem 0.75rem;
 }
@@ -2946,7 +2946,7 @@ table.league-stats-table {
   color: var(--color-muted);
 }
 
-/* â€”â€”â€” Public player detail (mirrors admin player hub layout) â€”â€”â€” */
+/* Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€ Public player detail (mirrors admin player hub layout) Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€ */
 .player-public-page {
   max-width: 1080px;
   margin: 0 auto;
@@ -3246,7 +3246,7 @@ table.player-public-table {
   text-decoration: underline;
 }
 
-/* â€”â€”â€” Team hub (public team detail) â€”â€”â€” */
+/* Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€ Team hub (public team detail) Ã¢â‚¬â€Ã¢â‚¬â€Ã¢â‚¬â€ */
 .team-page {
   max-width: 1080px;
   margin: 0 auto;
@@ -3594,7 +3594,7 @@ table.player-public-table {
   margin-top: 0.35rem;
 }
 
-/* Team detail â€” result cards: scoreboard over details (not side-by-side), all breakpoints */
+/* Team detail Ã¢â‚¬â€ result cards: scoreboard over details (not side-by-side), all breakpoints */
 .team-page__match-grid .ui-match-card.ui-match-card--result-sheet {
   height: 100%;
   min-height: 0;
@@ -4308,7 +4308,7 @@ table.player-public-table {
   }
 
   .site-header-mobile__summary::after {
-    content: 'â€º';
+    content: 'Ã¢â‚¬Âº';
     font-size: 1.15rem;
     font-weight: 700;
     opacity: 0.55;
@@ -4371,7 +4371,7 @@ table.player-public-table {
   }
 }
 
-/* Public match centre â€” mirrors admin match view (header, detail grid, scorecard) */
+/* Public match centre Ã¢â‚¬â€ mirrors admin match view (header, detail grid, scorecard) */
 .match-centre-hero {
   width: 100%;
   margin: 0 0 clamp(1rem, 2.8vw, 1.5rem);
@@ -4722,7 +4722,7 @@ table.player-public-table {
   }
 }
 
-/* â€”â€” Listings, teams, news, gallery, about (shared page polish) â€”â€” */
+/* Ã¢â‚¬â€Ã¢â‚¬â€ Listings, teams, news, gallery, about (shared page polish) Ã¢â‚¬â€Ã¢â‚¬â€ */
 .listings-page--fixtures {
   min-height: 4rem;
 }
@@ -6981,4 +6981,83 @@ table.player-public-table {
 .ui-news-card__excerpt,
 .ui-news-card p {
   font-weight: 600;
+}
+
+/* =========================================================
+   Match card winner trophy badge
+   Keeps team logos full-size and floats trophy over the logo.
+   ========================================================= */
+.ui-match-card__logo-wrap {
+  position: relative;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.ui-match-card__logo-wrap--winner {
+  overflow: visible;
+}
+
+.ui-match-card__logo {
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* Current MatchCard component trophy class */
+.ui-match-card__winner-cup {
+  position: absolute;
+  right: -0.32rem;
+  bottom: -0.32rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.22rem;
+  height: 1.22rem;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(53, 0, 0, 0.12);
+  font-size: 0.78rem;
+  line-height: 1;
+  pointer-events: none;
+  transform: none;
+}
+
+/* Older trophy class, kept for safety if any old cards still use it */
+.ui-match-card__cup {
+  position: absolute;
+  right: -0.32rem;
+  bottom: -0.32rem;
+  top: auto;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.22rem;
+  height: 1.22rem;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(53, 0, 0, 0.12);
+  font-size: 0.78rem;
+  line-height: 1;
+  pointer-events: none;
+  filter: none;
+}
+
+/* Result cards need a little extra breathing room because the trophy overlaps the round logo. */
+.ui-match-card--result-redesign .ui-match-card__logo-wrap {
+  overflow: visible;
+}
+
+.ui-match-card--result-redesign .ui-match-card__winner-cup,
+.ui-match-card--result-redesign .ui-match-card__cup {
+  right: -0.36rem;
+  bottom: -0.36rem;
+  width: 1.28rem;
+  height: 1.28rem;
+  font-size: 0.82rem;
 }
