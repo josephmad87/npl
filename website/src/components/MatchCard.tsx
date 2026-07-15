@@ -111,6 +111,39 @@ function InningsLines({ parts }: { parts: string[] }) {
   )
 }
 
+function matchTeamLogo(
+  match: MatchLite,
+  side: 'home' | 'away',
+  team: TeamLite | undefined,
+): string | null {
+  const m = match as MatchLite & {
+    home_team?: { logo_url?: string | null } | null
+    away_team?: { logo_url?: string | null } | null
+    home_logo_url?: string | null
+    away_logo_url?: string | null
+    home_team_logo_url?: string | null
+    away_team_logo_url?: string | null
+  }
+
+  if (side === 'home') {
+    return (
+      team?.logo_url ??
+      m.home_team?.logo_url ??
+      m.home_logo_url ??
+      m.home_team_logo_url ??
+      null
+    )
+  }
+
+  return (
+    team?.logo_url ??
+    m.away_team?.logo_url ??
+    m.away_logo_url ??
+    m.away_team_logo_url ??
+    null
+  )
+}
+
 export function ResultMatchCard({
   match,
   homeName,
@@ -185,11 +218,10 @@ export function ResultMatchCard({
                   : 'ui-match-card__team-col'
               }
             >
-              <TeamLogoBadge
-                logoUrl={home?.logo_url ?? null}
-                variant="round"
-                isWinner={winner === 'home'}
-              />
+             <TeamLogoBadge
+  logoUrl={homeLogoUrl}
+  isWinner={winner === 'home'}
+/>
               <span className="ui-match-card__team-name">
                 {homeName.toUpperCase()}
               </span>
@@ -204,11 +236,10 @@ export function ResultMatchCard({
                   : 'ui-match-card__team-col'
               }
             >
-              <TeamLogoBadge
-                logoUrl={away?.logo_url ?? null}
-                variant="round"
-                isWinner={winner === 'away'}
-              />
+             <TeamLogoBadge
+  logoUrl={awayLogoUrl}
+  isWinner={winner === 'away'}
+/>
               <span className="ui-match-card__team-name">
                 {awayName.toUpperCase()}
               </span>
@@ -276,10 +307,12 @@ export function MatchCard({
   mode?: 'fixture' | 'result'
   compact?: boolean
 }) {
-  const home = teamsMap[match.home_team_id]
-  const away = teamsMap[match.away_team_id]
-  const homeName = home?.name ?? `Team ${match.home_team_id}`
-  const awayName = away?.name ?? `Team ${match.away_team_id}`
+ const home = teamsMap[match.home_team_id]
+const away = teamsMap[match.away_team_id]
+const homeName = home?.name ?? match.home_name ?? match.home_team_name ?? `Team ${match.home_team_id}`
+const awayName = away?.name ?? match.away_name ?? match.away_team_name ?? `Team ${match.away_team_id}`
+const homeLogoUrl = matchTeamLogo(match, 'home', home)
+const awayLogoUrl = matchTeamLogo(match, 'away', away)
 
   if (mode === 'result') {
     return (
