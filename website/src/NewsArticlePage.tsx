@@ -25,8 +25,11 @@ async function fetchNewsArticle(slug: string): Promise<ApiNewsArticle> {
   return fetchJson<ApiNewsArticle>(`/public/news/${slug}`)
 }
 
-async function fetchRecentNews(category?: string | null): Promise<ApiNewsArticle[]> {
+async function fetchRecentNews(
+  category?: string | null,
+): Promise<ApiNewsArticle[]> {
   const suffix = category ? `&category=${encodeURIComponent(category)}` : ''
+
   return fetchAllPaginatedList<ApiNewsArticle>(
     (page) => `/public/news?page=${page}&page_size=50${suffix}`,
     10,
@@ -35,22 +38,45 @@ async function fetchRecentNews(category?: string | null): Promise<ApiNewsArticle
 
 function formatPublishDate(value: string | null): string {
   if (!value) return 'Unpublished'
+
   const parsed = new Date(value)
+
   if (Number.isNaN(parsed.valueOf())) return value
+
   return new Intl.DateTimeFormat('en-ZW', {
     dateStyle: 'long',
     timeStyle: 'short',
   }).format(parsed)
 }
 
+function cleanArticleText(value: string | null | undefined): string {
+  if (!value) return ''
+
+  return value
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function truncateShareText(value: string, max = 220): string {
+  if (value.length <= max) return value
+
+  return `${value.slice(0, max - 1).trim()}…`
+}
+
 export default function NewsArticlePage() {
   const { slug } = useParams({ from: '/news/$slug' })
+
   const { data: article, isLoading, isError } = useQuery({
     queryKey: ['public-news-article', slug],
     queryFn: () => fetchNewsArticle(slug),
     retry: 1,
   })
-  const relatedCategory = article ? parseArticleCompetitionCategory(article.category) : null
+
+  const relatedCategory = article
+    ? parseArticleCompetitionCategory(article.category)
+    : null
+
   const { data: recentNews = [] } = useQuery({
     queryKey: ['public-recent-news', relatedCategory ?? 'all'],
     queryFn: () => fetchRecentNews(relatedCategory),
@@ -60,19 +86,46 @@ export default function NewsArticlePage() {
 
   const heroImage = resolveMediaUrl(article?.featured_image_url)
   const bodyImage = resolveMediaUrl(article?.body_image_url)
-  const sidebarNews = recentNews.filter((item) => item.slug !== slug).slice(0, 5)
-  const categoryLine =
-    article?.category?.trim() ? formatCategoryLabel(article.category) : null
+
+  const sidebarNews = recentNews
+    .filter((item) => item.slug !== slug)
+    .slice(0, 5)
+
+  const categoryLine = article?.category?.trim()
+    ? formatCategoryLabel(article.category)
+    : null
+
+  const publishedLine = article
+    ? formatPublishDate(article.published_at ?? article.created_at)
+    : ''
+
+  const articleShareText = article
+    ? truncateShareText(
+        [
+          categoryLine,
+          article.excerpt || cleanArticleText(article.body),
+          publishedLine,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      )
+    : ''
 
   return (
     <main className="container">
       <section className="article-page">
         {isLoading ? (
-          <div className="article-loading" role="status" aria-live="polite" aria-label="Loading article">
+          <div
+            className="article-loading"
+            role="status"
+            aria-live="polite"
+            aria-label="Loading article"
+          >
             <span className="article-loading-spinner" />
             <p>Loading article...</p>
           </div>
         ) : null}
+
         {isError ? (
           <ErrorNotice message="Could not load this news article. It may have been removed or the link is incorrect." />
         ) : null}
@@ -83,57 +136,83 @@ export default function NewsArticlePage() {
               <header className="article-hero">
                 <img src={heroImage} alt={article.title} />
                 <div className="article-hero-overlay">
-                  {categoryLine ? <p className="article-category">{categoryLine}</p> : null}
+                  {categoryLine ? (
+                    <p className="article-category">{categoryLine}</p>
+                  ) : null}
+
                   <h1>{article.title}</h1>
+
                   <p className="article-meta">
-                    By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at ?? article.created_at)}
+                    By {article.author_name ?? 'NPL Media'} • {publishedLine}
                   </p>
                 </div>
               </header>
             ) : (
               <header className="article-header">
-                {categoryLine ? <p className="article-category">{categoryLine}</p> : null}
+                {categoryLine ? (
+                  <p className="article-category">{categoryLine}</p>
+                ) : null}
+
                 <h1>{article.title}</h1>
+
                 <p className="article-meta">
-                  By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at ?? article.created_at)}
+                  By {article.author_name ?? 'NPL Media'} • {publishedLine}
                 </p>
-                <SocialShareButtons
-  title={article.title}
-  text={article.excerpt || article.body || undefined}
-/>
               </header>
             )}
+
+            <div className="article-share-row">
+              <SocialShareButtons
+                title={article.title}
+                text={articleShareText}
+              />
+            </div>
+
             <div className="article-page__content">
               <div className="article-page__main">
                 {article.excerpt ? (
                   <p className="article-lead">{article.excerpt}</p>
                 ) : null}
+
                 {bodyImage ? (
                   <figure className="article-body-image">
                     <img src={bodyImage} alt="" />
                   </figure>
                 ) : null}
+
                 {article.body ? (
-                  <section className="article-body" dangerouslySetInnerHTML={{ __html: article.body }} />
+                  <section
+                    className="article-body"
+                    dangerouslySetInnerHTML={{ __html: article.body }}
+                  />
                 ) : article.excerpt ? null : (
                   <p className="article-empty">Full story coming soon.</p>
                 )}
               </div>
+
               <aside
                 className="article-sidebar"
                 aria-label={relatedCategory ? 'Related news' : 'Recent news'}
               >
                 <h3>{relatedCategory ? 'Related News' : 'Recent News'}</h3>
+
                 <div className="article-sidebar-list">
                   {sidebarNews.map((item) => {
                     const thumb = resolveMediaUrl(item.featured_image_url)
+
                     return (
-                      <Link key={item.id} to="/news/$slug" params={{ slug: item.slug }} className="article-sidebar-item">
+                      <Link
+                        key={item.id}
+                        to="/news/$slug"
+                        params={{ slug: item.slug }}
+                        className="article-sidebar-item"
+                      >
                         {thumb ? (
                           <img src={thumb} alt={item.title} />
                         ) : (
                           <SiteLogoPlaceholder className="article-sidebar-thumb-placeholder" />
                         )}
+
                         <p>{item.title}</p>
                       </Link>
                     )
