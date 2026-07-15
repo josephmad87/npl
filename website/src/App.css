@@ -6509,3 +6509,60 @@ table.player-public-table {
 .ui-match-card--duo .ui-match-card__title {
   margin-top: 0;
 }
+/* Wider public fixture cards so league, season, date, venue and teams are readable */
+.ui-match-card--duo {
+  flex: 0 0 clamp(18rem, 26vw, 22rem);
+  width: clamp(18rem, 26vw, 22rem);
+  min-height: 17.5rem;
+  display: grid;
+  grid-template-rows: 6.5rem 1fr auto;
+}
+
+.ui-match-card--duo .ui-match-card__media {
+  min-height: 6.5rem;
+  max-height: 6.5rem;
+}
+
+.ui-match-card--duo .ui-match-card__body {
+  justify-content: flex-start;
+  padding: 1rem 1.25rem 0.75rem;
+  gap: 0.45rem;
+}
+
+.ui-match-card--duo .ui-match-card__competition--fixture {
+  margin-bottom: 0.45rem;
+  min-height: 2rem;
+}
+
+.ui-match-card--duo .ui-match-card__title {
+  font-size: 1rem;
+  line-height: 1.25;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ui-match-card--duo .ui-match-card__meta {
+  font-size: 0.88rem;
+  line-height: 1.35;
+  margin: 0.25rem 0 0;
+}
+
+.ui-match-card--duo .ui-match-card__footer {
+  padding: 0.75rem 1rem 1rem;
+}
+
+/* Fixture pages should scroll horizontally instead of squeezing every card */
+.match-carousel__track,
+.fixture-carousel__track,
+.match-rail__track {
+  align-items: stretch;
+}
+
+.match-carousel__cell,
+.fixture-carousel__cell,
+.match-rail__cell {
+  flex: 0 0 clamp(18rem, 26vw, 22rem);
+}
