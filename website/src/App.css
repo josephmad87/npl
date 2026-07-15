@@ -6566,3 +6566,59 @@ table.player-public-table {
 .match-rail__cell {
   flex: 0 0 clamp(18rem, 26vw, 22rem);
 }
+
+/* Fixtures page: stop fixture cards from being squeezed */
+.match-carousel__track--fixtures-page {
+  display: flex !important;
+  align-items: stretch !important;
+  gap: 1rem !important;
+  overflow-x: auto !important;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 1rem;
+}
+
+.match-carousel__track--fixtures-page .match-carousel__cell {
+  flex: 0 0 clamp(20rem, 32vw, 24rem) !important;
+  width: clamp(20rem, 32vw, 24rem) !important;
+  min-width: clamp(20rem, 32vw, 24rem) !important;
+  max-width: clamp(20rem, 32vw, 24rem) !important;
+  scroll-snap-align: start;
+}
+
+.match-carousel__track--fixtures-page .ui-match-card--duo {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  min-height: 19rem;
+  height: 100%;
+}
+
+.match-carousel__track--fixtures-page .ui-match-card__body {
+  padding: 1rem 1.25rem 0.75rem;
+}
+
+.match-carousel__track--fixtures-page .ui-match-card__competition--fixture {
+  min-height: auto;
+  margin-bottom: 0.75rem;
+  color: #f7c46c;
+}
+
+.match-carousel__track--fixtures-page .ui-match-card__title {
+  font-size: 1rem;
+  line-height: 1.3;
+  -webkit-line-clamp: 3;
+}
+
+.match-carousel__track--fixtures-page .ui-match-card__meta {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 700px) {
+  .match-carousel__track--fixtures-page .match-carousel__cell {
+    flex-basis: 82vw !important;
+    width: 82vw !important;
+    min-width: 82vw !important;
+    max-width: 82vw !important;
+  }
+}
