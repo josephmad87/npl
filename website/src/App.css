@@ -6974,3 +6974,11 @@ table.player-public-table {
     padding: 0.85rem;
   }
 }
+
+/* News excerpts: semi-bold, keep existing font sizes */
+.article-excerpt,
+.article-lead,
+.ui-news-card__excerpt,
+.ui-news-card p {
+  font-weight: 600;
+}
