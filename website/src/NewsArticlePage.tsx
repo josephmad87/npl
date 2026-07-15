@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { ErrorNotice } from './components/ErrorNotice'
+import { SocialShareButtons } from './components/SocialShareButtons'
 import { SiteLogoPlaceholder } from './components/SiteLogoPlaceholder'
 import { parseArticleCompetitionCategory } from './lib/competitionCategories'
 import { formatCategoryLabel } from './lib/formatters'
@@ -96,6 +97,10 @@ export default function NewsArticlePage() {
                 <p className="article-meta">
                   By {article.author_name ?? 'NPL Media'} • {formatPublishDate(article.published_at ?? article.created_at)}
                 </p>
+                <SocialShareButtons
+  title={article.title}
+  text={article.excerpt || article.body || undefined}
+/>
               </header>
             )}
             <div className="article-page__content">

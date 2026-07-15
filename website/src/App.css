@@ -6873,3 +6873,68 @@ table.player-public-table {
 .ui-match-card--result-redesign .ui-match-card__merged-score {
   margin-top: 0.1rem;
 }
+
+.social-share {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.social-share__label {
+  color: rgba(53, 0, 0, 0.72);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.social-share__button {
+  border: 1px solid rgba(53, 0, 0, 0.16);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #350000;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 0.48rem 0.85rem;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.social-share__button:hover,
+.social-share__button:focus-visible {
+  border-color: rgba(53, 0, 0, 0.42);
+  background: rgba(53, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.social-share__button--primary {
+  background: #350000;
+  border-color: #350000;
+  color: #ffffff;
+}
+
+.social-share__button--primary:hover,
+.social-share__button--primary:focus-visible {
+  background: #5a0909;
+  border-color: #5a0909;
+}
+
+@media (max-width: 640px) {
+  .social-share {
+    align-items: stretch;
+  }
+
+  .social-share__label {
+    width: 100%;
+  }
+
+  .social-share__button {
+    flex: 1 1 auto;
+  }
+}
