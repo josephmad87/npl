@@ -6938,3 +6938,15 @@ table.player-public-table {
     flex: 1 1 auto;
   }
 }
+.match-centre-share-row {
+  margin: 1.5rem 0 0.85rem;
+  padding: 1rem;
+  border: 1px solid rgba(53, 0, 0, 0.1);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.match-centre-share-row .social-share {
+  justify-content: center;
+  margin: 0;
+}
