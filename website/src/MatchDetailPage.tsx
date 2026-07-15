@@ -4,6 +4,7 @@ import { Link, useParams } from '@tanstack/react-router'
 import nplLogoUrl from './assets/logo.png'
 import { ErrorNotice } from './components/ErrorNotice'
 import { InningsScorecardPanels } from './components/InningsScorecardPanels'
+import { SocialShareButtons } from './components/SocialShareButtons'
 import { Spinner } from './components/Spinner'
 import { getInningsSides, type InningsNumber } from './lib/cricket'
 import { formatCategoryLabel, formatMatchDate } from './lib/formatters'
@@ -275,6 +276,19 @@ export default function MatchDetailPage() {
     )
   }
 
+  const shareText = useMemo(() => {
+  if (!data) return ''
+
+  const parts = [
+    descriptionLine,
+    data.result?.margin_text,
+    data.result?.innings_breakdown || data.result?.score_summary,
+    data.venue,
+  ]
+
+  return parts.filter(Boolean).join(' · ')
+}, [data, descriptionLine])
+
   if (isError || !data) {
     return (
       <main className="container">
@@ -304,6 +318,7 @@ export default function MatchDetailPage() {
         </div>
         <h1 className="match-centre-hero__title">{title}</h1>
         <p className="match-centre-hero__desc">{descriptionLine}</p>
+        <SocialShareButtons title={title} text={shareText} />
       </header>
 
     <main className="container">
