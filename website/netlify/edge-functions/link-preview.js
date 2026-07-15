@@ -121,6 +121,86 @@ async function previewForNews(slug, request) {
   }
 }
 
+function teamName(match, side) {
+  const team = side === 'home' ? match.home_team : match.away_team
+  const fallbackId = side === 'home' ? match.home_team_id : match.away_team_id
+
+  return (
+    team?.name ||
+    match[`${side}_team_name`] ||
+    `Team ${fallbackId}`
+  )
+}
+
+function matchSeasonLine(match) {
+  const leagueName =
+    match.season?.league?.name ||
+    match.league_name ||
+    ''
+
+  const seasonName =
+    match.season?.name ||
+    match.season_name ||
+    ''
+
+  return [leagueName, seasonName].filter(Boolean).join(' · ')
+}
+
+function formatShareDate(value) {
+  if (!value) {
+    return ''
+  }
+
+  const text = String(value)
+  const date = new Date(`${text}T00:00:00Z`)
+
+  if (Number.isNaN(date.getTime())) {
+    return text
+  }
+
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date)
+}
+
+function matchShareDescription(match, homeName, awayName) {
+  const seasonLine = matchSeasonLine(match)
+  const dateLine = formatShareDate(match.match_date)
+  const venueLine = match.venue || ''
+  const result = match.result
+
+  if (match.status === 'completed' && result) {
+    return truncate(
+      [
+        result.margin_text,
+        result.innings_breakdown || result.score_summary,
+        seasonLine,
+        dateLine,
+        venueLine,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      220,
+    )
+  }
+
+  return truncate(
+    [
+      `${homeName} vs ${awayName}`,
+      seasonLine,
+      dateLine,
+      venueLine,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    220,
+  )
+}
+
 async function previewForMatch(matchId, request) {
   const match = await fetchApi(`/public/matches/${encodeURIComponent(matchId)}`)
 
@@ -128,20 +208,17 @@ async function previewForMatch(matchId, request) {
     return defaultPreview(request)
   }
 
-  const homeName =
-    match.home_team?.name || match.home_team_name || `Team ${match.home_team_id}`
-  const awayName =
-    match.away_team?.name || match.away_team_name || `Team ${match.away_team_id}`
+  const homeName = teamName(match, 'home')
+  const awayName = teamName(match, 'away')
+  const result = match.result
 
-  const title = match.title || `${homeName} vs ${awayName}`
+  const title =
+    match.status === 'completed' && result?.margin_text
+      ? `${homeName} vs ${awayName}`
+      : `${homeName} vs ${awayName}`
 
   const description =
-    truncate(
-      match.result?.score_summary ||
-        match.result?.innings_breakdown ||
-        match.result?.margin_text ||
-        [match.venue, match.match_date, match.status].filter(Boolean).join(' · '),
-    ) || DEFAULT_DESCRIPTION
+    matchShareDescription(match, homeName, awayName) || DEFAULT_DESCRIPTION
 
   return {
     title,
@@ -252,8 +329,6 @@ async function previewForMerchandise(request) {
   }
 }
 
-
-
 async function buildPreview(request) {
   const url = new URL(request.url)
   const parts = url.pathname.split('/').filter(Boolean)
@@ -262,8 +337,17 @@ async function buildPreview(request) {
     return previewForNews(parts[1], request)
   }
 
-  if (parts[0] === 'matches' && parts[1]) {
-    return previewForMatch(parts[1], request)
+  /*
+    Match pages must be detected before season pages.
+
+    Supports:
+    /matches/168
+    /leagues/npl-super-40/seasons/mens-super-40-2026/matches/168/team-a-vs-team-b
+  */
+  const matchIndex = parts.indexOf('matches')
+
+  if (matchIndex >= 0 && parts[matchIndex + 1]) {
+    return previewForMatch(parts[matchIndex + 1], request)
   }
 
   if (parts[0] === 'teams' && parts[1]) {
@@ -301,8 +385,8 @@ async function buildPreview(request) {
   }
 
   if (parts[0] === 'merchandise') {
-  return previewForMerchandise(request)
-}
+    return previewForMerchandise(request)
+  }
 
   if (parts[0] === 'gallery') {
     return {
