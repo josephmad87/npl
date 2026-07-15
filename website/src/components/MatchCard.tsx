@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   formatMatchDate,
-  formatMatchDateTimeForResultCard,
   toTimeShort,
 } from '../lib/formatters'
 import { matchSeoPath } from '../lib/matchUrls'
