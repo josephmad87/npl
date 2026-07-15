@@ -395,32 +395,34 @@ function MatchesPage() {
     [rowSelection],
   )
 
-  const bulkCancel = async () => {
-    if (selectedMatchIds.length === 0) return
+ const bulkCancel = async () => {
+  if (selectedMatchIds.length === 0) return
 
-    const selected = queryFilteredRows.filter((m) =>
-      selectedMatchIds.includes(m.id),
-    )
-    const completedCount = selected.filter((m) => m.status === 'completed').length
-    let msg = `Cancel ${selectedMatchIds.length} fixture(s)? They will be removed from standings.`
+  const selected = queryFilteredRows.filter((m) =>
+    selectedMatchIds.includes(m.id),
+  )
 
-    if (completedCount > 0) {
-      msg += `\n\n${completedCount} completed match(es) will also update player career stats.`
-    }
+  const completedCount = selected.filter((m) => m.status === 'completed').length
 
-    if (!confirm(msg)) return
+  let msg = `Permanently delete ${selectedMatchIds.length} fixture(s)? This cannot be undone.`
 
-    try {
-      await adminPost('/admin/matches/bulk-cancel', {
-        match_ids: selectedMatchIds,
-      })
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
-      await invalidateCompetitionDataQueries(queryClient)
-      setRowSelection({})
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Bulk cancel failed')
-    }
+  if (completedCount > 0) {
+    msg += `\n\n${completedCount} completed match(es) will also be removed from standings and player statistics.`
   }
+
+  if (!confirm(msg)) return
+
+  try {
+    await adminPost('/admin/matches/bulk-cancel', {
+      match_ids: selectedMatchIds,
+    })
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
+    await invalidateCompetitionDataQueries(queryClient)
+    setRowSelection({})
+  } catch (e: unknown) {
+    alert(e instanceof Error ? e.message : 'Delete failed')
+  }
+}
 
   const renderMatchCard = (m: MatchRow) => {
     const winner = matchWinnerSide(m)
@@ -618,7 +620,7 @@ function MatchesPage() {
                     className="btn-ghost"
                     onClick={() => void bulkCancel()}
                   >
-                    Cancel selected
+                    Delete selected
                   </button>
                 }
                 onRowClick={(row) =>
