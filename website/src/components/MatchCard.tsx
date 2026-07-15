@@ -246,6 +246,19 @@ export function MatchCard({
   const scoreline = matchResultSummaryLine(match)
   const showScore = scoreline != null && scoreline.length > 0
   const competitionLine = matchCompetitionLine(match)
+  const seasonLine =
+  (
+    match as MatchLite & {
+      season?: { name?: string | null } | null
+      season_name?: string | null
+    }
+  ).season?.name ??
+  (
+    match as MatchLite & {
+      season_name?: string | null
+    }
+  ).season_name ??
+  competitionLine
 
   return (
     <a
@@ -270,9 +283,9 @@ export function MatchCard({
       </div>
 
       <div className="ui-match-card__body">
-        <p className="ui-match-card__competition">
-          {competitionLine || 'NPL fixture'}
-        </p>
+        <p className="ui-match-card__competition ui-match-card__competition--fixture">
+  {(seasonLine || 'NPL fixture').toUpperCase()}
+</p>
 
         {compact ? (
           <h3 className="ui-match-card__title">

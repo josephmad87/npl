@@ -6487,3 +6487,25 @@ table.player-public-table {
     grid-template-columns: 1fr;
   }
 }
+.ui-match-card__competition--fixture {
+  display: block;
+  min-height: 1.5rem;
+  margin: 0 0 1rem;
+  color: #f7c46c;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.ui-match-card--duo .ui-match-card__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.ui-match-card--duo .ui-match-card__title {
+  margin-top: 0;
+}
