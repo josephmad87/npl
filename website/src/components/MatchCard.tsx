@@ -254,7 +254,7 @@ export function MatchCard({
         home_name: homeName,
         away_name: awayName,
       })}
-      className={`ui-match-card${compact ? ' ui-match-card--compact' : ''}`}
+      className={`ui-match-card ui-match-card--duo${compact ? ' ui-match-card--compact' : ''}`}
       aria-label={`${homeName} vs ${awayName}, open match centre`}
     >
       <div className="ui-match-card__media entity-thumb-card__media--duo">
