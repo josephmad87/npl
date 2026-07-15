@@ -124,6 +124,7 @@ function TeamLogoWithFallback({
 }) {
   const initial = resolveMediaUrl(logoUrl) ?? nplLogoUrl
   const [src, setSrc] = useState(initial)
+
   return (
     <img
       className={className}
@@ -136,9 +137,16 @@ function TeamLogoWithFallback({
   )
 }
 
-function MatchCentreHeroLogo({ logoUrl, isWinner }: { logoUrl: string | null; isWinner: boolean }) {
+function MatchCentreHeroLogo({
+  logoUrl,
+  isWinner,
+}: {
+  logoUrl: string | null
+  isWinner: boolean
+}) {
   const initial = resolveMediaUrl(logoUrl) ?? nplLogoUrl
   const [src, setSrc] = useState(initial)
+
   return (
     <span
       className={`match-centre-hero__badge-wrap${
@@ -171,6 +179,7 @@ export default function MatchDetailPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['match-detail', matchId],
     queryFn: () => fetchJson<MatchDetail>(`/public/matches/${matchId}`),
+    enabled: Boolean(matchId),
     retry: 1,
   })
 
@@ -183,7 +192,9 @@ export default function MatchDetailPage() {
     queryKey: ['match-players', 'home', data?.home_team_id],
     queryFn: async () =>
       fetchAllPaginatedList<PublicPlayerRow>((page) =>
-        `/public/players?page=${page}&page_size=100&team_id=${data?.home_team_id ?? -1}&include_inactive=true`,
+        `/public/players?page=${page}&page_size=100&team_id=${
+          data?.home_team_id ?? -1
+        }&include_inactive=true`,
       ),
     enabled: Boolean(data?.home_team_id),
     retry: 1,
@@ -193,7 +204,9 @@ export default function MatchDetailPage() {
     queryKey: ['match-players', 'away', data?.away_team_id],
     queryFn: async () =>
       fetchAllPaginatedList<PublicPlayerRow>((page) =>
-        `/public/players?page=${page}&page_size=100&team_id=${data?.away_team_id ?? -1}&include_inactive=true`,
+        `/public/players?page=${page}&page_size=100&team_id=${
+          data?.away_team_id ?? -1
+        }&include_inactive=true`,
       ),
     enabled: Boolean(data?.away_team_id),
     retry: 1,
@@ -201,41 +214,48 @@ export default function MatchDetailPage() {
 
   const playerById = useMemo(() => {
     const m = new Map<number, string>()
+
     for (const p of homePlayersQ.data ?? []) {
       m.set(p.id, p.full_name)
     }
+
     for (const p of awayPlayersQ.data ?? []) {
       m.set(p.id, p.full_name)
     }
+
     return m
   }, [homePlayersQ.data, awayPlayersQ.data])
 
   const playerStats = data?.player_stats ?? NO_PLAYER_STATS
   const battingFirstTeamId = data?.result?.batting_first_team_id ?? null
+
   const inningsExtrasLine = useMemo(() => {
     if (!data?.result) return null
+
     const sides = getInningsSides(
       scorecardInnings,
       battingFirstTeamId,
       data.home_team_id,
       data.away_team_id,
     )
+
     if (!sides) return null
-    const side =
-      sides.battingTeamId === data.home_team_id ? 'home' : 'away'
+
+    const side = sides.battingTeamId === data.home_team_id ? 'home' : 'away'
+
     return formatExtrasBreakdown(data.result, side)
   }, [data, scorecardInnings, battingFirstTeamId])
 
-  const title = data
-    ? `${homeName} vs ${awayName}`
-    : 'Match'
+  const title = data ? `${homeName} vs ${awayName}` : 'Match'
   const matchLite = data as unknown as MatchLite
   const headerWinner = data ? matchWinnerSide(matchLite) : null
   const resultLine = data ? matchResultSummaryLine(matchLite) : null
 
   const descriptionLine = useMemo(() => {
     if (!data) return ''
+
     const parts: string[] = []
+
     if (data.season) {
       parts.push(`${data.season.league.name} · ${data.season.name}`)
     } else if (data.season_id != null) {
@@ -243,22 +263,39 @@ export default function MatchDetailPage() {
     } else {
       parts.push('No season')
     }
+
     parts.push(formatCategoryLabel(data.category))
     parts.push(`Match ${data.id}`)
+
     if (resultLine) {
       parts.push(resultLine)
     }
+
     return parts.join(' · ')
   }, [data, resultLine])
 
+  const shareText = useMemo(() => {
+    if (!data) return ''
+
+    const parts = [
+      descriptionLine,
+      data.result?.margin_text,
+      data.result?.innings_breakdown || data.result?.score_summary,
+      data.venue,
+    ]
+
+    return parts.filter(Boolean).join(' · ')
+  }, [data, descriptionLine])
+
   const whenValue = useMemo(() => {
     if (!data) return '—'
+
     const dateToken =
       data.match_date?.trim() ??
-      (data.start_time != null
-        ? String(data.start_time).slice(0, 10)
-        : null)
+      (data.start_time != null ? String(data.start_time).slice(0, 10) : null)
+
     if (!dateToken) return '—'
+
     return formatMatchDate(dateToken)
   }, [data])
 
@@ -275,19 +312,6 @@ export default function MatchDetailPage() {
       </main>
     )
   }
-
-  const shareText = useMemo(() => {
-  if (!data) return ''
-
-  const parts = [
-    descriptionLine,
-    data.result?.margin_text,
-    data.result?.innings_breakdown || data.result?.score_summary,
-    data.venue,
-  ]
-
-  return parts.filter(Boolean).join(' · ')
-}, [data, descriptionLine])
 
   if (isError || !data) {
     return (
@@ -316,12 +340,14 @@ export default function MatchDetailPage() {
             isWinner={headerWinner === 'away'}
           />
         </div>
+
         <h1 className="match-centre-hero__title">{title}</h1>
         <p className="match-centre-hero__desc">{descriptionLine}</p>
+
         <SocialShareButtons title={title} text={shareText} />
       </header>
 
-    <main className="container">
+      <main className="container">
         <section className="menu-page match-centre">
           <div className="match-centre-panels">
             <div className="match-centre-panels__col">
@@ -335,42 +361,50 @@ export default function MatchDetailPage() {
                         : '—'}
                     </dd>
                   </div>
+
                   <div className="match-centre-detail__row">
                     <dt>When</dt>
                     <dd>{whenValue}</dd>
                   </div>
+
                   <div className="match-centre-detail__row">
                     <dt>Venue</dt>
                     <dd>{data.venue?.trim() ? data.venue : '—'}</dd>
                   </div>
+
                   {data.title?.trim() ? (
                     <div className="match-centre-detail__row">
                       <dt>Title</dt>
                       <dd>{data.title}</dd>
                     </div>
                   ) : null}
+
                   {data.toss_info?.trim() ? (
                     <div className="match-centre-detail__row">
                       <dt>Toss</dt>
                       <dd>{data.toss_info}</dd>
                     </div>
                   ) : null}
+
                   {data.umpires?.trim() ? (
                     <div className="match-centre-detail__row">
                       <dt>Umpires</dt>
                       <dd>{data.umpires}</dd>
                     </div>
                   ) : null}
+
                   {data.description?.trim() ? (
                     <div className="match-centre-detail__row">
                       <dt>Notes</dt>
                       <dd>{data.description}</dd>
                     </div>
                   ) : null}
+
                   <div className="match-centre-detail__row">
                     <dt>Category</dt>
                     <dd>{formatCategoryLabel(data.category)}</dd>
                   </div>
+
                   <div className="match-centre-detail__row">
                     <dt>Home</dt>
                     <dd>
@@ -384,6 +418,7 @@ export default function MatchDetailPage() {
                       </span>
                     </dd>
                   </div>
+
                   <div className="match-centre-detail__row">
                     <dt>Away</dt>
                     <dd>
@@ -397,6 +432,7 @@ export default function MatchDetailPage() {
                       </span>
                     </dd>
                   </div>
+
                   <div className="match-centre-detail__row">
                     <dt>Status</dt>
                     <dd>
@@ -410,13 +446,16 @@ export default function MatchDetailPage() {
                     </dd>
                   </div>
                 </dl>
-                </div>
+              </div>
             </div>
 
             <div className="match-centre-panels__col">
               {showResultBlock ? (
                 <section className="match-centre-panel match-centre-panel--result">
-                  <h2 className="match-centre-panel__h">Result &amp; player stats</h2>
+                  <h2 className="match-centre-panel__h">
+                    Result &amp; player stats
+                  </h2>
+
                   {data.result ? (
                     <div className="match-centre-result">
                       {data.result.score_summary ? (
@@ -424,11 +463,13 @@ export default function MatchDetailPage() {
                           <strong>Score:</strong> {data.result.score_summary}
                         </p>
                       ) : null}
+
                       {data.result.margin_text ? (
                         <p>
                           <strong>Margin:</strong> {data.result.margin_text}
                         </p>
                       ) : null}
+
                       {data.result.winning_team_id != null ? (
                         <p>
                           <strong>Winner:</strong>{' '}
@@ -442,6 +483,7 @@ export default function MatchDetailPage() {
                               : `Team #${data.result.winning_team_id}`}
                         </p>
                       ) : null}
+
                       {data.result.player_of_match_player_id != null ? (
                         <p>
                           <strong>Player of the match:</strong>{' '}
@@ -450,37 +492,46 @@ export default function MatchDetailPage() {
                           ) ?? `#${data.result.player_of_match_player_id}`}
                         </p>
                       ) : null}
+
                       {data.result.innings_breakdown ? (
                         <p>
                           <strong>Innings:</strong>{' '}
                           {data.result.innings_breakdown}
                         </p>
                       ) : null}
+
                       {data.result.top_performers ? (
                         <p>
                           <strong>Top performers:</strong>{' '}
                           {data.result.top_performers}
                         </p>
                       ) : null}
+
                       {data.result.match_report ? (
                         <p>
                           <strong>Report:</strong> {data.result.match_report}
                         </p>
                       ) : null}
                     </div>
-              ) : null}
+                  ) : null}
                 </section>
               ) : (
-                <p className="match-centre-empty-hint">No result or scorecard yet.</p>
+                <p className="match-centre-empty-hint">
+                  No result or scorecard yet.
+                </p>
               )}
             </div>
           </div>
 
-          <section className="match-centre-scorecard" aria-labelledby="match-scorecard-title">
+          <section
+            className="match-centre-scorecard"
+            aria-labelledby="match-scorecard-title"
+          >
             <div className="match-centre-scorecard__head">
               <h2 id="match-scorecard-title" className="match-centre-panel__h">
                 Scorecard
               </h2>
+
               <div
                 className="match-centre-tabs"
                 role="tablist"
@@ -495,6 +546,7 @@ export default function MatchDetailPage() {
                 >
                   1st innings
                 </button>
+
                 <button
                   type="button"
                   className={scorecardInnings === 2 ? 'is-active' : ''}
@@ -506,9 +558,11 @@ export default function MatchDetailPage() {
                 </button>
               </div>
             </div>
+
             {playersLoading ? (
               <p className="match-centre-muted">Loading player names…</p>
             ) : null}
+
             {playerStats.length > 0 ? (
               <InningsScorecardPanels
                 innings={scorecardInnings}
@@ -525,8 +579,8 @@ export default function MatchDetailPage() {
               <p className="match-centre-muted">No per-player rows yet.</p>
             )}
           </section>
-      </section>
-    </main>
+        </section>
+      </main>
     </>
   )
 }
