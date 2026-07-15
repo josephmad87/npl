@@ -6667,3 +6667,169 @@ table.player-public-table {
   font-weight: 900;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
 }
+
+/* Result cards: fixture-style layout with result details on the right */
+.ui-match-card--result-redesign .ui-match-card__result-grid {
+  display: grid;
+  grid-template-columns: minmax(15rem, 42%) minmax(0, 1fr);
+  min-height: 15.5rem;
+  height: 100%;
+}
+
+.ui-match-card--result-redesign .ui-match-card__result-teams-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(53, 0, 0, 0.92), rgba(53, 0, 0, 0.72)),
+    radial-gradient(circle at 50% 0%, rgba(247, 196, 108, 0.22), transparent 55%);
+  overflow: hidden;
+}
+
+.ui-match-card--result-redesign .ui-match-card__result-teams-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.ui-match-card--result-redesign .ui-match-card__team-col {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.ui-match-card--result-redesign .ui-match-card__team-name {
+  max-width: 100%;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.15;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+}
+
+.ui-match-card--result-redesign .ui-match-card__vs {
+  color: #ffffff;
+  font-weight: 900;
+  align-self: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+}
+
+.ui-match-card--result-redesign .ui-match-card__result-fixture-info {
+  display: grid;
+  align-content: center;
+  gap: 0.65rem;
+  padding: 1rem 1.25rem;
+  text-align: center;
+}
+
+.ui-match-card--result-redesign .ui-match-card__competition--fixture {
+  margin: 0;
+  color: #f7c46c;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+}
+
+.ui-match-card--result-redesign .ui-match-card__meta {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.ui-match-card--result-redesign .ui-match-card__result-summary-panel {
+  display: grid;
+  align-content: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 1.15rem 1.25rem;
+  background: #ffffff;
+}
+
+.ui-match-card--result-redesign .ui-match-card__result-label {
+  margin: 0;
+  color: #b33a1c;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ui-match-card--result-redesign .ui-match-card__headline {
+  margin: 0;
+  color: #350000;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.ui-match-card--result-redesign .ui-match-card__scoreline,
+.ui-match-card--result-redesign .ui-match-card__merged-score {
+  margin: 0;
+  color: rgba(53, 0, 0, 0.74);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  text-shadow: none;
+}
+
+.ui-match-card--result-redesign .ui-match-card__result-score-pair {
+  display: grid;
+  gap: 0.25rem;
+  color: rgba(53, 0, 0, 0.72);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.ui-match-card--result-redesign .ui-match-card__innings-lines,
+.ui-match-card--result-redesign .ui-match-card__innings-overs {
+  color: rgba(53, 0, 0, 0.72);
+  text-shadow: none;
+}
+
+.ui-match-card--result-redesign .ui-match-card__player-of-match {
+  margin: 0.25rem 0 0;
+  display: grid;
+  gap: 0.15rem;
+  color: rgba(53, 0, 0, 0.72);
+  font-size: 0.82rem;
+}
+
+.ui-match-card--result-redesign .ui-match-card__player-of-match span {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #b33a1c;
+}
+
+.ui-match-card--result-redesign .ui-match-card__player-of-match strong {
+  color: #350000;
+}
+
+.ui-match-card--result-redesign .ui-match-card__match-centre-button {
+  justify-self: start;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: #350000;
+  color: #ffffff;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 700px) {
+  .ui-match-card--result-redesign .ui-match-card__result-grid {
+    grid-template-columns: 1fr;
+  }
+}
