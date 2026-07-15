@@ -344,7 +344,7 @@ export default function MatchDetailPage() {
         <h1 className="match-centre-hero__title">{title}</h1>
         <p className="match-centre-hero__desc">{descriptionLine}</p>
 
-        <SocialShareButtons title={title} text={shareText} />
+        
       </header>
 
       <main className="container">
@@ -433,6 +433,9 @@ export default function MatchDetailPage() {
                     </dd>
                   </div>
 
+<SocialShareButtons title={title} text={shareText} />
+
+                  
                   <div className="match-centre-detail__row">
                     <dt>Status</dt>
                     <dd>
