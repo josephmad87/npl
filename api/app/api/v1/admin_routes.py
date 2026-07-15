@@ -1085,40 +1085,49 @@ def admin_create_match(
     return m  # type: ignore[return-value]
 
 
-@router.post("/matches/bulk-cancel", response_model=dict)
+@router.post("/matches/bulk-cancel")
 def admin_bulk_cancel_matches(
     body: MatchBulkCancelIn,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_competition_writer),
-) -> dict:
-    ids = list({mid for mid in body.match_ids if mid > 0})
-    if not ids:
-        raise HTTPException(status_code=400, detail={"code": "validation", "message": "match_ids required"})
-    matches = list(db.scalars(select(Match).where(Match.id.in_(ids))).all())
-    affected_player_ids: set[int] = set()
-    updated = 0
-    skipped = 0
-    for m in matches:
-        if m.status == "cancelled":
-            skipped += 1
-            continue
-        if m.status == "completed":
-            affected_player_ids.update(affected_player_ids_for_match(db, m.id))
-        m.status = "cancelled"
-        updated += 1
-    if affected_player_ids:
-        recompute_player_career_stats(db, affected_player_ids)
-    db.commit()
-    write_audit(
-        db,
-        actor_user_id=actor.id,
-        action="bulk_cancel",
-        entity_type="match",
-        entity_id=0,
-        summary=f"Cancelled {updated} match(es)",
+    actor: User = Depends(require_super_admin),
+) -> dict[str, int]:
+    match_ids = sorted({int(match_id) for match_id in body.match_ids})
+
+    if not match_ids:
+        return {"deleted": 0}
+
+    matches = list(
+        db.scalars(
+            select(Match).where(Match.id.in_(match_ids))
+        )
     )
+
+    if not matches:
+        return {"deleted": 0}
+
+    for match in matches:
+        write_audit(
+            db,
+            actor_user_id=actor.id,
+            action="delete",
+            entity_type="match",
+            entity_id=match.id,
+            summary=f"Deleted fixture {match.id}",
+        )
+
+    db.execute(
+        delete(MatchPlayerStat).where(MatchPlayerStat.match_id.in_(match_ids))
+    )
+    db.execute(
+        delete(MatchResult).where(MatchResult.match_id.in_(match_ids))
+    )
+    db.execute(
+        delete(Match).where(Match.id.in_(match_ids))
+    )
+
     db.commit()
-    return {"updated": updated, "skipped": skipped}
+
+    return {"deleted": len(matches)}
 
 
 @router.get("/matches/{match_id}", response_model=MatchDetailOut)
