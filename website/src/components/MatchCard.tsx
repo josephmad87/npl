@@ -221,6 +221,7 @@ export function MatchCard({
   const winner = matchWinnerSide(match)
   const scoreline = matchResultSummaryLine(match)
   const showScore = scoreline != null && scoreline.length > 0
+  const competitionLine = matchCompetitionLine(match)
 
   return (
     <a
@@ -261,52 +262,34 @@ export function MatchCard({
           ) : null}
         </span>
       </div>
-      <div className="ui-match-card__body">
-        {compact ? (
-          <h3
-            className="ui-match-card__title ui-match-card__title--stacked"
-            title={`${homeName} vs ${awayName}`}
-          >
-            <span className="ui-match-card__team-line">{homeName}</span>
-            <span className="ui-match-card__versus">vs</span>
-            <span className="ui-match-card__team-line">{awayName}</span>
-          </h3>
-        ) : (
-          <h3
-            className="ui-match-card__title"
-            title={`${homeName} vs ${awayName}`}
-          >
-            {homeName} vs {awayName}
-          </h3>
-        )}
-        <div className="ui-match-card__meta">
-          <span
-            className="ui-match-card__meta-date"
-            title={`${formatMatchDate(match.match_date)}${match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}`}
-          >
-            {formatMatchDate(match.match_date)}
-            {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
-          </span>
-          <span
-            className={`ui-match-card__venue${compact ? ' ui-match-card__venue--wrap' : ''}`}
-            title={match.venue ?? 'Venue TBC'}
-          >
-            {match.venue ?? 'Venue TBC'}
-          </span>
-          {showScore && scoreline ? (
-            <span className="ui-match-card__scoreline" title={scoreline}>
-              {scoreline}
-            </span>
-          ) : null}
-        </div>
+     <div className="ui-match-card__body">
+  <p className="ui-match-card__competition">
+    {competitionLine || 'NPL fixture'}
+  </p>
+
+  <h3 className="ui-match-card__title">
+    {homeName} vs {awayName}
+  </h3>
+
+  <p className="ui-match-card__meta">
+    {formatMatchDate(match.match_date)}
+    {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
+    <br />
+    {match.venue ?? 'Venue TBC'}
+  </p>
+
+  {showScore && scoreline ? (
+    <p className="ui-match-card__scoreline">{scoreline}</p>
+  ) : null}
+</div>
       </div>
-      <div className="ui-match-card__footer">
-        <span
-          className={`ui-match-card__status-pill ${matchStatusPillClass(match.status)}`}
-        >
-          {formatStatusLabel(match.status)}
-        </span>
-      </div>
+     <div className="ui-match-card__footer">
+  <span
+    className={`ui-match-card__status-pill ${matchStatusPillClass(match.status)}`}
+  >
+    {formatStatusLabel(match.status)}
+  </span>
+</div>
     </a>
   )
 }
