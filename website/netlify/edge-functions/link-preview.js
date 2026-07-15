@@ -153,10 +153,7 @@ async function fetchTeamById(teamId) {
 
   const teams = await fetchAllTeams()
 
-  return (
-    teams.find((team) => Number(team.id) === Number(teamId)) ||
-    null
-  )
+  return teams.find((team) => Number(team.id) === Number(teamId)) || null
 }
 
 async function fetchTeamNameById(teamId) {
@@ -297,6 +294,67 @@ function formatShareDate(value) {
   }).format(date)
 }
 
+function inningsScoreParts(match) {
+  const text = cleanText(
+    match.result?.innings_breakdown ||
+      match.result?.score_summary ||
+      '',
+  )
+
+  if (!text) {
+    return []
+  }
+
+  return text
+    .split(';')
+    .map((part) => {
+      const cleaned = cleanText(part)
+      const found = cleaned.match(/^(.*?)\s+(\d+)\/\d+/)
+
+      if (!found) {
+        return null
+      }
+
+      return {
+        teamName: cleanTeamName(found[1]),
+        runs: Number(found[2]),
+      }
+    })
+    .filter(Boolean)
+}
+
+function marginOnlyText(margin) {
+  const text = cleanText(margin)
+
+  if (!text) {
+    return ''
+  }
+
+  return text.replace(/^.*?\bwon\s+by\s+/i, '').trim()
+}
+
+function winnerNameFromScoreText(match, margin) {
+  const innings = inningsScoreParts(match)
+
+  if (innings.length < 2) {
+    return ''
+  }
+
+  if (/wickets?/i.test(margin)) {
+    return innings[1]?.teamName || ''
+  }
+
+  if (/runs?/i.test(margin)) {
+    const sorted = [...innings].sort((a, b) => b.runs - a.runs)
+
+    if (sorted[0]?.runs !== sorted[1]?.runs) {
+      return sorted[0]?.teamName || ''
+    }
+  }
+
+  return ''
+}
+
 function readableMarginText(match, homeName, awayName) {
   const result = match.result
 
@@ -305,6 +363,18 @@ function readableMarginText(match, homeName, awayName) {
   }
 
   const margin = cleanText(result.margin_text)
+
+  if (!margin) {
+    return ''
+  }
+
+  const marginOnly = marginOnlyText(margin)
+  const winnerFromScores = winnerNameFromScoreText(match, margin)
+
+  if (winnerFromScores && marginOnly) {
+    return `${winnerFromScores} won by ${marginOnly.toLowerCase()}`
+  }
+
   const winnerId = Number(result.winning_team_id)
   const homeId = Number(match.home_team_id)
   const awayId = Number(match.away_team_id)
@@ -317,16 +387,12 @@ function readableMarginText(match, homeName, awayName) {
     winnerName = awayName
   }
 
-  if (!margin) {
-    return winnerName ? `${winnerName} won` : ''
-  }
-
   if (/won\s+by/i.test(margin)) {
     return margin
   }
 
-  if (winnerName) {
-    return `${winnerName} won by ${margin.toLowerCase()}`
+  if (winnerName && marginOnly) {
+    return `${winnerName} won by ${marginOnly.toLowerCase()}`
   }
 
   return margin
@@ -519,13 +585,6 @@ async function buildPreview(request) {
     return previewForNews(parts[1], request)
   }
 
-  /*
-    Match pages must be detected before season pages.
-
-    Supports:
-    /matches/168
-    /leagues/npl-super-40/seasons/mens-super-40-2026/matches/168/team-a-vs-team-b
-  */
   const matchIndex = parts.indexOf('matches')
 
   if (matchIndex >= 0 && parts[matchIndex + 1]) {
