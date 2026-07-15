@@ -14,6 +14,93 @@ import { resolveMediaUrl } from '../lib/publicApi'
 import type { MatchLite, TeamLite } from '../lib/hooks'
 import nplLogoUrl from '../assets/logo.png'
 
+type MatchWithTeamExtras = MatchLite & {
+  home_name?: string | null
+  away_name?: string | null
+  home_team_name?: string | null
+  away_team_name?: string | null
+  home_logo_url?: string | null
+  away_logo_url?: string | null
+  home_team_logo_url?: string | null
+  away_team_logo_url?: string | null
+  home_team?: {
+    name?: string | null
+    logo_url?: string | null
+  } | null
+  away_team?: {
+    name?: string | null
+    logo_url?: string | null
+  } | null
+  season?: {
+    name?: string | null
+    slug?: string | null
+    league?: {
+      name?: string | null
+      slug?: string | null
+    } | null
+  } | null
+  season_name?: string | null
+  league_name?: string | null
+  result?: {
+    player_of_match_name?: string | null
+    player_of_match_player_name?: string | null
+    player_of_match?: string | null
+  } | null
+}
+
+function matchTeamName(
+  match: MatchLite,
+  side: 'home' | 'away',
+  team: TeamLite | undefined,
+): string {
+  const m = match as MatchWithTeamExtras
+  const fallbackId = side === 'home' ? match.home_team_id : match.away_team_id
+
+  if (side === 'home') {
+    return (
+      team?.name ??
+      m.home_team?.name ??
+      m.home_name ??
+      m.home_team_name ??
+      `Team ${fallbackId}`
+    )
+  }
+
+  return (
+    team?.name ??
+    m.away_team?.name ??
+    m.away_name ??
+    m.away_team_name ??
+    `Team ${fallbackId}`
+  )
+}
+
+function matchTeamLogo(
+  match: MatchLite,
+  side: 'home' | 'away',
+  team: TeamLite | undefined,
+): string | null {
+  const m = match as MatchWithTeamExtras
+
+  if (side === 'home') {
+    return (
+      team?.logo_url ??
+      m.home_team?.logo_url ??
+      m.home_logo_url ??
+      m.home_team_logo_url ??
+      null
+    )
+  }
+
+  return (
+    team?.logo_url ??
+    m.away_team?.logo_url ??
+    m.away_logo_url ??
+    m.away_team_logo_url ??
+    null
+  )
+}
+
 function TeamLogoBadge({
   logoUrl,
   variant = 'default',
@@ -44,6 +131,7 @@ function TeamLogoBadge({
         className="ui-match-card__logo"
         onError={() => setSrc(nplLogoUrl)}
       />
+
       {isWinner ? (
         <span
           className="ui-match-card__winner-cup"
@@ -111,39 +199,6 @@ function InningsLines({ parts }: { parts: string[] }) {
   )
 }
 
-function matchTeamLogo(
-  match: MatchLite,
-  side: 'home' | 'away',
-  team: TeamLite | undefined,
-): string | null {
-  const m = match as MatchLite & {
-    home_team?: { logo_url?: string | null } | null
-    away_team?: { logo_url?: string | null } | null
-    home_logo_url?: string | null
-    away_logo_url?: string | null
-    home_team_logo_url?: string | null
-    away_team_logo_url?: string | null
-  }
-
-  if (side === 'home') {
-    return (
-      team?.logo_url ??
-      m.home_team?.logo_url ??
-      m.home_logo_url ??
-      m.home_team_logo_url ??
-      null
-    )
-  }
-
-  return (
-    team?.logo_url ??
-    m.away_team?.logo_url ??
-    m.away_logo_url ??
-    m.away_team_logo_url ??
-    null
-  )
-}
-
 export function ResultMatchCard({
   match,
   homeName,
@@ -161,47 +216,31 @@ export function ResultMatchCard({
   const scoreboard = buildInningScoreboard(match)
   const headline = matchResultHeadline(match, { homeName, awayName })
   const competitionLine = matchCompetitionLine(match)
-
-  const matchWithSeason = match as MatchLite & {
-    season?: {
-      name?: string | null
-      league?: {
-        name?: string | null
-      } | null
-    } | null
-    season_name?: string | null
-    league_name?: string | null
-  }
+  const matchWithExtras = match as MatchWithTeamExtras
 
   const leagueLine =
-    matchWithSeason.season?.league?.name ??
-    matchWithSeason.league_name ??
+    matchWithExtras.season?.league?.name ??
+    matchWithExtras.league_name ??
     competitionLine
 
   const seasonLine =
-    matchWithSeason.season?.name ??
-    matchWithSeason.season_name ??
+    matchWithExtras.season?.name ??
+    matchWithExtras.season_name ??
     ''
 
-  const resultWithPlayer = match.result as
-    | {
-        player_of_match_name?: string | null
-        player_of_match_player_name?: string | null
-        player_of_match?: string | null
-      }
-    | null
-    | undefined
-
   const playerOfMatch =
-    resultWithPlayer?.player_of_match_name ??
-    resultWithPlayer?.player_of_match_player_name ??
-    resultWithPlayer?.player_of_match ??
+    matchWithExtras.result?.player_of_match_name ??
+    matchWithExtras.result?.player_of_match_player_name ??
+    matchWithExtras.result?.player_of_match ??
     null
+
+  const homeLogoUrl = matchTeamLogo(match, 'home', home)
+  const awayLogoUrl = matchTeamLogo(match, 'away', away)
 
   return (
     <a
       href={matchSeoPath({
-        ...match,
+        ...matchWithExtras,
         home_name: homeName,
         away_name: awayName,
       })}
@@ -218,10 +257,11 @@ export function ResultMatchCard({
                   : 'ui-match-card__team-col'
               }
             >
-             <TeamLogoBadge
-  logoUrl={homeLogoUrl}
-  isWinner={winner === 'home'}
-/>
+              <TeamLogoBadge
+                logoUrl={homeLogoUrl}
+                variant="round"
+                isWinner={winner === 'home'}
+              />
               <span className="ui-match-card__team-name">
                 {homeName.toUpperCase()}
               </span>
@@ -236,10 +276,11 @@ export function ResultMatchCard({
                   : 'ui-match-card__team-col'
               }
             >
-             <TeamLogoBadge
-  logoUrl={awayLogoUrl}
-  isWinner={winner === 'away'}
-/>
+              <TeamLogoBadge
+                logoUrl={awayLogoUrl}
+                variant="round"
+                isWinner={winner === 'away'}
+              />
               <span className="ui-match-card__team-name">
                 {awayName.toUpperCase()}
               </span>
@@ -307,12 +348,12 @@ export function MatchCard({
   mode?: 'fixture' | 'result'
   compact?: boolean
 }) {
- const home = teamsMap[match.home_team_id]
-const away = teamsMap[match.away_team_id]
-const homeName = home?.name ?? match.home_name ?? match.home_team_name ?? `Team ${match.home_team_id}`
-const awayName = away?.name ?? match.away_name ?? match.away_team_name ?? `Team ${match.away_team_id}`
-const homeLogoUrl = matchTeamLogo(match, 'home', home)
-const awayLogoUrl = matchTeamLogo(match, 'away', away)
+  const home = teamsMap[match.home_team_id]
+  const away = teamsMap[match.away_team_id]
+  const homeName = matchTeamName(match, 'home', home)
+  const awayName = matchTeamName(match, 'away', away)
+  const homeLogoUrl = matchTeamLogo(match, 'home', home)
+  const awayLogoUrl = matchTeamLogo(match, 'away', away)
 
   if (mode === 'result') {
     return (
@@ -330,39 +371,35 @@ const awayLogoUrl = matchTeamLogo(match, 'away', away)
   const scoreline = matchResultSummaryLine(match)
   const showScore = scoreline != null && scoreline.length > 0
   const competitionLine = matchCompetitionLine(match)
+  const matchWithExtras = match as MatchWithTeamExtras
 
   const seasonLine =
-    (
-      match as MatchLite & {
-        season?: { name?: string | null } | null
-        season_name?: string | null
-      }
-    ).season?.name ??
-    (
-      match as MatchLite & {
-        season_name?: string | null
-      }
-    ).season_name ??
+    matchWithExtras.season?.name ??
+    matchWithExtras.season_name ??
     competitionLine
 
   return (
     <a
       href={matchSeoPath({
-        ...match,
+        ...matchWithExtras,
         home_name: homeName,
         away_name: awayName,
       })}
-      className={`ui-match-card ui-match-card--duo${compact ? ' ui-match-card--compact' : ''}`}
+      className={`ui-match-card ui-match-card--duo${
+        compact ? ' ui-match-card--compact' : ''
+      }`}
       aria-label={`${homeName} vs ${awayName}, open match centre`}
     >
       <div className="ui-match-card__media entity-thumb-card__media--duo">
         <TeamLogoBadge
-          logoUrl={home?.logo_url ?? null}
+          logoUrl={homeLogoUrl}
           isWinner={winner === 'home'}
         />
+
         <span className="ui-match-card__vs">vs</span>
+
         <TeamLogoBadge
-          logoUrl={away?.logo_url ?? null}
+          logoUrl={awayLogoUrl}
           isWinner={winner === 'away'}
         />
       </div>
