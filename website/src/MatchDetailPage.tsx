@@ -515,7 +515,7 @@ export default function MatchDetailPage() {
                     </div>
                   ) : null}
                 </section>
-                 <SocialShareButtons title={title} text={shareText} />
+               
               ) : (
                 <p className="match-centre-empty-hint">
                   No result or scorecard yet.
@@ -523,6 +523,10 @@ export default function MatchDetailPage() {
               )}
             </div>
           </div>
+
+          <div className="match-centre-share-row">
+  <SocialShareButtons title={title} text={shareText} />
+</div>
 
           <section
             className="match-centre-scorecard"
