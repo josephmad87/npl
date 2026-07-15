@@ -432,9 +432,6 @@ export default function MatchDetailPage() {
                       </span>
                     </dd>
                   </div>
-
-<SocialShareButtons title={title} text={shareText} />
-
                   
                   <div className="match-centre-detail__row">
                     <dt>Status</dt>
@@ -451,6 +448,8 @@ export default function MatchDetailPage() {
                 </dl>
               </div>
             </div>
+
+            <SocialShareButtons title={title} text={shareText} />
 
             <div className="match-centre-panels__col">
               {showResultBlock ? (
