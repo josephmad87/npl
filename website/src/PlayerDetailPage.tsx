@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
+import { matchSeoPath } from './lib/matchUrls'
 import { useMemo } from 'react'
 import { ErrorNotice } from './components/ErrorNotice'
 import { SectionHeader } from './components/SectionHeader'
@@ -563,13 +564,18 @@ export default function PlayerDetailPage() {
                             <td>{row.run_outs}</td>
                             <td>{row.notes ?? '—'}</td>
                             <td>
-                              <Link
-                                to="/matches/$matchId"
-                                params={{ matchId: String(row.match_id) }}
-                                className="player-public-match-link"
-                              >
+                              <a
+  href={matchSeoPath({
+    id: row.match_id,
+    home_name: row.home_team_name,
+    away_name: row.away_team_name,
+    league_name: row.league_name,
+    season_name: row.season_name,
+  })}
+  className="player-public-match-link"
+>
                                 Match
-                              </Link>
+                              </a>
                             </td>
                           </tr>
                         )
