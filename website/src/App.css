@@ -6833,3 +6833,43 @@ table.player-public-table {
     grid-template-columns: 1fr;
   }
 }
+/* Result cards: full team names, separate league and season */
+.ui-match-card--result-redesign .ui-match-card__team-name {
+  max-width: 100%;
+  overflow: visible;
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: initial;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  font-size: 0.68rem;
+  line-height: 1.18;
+}
+
+.ui-match-card--result-redesign .ui-match-card__result-teams-row {
+  align-items: start;
+}
+
+.ui-match-card--result-redesign .ui-match-card__season-line {
+  margin: -0.35rem 0 0;
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.ui-match-card--result-redesign .ui-match-card__result-summary-panel {
+  gap: 0.7rem;
+}
+
+.ui-match-card--result-redesign .ui-match-card__headline {
+  margin-bottom: 0.2rem;
+}
+
+.ui-match-card--result-redesign .ui-match-card__merged-score {
+  margin-top: 0.1rem;
+}
