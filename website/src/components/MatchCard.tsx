@@ -1,8 +1,5 @@
 import { useState } from 'react'
-import {
-  formatMatchDate,
-  toTimeShort,
-} from '../lib/formatters'
+import { formatMatchDate, toTimeShort } from '../lib/formatters'
 import { matchSeoPath } from '../lib/matchUrls'
 import {
   buildInningScoreboard,
@@ -130,8 +127,28 @@ export function ResultMatchCard({
   const winner = matchWinnerSide(match)
   const scoreboard = buildInningScoreboard(match)
   const headline = matchResultHeadline(match, { homeName, awayName })
-  const scoreline = matchResultSummaryLine(match)
   const competitionLine = matchCompetitionLine(match)
+
+  const matchWithSeason = match as MatchLite & {
+    season?: {
+      name?: string | null
+      league?: {
+        name?: string | null
+      } | null
+    } | null
+    season_name?: string | null
+    league_name?: string | null
+  }
+
+  const leagueLine =
+    matchWithSeason.season?.league?.name ??
+    matchWithSeason.league_name ??
+    competitionLine
+
+  const seasonLine =
+    matchWithSeason.season?.name ??
+    matchWithSeason.season_name ??
+    ''
 
   const resultWithPlayer = match.result as
     | {
@@ -200,8 +217,15 @@ export function ResultMatchCard({
 
           <div className="ui-match-card__result-fixture-info">
             <p className="ui-match-card__competition ui-match-card__competition--fixture">
-              {(competitionLine || 'NPL match').toUpperCase()}
+              {(leagueLine || 'NPL match').toUpperCase()}
             </p>
+
+            {seasonLine ? (
+              <p className="ui-match-card__season-line">
+                {seasonLine.toUpperCase()}
+              </p>
+            ) : null}
+
             <p className="ui-match-card__meta">
               {formatMatchDate(match.match_date)}
               {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
@@ -216,10 +240,6 @@ export function ResultMatchCard({
 
           <h3 className="ui-match-card__headline">{headline}</h3>
 
-          {scoreline ? (
-            <p className="ui-match-card__scoreline">{scoreline}</p>
-          ) : null}
-
           {scoreboard.merged ? (
             <p className="ui-match-card__merged-score">{scoreboard.merged}</p>
           ) : (
@@ -229,10 +249,12 @@ export function ResultMatchCard({
             </div>
           )}
 
-          <p className="ui-match-card__player-of-match">
-            <span>Player of the match</span>
-            <strong>{playerOfMatch ?? '—'}</strong>
-          </p>
+          {playerOfMatch ? (
+            <p className="ui-match-card__player-of-match">
+              <span>Player of the match</span>
+              <strong>{playerOfMatch}</strong>
+            </p>
+          ) : null}
 
           <span className="ui-match-card__match-centre-button">
             Match centre
@@ -275,19 +297,20 @@ export function MatchCard({
   const scoreline = matchResultSummaryLine(match)
   const showScore = scoreline != null && scoreline.length > 0
   const competitionLine = matchCompetitionLine(match)
+
   const seasonLine =
-  (
-    match as MatchLite & {
-      season?: { name?: string | null } | null
-      season_name?: string | null
-    }
-  ).season?.name ??
-  (
-    match as MatchLite & {
-      season_name?: string | null
-    }
-  ).season_name ??
-  competitionLine
+    (
+      match as MatchLite & {
+        season?: { name?: string | null } | null
+        season_name?: string | null
+      }
+    ).season?.name ??
+    (
+      match as MatchLite & {
+        season_name?: string | null
+      }
+    ).season_name ??
+    competitionLine
 
   return (
     <a
@@ -313,18 +336,12 @@ export function MatchCard({
 
       <div className="ui-match-card__body">
         <p className="ui-match-card__competition ui-match-card__competition--fixture">
-  {(seasonLine || 'NPL fixture').toUpperCase()}
-</p>
+          {(seasonLine || 'NPL fixture').toUpperCase()}
+        </p>
 
-        {compact ? (
-          <h3 className="ui-match-card__title">
-            {homeName} vs {awayName}
-          </h3>
-        ) : (
-          <h3 className="ui-match-card__title">
-            {homeName} vs {awayName}
-          </h3>
-        )}
+        <h3 className="ui-match-card__title">
+          {homeName} vs {awayName}
+        </h3>
 
         <p className="ui-match-card__meta">
           {formatMatchDate(match.match_date)}
