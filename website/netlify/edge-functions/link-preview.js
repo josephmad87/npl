@@ -3,6 +3,8 @@ const DEFAULT_DESCRIPTION =
   'Latest fixtures, results, scorecards, news and standings from the National Premier League.'
 const DEFAULT_IMAGE_PATH = '/apple-touch-icon.png'
 
+let teamNameCache = null
+
 function env(name) {
   return (
     globalThis.Netlify?.env?.get?.(name) ??
@@ -30,7 +32,11 @@ function cleanText(value, fallback = '') {
     .trim()
 }
 
-function truncate(value, max = 180) {
+function cleanTeamName(value) {
+  return cleanText(value)
+}
+
+function truncate(value, max = 220) {
   const text = cleanText(value)
 
   if (text.length <= max) {
@@ -121,29 +127,153 @@ async function previewForNews(slug, request) {
   }
 }
 
-function teamName(match, side) {
-  const team = side === 'home' ? match.home_team : match.away_team
-  const fallbackId = side === 'home' ? match.home_team_id : match.away_team_id
+async function fetchAllTeams() {
+  if (teamNameCache) {
+    return teamNameCache
+  }
+
+  const data =
+    (await fetchApi('/public/teams?page=1&page_size=1000')) ||
+    (await fetchApi('/public/teams'))
+
+  const teams = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.items)
+      ? data.items
+      : []
+
+  teamNameCache = teams
+  return teams
+}
+
+async function fetchTeamById(teamId) {
+  if (!teamId) {
+    return null
+  }
+
+  const teams = await fetchAllTeams()
 
   return (
-    team?.name ||
-    match[`${side}_team_name`] ||
-    `Team ${fallbackId}`
+    teams.find((team) => Number(team.id) === Number(teamId)) ||
+    null
+  )
+}
+
+async function fetchTeamNameById(teamId) {
+  const team = await fetchTeamById(teamId)
+  return cleanTeamName(team?.name) || null
+}
+
+function namesFromInningsText(match) {
+  const text =
+    match.result?.innings_breakdown ||
+    match.result?.score_summary ||
+    ''
+
+  if (!text) {
+    return []
+  }
+
+  return text
+    .split(';')
+    .map((part) => {
+      const cleaned = cleanTeamName(part)
+
+      return cleaned
+        .replace(/\s+\d+\/\d+.*$/i, '')
+        .replace(/\s+\d+\s+runs?.*$/i, '')
+        .replace(/\s+\d+\s+wickets?.*$/i, '')
+        .replace(/\s+won\s+by\s+.*$/i, '')
+        .trim()
+    })
+    .filter(Boolean)
+}
+
+async function resolvedMatchTeamNames(match) {
+  const fromMatchHome =
+    cleanTeamName(match.home_team?.name) ||
+    cleanTeamName(match.home_team_name)
+
+  const fromMatchAway =
+    cleanTeamName(match.away_team?.name) ||
+    cleanTeamName(match.away_team_name)
+
+  if (fromMatchHome && fromMatchAway) {
+    return {
+      homeName: fromMatchHome,
+      awayName: fromMatchAway,
+    }
+  }
+
+  const fetchedHome = await fetchTeamNameById(match.home_team_id)
+  const fetchedAway = await fetchTeamNameById(match.away_team_id)
+
+  if (fetchedHome && fetchedAway) {
+    return {
+      homeName: fetchedHome,
+      awayName: fetchedAway,
+    }
+  }
+
+  const inningsNames = namesFromInningsText(match)
+
+  if (inningsNames.length >= 2) {
+    return {
+      homeName: inningsNames[0],
+      awayName: inningsNames[1],
+    }
+  }
+
+  return {
+    homeName:
+      fromMatchHome ||
+      fetchedHome ||
+      inningsNames[0] ||
+      `Team ${match.home_team_id}`,
+    awayName:
+      fromMatchAway ||
+      fetchedAway ||
+      inningsNames[1] ||
+      `Team ${match.away_team_id}`,
+  }
+}
+
+async function resolvedMatchTeamImages(match) {
+  const homeTeam = await fetchTeamById(match.home_team_id)
+  const awayTeam = await fetchTeamById(match.away_team_id)
+
+  return {
+    homeLogo:
+      match.home_team?.logo_url ||
+      homeTeam?.logo_url ||
+      null,
+    awayLogo:
+      match.away_team?.logo_url ||
+      awayTeam?.logo_url ||
+      null,
+  }
+}
+
+function matchLeagueName(match) {
+  return (
+    cleanText(match.season?.league?.name) ||
+    cleanText(match.league_name) ||
+    ''
+  )
+}
+
+function matchSeasonName(match) {
+  return (
+    cleanText(match.season?.name) ||
+    cleanText(match.season_name) ||
+    ''
   )
 }
 
 function matchSeasonLine(match) {
-  const leagueName =
-    match.season?.league?.name ||
-    match.league_name ||
-    ''
-
-  const seasonName =
-    match.season?.name ||
-    match.season_name ||
-    ''
-
-  return [leagueName, seasonName].filter(Boolean).join(' · ')
+  return [matchLeagueName(match), matchSeasonName(match)]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 function formatShareDate(value) {
@@ -167,24 +297,69 @@ function formatShareDate(value) {
   }).format(date)
 }
 
+function readableMarginText(match, homeName, awayName) {
+  const result = match.result
+
+  if (!result) {
+    return ''
+  }
+
+  const margin = cleanText(result.margin_text)
+  const winnerId = Number(result.winning_team_id)
+  const homeId = Number(match.home_team_id)
+  const awayId = Number(match.away_team_id)
+
+  let winnerName = ''
+
+  if (winnerId && winnerId === homeId) {
+    winnerName = homeName
+  } else if (winnerId && winnerId === awayId) {
+    winnerName = awayName
+  }
+
+  if (!margin) {
+    return winnerName ? `${winnerName} won` : ''
+  }
+
+  if (/won\s+by/i.test(margin)) {
+    return margin
+  }
+
+  if (winnerName) {
+    return `${winnerName} won by ${margin.toLowerCase()}`
+  }
+
+  return margin
+}
+
+function matchScoreText(match) {
+  const result = match.result
+
+  if (!result) {
+    return ''
+  }
+
+  return cleanText(result.innings_breakdown || result.score_summary)
+}
+
 function matchShareDescription(match, homeName, awayName) {
   const seasonLine = matchSeasonLine(match)
   const dateLine = formatShareDate(match.match_date)
-  const venueLine = match.venue || ''
+  const venueLine = cleanText(match.venue)
   const result = match.result
 
   if (match.status === 'completed' && result) {
     return truncate(
       [
-        result.margin_text,
-        result.innings_breakdown || result.score_summary,
+        readableMarginText(match, homeName, awayName),
+        matchScoreText(match),
         seasonLine,
         dateLine,
         venueLine,
       ]
         .filter(Boolean)
         .join(' · '),
-      220,
+      260,
     )
   }
 
@@ -197,37 +372,7 @@ function matchShareDescription(match, homeName, awayName) {
     ]
       .filter(Boolean)
       .join(' · '),
-    220,
-  )
-}
-
-async function fetchTeamNameById(teamId) {
-  if (!teamId) {
-    return null
-  }
-
-  const data = await fetchApi('/public/teams?page=1&page_size=500')
-
-  const teams = Array.isArray(data)
-    ? data
-    : Array.isArray(data?.items)
-      ? data.items
-      : []
-
-  const team = teams.find((t) => Number(t.id) === Number(teamId))
-
-  return team?.name || null
-}
-
-async function resolvedTeamName(match, side) {
-  const team = side === 'home' ? match.home_team : match.away_team
-  const fallbackId = side === 'home' ? match.home_team_id : match.away_team_id
-
-  return (
-    team?.name ||
-    match[`${side}_team_name`] ||
-    await fetchTeamNameById(fallbackId) ||
-    `Team ${fallbackId}`
+    260,
   )
 }
 
@@ -238,14 +383,18 @@ async function previewForMatch(matchId, request) {
     return defaultPreview(request)
   }
 
-  const homeName = await resolvedTeamName(match, 'home')
-  const awayName = await resolvedTeamName(match, 'away')
-  const result = match.result
+  const { homeName, awayName } = await resolvedMatchTeamNames(match)
+  const { homeLogo, awayLogo } = await resolvedMatchTeamImages(match)
 
-  const title =
-    match.status === 'completed' && result?.margin_text
-      ? `${homeName} vs ${awayName}`
-      : `${homeName} vs ${awayName}`
+  const seasonName = matchSeasonName(match)
+  const leagueName = matchLeagueName(match)
+
+  const title = [
+    `${homeName} vs ${awayName}`,
+    seasonName || leagueName || SITE_NAME,
+  ]
+    .filter(Boolean)
+    .join(' | ')
 
   const description =
     matchShareDescription(match, homeName, awayName) || DEFAULT_DESCRIPTION
@@ -255,8 +404,11 @@ async function previewForMatch(matchId, request) {
     description,
     image: absoluteUrl(
       match.cover_image_url ||
-        match.home_team?.logo_url ||
-        match.away_team?.logo_url,
+        match.season?.banner_url ||
+        match.season?.league?.banner_url ||
+        match.season?.league?.logo_url ||
+        homeLogo ||
+        awayLogo,
       request.url,
     ),
     type: 'website',
@@ -437,7 +589,8 @@ function metaTags(preview, request) {
     : `${preview.title} | ${SITE_NAME}`
 
   const description = preview.description || DEFAULT_DESCRIPTION
-  const image = preview.image || new URL(DEFAULT_IMAGE_PATH, request.url).toString()
+  const image =
+    preview.image || new URL(DEFAULT_IMAGE_PATH, request.url).toString()
   const type = preview.type || 'website'
 
   return `
