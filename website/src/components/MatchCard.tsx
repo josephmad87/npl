@@ -246,6 +246,19 @@ export function MatchCard({
   const scoreline = matchResultSummaryLine(match)
   const showScore = scoreline != null && scoreline.length > 0
   const competitionLine = matchCompetitionLine(match)
+  const seasonLine =
+  (
+    match as MatchLite & {
+      season?: { name?: string | null } | null
+      season_name?: string | null
+    }
+  ).season?.name ??
+  (
+    match as MatchLite & {
+      season_name?: string | null
+    }
+  ).season_name ??
+  competitionLine
 
   return (
     <a
