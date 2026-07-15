@@ -6622,3 +6622,48 @@ table.player-public-table {
     max-width: 82vw !important;
   }
 }
+
+/* Result cards: make team names and score details visible on dark scoreboard */
+.ui-match-card--result-sheet .ui-match-card__scoreboard {
+  color: #ffffff;
+}
+
+.ui-match-card--result-sheet .ui-match-card__team-name {
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+}
+
+.ui-match-card--result-sheet .ui-match-card__innings-lines {
+  display: grid;
+  gap: 0.2rem;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+}
+
+.ui-match-card--result-sheet .ui-match-card__innings-overs {
+  color: #f7c46c;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.ui-match-card--result-sheet .ui-match-card__merged-score {
+  margin: 0.5rem 1rem 1rem;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+}
+
+.ui-match-card--result-sheet .ui-match-card__vs {
+  color: #ffffff;
+  font-weight: 900;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+}
