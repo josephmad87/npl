@@ -163,7 +163,7 @@ export function ResultMatchCard({
                 {homeName.toUpperCase()}
               </span>
               {!scoreboard.merged ? (
-                <InningsLines parts={scoreboard.home} />
+                <InningsLines parts={scoreboard.homeLines} />
               ) : null}
             </div>
 
@@ -185,7 +185,7 @@ export function ResultMatchCard({
                 {awayName.toUpperCase()}
               </span>
               {!scoreboard.merged ? (
-                <InningsLines parts={scoreboard.away} />
+                <InningsLines parts={scoreboard.awayLines} />
               ) : null}
             </div>
           </div>
