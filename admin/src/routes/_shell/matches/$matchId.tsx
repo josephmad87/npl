@@ -6,7 +6,6 @@ import type { LeagueDto, MatchDto, PlayerDto, SeasonDto, TeamDto } from '@/lib/a
 import { adminGet, adminListAll, adminPatch } from '@/lib/admin-client'
 import { invalidateCompetitionDataQueries } from '@/lib/invalidate-competition-data'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
-import { BackNavLink } from '@/components/BackNavLink'
 import { BadgeImage } from '@/components/BadgeImage'
 import { MatchResultEditor } from '@/components/MatchResultEditor'
 import { InningsScorecardPanels } from '@/components/InningsScorecardPanels'
@@ -48,9 +47,16 @@ function fixtureStatusOptions(current: string): readonly (typeof STATUSES)[numbe
 function MatchDetailPage() {
   const { matchId } = Route.useParams()
   const mid = Number(matchId)
-  const { mode } = Route.useSearch()
+  const search = Route.useSearch()
+  const { mode } = search
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+
+  const matchListSearch = {
+    statusTab: search.statusTab ?? 'active',
+    leagueId: search.leagueId ?? null,
+    seasonId: search.seasonId ?? null,
+  }
 
   const teamsQ = useQuery({
     queryKey: ['admin', 'teams'],
@@ -131,7 +137,7 @@ function MatchDetailPage() {
     void navigate({
       to: '/matches/$matchId',
       params: { matchId: String(match.id) },
-      search: {},
+      search: matchListSearch,
     })
   }
 
@@ -142,7 +148,7 @@ function MatchDetailPage() {
     void navigate({
       to: '/matches/$matchId',
       params: { matchId: String(match.id) },
-      search: { mode: 'edit' },
+      search: { ...matchListSearch, mode: 'edit' },
     })
   }
 
@@ -255,7 +261,9 @@ function MatchDetailPage() {
     return (
       <>
         <PageHeader title="Match not found" />
-        <BackNavLink to="/matches">Back to fixtures</BackNavLink>
+        <Link to="/matches" search={matchListSearch} className="btn-ghost">
+          Back to fixtures
+        </Link>
       </>
     )
   }
@@ -329,7 +337,9 @@ function MatchDetailPage() {
         }
         actions={
           <>
-            <BackNavLink to="/matches">Fixtures</BackNavLink>
+            <Link to="/matches" search={matchListSearch} className="btn-ghost">
+              Fixtures
+            </Link>
             {isResultMode ? (
               <button
                 type="button"
@@ -345,7 +355,7 @@ function MatchDetailPage() {
                 <Link
                   to="/matches/$matchId"
                   params={{ matchId: String(mid) }}
-                  search={{ mode: 'result' }}
+                  search={{ ...matchListSearch, mode: 'result' }}
                   className="btn-primary btn--with-icon"
                 >
                   <Table2 size={18} strokeWidth={2} aria-hidden />
@@ -641,207 +651,207 @@ function MatchDetailPage() {
         />
       ) : (
         <>
-        <div className="match-detail-panels">
-          <div className="match-detail-panels__left">
-            <DetailFields
-              items={[
-                {
-                  label: 'League · season',
-                  value: match.season
-                    ? `${match.season.league.name} — ${match.season.name}`
-                    : '—',
-                },
-                {
-                  label: 'When',
-                  value: match.match_date ?? match.start_time ?? '—',
-                },
-                { label: 'Venue', value: match.venue ?? '—' },
-                { label: 'Title', value: match.title ?? '—' },
-                { label: 'Toss', value: match.toss_info ?? '—' },
-                { label: 'Umpires', value: match.umpires ?? '—' },
-                {
-                  label: 'Notes',
-                  value: match.description ?? '—',
-                },
-                { label: 'Category', value: match.category },
-                {
-                  label: 'Home',
-                  value:
-                    matchTableRow != null ? (
-                      <MatchTableTeamCell side="home" row={matchTableRow} />
-                    ) : (
-                      <span className="table-cell-with-badge">
-                        <BadgeImage
-                          imageUrl={homeTeam?.logo_url}
-                          alt=""
-                          size="sm"
-                        />
-                        <span>{homeName ?? `#${match.home_team_id}`}</span>
-                      </span>
+          <div className="match-detail-panels">
+            <div className="match-detail-panels__left">
+              <DetailFields
+                items={[
+                  {
+                    label: 'League · season',
+                    value: match.season
+                      ? `${match.season.league.name} — ${match.season.name}`
+                      : '—',
+                  },
+                  {
+                    label: 'When',
+                    value: match.match_date ?? match.start_time ?? '—',
+                  },
+                  { label: 'Venue', value: match.venue ?? '—' },
+                  { label: 'Title', value: match.title ?? '—' },
+                  { label: 'Toss', value: match.toss_info ?? '—' },
+                  { label: 'Umpires', value: match.umpires ?? '—' },
+                  {
+                    label: 'Notes',
+                    value: match.description ?? '—',
+                  },
+                  { label: 'Category', value: match.category },
+                  {
+                    label: 'Home',
+                    value:
+                      matchTableRow != null ? (
+                        <MatchTableTeamCell side="home" row={matchTableRow} />
+                      ) : (
+                        <span className="table-cell-with-badge">
+                          <BadgeImage
+                            imageUrl={homeTeam?.logo_url}
+                            alt=""
+                            size="sm"
+                          />
+                          <span>{homeName ?? `#${match.home_team_id}`}</span>
+                        </span>
+                      ),
+                  },
+                  {
+                    label: 'Away',
+                    value:
+                      matchTableRow != null ? (
+                        <MatchTableTeamCell side="away" row={matchTableRow} />
+                      ) : (
+                        <span className="table-cell-with-badge">
+                          <BadgeImage
+                            imageUrl={awayTeam?.logo_url}
+                            alt=""
+                            size="sm"
+                          />
+                          <span>{awayName ?? `#${match.away_team_id}`}</span>
+                        </span>
+                      ),
+                  },
+                  {
+                    label: 'Status',
+                    value: (
+                      <StatusBadge
+                        status={
+                          match.status as
+                            | 'scheduled'
+                            | 'live'
+                            | 'completed'
+                            | 'postponed'
+                            | 'abandoned'
+                            | 'cancelled'
+                        }
+                      />
                     ),
-                },
-                {
-                  label: 'Away',
-                  value:
-                    matchTableRow != null ? (
-                      <MatchTableTeamCell side="away" row={matchTableRow} />
-                    ) : (
-                      <span className="table-cell-with-badge">
-                        <BadgeImage
-                          imageUrl={awayTeam?.logo_url}
-                          alt=""
-                          size="sm"
-                        />
-                        <span>{awayName ?? `#${match.away_team_id}`}</span>
+                  },
+                ]}
+              />
+            </div>
+            <div className="match-detail-panels__right">
+              {match.result != null || playerStats.length > 0 ? (
+                <section className="match-readonly-result">
+                  <div className="match-readonly-result__head">
+                    <h2 className="match-readonly-result__h">Result & player stats</h2>
+                    <SectionHintTip
+                      ariaHelp="Submitted match outcome, margin, and per-player scorecard rows from the Result & scorecard editor."
+                    >
+                      <span className="section-hint-tip__text">
+                        Submitted match outcome, margin, and per-player scorecard
+                        rows from the <strong>Result & scorecard</strong> editor.
                       </span>
-                    ),
-                },
-                {
-                  label: 'Status',
-                  value: (
-                    <StatusBadge
-                      status={
-                        match.status as
-                          | 'scheduled'
-                          | 'live'
-                          | 'completed'
-                          | 'postponed'
-                          | 'abandoned'
-                          | 'cancelled'
-                      }
-                    />
-                  ),
-                },
-              ]}
-            />
-          </div>
-          <div className="match-detail-panels__right">
-            {match.result != null || playerStats.length > 0 ? (
-              <section className="match-readonly-result">
-                <div className="match-readonly-result__head">
-                  <h2 className="match-readonly-result__h">Result & player stats</h2>
+                    </SectionHintTip>
+                  </div>
+                  {match.result ? (
+                    <div className="match-readonly-result__summary">
+                      {match.result.score_summary ? (
+                        <p>
+                          <strong>Score:</strong> {match.result.score_summary}
+                        </p>
+                      ) : null}
+                      {match.result.margin_text ? (
+                        <p>
+                          <strong>Margin:</strong> {match.result.margin_text}
+                        </p>
+                      ) : null}
+                      {match.result.winning_team_id != null ? (
+                        <p>
+                          <strong>Winner:</strong>{' '}
+                          <span aria-hidden title="Winner">
+                            🏆
+                          </span>{' '}
+                          {match.result.winning_team_id === match.home_team_id
+                            ? (homeName ?? `Team ${match.home_team_id}`)
+                            : match.result.winning_team_id === match.away_team_id
+                              ? (awayName ?? `Team ${match.away_team_id}`)
+                              : `Team #${match.result.winning_team_id}`}
+                        </p>
+                      ) : null}
+                      {match.result.player_of_match_player_id != null ? (
+                        <p>
+                          <strong>Player of the match:</strong>{' '}
+                          {playerById.get(match.result.player_of_match_player_id) ??
+                            `#${match.result.player_of_match_player_id}`}
+                        </p>
+                      ) : null}
+                      {match.result.innings_breakdown ? (
+                        <p>
+                          <strong>Innings:</strong> {match.result.innings_breakdown}
+                        </p>
+                      ) : null}
+                      {match.result.top_performers ? (
+                        <p>
+                          <strong>Top performers:</strong> {match.result.top_performers}
+                        </p>
+                      ) : null}
+                      {match.result.match_report ? (
+                        <p>
+                          <strong>Report:</strong> {match.result.match_report}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </section>
+              ) : (
+                <p className="muted match-readonly-empty-hint">
+                  <span>No result or scorecard yet.</span>
                   <SectionHintTip
-                    ariaHelp="Submitted match outcome, margin, and per-player scorecard rows from the Result & scorecard editor."
+                    ariaHelp="No result or scorecard yet. Use Result & scorecard to record the outcome and player statistics."
                   >
                     <span className="section-hint-tip__text">
-                      Submitted match outcome, margin, and per-player scorecard
-                      rows from the <strong>Result & scorecard</strong> editor.
+                      Use <strong>Result & scorecard</strong> to record the outcome
+                      and player statistics.
                     </span>
                   </SectionHintTip>
-                </div>
-                {match.result ? (
-                  <div className="match-readonly-result__summary">
-                    {match.result.score_summary ? (
-                      <p>
-                        <strong>Score:</strong> {match.result.score_summary}
-                      </p>
-                    ) : null}
-                    {match.result.margin_text ? (
-                      <p>
-                        <strong>Margin:</strong> {match.result.margin_text}
-                      </p>
-                    ) : null}
-                    {match.result.winning_team_id != null ? (
-                      <p>
-                        <strong>Winner:</strong>{' '}
-                        <span aria-hidden title="Winner">
-                          🏆
-                        </span>{' '}
-                        {match.result.winning_team_id === match.home_team_id
-                          ? (homeName ?? `Team ${match.home_team_id}`)
-                          : match.result.winning_team_id === match.away_team_id
-                            ? (awayName ?? `Team ${match.away_team_id}`)
-                            : `Team #${match.result.winning_team_id}`}
-                      </p>
-                    ) : null}
-                    {match.result.player_of_match_player_id != null ? (
-                      <p>
-                        <strong>Player of the match:</strong>{' '}
-                        {playerById.get(match.result.player_of_match_player_id) ??
-                          `#${match.result.player_of_match_player_id}`}
-                      </p>
-                    ) : null}
-                    {match.result.innings_breakdown ? (
-                      <p>
-                        <strong>Innings:</strong> {match.result.innings_breakdown}
-                      </p>
-                    ) : null}
-                    {match.result.top_performers ? (
-                      <p>
-                        <strong>Top performers:</strong> {match.result.top_performers}
-                      </p>
-                    ) : null}
-                    {match.result.match_report ? (
-                      <p>
-                        <strong>Report:</strong> {match.result.match_report}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </section>
-            ) : (
-              <p className="muted match-readonly-empty-hint">
-                <span>No result or scorecard yet.</span>
-                <SectionHintTip
-                  ariaHelp="No result or scorecard yet. Use Result & scorecard to record the outcome and player statistics."
-                >
+                </p>
+              )}
+            </div>
+          </div>
+          <section className="team-hub-section">
+            <div className="team-hub-section-head">
+              <div className="team-hub-section-head__lead">
+                <h2 className="team-hub-section__title">Scorecard</h2>
+                <SectionHintTip ariaHelp="Per-player scorecard rows for this fixture. The first column stays visible while remaining columns scroll horizontally.">
                   <span className="section-hint-tip__text">
-                    Use <strong>Result & scorecard</strong> to record the outcome
-                    and player statistics.
+                    Per-player scorecard rows for this fixture. The first column
+                    stays visible while remaining columns scroll horizontally.
                   </span>
                 </SectionHintTip>
-              </p>
+              </div>
+              <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Scorecard innings">
+                <button
+                  type="button"
+                  className={`dashboard-match-panel__tab${scorecardInnings === 1 ? ' is-active' : ''}`}
+                  onClick={() => setScorecardInnings(1)}
+                  role="tab"
+                  aria-selected={scorecardInnings === 1}
+                >
+                  1st innings
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-match-panel__tab${scorecardInnings === 2 ? ' is-active' : ''}`}
+                  onClick={() => setScorecardInnings(2)}
+                  role="tab"
+                  aria-selected={scorecardInnings === 2}
+                >
+                  2nd innings
+                </button>
+              </div>
+            </div>
+            {playerStats.length > 0 ? (
+              <InningsScorecardPanels
+                innings={scorecardInnings}
+                battingFirstTeamId={battingFirstTeamId}
+                homeTeamId={match.home_team_id}
+                awayTeamId={match.away_team_id}
+                homeLabel={homeName ?? 'Home'}
+                awayLabel={awayName ?? 'Away'}
+                stats={playerStats}
+                playerName={(id) => playerById.get(id) ?? `#${id}`}
+                extrasLine={inningsExtrasLine}
+              />
+            ) : (
+              <p className="muted">No per-player rows yet.</p>
             )}
-          </div>
-        </div>
-        <section className="team-hub-section">
-          <div className="team-hub-section-head">
-            <div className="team-hub-section-head__lead">
-              <h2 className="team-hub-section__title">Scorecard</h2>
-              <SectionHintTip ariaHelp="Per-player scorecard rows for this fixture. The first column stays visible while remaining columns scroll horizontally.">
-                <span className="section-hint-tip__text">
-                  Per-player scorecard rows for this fixture. The first column
-                  stays visible while remaining columns scroll horizontally.
-                </span>
-              </SectionHintTip>
-            </div>
-            <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Scorecard innings">
-              <button
-                type="button"
-                className={`dashboard-match-panel__tab${scorecardInnings === 1 ? ' is-active' : ''}`}
-                onClick={() => setScorecardInnings(1)}
-                role="tab"
-                aria-selected={scorecardInnings === 1}
-              >
-                1st innings
-              </button>
-              <button
-                type="button"
-                className={`dashboard-match-panel__tab${scorecardInnings === 2 ? ' is-active' : ''}`}
-                onClick={() => setScorecardInnings(2)}
-                role="tab"
-                aria-selected={scorecardInnings === 2}
-              >
-                2nd innings
-              </button>
-            </div>
-          </div>
-          {playerStats.length > 0 ? (
-            <InningsScorecardPanels
-              innings={scorecardInnings}
-              battingFirstTeamId={battingFirstTeamId}
-              homeTeamId={match.home_team_id}
-              awayTeamId={match.away_team_id}
-              homeLabel={homeName ?? 'Home'}
-              awayLabel={awayName ?? 'Away'}
-              stats={playerStats}
-              playerName={(id) => playerById.get(id) ?? `#${id}`}
-              extrasLine={inningsExtrasLine}
-            />
-          ) : (
-            <p className="muted">No per-player rows yet.</p>
-          )}
-        </section>
+          </section>
         </>
       )}
     </>
