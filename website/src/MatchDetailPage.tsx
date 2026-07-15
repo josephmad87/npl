@@ -163,7 +163,7 @@ function MatchCentreHeroLogo({ logoUrl, isWinner }: { logoUrl: string | null; is
 }
 
 export default function MatchDetailPage() {
-  const { matchId } = useParams({ from: '/matches/$matchId' })
+  const { matchId } = useParams({ strict: false }) as { matchId?: string }
   const { map: teamsMap } = useTeamsMap()
   const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
 
