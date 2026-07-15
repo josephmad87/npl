@@ -240,6 +240,10 @@ const matchDetailRoute = createRoute({
   path: '/matches/$matchId',
   component: MatchDetailPage,
 })
+{
+  path: '/leagues/$leagueSlug/seasons/$seasonSlug/matches/$matchId/$matchSlug',
+  component: MatchPage,
+}
 const playerDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/players/$slug',
