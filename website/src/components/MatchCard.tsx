@@ -131,8 +131,23 @@ export function ResultMatchCard({
   const winner = matchWinnerSide(match)
   const scoreboard = buildInningScoreboard(match)
   const headline = matchResultHeadline(match, { homeName, awayName })
+  const scoreline = matchResultSummaryLine(match)
   const competitionLine = matchCompetitionLine(match)
-  const toss = match.toss_info?.trim()
+
+  const resultWithPlayer = match.result as
+    | {
+        player_of_match_name?: string | null
+        player_of_match_player_name?: string | null
+        player_of_match?: string | null
+      }
+    | null
+    | undefined
+
+  const playerOfMatch =
+    resultWithPlayer?.player_of_match_name ??
+    resultWithPlayer?.player_of_match_player_name ??
+    resultWithPlayer?.player_of_match ??
+    null
 
   return (
     <a
@@ -141,12 +156,12 @@ export function ResultMatchCard({
         home_name: homeName,
         away_name: awayName,
       })}
-      className="ui-match-card ui-match-card--result-sheet"
+      className="ui-match-card ui-match-card--result-sheet ui-match-card--result-redesign"
       aria-label={`${homeName} vs ${awayName}, open match centre`}
     >
       <div className="ui-match-card__result-grid">
-        <div className="ui-match-card__scoreboard" aria-label="Scoreboard">
-          <div className="ui-match-card__scoreboard-main">
+        <div className="ui-match-card__result-teams-panel">
+          <div className="ui-match-card__result-teams-row">
             <div
               className={
                 winner === 'home'
@@ -162,9 +177,6 @@ export function ResultMatchCard({
               <span className="ui-match-card__team-name">
                 {homeName.toUpperCase()}
               </span>
-              {!scoreboard.merged ? (
-                <InningsLines parts={scoreboard.homeLines} />
-              ) : null}
             </div>
 
             <span className="ui-match-card__vs">VS</span>
@@ -184,30 +196,48 @@ export function ResultMatchCard({
               <span className="ui-match-card__team-name">
                 {awayName.toUpperCase()}
               </span>
-              {!scoreboard.merged ? (
-                <InningsLines parts={scoreboard.awayLines} />
-              ) : null}
             </div>
           </div>
 
-          {scoreboard.merged ? (
-            <p className="ui-match-card__merged-score">{scoreboard.merged}</p>
-          ) : null}
+          <div className="ui-match-card__result-fixture-info">
+            <p className="ui-match-card__competition ui-match-card__competition--fixture">
+              {(competitionLine || 'NPL match').toUpperCase()}
+            </p>
+            <p className="ui-match-card__meta">
+              {formatMatchDate(match.match_date)}
+              {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
+              <br />
+              {match.venue ?? 'Venue TBC'}
+            </p>
+          </div>
         </div>
 
-        <div className="ui-match-card__result-body">
-          <p className="ui-match-card__competition">
-            {competitionLine.toUpperCase()}
-          </p>
-          <p className="ui-match-card__date">
-            {formatMatchDateTimeForResultCard(match)}
-          </p>
-          <p className="ui-match-card__venue">{match.venue ?? 'Venue TBC'}</p>
+        <div className="ui-match-card__result-summary-panel">
+          <p className="ui-match-card__result-label">Result</p>
+
           <h3 className="ui-match-card__headline">{headline}</h3>
-          {toss ? (
-            <p className="ui-match-card__toss">{toss.toUpperCase()}</p>
+
+          {scoreline ? (
+            <p className="ui-match-card__scoreline">{scoreline}</p>
           ) : null}
-          <span className="ui-match-card__link-text">Match centre</span>
+
+          {scoreboard.merged ? (
+            <p className="ui-match-card__merged-score">{scoreboard.merged}</p>
+          ) : (
+            <div className="ui-match-card__result-score-pair">
+              <InningsLines parts={scoreboard.homeLines} />
+              <InningsLines parts={scoreboard.awayLines} />
+            </div>
+          )}
+
+          <p className="ui-match-card__player-of-match">
+            <span>Player of the match</span>
+            <strong>{playerOfMatch ?? '—'}</strong>
+          </p>
+
+          <span className="ui-match-card__match-centre-button">
+            Match centre
+          </span>
         </div>
       </div>
     </a>
