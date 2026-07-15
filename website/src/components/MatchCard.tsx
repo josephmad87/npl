@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import { formatMatchDate, formatMatchDateTimeForResultCard, toTimeShort } from '../lib/formatters'
+import {
+  formatMatchDate,
+  formatMatchDateTimeForResultCard,
+  toTimeShort,
+} from '../lib/formatters'
 import { matchSeoPath } from '../lib/matchUrls'
 import {
   buildInningScoreboard,
@@ -25,30 +29,48 @@ function TeamLogoBadge({
 }) {
   const initial = resolveMediaUrl(logoUrl) ?? nplLogoUrl
   const [src, setSrc] = useState(initial)
+
   return (
-    <img
-      className={
-        variant === 'round'
-          ? 'ui-match-card__badge ui-match-card__badge--round'
-          : 'ui-match-card__badge ui-match-card__badge--lg'
-      }
-      src={src}
-      alt=""
-      title={isWinner ? 'Winner' : undefined}
-      loading="lazy"
-      decoding="async"
-      onError={() => setSrc(nplLogoUrl)}
-    />
+    <span
+      className={[
+        'ui-match-card__logo-wrap',
+        variant === 'round' ? 'ui-match-card__logo-wrap--round' : '',
+        isWinner ? 'ui-match-card__logo-wrap--winner' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className="ui-match-card__logo"
+        onError={() => setSrc(nplLogoUrl)}
+      />
+      {isWinner ? (
+        <span
+          className="ui-match-card__winner-cup"
+          aria-hidden
+          title="Winner"
+        >
+          🏆
+        </span>
+      ) : null}
+    </span>
   )
 }
 
 function matchStatusPillClass(status: string | undefined): string {
   const s = (status ?? 'scheduled').toLowerCase()
+
   if (s === 'completed') return 'ui-match-card__status-pill--completed'
   if (s === 'live') return 'ui-match-card__status-pill--live'
+
   if (s === 'postponed' || s === 'abandoned' || s === 'cancelled') {
     return 'ui-match-card__status-pill--inactive'
   }
+
   return 'ui-match-card__status-pill--scheduled'
 }
 
@@ -58,37 +80,41 @@ function formatStatusLabel(status: string | undefined): string {
 
 function InningsLines({ parts }: { parts: string[] }) {
   if (parts.length === 0) {
-    return <span className="ui-match-card__score-empty">—</span>
+    return <span>—</span>
   }
+
   const hasOvers = parts.some((p) => scoreOversFromFragment(p) != null)
+
   return (
-    <div className="ui-match-card__innings-stack">
-      <div className="ui-match-card__score-runs">
+    <span className="ui-match-card__innings-lines">
+      <span>
         {parts.map((p, i) => (
-          <span key={i}>
-            {i > 0 ? <span className="ui-match-card__amp"> & </span> : null}
-            <span className="ui-match-card__runs-num">{scoreRunsDisplayPart(p)}</span>
+          <span key={`${p}-${i}`}>
+            {i > 0 ? ' & ' : null}
+            {scoreRunsDisplayPart(p)}
           </span>
         ))}
-      </div>
+      </span>
+
       {hasOvers ? (
-        <div className="ui-match-card__score-overs">
+        <span className="ui-match-card__innings-overs">
           {parts.map((p, i) => {
-            const o = scoreOversFromFragment(p)
-            if (o == null) return null
+            const overs = scoreOversFromFragment(p)
+            if (overs == null) return null
+
             return (
-              <span key={i} className="ui-match-card__overs-chunk">
-                ({o})
+              <span key={`${p}-${i}`}>
+                {i > 0 ? ' & ' : null}
+                ({overs})
               </span>
             )
           })}
-        </div>
+        </span>
       ) : null}
-    </div>
+    </span>
   )
 }
 
-/** Result row layout: prefer `<MatchCard mode="result" />` site-wide, or this export when needed. */
 export function ResultMatchCard({
   match,
   homeName,
@@ -103,21 +129,21 @@ export function ResultMatchCard({
   away: TeamLite | undefined
 }) {
   const winner = matchWinnerSide(match)
-  const sb = buildInningScoreboard(match)
+  const scoreboard = buildInningScoreboard(match)
   const headline = matchResultHeadline(match, { homeName, awayName })
-  const comp = matchCompetitionLine(match)
+  const competitionLine = matchCompetitionLine(match)
   const toss = match.toss_info?.trim()
 
   return (
-   <a
-  href={matchSeoPath({
-    ...match,
-    home_name: homeName,
-    away_name: awayName,
-  })}
-  className="ui-match-card ui-match-card--result-sheet"
-  aria-label={`${homeName} vs ${awayName}, open match centre`}
->
+    <a
+      href={matchSeoPath({
+        ...match,
+        home_name: homeName,
+        away_name: awayName,
+      })}
+      className="ui-match-card ui-match-card--result-sheet"
+      aria-label={`${homeName} vs ${awayName}, open match centre`}
+    >
       <div className="ui-match-card__result-grid">
         <div className="ui-match-card__scoreboard" aria-label="Scoreboard">
           <div className="ui-match-card__scoreboard-main">
@@ -128,21 +154,21 @@ export function ResultMatchCard({
                   : 'ui-match-card__team-col'
               }
             >
-              <div className="ui-match-card__team-brand">
-                <TeamLogoBadge
-                  logoUrl={home?.logo_url ?? null}
-                  variant="round"
-                  isWinner={winner === 'home'}
-                />
-                <span className="ui-match-card__team-nick">{homeName.toUpperCase()}</span>
-              </div>
-              {!sb.merged ? <InningsLines parts={sb.homeLines} /> : null}
+              <TeamLogoBadge
+                logoUrl={home?.logo_url ?? null}
+                variant="round"
+                isWinner={winner === 'home'}
+              />
+              <span className="ui-match-card__team-name">
+                {homeName.toUpperCase()}
+              </span>
+              {!scoreboard.merged ? (
+                <InningsLines parts={scoreboard.home} />
+              ) : null}
             </div>
-            <div className="ui-match-card__vs-rail" aria-hidden="true">
-              <span className="ui-match-card__vs-rail-line" />
-              <span className="ui-match-card__vs-rail-text">VS</span>
-              <span className="ui-match-card__vs-rail-line" />
-            </div>
+
+            <span className="ui-match-card__vs">VS</span>
+
             <div
               className={
                 winner === 'away'
@@ -150,46 +176,44 @@ export function ResultMatchCard({
                   : 'ui-match-card__team-col'
               }
             >
-              <div className="ui-match-card__team-brand">
-                <TeamLogoBadge
-                  logoUrl={away?.logo_url ?? null}
-                  variant="round"
-                  isWinner={winner === 'away'}
-                />
-                <span className="ui-match-card__team-nick">{awayName.toUpperCase()}</span>
-              </div>
-              {!sb.merged ? <InningsLines parts={sb.awayLines} /> : null}
+              <TeamLogoBadge
+                logoUrl={away?.logo_url ?? null}
+                variant="round"
+                isWinner={winner === 'away'}
+              />
+              <span className="ui-match-card__team-name">
+                {awayName.toUpperCase()}
+              </span>
+              {!scoreboard.merged ? (
+                <InningsLines parts={scoreboard.away} />
+              ) : null}
             </div>
           </div>
-          {sb.merged ? (
-            <div className="ui-match-card__score-merged-outer">
-              <p className="ui-match-card__score-merged">{sb.merged}</p>
-            </div>
+
+          {scoreboard.merged ? (
+            <p className="ui-match-card__merged-score">{scoreboard.merged}</p>
           ) : null}
         </div>
-        <div className="ui-match-card__result-aside">
-          <div className="ui-match-card__result-aside-main">
-            <p className="ui-match-card__comp-line">{comp.toUpperCase()}</p>
-            <p
-              className="ui-match-card__datetime"
-              title={`${formatMatchDate(match.match_date)}${match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}`}
-            >
-              {formatMatchDateTimeForResultCard(match)}
-            </p>
-            <p className="ui-match-card__venue-line" title={match.venue ?? 'Venue TBC'}>
-              {match.venue ?? 'Venue TBC'}
-            </p>
-            <p className="ui-match-card__headline">{headline}</p>
-            {toss ? <p className="ui-match-card__toss">{toss.toUpperCase()}</p> : null}
-          </div>
-          <span className="ui-match-card__cta">Match centre</span>
+
+        <div className="ui-match-card__result-body">
+          <p className="ui-match-card__competition">
+            {competitionLine.toUpperCase()}
+          </p>
+          <p className="ui-match-card__date">
+            {formatMatchDateTimeForResultCard(match)}
+          </p>
+          <p className="ui-match-card__venue">{match.venue ?? 'Venue TBC'}</p>
+          <h3 className="ui-match-card__headline">{headline}</h3>
+          {toss ? (
+            <p className="ui-match-card__toss">{toss.toUpperCase()}</p>
+          ) : null}
+          <span className="ui-match-card__link-text">Match centre</span>
         </div>
       </div>
     </a>
   )
 }
 
-/** Fixture card (`mode` default) or result sheet when `mode="result"`. */
 export function MatchCard({
   match,
   teamsMap,
@@ -197,7 +221,7 @@ export function MatchCard({
   compact = false,
 }: {
   match: MatchLite
-  teamsMap: Record<number, TeamLite>
+  teamsMap: Record<number, TeamLite | undefined>
   mode?: 'fixture' | 'result'
   compact?: boolean
 }) {
@@ -225,71 +249,62 @@ export function MatchCard({
 
   return (
     <a
-  href={matchSeoPath({
-    ...match,
-    home_name: homeName,
-    away_name: awayName,
-  })}
-  className="ui-match-card ui-match-card--result-sheet"
-  aria-label={`${homeName} vs ${awayName}, open match centre`}
->
-      <div className="ui-match-card__media">
-        <span
-          className={`ui-match-card__badge-wrap${
-            winner === 'home' ? ' ui-match-card__badge-wrap--winner' : ''
-          }`}
-          aria-label={winner === 'home' ? 'Winner' : undefined}
-        >
-          <TeamLogoBadge logoUrl={home?.logo_url ?? null} />
-          {winner === 'home' ? (
-            <span className="ui-match-card__cup" aria-hidden title="Winner">
-              🏆
-            </span>
-          ) : null}
-        </span>
+      href={matchSeoPath({
+        ...match,
+        home_name: homeName,
+        away_name: awayName,
+      })}
+      className={`ui-match-card${compact ? ' ui-match-card--compact' : ''}`}
+      aria-label={`${homeName} vs ${awayName}, open match centre`}
+    >
+      <div className="ui-match-card__media entity-thumb-card__media--duo">
+        <TeamLogoBadge
+          logoUrl={home?.logo_url ?? null}
+          isWinner={winner === 'home'}
+        />
         <span className="ui-match-card__vs">vs</span>
+        <TeamLogoBadge
+          logoUrl={away?.logo_url ?? null}
+          isWinner={winner === 'away'}
+        />
+      </div>
+
+      <div className="ui-match-card__body">
+        <p className="ui-match-card__competition">
+          {competitionLine || 'NPL fixture'}
+        </p>
+
+        {compact ? (
+          <h3 className="ui-match-card__title">
+            {homeName} vs {awayName}
+          </h3>
+        ) : (
+          <h3 className="ui-match-card__title">
+            {homeName} vs {awayName}
+          </h3>
+        )}
+
+        <p className="ui-match-card__meta">
+          {formatMatchDate(match.match_date)}
+          {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
+          <br />
+          {match.venue ?? 'Venue TBC'}
+        </p>
+
+        {showScore && scoreline ? (
+          <p className="ui-match-card__scoreline">{scoreline}</p>
+        ) : null}
+      </div>
+
+      <div className="ui-match-card__footer">
         <span
-          className={`ui-match-card__badge-wrap${
-            winner === 'away' ? ' ui-match-card__badge-wrap--winner' : ''
-          }`}
-          aria-label={winner === 'away' ? 'Winner' : undefined}
+          className={`ui-match-card__status-pill ${matchStatusPillClass(
+            match.status,
+          )}`}
         >
-          <TeamLogoBadge logoUrl={away?.logo_url ?? null} />
-          {winner === 'away' ? (
-            <span className="ui-match-card__cup" aria-hidden title="Winner">
-              🏆
-            </span>
-          ) : null}
+          {formatStatusLabel(match.status)}
         </span>
       </div>
-     <div className="ui-match-card__body">
-  <p className="ui-match-card__competition">
-    {competitionLine || 'NPL fixture'}
-  </p>
-
-  <h3 className="ui-match-card__title">
-    {homeName} vs {awayName}
-  </h3>
-
-  <p className="ui-match-card__meta">
-    {formatMatchDate(match.match_date)}
-    {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
-    <br />
-    {match.venue ?? 'Venue TBC'}
-  </p>
-
-  {showScore && scoreline ? (
-    <p className="ui-match-card__scoreline">{scoreline}</p>
-  ) : null}
-</div>
-      </div>
-     <div className="ui-match-card__footer">
-  <span
-    className={`ui-match-card__status-pill ${matchStatusPillClass(match.status)}`}
-  >
-    {formatStatusLabel(match.status)}
-  </span>
-</div>
     </a>
   )
 }
