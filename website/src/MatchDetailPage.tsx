@@ -449,8 +449,6 @@ export default function MatchDetailPage() {
               </div>
             </div>
 
-            <SocialShareButtons title={title} text={shareText} />
-
             <div className="match-centre-panels__col">
               {showResultBlock ? (
                 <section className="match-centre-panel match-centre-panel--result">
@@ -517,6 +515,7 @@ export default function MatchDetailPage() {
                     </div>
                   ) : null}
                 </section>
+                 <SocialShareButtons title={title} text={shareText} />
               ) : (
                 <p className="match-centre-empty-hint">
                   No result or scorecard yet.
