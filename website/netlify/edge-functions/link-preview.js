@@ -201,6 +201,36 @@ function matchShareDescription(match, homeName, awayName) {
   )
 }
 
+async function fetchTeamNameById(teamId) {
+  if (!teamId) {
+    return null
+  }
+
+  const data = await fetchApi('/public/teams?page=1&page_size=500')
+
+  const teams = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.items)
+      ? data.items
+      : []
+
+  const team = teams.find((t) => Number(t.id) === Number(teamId))
+
+  return team?.name || null
+}
+
+async function resolvedTeamName(match, side) {
+  const team = side === 'home' ? match.home_team : match.away_team
+  const fallbackId = side === 'home' ? match.home_team_id : match.away_team_id
+
+  return (
+    team?.name ||
+    match[`${side}_team_name`] ||
+    await fetchTeamNameById(fallbackId) ||
+    `Team ${fallbackId}`
+  )
+}
+
 async function previewForMatch(matchId, request) {
   const match = await fetchApi(`/public/matches/${encodeURIComponent(matchId)}`)
 
@@ -208,8 +238,8 @@ async function previewForMatch(matchId, request) {
     return defaultPreview(request)
   }
 
-  const homeName = teamName(match, 'home')
-  const awayName = teamName(match, 'away')
+  const homeName = await resolvedTeamName(match, 'home')
+  const awayName = await resolvedTeamName(match, 'away')
   const result = match.result
 
   const title =
