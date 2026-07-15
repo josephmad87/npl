@@ -130,8 +130,27 @@ export function ResultMatchCard({
   const winner = matchWinnerSide(match)
   const scoreboard = buildInningScoreboard(match)
   const headline = matchResultHeadline(match, { homeName, awayName })
-  const scoreline = matchResultSummaryLine(match)
   const competitionLine = matchCompetitionLine(match)
+  const matchWithSeason = match as MatchLite & {
+  season?: {
+    name?: string | null
+    league?: {
+      name?: string | null
+    } | null
+  } | null
+  season_name?: string | null
+  league_name?: string | null
+}
+
+const leagueLine =
+  matchWithSeason.season?.league?.name ??
+  matchWithSeason.league_name ??
+  competitionLine
+
+const seasonLine =
+  matchWithSeason.season?.name ??
+  matchWithSeason.season_name ??
+  ''
 
   const resultWithPlayer = match.result as
     | {
@@ -198,16 +217,22 @@ export function ResultMatchCard({
             </div>
           </div>
 
-          <div className="ui-match-card__result-fixture-info">
-            <p className="ui-match-card__competition ui-match-card__competition--fixture">
-              {(competitionLine || 'NPL match').toUpperCase()}
-            </p>
-            <p className="ui-match-card__meta">
-              {formatMatchDate(match.match_date)}
-              {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
-              <br />
-              {match.venue ?? 'Venue TBC'}
-            </p>
+          <p className="ui-match-card__competition ui-match-card__competition--fixture">
+  {(leagueLine || 'NPL match').toUpperCase()}
+</p>
+
+{seasonLine ? (
+  <p className="ui-match-card__season-line">
+    {seasonLine.toUpperCase()}
+  </p>
+) : null}
+
+<p className="ui-match-card__meta">
+  {formatMatchDate(match.match_date)}
+  {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
+  <br />
+  {match.venue ?? 'Venue TBC'}
+</p>
           </div>
         </div>
 
@@ -215,10 +240,6 @@ export function ResultMatchCard({
           <p className="ui-match-card__result-label">Result</p>
 
           <h3 className="ui-match-card__headline">{headline}</h3>
-
-          {scoreline ? (
-            <p className="ui-match-card__scoreline">{scoreline}</p>
-          ) : null}
 
           {scoreboard.merged ? (
             <p className="ui-match-card__merged-score">{scoreboard.merged}</p>
@@ -229,10 +250,12 @@ export function ResultMatchCard({
             </div>
           )}
 
-          <p className="ui-match-card__player-of-match">
-            <span>Player of the match</span>
-            <strong>{playerOfMatch ?? '—'}</strong>
-          </p>
+         {playerOfMatch ? (
+  <p className="ui-match-card__player-of-match">
+    <span>Player of the match</span>
+    <strong>{playerOfMatch}</strong>
+  </p>
+) : null}
 
           <span className="ui-match-card__match-centre-button">
             Match centre
