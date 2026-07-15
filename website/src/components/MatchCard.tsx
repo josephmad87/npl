@@ -116,7 +116,7 @@ export function ResultMatchCard({
     away_name: awayName,
   })}
   className="ui-match-card ui-match-card--result-sheet"
-  aria-label={`${homeName} vs ${awayName}, ${headline}, open match centre`}
+  aria-label={`${homeName} vs ${awayName}, open match centre`}
 >
       <div className="ui-match-card__result-grid">
         <div className="ui-match-card__scoreboard" aria-label="Scoreboard">
@@ -230,7 +230,7 @@ export function MatchCard({
     away_name: awayName,
   })}
   className="ui-match-card ui-match-card--result-sheet"
-  aria-label={`${homeName} vs ${awayName}, ${headline}, open match centre`}
+  aria-label={`${homeName} vs ${awayName}, open match centre`}
 >
       <div className="ui-match-card__media">
         <span
