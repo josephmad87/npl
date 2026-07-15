@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { formatMatchDate, formatMatchDateTimeForResultCard, toTimeShort } from '../lib/formatters'
+import { matchSeoPath } from '../lib/matchUrls'
 import {
   buildInningScoreboard,
   matchCompetitionLine,
@@ -109,12 +109,15 @@ export function ResultMatchCard({
   const toss = match.toss_info?.trim()
 
   return (
-    <Link
-      to="/matches/$matchId"
-      params={{ matchId: String(match.id) }}
-      className="ui-match-card ui-match-card--result-sheet"
-      aria-label={`${homeName} vs ${awayName}, ${headline}, open match centre`}
-    >
+   <a
+  href={matchSeoPath({
+    ...match,
+    home_name: homeName,
+    away_name: awayName,
+  })}
+  className="ui-match-card ui-match-card--result-sheet"
+  aria-label={`${homeName} vs ${awayName}, ${headline}, open match centre`}
+>
       <div className="ui-match-card__result-grid">
         <div className="ui-match-card__scoreboard" aria-label="Scoreboard">
           <div className="ui-match-card__scoreboard-main">
@@ -182,7 +185,7 @@ export function ResultMatchCard({
           <span className="ui-match-card__cta">Match centre</span>
         </div>
       </div>
-    </Link>
+    </a>
   )
 }
 
@@ -220,11 +223,15 @@ export function MatchCard({
   const showScore = scoreline != null && scoreline.length > 0
 
   return (
-    <Link
-      to="/matches/$matchId"
-      params={{ matchId: String(match.id) }}
-      className={`ui-match-card ui-match-card--duo ui-match-card--${mode}${compact ? ' ui-match-card--compact' : ''}`}
-    >
+    <a
+  href={matchSeoPath({
+    ...match,
+    home_name: homeName,
+    away_name: awayName,
+  })}
+  className="ui-match-card ui-match-card--result-sheet"
+  aria-label={`${homeName} vs ${awayName}, ${headline}, open match centre`}
+>
       <div className="ui-match-card__media">
         <span
           className={`ui-match-card__badge-wrap${
@@ -300,6 +307,6 @@ export function MatchCard({
           {formatStatusLabel(match.status)}
         </span>
       </div>
-    </Link>
+    </a>
   )
 }
