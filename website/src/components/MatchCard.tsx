@@ -283,9 +283,9 @@ export function MatchCard({
       </div>
 
       <div className="ui-match-card__body">
-        <p className="ui-match-card__competition">
-          {competitionLine || 'NPL fixture'}
-        </p>
+        <p className="ui-match-card__competition ui-match-card__competition--fixture">
+  {(seasonLine || 'NPL fixture').toUpperCase()}
+</p>
 
         {compact ? (
           <h3 className="ui-match-card__title">
