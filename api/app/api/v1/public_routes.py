@@ -100,14 +100,17 @@ def get_team(slug: str, db: Session = Depends(get_db)) -> TeamOut:
         if cap is not None and cap.profile_photo_url:
             out = out.model_copy(update={"captain_profile_photo_url": cap.profile_photo_url})
     return out
-
-
 @router.get("/teams/{slug}/season-records", response_model=list[TeamSeasonRecordOut])
 def team_season_records(slug: str, db: Session = Depends(get_db)) -> list[TeamSeasonRecordOut]:
     """Wins / losses / no-result counts from completed matches, grouped by season."""
     team = db.scalar(select(Team).where(Team.slug == slug, Team.status == "active"))
+
     if team is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "not_found", "message": "Team not found"})
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "not_found", "message": "Team not found"},
+        )
+
     stmt = (
         select(Match)
         .options(
@@ -120,39 +123,48 @@ def team_season_records(slug: str, db: Session = Depends(get_db)) -> list[TeamSe
             or_(Match.home_team_id == team.id, Match.away_team_id == team.id),
         )
     )
+
     matches = db.scalars(stmt).all()
     by_season: dict[int, list[Match]] = defaultdict(list)
+
     for m in matches:
         if m.season_id is not None:
             by_season[m.season_id].append(m)
 
     records: list[TeamSeasonRecordOut] = []
+
     for _sid, ms in by_season.items():
         season = ms[0].season
+
         if season is None:
             continue
+
         league = season.league
+
         if league is None:
             continue
+
         wins = losses = no_result = 0
 
-for m in ms:
-    res = m.result
-    outcome = getattr(res, "outcome", "win") if res is not None else "no_result"
-    wtid = res.winning_team_id if res is not None else None
+        for m in ms:
+            res = m.result
+            outcome = getattr(res, "outcome", "win") if res is not None else "no_result"
+            wtid = res.winning_team_id if res is not None else None
 
-    if outcome == "no_result":
-        no_result += 1
-    elif outcome == "tie":
-        # Tie is not No Result.
-        # We will add a separate ties field after updating app/schemas/teams.py.
-        pass
-    elif wtid == team.id:
-        wins += 1
-    elif wtid is not None:
-        losses += 1
-    else:
-        no_result += 1
+            if outcome == "no_result":
+                no_result += 1
+            elif outcome == "tie":
+                # Tie is different from No Result.
+                # This older team-season record response has no ties field yet,
+                # so do not count ties as losses or no results here.
+                pass
+            elif wtid == team.id:
+                wins += 1
+            elif wtid is not None:
+                losses += 1
+            else:
+                no_result += 1
+
         records.append(
             TeamSeasonRecordOut(
                 league_id=league.id,
@@ -174,6 +186,7 @@ for m in ms:
         return (r.league_name.lower(), -start.toordinal())
 
     records.sort(key=sort_key)
+
     return records
 
 
