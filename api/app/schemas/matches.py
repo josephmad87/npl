@@ -89,6 +89,7 @@ class MatchPlayerStatOut(ORMModel):
 
 
 class MatchResultIn(BaseModel):
+    outcome: str = Field(default="win", pattern="^(win|tie|no_result)$")
     winning_team_id: int | None = None
     batting_first_team_id: int | None = None
     margin_text: str | None = None
@@ -114,6 +115,7 @@ class MatchResultIn(BaseModel):
 class MatchResultOut(ORMModel):
     id: int
     match_id: int
+    outcome: str = "win"
     winning_team_id: int | None
     batting_first_team_id: int | None = None
     margin_text: str | None

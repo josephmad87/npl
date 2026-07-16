@@ -314,6 +314,7 @@ function MatchDetailPage() {
   if (resultScoreline) headerDescParts.push(resultScoreline)
 
   const headerWinner = matchWinnerSide(match)
+  const readonlyResultOutcome = formatMatchResultOutcome(match)
 
   return (
     <>
@@ -772,7 +773,13 @@ function MatchDetailPage() {
                   </div>
                   {match.result ? (
                     <div className="match-readonly-result__summary">
-                      {match.result.score_summary ? (
+  {readonlyResultOutcome ? (
+    <p>
+      <strong>Outcome:</strong> {readonlyResultOutcome}
+    </p>
+  ) : null}
+
+  {match.result.score_summary ? (
                         <p>
                           <strong>Score:</strong> {match.result.score_summary}
                         </p>
