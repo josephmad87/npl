@@ -44,6 +44,42 @@ function fixtureStatusOptions(current: string): readonly (typeof STATUSES)[numbe
   return STATUSES.filter((s) => s !== 'completed')
 }
 
+function fixtureStatusOptions(current: string): readonly (typeof STATUSES)[number][] {
+  if (current === 'completed') return STATUSES
+  return STATUSES.filter((s) => s !== 'completed')
+}
+
+type MatchResultOutcome = 'win' | 'tie' | 'no_result'
+
+function matchResultOutcome(match: MatchDto): MatchResultOutcome | null {
+  const result = match.result as
+    | (NonNullable<MatchDto['result']> & { outcome?: string | null })
+    | null
+    | undefined
+
+  const outcome = String(result?.outcome ?? '').trim().toLowerCase()
+
+  if (outcome === 'win' || outcome === 'tie' || outcome === 'no_result') {
+    return outcome
+  }
+
+  if (result?.winning_team_id != null) {
+    return 'win'
+  }
+
+  return null
+}
+
+function formatMatchResultOutcome(match: MatchDto): string | null {
+  const outcome = matchResultOutcome(match)
+
+  if (outcome === 'win') return 'Win'
+  if (outcome === 'tie') return 'Tie'
+  if (outcome === 'no_result') return 'No result'
+
+  return null
+}
+
 function MatchDetailPage() {
   const { matchId } = Route.useParams()
   const mid = Number(matchId)
@@ -283,6 +319,7 @@ function MatchDetailPage() {
   if (resultScoreline) headerDescParts.push(resultScoreline)
 
   const headerWinner = matchWinnerSide(match)
+  const readonlyResultOutcome = formatMatchResultOutcome(match)
 
   return (
     <>
@@ -741,7 +778,13 @@ function MatchDetailPage() {
                   </div>
                   {match.result ? (
                     <div className="match-readonly-result__summary">
-                      {match.result.score_summary ? (
+  {readonlyResultOutcome ? (
+    <p>
+      <strong>Outcome:</strong> {readonlyResultOutcome}
+    </p>
+  ) : null}
+
+  {match.result.score_summary ? (
                         <p>
                           <strong>Score:</strong> {match.result.score_summary}
                         </p>
