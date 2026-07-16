@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/@nplzimbabwe'
 const X_PROFILE_URL = 'https://x.com/nplzimbabwe'
+const X_TIMELINE_URL = 'https://twitter.com/nplzimbabwe'
 
 const YOUTUBE_EMBED_URL =
   'https://www.youtube.com/embed/videoseries?list=UUZK0q-HMFz_OnmJi3u5mpiw&rel=0'
@@ -11,99 +12,53 @@ declare global {
     twttr?: {
       widgets?: {
         load: (element?: HTMLElement | null) => void
-        createTimeline: (
-          source: { sourceType: 'profile'; screenName: string },
-          element: HTMLElement,
-          options?: {
-            height?: number
-            chrome?: string
-            theme?: 'light' | 'dark'
-            dnt?: boolean
-          },
-        ) => Promise<HTMLElement>
       }
     }
   }
 }
 
-function loadTwitterWidgets(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.twttr?.widgets?.createTimeline) {
-      resolve()
-      return
+export function NplTvSection() {
+  const twitterRef = useRef<HTMLDivElement | null>(null)
+  const [xFailed, setXFailed] = useState(false)
+
+  useEffect(() => {
+    const element = twitterRef.current
+
+    if (!element) return
+
+    setXFailed(false)
+
+    const loadTimeline = () => {
+      window.twttr?.widgets?.load(element)
     }
 
     const existingScript = document.querySelector<HTMLScriptElement>(
-      'script#twitter-wjs',
+      'script[src="https://platform.twitter.com/widgets.js"]',
     )
 
     if (existingScript) {
-      existingScript.addEventListener('load', () => resolve(), { once: true })
-      existingScript.addEventListener('error', () => reject(new Error('X script failed to load')), {
-        once: true,
-      })
-      return
+      loadTimeline()
+    } else {
+      const script = document.createElement('script')
+      script.src = 'https://platform.twitter.com/widgets.js'
+      script.async = true
+      script.charset = 'utf-8'
+      script.onload = loadTimeline
+      script.onerror = () => setXFailed(true)
+
+      document.body.appendChild(script)
     }
 
-    const script = document.createElement('script')
-    script.id = 'twitter-wjs'
-    script.src = 'https://platform.twitter.com/widgets.js'
-    script.async = true
-    script.charset = 'utf-8'
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('X script failed to load'))
+    const timer = window.setTimeout(() => {
+      const hasIframe = Boolean(element.querySelector('iframe'))
 
-    document.body.appendChild(script)
-  })
-}
-
-export function NplTvSection() {
-  const twitterRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function renderTimeline() {
-      const element = twitterRef.current
-
-      if (!element) {
-        return
+      if (!hasIframe) {
+        setXFailed(true)
       }
-
-      element.innerHTML = ''
-
-      try {
-        await loadTwitterWidgets()
-
-        if (cancelled || !window.twttr?.widgets?.createTimeline) {
-          return
-        }
-
-        await window.twttr.widgets.createTimeline(
-          {
-            sourceType: 'profile',
-            screenName: 'nplzimbabwe',
-          },
-          element,
-          {
-            height: 430,
-            chrome: 'nofooter noborders transparent',
-            theme: 'light',
-            dnt: true,
-          },
-        )
-      } catch {
-        if (!cancelled) {
-          element.innerHTML =
-            '<p class="npl-tv-twitter__fallback">Unable to load the X feed here. Please use the Open X button above.</p>'
-        }
-      }
-    }
-
-    void renderTimeline()
+    }, 6000)
 
     return () => {
-      cancelled = true
+      window.clearTimeout(timer)
     }
   }, [])
 
@@ -151,7 +106,28 @@ export function NplTvSection() {
           </div>
 
           <div ref={twitterRef} className="npl-tv-twitter">
-            <p className="npl-tv-twitter__fallback">Loading X feed…</p>
+            {xFailed ? (
+              <div className="npl-tv-twitter-fallback">
+                <p>
+                  The X feed could not load inside the website. This can happen
+                  when X embeds are blocked by browser privacy settings, ad
+                  blockers, or X widget restrictions.
+                </p>
+                <a href={X_PROFILE_URL} target="_blank" rel="noreferrer">
+                  View latest NPL posts on X
+                </a>
+              </div>
+            ) : (
+              <a
+                className="twitter-timeline"
+                data-height="430"
+                data-theme="light"
+                data-chrome="nofooter noborders transparent"
+                href={X_TIMELINE_URL}
+              >
+                Posts by NPL Zimbabwe
+              </a>
+            )}
           </div>
         </article>
       </div>
