@@ -359,73 +359,73 @@ export function LeagueSeasonHub({
     <div className="league-standings-panel">
       <div className="league-standings-scroll" role="region" aria-label="Points table">
         <table className="league-standings-table">
-          <thead>
-            <tr>
-              <th>Pos</th>
-              <th>Team</th>
-              <th>Mat</th>
-              <th>Won</th>
-              <th>Lost</th>
-              <th>Tied</th>
-              <th>NR</th>
-              <th>Form</th>
-              <th>NRR</th>
-              <th>For</th>
-              <th>Against</th>
-              <th>Pts</th>
-            </tr>
-          </thead>
-          <tbody>
-            {standingsRows.map((row, idx) => {
-              const t = teamsMap[row.teamId]
-              const form = teamRecentForm(resultMatches, row.teamId)
+         <thead>
+  <tr>
+    <th>Pos</th>
+    <th>Team</th>
+    <th>Mat</th>
+    <th>Won</th>
+    <th>Lost</th>
+    <th>Tied</th>
+    <th>NR</th>
+    <th>For</th>
+    <th>Against</th>
+    <th>NRR</th>
+    <th>Pts</th>
+    <th>Form</th>
+  </tr>
+</thead>
+       <tbody>
+  {standingsRows.map((row, idx) => {
+    const t = teamsMap[row.teamId]
+    const form = teamRecentForm(resultMatches, row.teamId)
 
-              return (
-                <tr key={row.teamId}>
-                  <td>{idx + 1}</td>
-                  <td className="league-standings-table__team">
-                    {t?.name ?? `Team #${row.teamId}`}
-                  </td>
-                  <td>{row.played}</td>
-                  <td>{row.won}</td>
-                  <td>{row.lost}</td>
-                  <td>{row.tied}</td>
-                  <td>{row.nr}</td>
-                  <td className="league-standings-table__form">
-                    {form.length > 0 ? (
-                      form.map((item, formIndex) => (
-                        <span
-                          key={`${row.teamId}-${formIndex}-${item}`}
-                          className={`league-form-pill league-form-pill--${item.toLowerCase()}`}
-                          title={
-                            item === 'W'
-                              ? 'Win'
-                              : item === 'L'
-                                ? 'Loss'
-                                : item === 'T'
-                                  ? 'Tie'
-                                  : 'No result'
-                          }
-                        >
-                          {item}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="league-form-empty">—</span>
-                    )}
-                  </td>
-                  <td>{formatStandingsNrr(row.nrr)}</td>
-                  <td className="league-standings-table__ro">
-                    {formatRunsOversLine(row.runsFor, row.ballsFaced)}
-                  </td>
-                  <td className="league-standings-table__ro">
-                    {formatRunsOversLine(row.runsAgainst, row.ballsBowled)}
-                  </td>
-                  <td className="league-standings-table__pts">{row.points}</td>
-                </tr>
-              )
-            })}
-          </tbody>
+    return (
+      <tr key={row.teamId}>
+        <td>{idx + 1}</td>
+        <td className="league-standings-table__team">
+          {t?.name ?? `Team #${row.teamId}`}
+        </td>
+        <td>{row.played}</td>
+        <td>{row.won}</td>
+        <td>{row.lost}</td>
+        <td>{row.tied}</td>
+        <td>{row.nr}</td>
+        <td className="league-standings-table__ro">
+          {formatRunsOversLine(row.runsFor, row.ballsFaced)}
+        </td>
+        <td className="league-standings-table__ro">
+          {formatRunsOversLine(row.runsAgainst, row.ballsBowled)}
+        </td>
+        <td>{formatStandingsNrr(row.nrr)}</td>
+        <td className="league-standings-table__pts">{row.points}</td>
+        <td className="league-standings-table__form">
+          {form.length > 0 ? (
+            form.map((item, formIndex) => (
+              <span
+                key={`${row.teamId}-${formIndex}-${item}`}
+                className={`league-form-pill league-form-pill--${item.toLowerCase()}`}
+                title={
+                  item === 'W'
+                    ? 'Win'
+                    : item === 'L'
+                      ? 'Loss'
+                      : item === 'T'
+                        ? 'Tie'
+                        : 'No result'
+                }
+              >
+                {item}
+              </span>
+            ))
+          ) : (
+            <span className="league-form-empty">—</span>
+          )}
+        </td>
+      </tr>
+    )
+  })}
+</tbody>
         </table>
       </div>
     </div>
