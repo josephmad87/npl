@@ -9,6 +9,7 @@ import { MatchCarousel } from './components/MatchCarousel'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
+import { NplTvSection } from './components/NplTvSection'
 import { SponsorMarquee } from './components/SponsorMarquee'
 import {
   useLatestResults,
@@ -197,6 +198,8 @@ function App() {
           </>
         ) : null}
       </section>
+
+      <NplTvSection />
 
       <FeaturedTeamsCarousel teams={featuredTeams} />
 
