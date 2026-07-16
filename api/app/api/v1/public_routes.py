@@ -135,15 +135,24 @@ def team_season_records(slug: str, db: Session = Depends(get_db)) -> list[TeamSe
         if league is None:
             continue
         wins = losses = no_result = 0
-        for m in ms:
-            res = m.result
-            wtid = res.winning_team_id if res is not None else None
-            if wtid == team.id:
-                wins += 1
-            elif wtid is not None:
-                losses += 1
-            else:
-                no_result += 1
+
+for m in ms:
+    res = m.result
+    outcome = getattr(res, "outcome", "win") if res is not None else "no_result"
+    wtid = res.winning_team_id if res is not None else None
+
+    if outcome == "no_result":
+        no_result += 1
+    elif outcome == "tie":
+        # Tie is not No Result.
+        # We will add a separate ties field after updating app/schemas/teams.py.
+        pass
+    elif wtid == team.id:
+        wins += 1
+    elif wtid is not None:
+        losses += 1
+    else:
+        no_result += 1
         records.append(
             TeamSeasonRecordOut(
                 league_id=league.id,
