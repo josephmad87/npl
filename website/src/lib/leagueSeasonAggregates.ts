@@ -281,6 +281,10 @@ export function computeSeasonStandings(
   matches: MatchLite[],
   teamIds: number[],
 ): StandingRow[] {
+  const WIN_POINTS = 4
+  const TIE_POINTS = 3
+  const NO_RESULT_POINTS = 2
+
   const inSeason = new Set(teamIds)
 
   type Acc = {
@@ -311,8 +315,85 @@ export function computeSeasonStandings(
     })
   }
 
+  function resultSearchText(match: MatchLite): string {
+    const result = match.result as
+      | {
+          margin_text?: string | null
+          score_summary?: string | null
+          innings_breakdown?: string | null
+        }
+      | null
+      | undefined
+
+    return [
+      result?.margin_text,
+      result?.score_summary,
+      result?.innings_breakdown,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+  }
+
+  function resultRuns(match: MatchLite): number[] {
+    const result = match.result as
+      | {
+          score_summary?: string | null
+          innings_breakdown?: string | null
+        }
+      | null
+      | undefined
+
+    const text = result?.innings_breakdown || result?.score_summary || ''
+
+    return text
+      .split(';')
+      .map((part) => {
+        const found = part.match(/\b(\d+)\/\d+\b/)
+        return found ? Number(found[1]) : null
+      })
+      .filter((value): value is number => value != null)
+  }
+
+  function isNoResultMatch(match: MatchLite): boolean {
+    const status = String(match.status ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_')
+
+    const text = resultSearchText(match)
+
+    return (
+      status === 'no_result' ||
+      status === 'nr' ||
+      status === 'abandoned' ||
+      status === 'washed_out' ||
+      /\b(no result|abandoned|washed out)\b/i.test(text)
+    )
+  }
+
+  function isTieMatch(match: MatchLite): boolean {
+    const text = resultSearchText(match)
+
+    if (/\b(tie|tied)\b/i.test(text)) {
+      return true
+    }
+
+    const winnerId = match.result?.winning_team_id ?? null
+    const runs = resultRuns(match)
+
+    return (
+      match.status === 'completed' &&
+      winnerId == null &&
+      runs.length >= 2 &&
+      runs[0] === runs[1]
+    )
+  }
+
   for (const m of matches) {
-    if (m.status !== 'completed') continue
+    const noResultMatch = isNoResultMatch(m)
+
+    if (m.status !== 'completed' && !noResultMatch) continue
 
     const home = m.home_team_id
     const away = m.away_team_id
@@ -327,22 +408,32 @@ export function computeSeasonStandings(
     h.played += 1
     a.played += 1
 
-    const winnerId = m.result?.winning_team_id
+    const winnerId = m.result?.winning_team_id ?? null
+    const tiedMatch = isTieMatch(m)
 
-    if (winnerId == null) {
+    if (noResultMatch) {
       h.nr += 1
       a.nr += 1
+      continue
+    }
+
+    if (tiedMatch) {
+      h.tied += 1
+      a.tied += 1
     } else if (winnerId === home) {
       h.won += 1
       a.lost += 1
     } else if (winnerId === away) {
       a.won += 1
       h.lost += 1
+    } else {
+      h.nr += 1
+      a.nr += 1
+      continue
     }
 
     const homeBatting = battingPlayerTotals(m, home)
     const awayBatting = battingPlayerTotals(m, away)
-
     const homeExtras = teamExtras(m, home)
     const awayExtras = teamExtras(m, away)
 
@@ -354,7 +445,6 @@ export function computeSeasonStandings(
 
     const homeActualBallsFaced =
       awayBowlingBalls > 0 ? awayBowlingBalls : homeBatting.balls
-
     const awayActualBallsFaced =
       homeBowlingBalls > 0 ? homeBowlingBalls : awayBatting.balls
 
@@ -369,7 +459,6 @@ export function computeSeasonStandings(
       homeWicketsLost,
       homeAllottedBalls,
     )
-
     const awayBallsFaced = nrrBallsForInnings(
       awayActualBallsFaced,
       awayWicketsLost,
@@ -403,7 +492,10 @@ export function computeSeasonStandings(
       ballsBowled: 0,
     }
 
-    const points = r.won * 2 + r.tied
+    const points =
+      r.won * WIN_POINTS +
+      r.tied * TIE_POINTS +
+      r.nr * NO_RESULT_POINTS
 
     const nrr = nrrFrom(
       r.runsFor,
