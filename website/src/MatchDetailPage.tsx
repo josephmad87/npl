@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import nplLogoUrl from './assets/logo.png'
 import { ErrorNotice } from './components/ErrorNotice'
+import { publicDisplayMatchStatus } from './lib/matchStatus'
 import { InningsScorecardPanels } from './components/InningsScorecardPanels'
 import { SocialShareButtons } from './components/SocialShareButtons'
 import { Spinner } from './components/Spinner'
@@ -299,6 +300,8 @@ export default function MatchDetailPage() {
     return formatMatchDate(dateToken)
   }, [data])
 
+  const displayStatus = publicDisplayMatchStatus(data?.status, data?.match_date)
+  
   const showResultBlock =
     data != null && (data.result != null || playerStats.length > 0)
   const playersLoading = homePlayersQ.isLoading || awayPlayersQ.isLoading
@@ -438,10 +441,10 @@ export default function MatchDetailPage() {
                     <dd>
                       <span
                         className={`match-centre__status-pill ${matchStatusPillClass(
-                          data.status,
-                        )}`}
+  displayStatus,
+)}`}
                       >
-                        {formatStatusLabel(data.status)}
+                        {formatStatusLabel(displayStatus)}
                       </span>
                     </dd>
                   </div>
