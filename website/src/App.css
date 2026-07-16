@@ -7179,3 +7179,9 @@ table.player-public-table {
     text-align: center;
   }
 }
+.npl-tv-twitter__fallback {
+  margin: 0;
+  padding: 1rem;
+  color: var(--color-muted);
+  font-size: 0.95rem;
+}
