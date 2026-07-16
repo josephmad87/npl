@@ -419,7 +419,7 @@ export function computeSeasonStandings(
       return true
     }
 
-    const winnerId = match.result?.winning_team
+    const winnerId = match.result?.winning_team_id ?? null
 
 
     const runs = resultRuns(match)
