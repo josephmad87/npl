@@ -69,7 +69,7 @@ export function NplTvSection() {
           <div className="npl-tv-elfsight">
             <div
               className="elfsight-app-78fc0cb4-0a99-433d-9e17-f3b641a46c96"
-              data-elfsight-app-lazy
+              data-elfsight-app-lazy=""
             />
           </div>
         </article>
