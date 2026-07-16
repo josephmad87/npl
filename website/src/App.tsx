@@ -10,7 +10,6 @@ import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { NplTvSection } from './components/NplTvSection'
-import { HomeLiveNowSection } from './components/HomeLiveNowSection'
 import { SponsorMarquee } from './components/SponsorMarquee'
 import {
   useLatestResults,
@@ -159,10 +158,7 @@ function App() {
           </article>
         )}
       </section>
-<HomeLiveNowSection
-  matches={[...upcomingFixtures, ...latestResults]}
-  teamsMap={teamsMap}
-/>
+
       <HomeNewsCarousel articles={newsArticles} />
 
       <section className="home-section home-match-carousel-section">
