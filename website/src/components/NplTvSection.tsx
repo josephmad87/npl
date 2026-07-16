@@ -1,47 +1,35 @@
 import { useEffect, useRef } from 'react'
 
 const YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/@nplzimbabwe'
-const X_PROFILE_URL = 'https://twitter.com/nplzimbabwe'
-const X_PROFILE_DISPLAY_URL = 'https://x.com/nplzimbabwe'
+const X_PROFILE_URL = 'https://x.com/nplzimbabwe'
 
-// Latest uploads playlist for NPL Zimbabwe.
-// This is more reliable than live_stream because it still shows videos when the channel is not live.
 const YOUTUBE_EMBED_URL =
   'https://www.youtube.com/embed/videoseries?list=UUZK0q-HMFz_OnmJi3u5mpiw&rel=0'
-
-// Later, for a live-only player, change the line above to:
-// const YOUTUBE_EMBED_URL =
-//   'https://www.youtube.com/embed/live_stream?channel=UCZK0q-HMFz_OnmJi3u5mpiw&autoplay=0&rel=0'
 
 declare global {
   interface Window {
     twttr?: {
       widgets?: {
         load: (element?: HTMLElement | null) => void
+        createTimeline: (
+          source: { sourceType: 'profile'; screenName: string },
+          element: HTMLElement,
+          options?: {
+            height?: number
+            chrome?: string
+            theme?: 'light' | 'dark'
+            dnt?: boolean
+          },
+        ) => Promise<HTMLElement>
       }
     }
   }
 }
 
-export function NplTvSection() {
-  const twitterRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const element = twitterRef.current
-
-    if (!element) {
-      return
-    }
-
-    let cancelled = false
-
-    const renderTimeline = () => {
-      if (cancelled) return
-      window.twttr?.widgets?.load(element)
-    }
-
-    if (window.twttr?.widgets?.load) {
-      renderTimeline()
+function loadTwitterWidgets(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.twttr?.widgets?.createTimeline) {
+      resolve()
       return
     }
 
@@ -50,12 +38,11 @@ export function NplTvSection() {
     )
 
     if (existingScript) {
-      existingScript.addEventListener('load', renderTimeline, { once: true })
-
-      return () => {
-        cancelled = true
-        existingScript.removeEventListener('load', renderTimeline)
-      }
+      existingScript.addEventListener('load', () => resolve(), { once: true })
+      existingScript.addEventListener('error', () => reject(new Error('X script failed to load')), {
+        once: true,
+      })
+      return
     }
 
     const script = document.createElement('script')
@@ -63,9 +50,57 @@ export function NplTvSection() {
     script.src = 'https://platform.twitter.com/widgets.js'
     script.async = true
     script.charset = 'utf-8'
-    script.onload = renderTimeline
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('X script failed to load'))
 
     document.body.appendChild(script)
+  })
+}
+
+export function NplTvSection() {
+  const twitterRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function renderTimeline() {
+      const element = twitterRef.current
+
+      if (!element) {
+        return
+      }
+
+      element.innerHTML = ''
+
+      try {
+        await loadTwitterWidgets()
+
+        if (cancelled || !window.twttr?.widgets?.createTimeline) {
+          return
+        }
+
+        await window.twttr.widgets.createTimeline(
+          {
+            sourceType: 'profile',
+            screenName: 'nplzimbabwe',
+          },
+          element,
+          {
+            height: 430,
+            chrome: 'nofooter noborders transparent',
+            theme: 'light',
+            dnt: true,
+          },
+        )
+      } catch {
+        if (!cancelled) {
+          element.innerHTML =
+            '<p class="npl-tv-twitter__fallback">Unable to load the X feed here. Please use the Open X button above.</p>'
+        }
+      }
+    }
+
+    void renderTimeline()
 
     return () => {
       cancelled = true
@@ -110,21 +145,13 @@ export function NplTvSection() {
               <p className="npl-tv-card__eyebrow">Latest posts</p>
               <h3>NPL Zimbabwe on X</h3>
             </div>
-            <a href={X_PROFILE_DISPLAY_URL} target="_blank" rel="noreferrer">
+            <a href={X_PROFILE_URL} target="_blank" rel="noreferrer">
               Open X
             </a>
           </div>
 
           <div ref={twitterRef} className="npl-tv-twitter">
-            <a
-              className="twitter-timeline"
-              data-height="430"
-              data-theme="light"
-              data-chrome="nofooter noborders transparent"
-              href={X_PROFILE_URL}
-            >
-              Posts by NPL Zimbabwe
-            </a>
+            <p className="npl-tv-twitter__fallback">Loading X feed…</p>
           </div>
         </article>
       </div>
