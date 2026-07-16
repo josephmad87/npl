@@ -1232,7 +1232,6 @@ def admin_recompute_player_stats(
     db.commit()
     return {"updated": count}
 
-
 @router.post("/matches/{match_id}/result", response_model=MatchDetailOut)
 def admin_set_match_result(
     match_id: int,
@@ -1245,59 +1244,134 @@ def admin_set_match_result(
         .options(joinedload(Match.result), selectinload(Match.player_stats))
         .where(Match.id == match_id),
     )
+
     if m is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    wt = body.winning_team_id
-    if wt is not None and wt not in (m.home_team_id, m.away_team_id):
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Match not found"},
+        )
+
+    outcome = (body.outcome or "win").strip().lower()
+
+    if outcome not in {"win", "tie", "no_result"}:
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": "winning_team_id must be home or away team"},
+            detail={
+                "code": "validation",
+                "message": "outcome must be one of: win, tie, no_result",
+            },
         )
+
+    wt = body.winning_team_id
+
+    if outcome == "win":
+        if wt is None:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "validation",
+                    "message": "winning_team_id is required when outcome is win",
+                },
+            )
+
+        if wt not in (m.home_team_id, m.away_team_id):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "validation",
+                    "message": "winning_team_id must be home or away team",
+                },
+            )
+    else:
+        wt = None
+
     bft = body.batting_first_team_id
+
     if bft is not None and bft not in (m.home_team_id, m.away_team_id):
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": "batting_first_team_id must be home or away team"},
+            detail={
+                "code": "validation",
+                "message": "batting_first_team_id must be home or away team",
+            },
         )
+
     if body.player_of_match_player_id is not None:
         p = db.get(Player, body.player_of_match_player_id)
+
         if p is None:
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Invalid player_of_match_player_id"})
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "validation",
+                    "message": "Invalid player_of_match_player_id",
+                },
+            )
+
     affected_player_ids = affected_player_ids_for_match(db, m.id)
     stats_in = body.player_stats
+
     affected_player_ids.update(s.player_id for s in stats_in)
+
     if body.player_of_match_player_id is not None:
         affected_player_ids.add(body.player_of_match_player_id)
+
     pids = [s.player_id for s in stats_in]
+
     if len(pids) != len(set(pids)):
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": "Duplicate player_id in player_stats"},
+            detail={
+                "code": "validation",
+                "message": "Duplicate player_id in player_stats",
+            },
         )
+
     for row in stats_in:
         if row.team_id not in (m.home_team_id, m.away_team_id):
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "Each player_stats.team_id must be the match home or away team"},
+                detail={
+                    "code": "validation",
+                    "message": "Each player_stats.team_id must be the match home or away team",
+                },
             )
+
         if db.get(Player, row.player_id) is None:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": f"Unknown player_id {row.player_id} in player_stats"},
+                detail={
+                    "code": "validation",
+                    "message": f"Unknown player_id {row.player_id} in player_stats",
+                },
             )
 
-    res = m.result
     result_payload = body.model_dump(exclude={"player_stats"})
+    result_payload["outcome"] = outcome
+    result_payload["winning_team_id"] = wt
+
+    if outcome == "tie" and not result_payload.get("margin_text"):
+        result_payload["margin_text"] = "Match tied"
+
+    if outcome == "no_result" and not result_payload.get("margin_text"):
+        result_payload["margin_text"] = "No result"
+
+    res = m.result
+
     if res is None:
         res = MatchResult(match_id=m.id, **result_payload)
         db.add(res)
     else:
         for k, v in result_payload.items():
             setattr(res, k, v)
+
     m.status = "completed"
+
     db.execute(delete(MatchPlayerStat).where(MatchPlayerStat.match_id == m.id))
+
     for row in stats_in:
         ovr = normalize_cricket_overs(row.overs)
+
         db.add(
             MatchPlayerStat(
                 match_id=m.id,
@@ -1321,17 +1395,22 @@ def admin_set_match_result(
                 notes=row.notes,
             )
         )
+
     recompute_player_career_stats(db, affected_player_ids)
+
     db.commit()
+
     write_audit(
         db,
         actor_user_id=actor.id,
         action="result_set",
         entity_type="match",
         entity_id=m.id,
-        summary=result_payload.get("score_summary"),
+        summary=result_payload.get("score_summary") or result_payload.get("margin_text"),
     )
+
     db.commit()
+
     m2 = db.scalar(
         select(Match)
         .options(
@@ -1343,6 +1422,7 @@ def admin_set_match_result(
         )
         .where(Match.id == match_id),
     )
+
     return m2  # type: ignore[return-value]
 
 
