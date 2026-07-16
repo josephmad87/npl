@@ -61,6 +61,7 @@ class MatchResult(Base):
     innings_breakdown: Mapped[str | None] = mapped_column(Text)
     top_performers: Mapped[str | None] = mapped_column(Text)
     player_of_match_player_id: Mapped[int | None] = mapped_column(ForeignKey("players.id", ondelete="SET NULL"))
+    outcome: Mapped[str] = mapped_column(String(32), default="win", nullable=False, index=True)
     result_status: Mapped[str] = mapped_column(String(64), default="official", nullable=False)
     match_report: Mapped[str | None] = mapped_column(Text)
     home_allotted_overs: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("40.0"), nullable=False,)
