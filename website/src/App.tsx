@@ -62,6 +62,23 @@ function App() {
   })
 
   const homepageSponsors = sponsors.filter((sponsor) => sponsor.team_id == null)
+    const todaysFixtures = useMemo(() => {
+    const today = new Date()
+    const todayKey = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0'),
+    ].join('-')
+
+    return upcomingFixtures
+      .filter((match) => {
+        const matchDate = String(match.match_date ?? match.start_time ?? '').slice(0, 10)
+        const status = String(match.status ?? '').toLowerCase()
+
+        return matchDate === todayKey || status === 'live'
+      })
+      .slice(0, 6)
+  }, [upcomingFixtures])
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
@@ -156,6 +173,33 @@ function App() {
               </p>
             </div>
           </article>
+        )}
+      </section>
+
+            <section className="home-section home-match-carousel-section home-today-section">
+        {todaysFixtures.length > 0 ? (
+          <MatchCarousel
+            title="Live Now / Today’s Matches"
+            linkTo="/fixtures"
+            matches={todaysFixtures}
+            teamsMap={teamsMap}
+            mode="fixture"
+          />
+        ) : (
+          <>
+            <SectionHeader title="Live Now / Today’s Matches" linkTo="/fixtures" />
+            <div className="home-today-empty">
+              <div>
+                <p className="home-today-empty__eyebrow">No live matches right now</p>
+                <h3>Check upcoming NPL fixtures</h3>
+                <p>
+                  There are no matches scheduled for today. View the full fixtures list
+                  for upcoming games.
+                </p>
+              </div>
+              <Link to="/fixtures">View fixtures</Link>
+            </div>
+          </>
         )}
       </section>
 
