@@ -178,8 +178,8 @@ function App() {
 
       <HomeNewsCarousel articles={newsArticles} />
 
-            {todaysFixtures.length > 0 ? (
-        <section className="home-section home-match-carousel-section home-today-section">
+              <section className="home-section home-match-carousel-section home-today-section">
+        {todaysFixtures.length > 0 ? (
           <MatchCarousel
             title="Live Now / Today’s Matches"
             linkTo="/fixtures"
@@ -187,8 +187,23 @@ function App() {
             teamsMap={teamsMap}
             mode="fixture"
           />
-        </section>
-      ) : null}
+        ) : (
+          <>
+            <SectionHeader title="Live Now / Today’s Matches" linkTo="/fixtures" />
+            <div className="home-today-empty">
+              <div>
+                <p className="home-today-empty__eyebrow">No live matches right now</p>
+                <h3>Check upcoming NPL fixtures</h3>
+                <p>
+                  There are no matches scheduled for today. View the full fixtures list
+                  for upcoming games.
+                </p>
+              </div>
+              <Link to="/fixtures">View fixtures</Link>
+            </div>
+          </>
+        )}
+      </section>
 
       <section className="home-section home-match-carousel-section">
         {upcomingFixtures.length > 0 ? (
