@@ -100,6 +100,7 @@ def get_team(slug: str, db: Session = Depends(get_db)) -> TeamOut:
         if cap is not None and cap.profile_photo_url:
             out = out.model_copy(update={"captain_profile_photo_url": cap.profile_photo_url})
     return out
+
 @router.get("/teams/{slug}/season-records", response_model=list[TeamSeasonRecordOut])
 def team_season_records(slug: str, db: Session = Depends(get_db)) -> list[TeamSeasonRecordOut]:
     """Wins / losses / no-result counts from completed matches, grouped by season."""
@@ -188,7 +189,6 @@ def team_season_records(slug: str, db: Session = Depends(get_db)) -> list[TeamSe
     records.sort(key=sort_key)
 
     return records
-
 
 @router.get("/players", response_model=dict)
 def list_players(
