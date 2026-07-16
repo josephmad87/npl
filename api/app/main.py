@@ -26,6 +26,7 @@ _cors = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(_cors),
+    allow_origin_regex=r"^https://[a-z0-9-]+--npl-(website|admin)\.netlify\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
