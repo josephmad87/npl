@@ -1,65 +1,26 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 
 const YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/@nplzimbabwe'
 const X_PROFILE_URL = 'https://x.com/nplzimbabwe'
-const X_TIMELINE_URL = 'https://twitter.com/nplzimbabwe'
 
 const YOUTUBE_EMBED_URL =
   'https://www.youtube.com/embed/videoseries?list=UUZK0q-HMFz_OnmJi3u5mpiw&rel=0'
 
-declare global {
-  interface Window {
-    twttr?: {
-      widgets?: {
-        load: (element?: HTMLElement | null) => void
-      }
-    }
-  }
-}
-
 export function NplTvSection() {
-  const twitterRef = useRef<HTMLDivElement | null>(null)
-  const [xFailed, setXFailed] = useState(false)
-
   useEffect(() => {
-    const element = twitterRef.current
-
-    if (!element) return
-
-    setXFailed(false)
-
-    const loadTimeline = () => {
-      window.twttr?.widgets?.load(element)
-    }
-
     const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[src="https://platform.twitter.com/widgets.js"]',
+      'script[src="https://elfsightcdn.com/platform.js"]',
     )
 
     if (existingScript) {
-      loadTimeline()
-    } else {
-      const script = document.createElement('script')
-      script.src = 'https://platform.twitter.com/widgets.js'
-      script.async = true
-      script.charset = 'utf-8'
-      script.onload = loadTimeline
-      script.onerror = () => setXFailed(true)
-
-      document.body.appendChild(script)
+      return
     }
 
-    const timer = window.setTimeout(() => {
-      const hasIframe = Boolean(element.querySelector('iframe'))
+    const script = document.createElement('script')
+    script.src = 'https://elfsightcdn.com/platform.js'
+    script.async = true
 
-      if (!hasIframe) {
-        setXFailed(true)
-      }
-    }, 6000)
-
-    return () => {
-      window.clearTimeout(timer)
-    }
+    document.body.appendChild(script)
   }, [])
 
   return (
@@ -105,29 +66,11 @@ export function NplTvSection() {
             </a>
           </div>
 
-          <div ref={twitterRef} className="npl-tv-twitter">
-            {xFailed ? (
-              <div className="npl-tv-twitter-fallback">
-                <p>
-                  The X feed could not load inside the website. This can happen
-                  when X embeds are blocked by browser privacy settings, ad
-                  blockers, or X widget restrictions.
-                </p>
-                <a href={X_PROFILE_URL} target="_blank" rel="noreferrer">
-                  View latest NPL posts on X
-                </a>
-              </div>
-            ) : (
-              <a
-                className="twitter-timeline"
-                data-height="430"
-                data-theme="light"
-                data-chrome="nofooter noborders transparent"
-                href={X_TIMELINE_URL}
-              >
-                Posts by NPL Zimbabwe
-              </a>
-            )}
+          <div className="npl-tv-elfsight">
+            <div
+              className="elfsight-app-78fc0cb4-0a99-433d-9e17-f3b641a46c96"
+              data-elfsight-app-lazy
+            />
           </div>
         </article>
       </div>
