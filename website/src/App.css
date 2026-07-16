@@ -7299,3 +7299,13 @@ table.player-public-table {
     min-height: 430px;
   }
 }
+
+/* Homepage: Today's Matches highlight */
+.home-today-section {
+  border-radius: 1rem;
+  padding: 0.85rem;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(229, 139, 27, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(53, 0, 0, 0.08), rgba(191, 73, 39, 0.08));
+  border: 1px solid color-mix(in srgb, var(--color-highlight) 30%, var(--color-border));
+}
