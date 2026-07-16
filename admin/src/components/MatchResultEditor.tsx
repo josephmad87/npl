@@ -19,6 +19,27 @@ import {
 } from '@/lib/cricket'
 import { DismissalField } from '@/components/DismissalField'
 
+type MatchResultOutcome = 'win' | 'tie' | 'no_result'
+
+function outcomeFromResult(result: MatchDto['result']): MatchResultOutcome {
+  const typedResult = result as
+    | (NonNullable<MatchDto['result']> & { outcome?: string | null })
+    | null
+    | undefined
+
+  const outcome = String(typedResult?.outcome ?? '').trim().toLowerCase()
+
+  if (outcome === 'win' || outcome === 'tie' || outcome === 'no_result') {
+    return outcome
+  }
+
+  if (typedResult?.winning_team_id != null) {
+    return 'win'
+  }
+
+  return 'win'
+}
+
 type ExtrasFields = {
   wides: number
   byes: number
@@ -222,10 +243,16 @@ export function MatchResultEditor({
   const defaultAllottedOvers = defaultAllottedOversForMatch(match)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [resultOutcome, setResultOutcome] = useState<MatchResultOutcome>(() =>
+  outcomeFromResult(res),
+)
 
   const [winningTeamId, setWinningTeamId] = useState(
-    res?.winning_team_id != null ? String(res.winning_team_id) : '',
-  )
+  outcomeFromResult(res) === 'win' && res?.winning_team_id != null
+    ? String(res.winning_team_id)
+    : '',
+)
+  
   const [marginText, setMarginText] = useState(res?.margin_text ?? '')
   const [scoreSummary, setScoreSummary] = useState(res?.score_summary ?? '')
   const [inningsBreakdown, setInningsBreakdown] = useState(
@@ -465,6 +492,13 @@ const fillRosterForTeam = useCallback(
     bowling_order:
       r.bowling_order ?? (hasBowlingData(r) ? nextOrder(statRows, r.team_id, 'bowling') : null),
   }))
+
+    if (resultOutcome === 'win' && !winningTeamId) {
+  setSaveError('Select the winning team, or change Result type to Tie / No result.')
+  return
+}
+  
+    
     const pids = validRows.map((r) => r.player_id)
     if (new Set(pids).size !== pids.length) {
       setSaveError('Each player can appear only once in the scorecard.')
@@ -530,7 +564,9 @@ if (
 }
    
       await adminPost<MatchDto>(`/admin/matches/${matchId}/result`, {
-        winning_team_id: winningTeamId ? Number(winningTeamId) : null,
+        outcome: resultOutcome,
+        winning_team_id:
+  resultOutcome === 'win' && winningTeamId ? Number(winningTeamId) : null,
         batting_first_team_id: battingFirstId,
         margin_text: marginText.trim() || null,
         score_summary: scoreSummary.trim() || null,
@@ -619,18 +655,47 @@ if (
               <option value={String(match.away_team_id)}>{awayLabel}</option>
             </select>
           </label>
-          <label className="match-result-editor__field">
-            <span>Winning side</span>
-            <select
-              className="inline-edit__control"
-              value={winningTeamId}
-              onChange={(e) => setWinningTeamId(e.target.value)}
-            >
-              <option value="">— Tied / no result —</option>
-              <option value={String(match.home_team_id)}>{homeLabel}</option>
-              <option value={String(match.away_team_id)}>{awayLabel}</option>
-            </select>
-          </label>
+         <label className="match-result-editor__field">
+  <span>Result type</span>
+  <select
+    className="inline-edit__control"
+    value={resultOutcome}
+    onChange={(e) => {
+      const next = e.target.value as MatchResultOutcome
+      setResultOutcome(next)
+
+      if (next !== 'win') {
+        setWinningTeamId('')
+      }
+
+      if (next === 'tie' && !marginText.trim()) {
+        setMarginText('Match tied')
+      }
+
+      if (next === 'no_result' && !marginText.trim()) {
+        setMarginText('No result')
+      }
+    }}
+  >
+    <option value="win">Winning team</option>
+    <option value="tie">Tie</option>
+    <option value="no_result">No result</option>
+  </select>
+</label>
+
+<label className="match-result-editor__field">
+  <span>Winning side</span>
+  <select
+    className="inline-edit__control"
+    value={winningTeamId}
+    disabled={resultOutcome !== 'win'}
+    onChange={(e) => setWinningTeamId(e.target.value)}
+  >
+    <option value="">— Select winner —</option>
+    <option value={String(match.home_team_id)}>{homeLabel}</option>
+    <option value={String(match.away_team_id)}>{awayLabel}</option>
+  </select>
+</label>
           <label className="match-result-editor__field">
             <span>Margin (e.g. “6 wickets”, “15 runs”)</span>
             <input
