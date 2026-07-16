@@ -46,6 +46,121 @@ type SeasonDetail = {
   team_ids: number[]
 }
 
+type StandingSortMode = 'points' | 'nrr' | 'wins' | 'played' | 'form' | 'team'
+
+type StandingRowItem = ReturnType<typeof computeSeasonStandings>[number]
+
+type MatchResultLike = {
+  outcome?: string | null
+  winning_team_id?: number | null
+}
+
+const standingSortOptions: Array<{ value: StandingSortMode; label: string }> = [
+  { value: 'points', label: 'Points' },
+  { value: 'nrr', label: 'NRR' },
+  { value: 'wins', label: 'Wins' },
+  { value: 'played', label: 'Played' },
+  { value: 'form', label: 'Form' },
+  { value: 'team', label: 'Team' },
+]
+
+function teamDisplayName(
+  teamsMap: Record<number, { name?: string | null } | undefined>,
+  teamId: number,
+): string {
+  return teamsMap[teamId]?.name ?? `Team #${teamId}`
+}
+
+function matchTimeValue(match: MatchLite): number {
+  const raw = String(match.start_time ?? match.match_date ?? '')
+  const parsed = Date.parse(raw)
+
+  if (!Number.isNaN(parsed)) {
+    return parsed
+  }
+
+  return Number(match.id ?? 0)
+}
+
+function matchIncludesTeam(match: MatchLite, teamId: number): boolean {
+  return match.home_team_id === teamId || match.away_team_id === teamId
+}
+
+function teamFormResult(match: MatchLite, teamId: number): 'W' | 'L' | 'T' | 'NR' | null {
+  if (!matchIncludesTeam(match, teamId)) return null
+
+  const result = (match as MatchLite & { result?: MatchResultLike | null }).result
+
+  if (!result) return null
+
+  const outcome = String(result.outcome ?? 'win').trim().toLowerCase()
+
+  if (outcome === 'no_result') return 'NR'
+  if (outcome === 'tie') return 'T'
+
+  const winningTeamId = result.winning_team_id
+
+  if (winningTeamId == null) return 'NR'
+
+  return winningTeamId === teamId ? 'W' : 'L'
+}
+
+function teamRecentForm(matches: MatchLite[], teamId: number): Array<'W' | 'L' | 'T' | 'NR'> {
+  return [...matches]
+    .filter((match) => matchIncludesTeam(match, teamId))
+    .sort((a, b) => matchTimeValue(b) - matchTimeValue(a))
+    .map((match) => teamFormResult(match, teamId))
+    .filter((item): item is 'W' | 'L' | 'T' | 'NR' => Boolean(item))
+    .slice(0, 5)
+}
+
+function teamFormPoints(form: Array<'W' | 'L' | 'T' | 'NR'>): number {
+  return form.reduce((total, item) => {
+    if (item === 'W') return total + 4
+    if (item === 'T') return total + 3
+    if (item === 'NR') return total + 2
+    return total
+  }, 0)
+}
+
+function sortStandingRowsForMode(
+  rows: StandingRowItem[],
+  mode: StandingSortMode,
+  teamsMap: Record<number, { name?: string | null } | undefined>,
+  matches: MatchLite[],
+): StandingRowItem[] {
+  if (mode === 'points') {
+    return sortStandingsDesc([...rows])
+  }
+
+  return [...rows].sort((a, b) => {
+    if (mode === 'nrr') {
+      return b.nrr - a.nrr || b.points - a.points || b.won - a.won
+    }
+
+    if (mode === 'wins') {
+      return b.won - a.won || b.points - a.points || b.nrr - a.nrr
+    }
+
+    if (mode === 'played') {
+      return b.played - a.played || b.points - a.points || b.nrr - a.nrr
+    }
+
+    if (mode === 'form') {
+      return (
+        teamFormPoints(teamRecentForm(matches, b.teamId)) -
+          teamFormPoints(teamRecentForm(matches, a.teamId)) ||
+        b.points - a.points ||
+        b.nrr - a.nrr
+      )
+    }
+
+    return teamDisplayName(teamsMap, a.teamId).localeCompare(
+      teamDisplayName(teamsMap, b.teamId),
+    )
+  })
+}
+
 export function LeagueSeasonHub({
   leagueSlug,
   onLeagueSlugChange,
@@ -64,6 +179,8 @@ export function LeagueSeasonHub({
   const { map: teamsMap } = useTeamsMap()
   const [selectedSeasonSlug, setSelectedSeasonSlug] = useState<string | null>(null)
   const [section, setSection] = useState<'results' | 'stats' | 'standings'>('results')
+
+  const [standingsSort, setStandingsSort] = useState<StandingSortMode>('points')
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['league-detail', leagueSlug],
@@ -137,9 +254,15 @@ export function LeagueSeasonHub({
 
   const resultMatches = useMemo(() => resultsQ.data ?? [], [resultsQ.data])
   const standingsRows = useMemo(() => {
-    if (teamIds.length === 0) return []
-    return sortStandingsDesc(computeSeasonStandings(resultMatches, teamIds))
-  }, [resultMatches, teamIds])
+  if (teamIds.length === 0) return []
+
+  return sortStandingRowsForMode(
+    computeSeasonStandings(resultMatches, teamIds),
+    standingsSort,
+    teamsMap,
+    resultMatches,
+  )
+}, [resultMatches, standingsSort, teamIds, teamsMap])
 
   if (!leagueSlug) {
     return null
@@ -214,65 +337,104 @@ export function LeagueSeasonHub({
                   <Spinner label="Loading standings..." />
                 ) : (
                   <>
-                    <SectionHeader title="Standings" />
-                    {standingsRows.length === 0 ? (
-                      <EmptyState title="No completed matches in this season yet" />
+                  <SectionHeader title="Standings" />
+<div className="league-standings-toolbar" aria-label="Sort standings">
+  <span>Sort by</span>
+  {standingSortOptions.map((option) => (
+    <button
+      key={option.value}
+      type="button"
+      className={standingsSort === option.value ? 'is-active' : ''}
+      onClick={() => setStandingsSort(option.value)}
+    >
+      {option.label}
+    </button>
+  ))}
+</div>
+
+{standingsRows.length === 0 ? (
+  <EmptyState title="No completed matches in this season yet" />
+) : (
+  <div className="league-standings-wrap">
+    <div className="league-standings-panel">
+      <div className="league-standings-scroll" role="region" aria-label="Points table">
+        <table className="league-standings-table">
+          <thead>
+            <tr>
+              <th>Pos</th>
+              <th>Team</th>
+              <th>Mat</th>
+              <th>Won</th>
+              <th>Lost</th>
+              <th>Tied</th>
+              <th>NR</th>
+              <th>Form</th>
+              <th>NRR</th>
+              <th>For</th>
+              <th>Against</th>
+              <th>Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {standingsRows.map((row, idx) => {
+              const t = teamsMap[row.teamId]
+              const form = teamRecentForm(resultMatches, row.teamId)
+
+              return (
+                <tr key={row.teamId}>
+                  <td>{idx + 1}</td>
+                  <td className="league-standings-table__team">
+                    {t?.name ?? `Team #${row.teamId}`}
+                  </td>
+                  <td>{row.played}</td>
+                  <td>{row.won}</td>
+                  <td>{row.lost}</td>
+                  <td>{row.tied}</td>
+                  <td>{row.nr}</td>
+                  <td className="league-standings-table__form">
+                    {form.length > 0 ? (
+                      form.map((item, formIndex) => (
+                        <span
+                          key={`${row.teamId}-${formIndex}-${item}`}
+                          className={`league-form-pill league-form-pill--${item.toLowerCase()}`}
+                          title={
+                            item === 'W'
+                              ? 'Win'
+                              : item === 'L'
+                                ? 'Loss'
+                                : item === 'T'
+                                  ? 'Tie'
+                                  : 'No result'
+                          }
+                        >
+                          {item}
+                        </span>
+                      ))
                     ) : (
-                      <div className="league-standings-wrap">
-                        <div className="league-standings-panel">
-                          <div className="league-standings-scroll" role="region" aria-label="Points table">
-                            <table className="league-standings-table">
-                              <thead>
-                                <tr>
-                                  <th>Pos</th>
-                                  <th>Team</th>
-                                  <th>Mat</th>
-                                  <th>Won</th>
-                                  <th>Lost</th>
-                                  <th>Tied</th>
-                                  <th>NR</th>
-                                  <th>NRR</th>
-                                  <th>For</th>
-                                  <th>Against</th>
-                                  <th>Pts</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {standingsRows.map((row, idx) => {
-                                  const t = teamsMap[row.teamId]
-                                  return (
-                                    <tr key={row.teamId}>
-                                      <td>{idx + 1}</td>
-                                      <td className="league-standings-table__team">
-                                        {t?.name ?? `Team #${row.teamId}`}
-                                      </td>
-                                      <td>{row.played}</td>
-                                      <td>{row.won}</td>
-                                      <td>{row.lost}</td>
-                                      <td>{row.tied}</td>
-                                      <td>{row.nr}</td>
-                                      <td>{formatStandingsNrr(row.nrr)}</td>
-                                      <td className="league-standings-table__ro">
-                                        {formatRunsOversLine(row.runsFor, row.ballsFaced)}
-                                      </td>
-                                      <td className="league-standings-table__ro">
-                                        {formatRunsOversLine(row.runsAgainst, row.ballsBowled)}
-                                      </td>
-                                      <td className="league-standings-table__pts">{row.points}</td>
-                                    </tr>
-                                  )
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                        <p className="league-standings-footnote muted small">
-                          Points: 2 for a win, 1 for a tie. For, Against, and NRR come from published
-                          scorecard lines. NR (no result) will appear when those fixtures are included
-                          in the results feed.
-                        </p>
-                      </div>
+                      <span className="league-form-empty">—</span>
                     )}
+                  </td>
+                  <td>{formatStandingsNrr(row.nrr)}</td>
+                  <td className="league-standings-table__ro">
+                    {formatRunsOversLine(row.runsFor, row.ballsFaced)}
+                  </td>
+                  <td className="league-standings-table__ro">
+                    {formatRunsOversLine(row.runsAgainst, row.ballsBowled)}
+                  </td>
+                  <td className="league-standings-table__pts">{row.points}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p className="league-standings-footnote muted small">
+      Points: 4 for a win, 3 for a tie, 2 for no result, 0 for a loss. Form shows each
+      team’s latest five published results.
+    </p>
+  </div>
+)}
                   </>
                 )
               ) : resultsQ.isLoading ? (
