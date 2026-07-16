@@ -1,15 +1,17 @@
 import { useEffect, useRef } from 'react'
 
 const YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/@nplzimbabwe'
-const X_PROFILE_URL = 'https://x.com/nplzimbabwe'
+const X_PROFILE_URL = 'https://twitter.com/nplzimbabwe'
+const X_PROFILE_DISPLAY_URL = 'https://x.com/nplzimbabwe'
 
-// Live stream embed for NPL Zimbabwe YouTube channel.
+// Latest uploads playlist for NPL Zimbabwe.
+// This is more reliable than live_stream because it still shows videos when the channel is not live.
 const YOUTUBE_EMBED_URL =
-  'https://www.youtube.com/embed/live_stream?channel=UCZK0q-HMFz_OnmJi3u5mpiw&autoplay=0&rel=0'
+  'https://www.youtube.com/embed/videoseries?list=UUZK0q-HMFz_OnmJi3u5mpiw&rel=0'
 
-// To show latest channel videos instead of the live player, use this line instead:
+// Later, for a live-only player, change the line above to:
 // const YOUTUBE_EMBED_URL =
-//   'https://www.youtube.com/embed/videoseries?list=UUZK0q-HMFz_OnmJi3u5mpiw'
+//   'https://www.youtube.com/embed/live_stream?channel=UCZK0q-HMFz_OnmJi3u5mpiw&autoplay=0&rel=0'
 
 declare global {
   interface Window {
@@ -25,24 +27,49 @@ export function NplTvSection() {
   const twitterRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[src="https://platform.twitter.com/widgets.js"]',
-    )
+    const element = twitterRef.current
 
-    if (existingScript) {
-      window.twttr?.widgets?.load(twitterRef.current)
+    if (!element) {
       return
     }
 
+    let cancelled = false
+
+    const renderTimeline = () => {
+      if (cancelled) return
+      window.twttr?.widgets?.load(element)
+    }
+
+    if (window.twttr?.widgets?.load) {
+      renderTimeline()
+      return
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      'script#twitter-wjs',
+    )
+
+    if (existingScript) {
+      existingScript.addEventListener('load', renderTimeline, { once: true })
+
+      return () => {
+        cancelled = true
+        existingScript.removeEventListener('load', renderTimeline)
+      }
+    }
+
     const script = document.createElement('script')
+    script.id = 'twitter-wjs'
     script.src = 'https://platform.twitter.com/widgets.js'
     script.async = true
     script.charset = 'utf-8'
-    script.onload = () => {
-      window.twttr?.widgets?.load(twitterRef.current)
-    }
+    script.onload = renderTimeline
 
     document.body.appendChild(script)
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return (
@@ -83,7 +110,7 @@ export function NplTvSection() {
               <p className="npl-tv-card__eyebrow">Latest posts</p>
               <h3>NPL Zimbabwe on X</h3>
             </div>
-            <a href={X_PROFILE_URL} target="_blank" rel="noreferrer">
+            <a href={X_PROFILE_DISPLAY_URL} target="_blank" rel="noreferrer">
               Open X
             </a>
           </div>
