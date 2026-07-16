@@ -44,11 +44,6 @@ function fixtureStatusOptions(current: string): readonly (typeof STATUSES)[numbe
   return STATUSES.filter((s) => s !== 'completed')
 }
 
-function fixtureStatusOptions(current: string): readonly (typeof STATUSES)[number][] {
-  if (current === 'completed') return STATUSES
-  return STATUSES.filter((s) => s !== 'completed')
-}
-
 type MatchResultOutcome = 'win' | 'tie' | 'no_result'
 
 function matchResultOutcome(match: MatchDto): MatchResultOutcome | null {
