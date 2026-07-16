@@ -176,9 +176,7 @@ function App() {
         )}
       </section>
 
-      <HomeNewsCarousel articles={newsArticles} />
-
-              <section className="home-section home-match-carousel-section home-today-section">
+            <section className="home-section home-match-carousel-section home-today-section">
         {todaysFixtures.length > 0 ? (
           <MatchCarousel
             title="Live Now / Today’s Matches"
@@ -204,6 +202,8 @@ function App() {
           </>
         )}
       </section>
+
+      <HomeNewsCarousel articles={newsArticles} />
 
       <section className="home-section home-match-carousel-section">
         {upcomingFixtures.length > 0 ? (
