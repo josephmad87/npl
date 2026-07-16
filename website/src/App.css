@@ -7255,3 +7255,47 @@ table.player-public-table {
     text-align: center;
   }
 }
+/* NPL TV: keep X feed the same height as YouTube embed */
+.npl-tv-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.75fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.npl-tv-card--social {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.npl-tv-elfsight {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+  overflow: hidden;
+  background: #fff;
+}
+
+.npl-tv-elfsight > div {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: auto !important;
+}
+
+.npl-tv-elfsight iframe {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+}
+
+@media (max-width: 900px) {
+  .npl-tv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .npl-tv-elfsight {
+    min-height: 430px;
+  }
+}
