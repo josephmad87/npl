@@ -7185,3 +7185,33 @@ table.player-public-table {
   color: var(--color-muted);
   font-size: 0.95rem;
 }
+.npl-tv-twitter-fallback {
+  display: flex;
+  min-height: 430px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.25rem;
+  color: var(--color-muted);
+  background: #fff;
+}
+
+.npl-tv-twitter-fallback p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.npl-tv-twitter-fallback a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  border-radius: 999px;
+  background: #350000;
+  color: #fff;
+  padding: 0.65rem 1rem;
+  text-decoration: none;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
