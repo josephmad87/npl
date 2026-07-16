@@ -287,6 +287,8 @@ export function computeSeasonStandings(
 
   const inSeason = new Set(teamIds)
 
+  type MatchOutcome = 'win' | 'tie' | 'no_result'
+
   type Acc = {
     played: number
     won: number
@@ -313,6 +315,24 @@ export function computeSeasonStandings(
       runsAgainst: 0,
       ballsBowled: 0,
     })
+  }
+
+  function resultOutcome(match: MatchLite): MatchOutcome | null {
+    const result = match.result as
+      | {
+          outcome?: string | null
+          winning_team_id?: number | null
+        }
+      | null
+      | undefined
+
+    const outcome = String(result?.outcome ?? '').trim().toLowerCase()
+
+    if (outcome === 'win' || outcome === 'tie' || outcome === 'no_result') {
+      return outcome
+    }
+
+    return null
   }
 
   function resultSearchText(match: MatchLite): string {
@@ -356,6 +376,16 @@ export function computeSeasonStandings(
   }
 
   function isNoResultMatch(match: MatchLite): boolean {
+    const outcome = resultOutcome(match)
+
+    if (outcome === 'no_result') {
+      return true
+    }
+
+    if (outcome === 'win' || outcome === 'tie') {
+      return false
+    }
+
     const status = String(match.status ?? '')
       .trim()
       .toLowerCase()
@@ -373,13 +403,25 @@ export function computeSeasonStandings(
   }
 
   function isTieMatch(match: MatchLite): boolean {
+    const outcome = resultOutcome(match)
+
+    if (outcome === 'tie') {
+      return true
+    }
+
+    if (outcome === 'win' || outcome === 'no_result') {
+      return false
+    }
+
     const text = resultSearchText(match)
 
     if (/\b(tie|tied)\b/i.test(text)) {
       return true
     }
 
-    const winnerId = match.result?.winning_team_id ?? null
+    const winnerId = match.result?.winning_team
+
+
     const runs = resultRuns(match)
 
     return (
