@@ -7366,3 +7366,86 @@ table.player-public-table {
     width: 100%;
   }
 }
+/* League standings: sorting + recent form */
+.league-standings-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.75rem;
+}
+
+.league-standings-toolbar span {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.league-standings-toolbar button {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, var(--color-border));
+  border-radius: 999px;
+  padding: 0.42rem 0.8rem;
+  background: #fff;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.league-standings-toolbar button:hover,
+.league-standings-toolbar button:focus-visible {
+  border-color: var(--color-highlight);
+  color: var(--color-highlight);
+}
+
+.league-standings-toolbar button.is-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+table.league-standings-table .league-standings-table__form {
+  min-width: 7.2rem;
+  white-space: nowrap;
+}
+
+.league-form-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  margin-right: 0.2rem;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.league-form-pill--w {
+  background: #15803d;
+}
+
+.league-form-pill--l {
+  background: #991b1b;
+}
+
+.league-form-pill--t {
+  background: #bf4927;
+}
+
+.league-form-pill--nr {
+  background: #64748b;
+}
+
+.league-form-empty {
+  color: var(--color-muted);
+  font-weight: 800;
+}
