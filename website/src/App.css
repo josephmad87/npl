@@ -7061,3 +7061,121 @@ table.player-public-table {
   height: 1.28rem;
   font-size: 0.82rem;
 }
+/* NPL TV homepage section */
+.npl-tv-section {
+  margin-top: 1.4rem;
+}
+
+.npl-tv-section__header p {
+  margin: 0.25rem 0 0;
+  color: var(--color-muted);
+}
+
+.npl-tv-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.75fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.npl-tv-card {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(31, 22, 64, 0.1);
+  overflow: hidden;
+}
+
+.npl-tv-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(229, 139, 27, 0.18), transparent 34%),
+    linear-gradient(135deg, #350000 0%, #5a0909 55%, #bf4927 100%);
+  color: #fff;
+}
+
+.npl-tv-card__head h3 {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.npl-tv-card__head a {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  padding: 0.42rem 0.75rem;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.npl-tv-card__head a:hover,
+.npl-tv-card__head a:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.npl-tv-card__eyebrow {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.npl-tv-video {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
+.npl-tv-video iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.npl-tv-twitter {
+  min-height: 430px;
+  max-height: 430px;
+  overflow: auto;
+  background: #fff;
+}
+
+.npl-tv-twitter iframe {
+  max-width: 100% !important;
+}
+
+@media (max-width: 900px) {
+  .npl-tv-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .npl-tv-twitter {
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .npl-tv-card__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .npl-tv-card__head a {
+    width: 100%;
+    text-align: center;
+  }
+}
