@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { formatMatchDate, toTimeShort } from '../lib/formatters'
 import { matchSeoPath } from '../lib/matchUrls'
+import { publicDisplayMatchStatus } from '../lib/matchStatus'
 import {
   buildInningScoreboard,
   matchCompetitionLine,
@@ -366,7 +367,7 @@ export function MatchCard({
       />
     )
   }
-
+  const displayStatus = publicDisplayMatchStatus(match.status, match.match_date)
   const winner = matchWinnerSide(match)
   const scoreline = matchResultSummaryLine(match)
   const showScore = scoreline != null && scoreline.length > 0
@@ -428,10 +429,10 @@ export function MatchCard({
       <div className="ui-match-card__footer">
         <span
           className={`ui-match-card__status-pill ${matchStatusPillClass(
-            match.status,
-          )}`}
+  displayStatus,
+)}`}
         >
-          {formatStatusLabel(match.status)}
+          {formatStatusLabel(displayStatus)}
         </span>
       </div>
     </a>
