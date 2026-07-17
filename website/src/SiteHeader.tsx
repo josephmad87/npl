@@ -216,21 +216,48 @@ export function SiteHeader() {
               </button>
             </div>
             <div className="site-header-mobile__drawer-scroll">
-              <Link to="/" className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top" onClick={closeMobileNav}>
+                          <Link
+                to="/"
+                className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top"
+                onClick={closeMobileNav}
+              >
                 Home
               </Link>
-              <Link to="/news" search={{ q: '' }} className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top" onClick={closeMobileNav}>
-              News
+              <Link
+                to="/news"
+                search={{ q: '' }}
+                className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top"
+                onClick={closeMobileNav}
+              >
+                News
               </Link>
-              <Link to="/merchandise" search={{ team_id: null }} className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top"
-  onClick={closeMobileNav}
->
-  Merchandise
-</Link>
-              <Link to="/about-us" className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top" onClick={closeMobileNav}>
+              <Link
+                to="/compare-teams"
+                className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top"
+                onClick={closeMobileNav}
+              >
+                Compare Teams
+              </Link>
+              <Link
+                to="/merchandise"
+                search={{ team_id: null }}
+                className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top"
+                onClick={closeMobileNav}
+              >
+                Merch
+              </Link>
+              <Link
+                to="/about-us"
+                className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top"
+                onClick={closeMobileNav}
+              >
                 About Us
               </Link>
-              <Link to="/contact-us" className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top" onClick={closeMobileNav}>
+              <Link
+                to="/contact-us"
+                className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top"
+                onClick={closeMobileNav}
+              >
                 Contact Us
               </Link>
 
@@ -519,24 +546,28 @@ export function SiteHeader() {
               </div>
             </div>
 
-            <Link to="/news" search={{ q: '' }}>
-  News
-</Link>
+                      <Link to="/news" search={{ q: '' }}>
+              News
+            </Link>
 
-<div className="menu-item">
-  <Link to="/gallery">Gallery</Link>
-  <div className="dropdown">
-    <Link to="/gallery/images">Images</Link>
-    <Link to="/gallery/video">Video</Link>
-  </div>
-</div>
+            <Link to="/compare-teams">
+              Compare
+            </Link>
 
-<Link to="/merchandise" search={{ team_id: null }}>
-  Merchandise
-</Link>
+            <div className="menu-item">
+              <Link to="/gallery">Gallery</Link>
+              <div className="dropdown">
+                <Link to="/gallery/images">Images</Link>
+                <Link to="/gallery/video">Video</Link>
+              </div>
+            </div>
 
-<Link to="/about-us">About Us</Link>
-<Link to="/contact-us">Contact Us</Link>
+            <Link to="/merchandise" search={{ team_id: null }}>
+              Merch
+            </Link>
+
+            <Link to="/about-us">About</Link>
+            <Link to="/contact-us">Contact</Link>
           </nav>
         </div>
       </div>
