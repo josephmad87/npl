@@ -115,7 +115,7 @@ class MatchPlayerStat(Base):
 
     match: Mapped["Match"] = relationship("Match", back_populates="player_stats")
 
-    class FanPlayerMatchVote(Base):
+class FanPlayerMatchVote(Base):
     __tablename__ = "fan_player_match_votes"
     __table_args__ = (
         UniqueConstraint(
