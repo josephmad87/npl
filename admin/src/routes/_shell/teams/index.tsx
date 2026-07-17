@@ -6,7 +6,6 @@ import type { ColumnDef, RowSelectionState } from '@tanstack/react-table'
 import type { LeagueDto, SeasonDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPost } from '@/lib/admin-client'
 import { BadgeImage } from '@/components/BadgeImage'
-import { CatalogFilterGrid } from '@/components/CatalogFilterGrid'
 import { EntityTable } from '@/components/EntityTable'
 import { ListViewModeSwitch } from '@/components/ListViewModeSwitch'
 import { PageHeader } from '@/components/PageHeader'
@@ -16,6 +15,89 @@ import { useListViewMode } from '@/hooks/useListViewMode'
 export const Route = createFileRoute('/_shell/teams/')({
   component: TeamsPage,
 })
+
+type TeamCategoryGroup = 'mens' | 'women' | 'youth'
+type TeamStatusGroup = 'active' | 'inactive' | 'archived'
+
+const CATEGORY_GROUPS: { key: TeamCategoryGroup; label: string }[] = [
+  { key: 'mens', label: 'Mens Teams' },
+  { key: 'women', label: 'Women Teams' },
+  { key: 'youth', label: 'Youth Teams' },
+]
+
+const STATUS_GROUPS: { key: TeamStatusGroup; label: string }[] = [
+  { key: 'active', label: 'Active' },
+  { key: 'inactive', label: 'Inactive' },
+  { key: 'archived', label: 'Archived' },
+]
+
+function teamCategoryGroup(category: string | null | undefined): TeamCategoryGroup {
+  const value = String(category ?? '').trim().toLowerCase()
+
+  if (
+    value === 'women' ||
+    value === 'womens' ||
+    value === 'woman' ||
+    value === 'ladies' ||
+    value === 'lady'
+  ) {
+    return 'women'
+  }
+
+  if (
+    value === 'youth' ||
+    value === 'youths' ||
+    value === 'junior' ||
+    value === 'juniors' ||
+    value === 'u19' ||
+    value === 'under-19' ||
+    value === 'under 19'
+  ) {
+    return 'youth'
+  }
+
+  return 'mens'
+}
+
+function teamStatusGroup(status: string | null | undefined): TeamStatusGroup {
+  const value = String(status ?? '').trim().toLowerCase()
+
+  if (value === 'archived' || value === 'archive') return 'archived'
+  if (value === 'active') return 'active'
+
+  return 'inactive'
+}
+
+function teamSearchText(team: TeamDto): string {
+  return [team.name, team.short_name, team.category, team.home_ground, team.status]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function TeamCard({ team }: { team: TeamDto }) {
+  return (
+    <Link
+      to="/teams/$teamId"
+      params={{ teamId: String(team.id) }}
+      className="entity-thumb-card entity-thumb-card--team"
+    >
+      <div className="entity-thumb-card__media entity-thumb-card__media--team">
+        <BadgeImage imageUrl={team.logo_url} alt="" size="lg" />
+      </div>
+      <div className="entity-thumb-card__body">
+        <h3 className="entity-thumb-card__title">{team.name}</h3>
+        <p className="entity-thumb-card__meta muted">
+          {[team.short_name, team.category].filter(Boolean).join(' · ') || '—'}
+          <br />
+          {team.home_ground ?? '—'}
+        </p>
+      </div>
+      <div className="entity-thumb-card__footer">
+        <StatusBadge status={team.status as 'active' | 'inactive'} />
+      </div>
+    </Link>
+  )
+}
 
 const columns: ColumnDef<TeamDto, unknown>[] = [
   {
@@ -48,6 +130,7 @@ function TeamsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedLeagueId, setSelectedLeagueId] = useState<number | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
   const [teamsQ, seasonsQ, leaguesQ] = useQueries({
     queries: [
       {
@@ -67,49 +150,55 @@ function TeamsPage() {
 
   const teamLeagueIds = useMemo(() => {
     const map = new Map<number, Set<number>>()
-    for (const s of seasonsQ.data ?? []) {
-      for (const tid of s.team_ids ?? []) {
-        const bucket = map.get(tid) ?? new Set<number>()
-        bucket.add(s.league_id)
-        map.set(tid, bucket)
+
+    for (const season of seasonsQ.data ?? []) {
+      for (const teamId of season.team_ids ?? []) {
+        const bucket = map.get(teamId) ?? new Set<number>()
+        bucket.add(season.league_id)
+        map.set(teamId, bucket)
       }
     }
+
     return map
   }, [seasonsQ.data])
+
   const leagueFilteredData = useMemo(() => {
     const source = teamsQ.data ?? []
+
     if (selectedLeagueId == null) return source
-    return source.filter((t) => teamLeagueIds.get(t.id)?.has(selectedLeagueId))
-  }, [teamsQ.data, selectedLeagueId, teamLeagueIds])
+
+    return source.filter((team) => teamLeagueIds.get(team.id)?.has(selectedLeagueId))
+  }, [selectedLeagueId, teamLeagueIds, teamsQ.data])
+
   const queryFilteredData = useMemo(() => {
-    const source = leagueFilteredData
     const needle = searchQuery.trim().toLowerCase()
-    if (!needle) return source
-    return source.filter((r) =>
-      [r.name, r.short_name, r.category, r.home_ground, r.status]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(needle),
+
+    if (!needle) return leagueFilteredData
+
+    return leagueFilteredData.filter((team) =>
+      teamSearchText(team).toLowerCase().includes(needle),
     )
   }, [leagueFilteredData, searchQuery])
-  const toolbarFilters = (
-    <div className="catalog-filters-inline">
-      <select
-        className="inline-edit__control catalog-filter-select"
-        value={selectedLeagueId ?? ''}
-        onChange={(e) =>
-          setSelectedLeagueId(e.target.value ? Number(e.target.value) : null)
+
+  const groupedTeams = useMemo(
+    () =>
+      CATEGORY_GROUPS.map((category) => {
+        const categoryTeams = queryFilteredData.filter(
+          (team) => teamCategoryGroup(team.category) === category.key,
+        )
+
+        return {
+          ...category,
+          total: categoryTeams.length,
+          statusGroups: STATUS_GROUPS.map((status) => ({
+            ...status,
+            teams: categoryTeams
+              .filter((team) => teamStatusGroup(team.status) === status.key)
+              .sort((a, b) => a.name.localeCompare(b.name)),
+          })),
         }
-      >
-        <option value="">All leagues</option>
-        {(leaguesQ.data ?? []).map((l) => (
-          <option key={l.id} value={l.id}>
-            {l.name}
-          </option>
-        ))}
-      </select>
-    </div>
+      }),
+    [queryFilteredData],
   )
 
   const selectedTeamIds = useMemo(
@@ -121,12 +210,52 @@ function TeamsPage() {
     [rowSelection],
   )
 
+  const toolbarFilters = (
+    <div className="catalog-filters-inline">
+      <select
+        className="inline-edit__control catalog-filter-select"
+        value={selectedLeagueId ?? ''}
+        onChange={(event) =>
+          setSelectedLeagueId(event.target.value ? Number(event.target.value) : null)
+        }
+      >
+        <option value="">All leagues</option>
+        {(leaguesQ.data ?? []).map((league) => (
+          <option key={league.id} value={league.id}>
+            {league.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+
+  const renderToolbar = (
+    <div className="catalog-browse">
+      <div className="catalog-toolbar">
+        <div className="catalog-toolbar__leading">
+          <ListViewModeSwitch value={mode} onChange={setMode} />
+        </div>
+        <input
+          type="search"
+          className="catalog-toolbar__search"
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search teams…"
+          aria-label="Filter results"
+        />
+        <div className="catalog-toolbar__extras">{toolbarFilters}</div>
+      </div>
+    </div>
+  )
+
   const bulkArchive = async () => {
     if (selectedTeamIds.length === 0) return
+
     const names = queryFilteredData
-      .filter((t) => selectedTeamIds.includes(t.id))
-      .map((t) => t.name)
+      .filter((team) => selectedTeamIds.includes(team.id))
+      .map((team) => team.name)
       .join(', ')
+
     if (
       !confirm(
         `Archive ${selectedTeamIds.length} team(s)? They will be hidden from the public site.\n\n${names}`,
@@ -134,12 +263,13 @@ function TeamsPage() {
     ) {
       return
     }
+
     try {
       await adminPost('/admin/teams/bulk-archive', { team_ids: selectedTeamIds })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'teams'] })
       setRowSelection({})
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Bulk archive failed')
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Bulk archive failed')
     }
   }
 
@@ -156,30 +286,7 @@ function TeamsPage() {
           </Link>
         }
       />
-      {!teamsQ.isLoading &&
-      !seasonsQ.isLoading &&
-      !leaguesQ.isLoading &&
-      !teamsQ.isError &&
-      !seasonsQ.isError &&
-      !leaguesQ.isError &&
-      mode === 'table' ? (
-        <div className="catalog-browse">
-          <div className="catalog-toolbar">
-            <div className="catalog-toolbar__leading">
-              <ListViewModeSwitch value={mode} onChange={setMode} />
-            </div>
-            <input
-              type="search"
-              className="catalog-toolbar__search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search teams…"
-              aria-label="Filter results"
-            />
-            <div className="catalog-toolbar__extras">{toolbarFilters}</div>
-          </div>
-        </div>
-      ) : null}
+
       {teamsQ.isLoading || seasonsQ.isLoading || leaguesQ.isLoading ? (
         <p className="muted">Loading…</p>
       ) : teamsQ.isError || seasonsQ.isError || leaguesQ.isError ? (
@@ -187,70 +294,87 @@ function TeamsPage() {
           {(teamsQ.error ?? seasonsQ.error ?? leaguesQ.error)?.message}
         </p>
       ) : mode === 'cards' ? (
-        <CatalogFilterGrid
-          items={leagueFilteredData}
-          getKey={(r) => r.id}
-          getSearchText={(r) =>
-            [r.name, r.short_name, r.category, r.home_ground, r.status]
-              .filter(Boolean)
-              .join(' ')
-          }
-          searchPlaceholder="Search teams…"
-          toolbarLeading={
-            <ListViewModeSwitch value={mode} onChange={setMode} />
-          }
-          toolbarExtras={toolbarFilters}
-          query={searchQuery}
-          onQueryChange={setSearchQuery}
-          renderCard={(team) => (
-            <Link
-              to="/teams/$teamId"
-              params={{ teamId: String(team.id) }}
-              className="entity-thumb-card entity-thumb-card--team"
-            >
-              <div className="entity-thumb-card__media entity-thumb-card__media--team">
-                <BadgeImage imageUrl={team.logo_url} alt="" size="lg" />
-              </div>
-              <div className="entity-thumb-card__body">
-                <h3 className="entity-thumb-card__title">{team.name}</h3>
-                <p className="entity-thumb-card__meta muted">
-                  {[team.short_name, team.category].filter(Boolean).join(' · ') ||
-                    '—'}
-                  <br />
-                  {team.home_ground ?? '—'}
-                </p>
-              </div>
-              <div className="entity-thumb-card__footer">
-                <StatusBadge status={team.status as 'active' | 'inactive'} />
-              </div>
-            </Link>
-          )}
-        />
+        <>
+          {renderToolbar}
+
+          <div className="team-grouped-catalog">
+            {queryFilteredData.length === 0 ? (
+              <p className="muted">No teams match your filters.</p>
+            ) : (
+              groupedTeams.map((category) =>
+                category.total > 0 ? (
+                  <section
+                    key={category.key}
+                    className="team-grouped-catalog__category"
+                  >
+                    <div className="team-grouped-catalog__category-head">
+                      <div>
+                        <p className="team-grouped-catalog__eyebrow">Category</p>
+                        <h2>{category.label}</h2>
+                      </div>
+                      <span>{category.total} teams</span>
+                    </div>
+
+                    <div className="team-grouped-catalog__status-grid">
+                      {category.statusGroups.map((status) => (
+                        <section
+                          key={`${category.key}-${status.key}`}
+                          className={`team-grouped-catalog__status team-grouped-catalog__status--${status.key}`}
+                        >
+                          <div className="team-grouped-catalog__status-head">
+                            <h3>{status.label}</h3>
+                            <span>{status.teams.length}</span>
+                          </div>
+
+                          {status.teams.length > 0 ? (
+                            <div className="team-grouped-catalog__cards">
+                              {status.teams.map((team) => (
+                                <TeamCard key={team.id} team={team} />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="team-grouped-catalog__empty muted">
+                              No {status.label.toLowerCase()} teams.
+                            </p>
+                          )}
+                        </section>
+                      ))}
+                    </div>
+                  </section>
+                ) : null,
+              )
+            )}
+          </div>
+        </>
       ) : (
-        <EntityTable
-          columns={columns}
-          data={queryFilteredData}
-          hideToolbar
-          enableRowSelection
-          getRowId={(row) => String(row.id)}
-          rowSelection={rowSelection}
-          onRowSelectionChange={setRowSelection}
-          bulkActions={
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => void bulkArchive()}
-            >
-              Archive selected
-            </button>
-          }
-          onRowClick={(row) =>
-            void navigate({
-              to: '/teams/$teamId',
-              params: { teamId: String(row.id) },
-            })
-          }
-        />
+        <>
+          {renderToolbar}
+
+          <EntityTable
+            columns={columns}
+            data={queryFilteredData}
+            hideToolbar
+            enableRowSelection
+            getRowId={(row) => String(row.id)}
+            rowSelection={rowSelection}
+            onRowSelectionChange={setRowSelection}
+            bulkActions={
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => void bulkArchive()}
+              >
+                Archive selected
+              </button>
+            }
+            onRowClick={(row) =>
+              void navigate({
+                to: '/teams/$teamId',
+                params: { teamId: String(row.id) },
+              })
+            }
+          />
+        </>
       )}
     </>
   )
