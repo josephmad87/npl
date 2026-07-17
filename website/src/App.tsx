@@ -92,7 +92,18 @@ function categoryGroup(category: string | null | undefined): HomeFixtureCategory
     return 'women'
   }
 
-  if (value === 'youth') return 'youth'
+  if (
+    value === 'youth' ||
+    value === 'youths' ||
+    value === 'youths' ||
+    value === 'junior' ||
+    value === 'juniors' ||
+    value === 'u19' ||
+    value === 'under-19' ||
+    value === 'under 19'
+  ) {
+    return 'youth'
+  }
 
   return 'all'
 }
@@ -199,8 +210,8 @@ function formatHubDate(match: {
 
 function App() {
   const { data: newsArticles = [] } = useRecentNews(36)
-  const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 24)
-  const { data: latestResults = [] } = useLatestResults(undefined, 12)
+  const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 80)
+  const { data: latestResults = [] } = useLatestResults(undefined, 80)
   const { map: teamsMap } = useTeamsMap()
   const { data: featuredTeams = [] } = useFeaturedTeams()
 
