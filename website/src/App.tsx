@@ -499,6 +499,9 @@ function App() {
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
   const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
+  const [skippedSpotlightPlayerIds, setSkippedSpotlightPlayerIds] = useState<
+  Set<number>
+>(() => new Set())
   const [fixtureTab, setFixtureTab] = useState<HomeFixtureTab>('matchday')
   const [fixtureCategory, setFixtureCategory] =
     useState<HomeFixtureCategory>('all')
@@ -531,18 +534,33 @@ function App() {
     [spotlightTeams],
   )
 
-  const activeTeamIds = useMemo(
-    () => new Set(sortedSpotlightTeams.map((team) => team.id)),
-    [sortedSpotlightTeams],
-  )
+  const spotlightEligibleTeamIds = useMemo(() => {
+  const publicActiveTeamIds = new Set(sortedSpotlightTeams.map((team) => team.id))
+  const playedTeamIds = new Set<number>()
 
-  const activeSpotlightPlayers = useMemo(
-    () =>
-      spotlightPlayers
-        .filter((player) => player.team_id != null && activeTeamIds.has(player.team_id))
-        .sort((a, b) => a.full_name.localeCompare(b.full_name)),
-    [activeTeamIds, spotlightPlayers],
-  )
+  for (const match of latestResults) {
+    if (publicActiveTeamIds.has(match.home_team_id)) {
+      playedTeamIds.add(match.home_team_id)
+    }
+
+    if (publicActiveTeamIds.has(match.away_team_id)) {
+      playedTeamIds.add(match.away_team_id)
+    }
+  }
+
+  return playedTeamIds
+}, [latestResults, sortedSpotlightTeams])
+
+const activeSpotlightPlayers = useMemo(
+  () =>
+    spotlightPlayers
+      .filter(
+        (player) =>
+          player.team_id != null && spotlightEligibleTeamIds.has(player.team_id),
+      )
+      .sort((a, b) => a.full_name.localeCompare(b.full_name)),
+  [spotlightEligibleTeamIds, spotlightPlayers],
+)
 
   useEffect(() => {
     if (sortedSpotlightTeams.length === 0) return
@@ -624,10 +642,14 @@ function App() {
   const playerSpotlightSlot = Math.floor(spotlightNow / FOUR_HOUR_SPOTLIGHT_MS)
 
   const selectedSpotlightPlayer = useMemo(() => {
-    if (activeSpotlightPlayers.length === 0) return null
+  const candidates = activeSpotlightPlayers.filter(
+    (player) => !skippedSpotlightPlayerIds.has(player.id),
+  )
 
-    return activeSpotlightPlayers[playerSpotlightSlot % activeSpotlightPlayers.length]
-  }, [activeSpotlightPlayers, playerSpotlightSlot])
+  if (candidates.length === 0) return null
+
+  return candidates[playerSpotlightSlot % candidates.length]
+}, [activeSpotlightPlayers, playerSpotlightSlot, skippedSpotlightPlayerIds])
 
   const spotlightPlayerTeam = selectedSpotlightPlayer
     ? sortedSpotlightTeams.find((team) => team.id === selectedSpotlightPlayer.team_id) ??
@@ -709,6 +731,37 @@ function App() {
 
     return () => globalThis.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+  setSkippedSpotlightPlayerIds(new Set())
+}, [playerSpotlightSlot, activeSpotlightPlayers.length])
+
+useEffect(() => {
+  if (!selectedSpotlightPlayer) return
+  if (spotlightPlayerAppearancesQ.isLoading || spotlightPlayerAppearancesQ.isFetching) {
+    return
+  }
+
+  const appearances = spotlightPlayerAppearancesQ.data ?? []
+
+  if (appearances.length > 0) return
+  if (activeSpotlightPlayers.length <= skippedSpotlightPlayerIds.size + 1) return
+
+  setSkippedSpotlightPlayerIds((current) => {
+    if (current.has(selectedSpotlightPlayer.id)) return current
+
+    const next = new Set(current)
+    next.add(selectedSpotlightPlayer.id)
+    return next
+  })
+}, [
+  activeSpotlightPlayers.length,
+  selectedSpotlightPlayer,
+  skippedSpotlightPlayerIds.size,
+  spotlightPlayerAppearancesQ.data,
+  spotlightPlayerAppearancesQ.isFetching,
+  spotlightPlayerAppearancesQ.isLoading,
+])
 
   useEffect(() => {
     if (heroSlides.length < 2) return
@@ -1056,10 +1109,7 @@ function App() {
                 </p>
               </div>
 
-              <div className="home-player-spotlight__timer">
-                <span>Auto-picked</span>
-                <strong>{nextSpotlightChangeLabel(spotlightNow)}</strong>
-              </div>
+              
             </div>
 
             <div className="home-player-spotlight__stats">
