@@ -83,7 +83,7 @@ type MatchDetail = {
   } | null
 }
 
-type PublicPlayerRow = { id: number; full_name: string }
+type PublicPlayerRow = { id: number; full_name: string; slug?: string | null }
 
 type FanPlayerVoteChoice = {
   player_id: number
@@ -629,6 +629,24 @@ export default function MatchDetailPage() {
 
     for (const p of awayPlayersQ.data ?? []) {
       m.set(p.id, p.full_name)
+    }
+
+    return m
+  }, [homePlayersQ.data, awayPlayersQ.data])
+
+  const playerHrefById = useMemo(() => {
+    const m = new Map<number, string>()
+
+    for (const p of homePlayersQ.data ?? []) {
+      if (p.slug) {
+        m.set(p.id, '/players/' + p.slug)
+      }
+    }
+
+    for (const p of awayPlayersQ.data ?? []) {
+      if (p.slug) {
+        m.set(p.id, '/players/' + p.slug)
+      }
     }
 
     return m
@@ -1411,13 +1429,14 @@ export default function MatchDetailPage() {
                 awayLabel={awayName}
                 stats={playerStats}
                 playerName={(id) => playerById.get(id) ?? `#${id}`}
+                playerHref={(id) => playerHrefById.get(id) ?? null}
                 extrasLine={inningsExtrasLine}
                 highlightedPlayerId={highlightedPlayerId}
               />
             ) : (
               <p className="match-centre-muted">No per-player rows yet.</p>
             )}
-                   </section>
+          </section>
 
           {matchReportContent ? (
             <section
