@@ -619,7 +619,7 @@ export default function MatchDetailPage() {
                   <p className="match-centre-fan-pom__eyebrow">Fan vote</p>
                   <h2 id="fan-player-of-match-title">Fan Player of the Match</h2>
                   <p>
-                    Pick your standout player from the match
+                    Pick from the top 2 batters and top 2 bowlers from this match.
                   </p>
                 </div>
 

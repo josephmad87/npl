@@ -460,6 +460,65 @@ def get_match(match_id: int, db: Session = Depends(get_db)) -> MatchDetailOut:
     if m is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
     return MatchDetailOut.model_validate(m)
+def _fan_player_vote_candidate_stats(match: Match) -> list[MatchPlayerStat]:
+    stats = list(match.player_stats or [])
+
+    if not stats:
+        return []
+
+    batting_candidates = [
+        stat for stat in stats if stat.runs > 0 or stat.balls_faced > 0
+    ] or stats
+
+    top_batters = sorted(
+        batting_candidates,
+        key=lambda stat: (
+            stat.runs,
+            stat.fours,
+            stat.sixes,
+            -(stat.balls_faced or 0),
+            -(stat.lineup_order or 0),
+        ),
+        reverse=True,
+    )[:2]
+
+    bowling_candidates = [
+        stat
+        for stat in stats
+        if stat.wickets > 0
+        or stat.runs_conceded > 0
+        or stat.overs is not None
+    ] or stats
+
+    top_bowlers = sorted(
+        bowling_candidates,
+        key=lambda stat: (
+            stat.wickets,
+            -(stat.runs_conceded or 0),
+            stat.maidens,
+            float(stat.overs or 0),
+        ),
+        reverse=True,
+    )
+
+    selected: list[MatchPlayerStat] = []
+    selected_player_ids: set[int] = set()
+
+    for stat in top_batters:
+        if stat.player_id in selected_player_ids:
+            continue
+        selected.append(stat)
+        selected_player_ids.add(stat.player_id)
+
+    for stat in top_bowlers:
+        if len(selected) >= 4:
+            break
+        if stat.player_id in selected_player_ids:
+            continue
+        selected.append(stat)
+        selected_player_ids.add(stat.player_id)
+
+    return selected[:4]    
 def _fan_player_vote_summary(
     match_id: int,
     db: Session,
@@ -494,8 +553,8 @@ def _fan_player_vote_summary(
             reason="Fan Player of the Match voting opens after the scorecard is entered.",
         )
 
-    stats_by_player = {stat.player_id: stat for stat in match.player_stats}
-    player_ids = list(stats_by_player)
+    candidate_stats = _fan_player_vote_candidate_stats(match)
+    player_ids = [stat.player_id for stat in candidate_stats]
 
     players = db.scalars(select(Player).where(Player.id.in_(player_ids))).all()
     player_names = {player.id: player.full_name for player in players}
@@ -523,7 +582,7 @@ def _fan_player_vote_summary(
 
     choices: list[FanPlayerMatchVoteChoiceOut] = []
 
-    for stat in sorted(match.player_stats, key=lambda s: (s.team_id, s.lineup_order, s.id)):
+    for stat in candidate_stats:
         votes = vote_counts.get(stat.player_id, 0)
         percentage = round((votes / total_votes) * 100, 1) if total_votes else 0
 
@@ -600,14 +659,16 @@ def submit_fan_player_vote(
             },
         )
 
-    candidate_player_ids = {stat.player_id for stat in match.player_stats}
+    candidate_player_ids = {
+        stat.player_id for stat in _fan_player_vote_candidate_stats(match)
+    }
 
     if body.player_id not in candidate_player_ids:
         raise HTTPException(
             status_code=400,
             detail={
                 "code": "invalid_player",
-                "message": "Selected player is not in this match scorecard.",
+                "message": "Selected player is not one of the fan vote candidates for this match.",
             },
         )
 

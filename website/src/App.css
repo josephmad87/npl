@@ -7826,3 +7826,54 @@ table.league-standings-table .league-standings-table__form {
     width: 100%;
   }
 }
+/* Compact Fan Player of the Match candidates */
+.match-centre-fan-pom {
+  padding: 0.9rem;
+}
+
+.match-centre-fan-pom__head {
+  margin-bottom: 0.7rem;
+}
+
+.match-centre-fan-pom__choices {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.match-centre-fan-pom__choice {
+  align-items: flex-start;
+  padding: 0.7rem;
+}
+
+.match-centre-fan-pom__choice-body {
+  gap: 0.25rem;
+}
+
+.match-centre-fan-pom__choice-body strong {
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+
+.match-centre-fan-pom__choice-body small {
+  font-size: 0.72rem;
+}
+
+.match-centre-fan-pom__vote-meta {
+  font-size: 0.7rem;
+}
+
+.match-centre-fan-pom__bar {
+  height: 0.3rem;
+}
+
+@media (max-width: 1000px) {
+  .match-centre-fan-pom__choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .match-centre-fan-pom__choices {
+    grid-template-columns: 1fr;
+  }
+}
