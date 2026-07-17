@@ -35,8 +35,19 @@ type PublicSponsor = {
   team_name: string | null
 }
 
-type HomeFixtureTab = 'live' | 'today' | 'upcoming' | 'results'
+type HomeFixtureTab = 'matchday' | 'upcoming' | 'results'
 type HomeFixtureCategory = 'all' | 'mens' | 'women' | 'youth'
+
+type HomeHubMatch = {
+  id: number
+  category?: string | null
+  status?: string | null
+  match_date?: string | null
+  start_time?: string | null
+  venue?: string | null
+  home_team_id: number
+  away_team_id: number
+}
 
 function localTodayKey(): string {
   const today = new Date()
@@ -70,6 +81,7 @@ function categoryGroup(category: string | null | undefined): HomeFixtureCategory
   const value = String(category ?? '').trim().toLowerCase()
 
   if (value === 'mens' || value === 'men' || value === 'man') return 'mens'
+
   if (
     value === 'women' ||
     value === 'womens' ||
@@ -93,6 +105,42 @@ function categoryMatches(
   return categoryGroup(category) === selected
 }
 
+function dateDifferenceFromToday(match: {
+  match_date?: string | null
+  start_time?: string | null
+}): number | null {
+  const key = matchDateKey(match)
+
+  if (!key) return null
+
+  const today = localTodayKey()
+  const matchDate = new Date(`${key}T00:00:00`)
+  const todayDate = new Date(`${today}T00:00:00`)
+  const diff = matchDate.getTime() - todayDate.getTime()
+
+  return Math.round(diff / 86_400_000)
+}
+
+function countdownLabel(
+  tab: HomeFixtureTab,
+  match: {
+    status?: string | null
+    match_date?: string | null
+    start_time?: string | null
+  },
+): string {
+  if (tab === 'results') return 'Latest result'
+  if (isLiveMatch(match)) return 'Live now'
+
+  const diff = dateDifferenceFromToday(match)
+
+  if (diff == null) return 'Fixture scheduled'
+  if (diff <= 0) return 'Starts today'
+  if (diff === 1) return 'Starts tomorrow'
+
+  return `Starts in ${diff} days`
+}
+
 function tabMatches(
   tab: HomeFixtureTab,
   match: {
@@ -101,26 +149,30 @@ function tabMatches(
     start_time?: string | null
   },
 ): boolean {
-  if (tab === 'live') return isLiveMatch(match)
-  if (tab === 'today') return isTodayMatch(match) || isLiveMatch(match)
-  if (tab === 'upcoming') return !isLiveMatch(match)
+  if (tab === 'matchday') {
+    return isLiveMatch(match) || isTodayMatch(match)
+  }
+
+  if (tab === 'upcoming') {
+    if (isLiveMatch(match) || isTodayMatch(match)) return false
+
+    const diff = dateDifferenceFromToday(match)
+
+    return diff == null || diff > 0
+  }
+
   return true
 }
 
 function fixtureHubEmptyTitle(tab: HomeFixtureTab): string {
-  if (tab === 'live') return 'No live matches right now'
-  if (tab === 'today') return 'No matches scheduled for today'
+  if (tab === 'matchday') return 'No matchday action right now'
   if (tab === 'results') return 'No results published yet'
   return 'No upcoming fixtures yet'
 }
 
 function fixtureHubEmptyBody(tab: HomeFixtureTab): string {
-  if (tab === 'live') {
-    return 'Check back on match day for live NPL action.'
-  }
-
-  if (tab === 'today') {
-    return 'There are no matches listed for today. View the fixtures page for upcoming games.'
+  if (tab === 'matchday') {
+    return 'No live or today fixtures are listed. Check Next Up for upcoming matches.'
   }
 
   if (tab === 'results') {
@@ -128,6 +180,21 @@ function fixtureHubEmptyBody(tab: HomeFixtureTab): string {
   }
 
   return 'Fixtures will appear here once they are published.'
+}
+
+function formatHubDate(match: {
+  match_date?: string | null
+  start_time?: string | null
+}): string {
+  const key = matchDateKey(match)
+
+  if (!key) return 'Date TBC'
+
+  return new Intl.DateTimeFormat('en-ZW', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(`${key}T12:00:00`))
 }
 
 function App() {
@@ -159,7 +226,7 @@ function App() {
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
-  const [fixtureTab, setFixtureTab] = useState<HomeFixtureTab>('today')
+  const [fixtureTab, setFixtureTab] = useState<HomeFixtureTab>('matchday')
   const [fixtureCategory, setFixtureCategory] =
     useState<HomeFixtureCategory>('all')
 
@@ -173,9 +240,8 @@ function App() {
   )
 
   const fixtureTabs: { id: HomeFixtureTab; label: string }[] = [
-    { id: 'live', label: 'Live Now' },
-    { id: 'today', label: 'Today' },
-    { id: 'upcoming', label: 'Upcoming' },
+    { id: 'matchday', label: 'Matchday' },
+    { id: 'upcoming', label: 'Next Up' },
     { id: 'results', label: 'Results' },
   ]
 
@@ -195,9 +261,22 @@ function App() {
       .slice(0, 12)
   }, [fixtureCategory, fixtureTab, latestResults, upcomingFixtures])
 
+  const featuredHubMatch = fixtureHubMatches[0] as HomeHubMatch | undefined
   const fixtureHubMode = fixtureTab === 'results' ? 'result' : 'fixture'
   const fixtureHubTitle =
     fixtureTabs.find((tab) => tab.id === fixtureTab)?.label ?? 'Fixtures'
+
+  const featuredHomeName =
+    featuredHubMatch != null
+      ? teamsMap[featuredHubMatch.home_team_id]?.name ??
+        `Team ${featuredHubMatch.home_team_id}`
+      : ''
+
+  const featuredAwayName =
+    featuredHubMatch != null
+      ? teamsMap[featuredHubMatch.away_team_id]?.name ??
+        `Team ${featuredHubMatch.away_team_id}`
+      : ''
 
   useEffect(() => {
     if (heroSlides.length < 2) return
@@ -283,83 +362,119 @@ function App() {
         )}
       </section>
 
-      <section className="home-section home-fixture-hub">
-        <div className="home-fixture-hub__head">
+      <section className="home-section home-fixture-hub home-fixture-hub--premium">
+        <div className="home-fixture-hub__topline">
           <div>
             <p className="home-fixture-hub__eyebrow">Match centre</p>
             <h2>Fixture Hub</h2>
-            <p>
-              Follow live matches, today’s fixtures, upcoming games and the latest
-              results.
-            </p>
           </div>
 
-          <div className="home-fixture-hub__cta">
-            {fixtureTab === 'results' ? (
-              <Link to="/results">View all results</Link>
-            ) : (
-              <Link to="/fixtures">View all fixtures</Link>
-            )}
-          </div>
+          <Link
+            to={fixtureTab === 'results' ? '/results' : '/fixtures'}
+            className="home-fixture-hub__main-link"
+          >
+            {fixtureTab === 'results' ? 'All results' : 'All fixtures'}
+          </Link>
         </div>
 
-        <div className="home-fixture-hub__controls">
-          <div className="home-fixture-hub__tabs" aria-label="Fixture hub tabs">
-            {fixtureTabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                className={fixtureTab === tab.id ? 'is-active' : ''}
-                onClick={() => setFixtureTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <div className="home-fixture-hub__layout">
+          <div className="home-fixture-hub__feature">
+            {featuredHubMatch ? (
+              <>
+                <div className="home-fixture-hub__countdown">
+                  {countdownLabel(fixtureTab, featuredHubMatch)}
+                </div>
+
+                <div className="home-fixture-hub__teams">
+                  <strong>{featuredHomeName}</strong>
+                  <span>vs</span>
+                  <strong>{featuredAwayName}</strong>
+                </div>
+
+                <div className="home-fixture-hub__meta">
+                  <span>{formatHubDate(featuredHubMatch)}</span>
+                  <span>{featuredHubMatch.venue || 'Venue TBC'}</span>
+                </div>
+
+                <Link
+                  to={fixtureTab === 'results' ? '/results' : '/fixtures'}
+                  className="home-fixture-hub__feature-link"
+                >
+                  {fixtureTab === 'results' ? 'View results' : 'View fixtures'}
+                </Link>
+              </>
+            ) : (
+              <>
+                <div className="home-fixture-hub__countdown">
+                  {fixtureHubTitle}
+                </div>
+
+                <div className="home-fixture-hub__teams">
+                  <strong>{fixtureHubEmptyTitle(fixtureTab)}</strong>
+                </div>
+
+                <p className="home-fixture-hub__empty-copy">
+                  {fixtureHubEmptyBody(fixtureTab)}
+                </p>
+
+                <Link
+                  to={fixtureTab === 'results' ? '/results' : '/fixtures'}
+                  className="home-fixture-hub__feature-link"
+                >
+                  {fixtureTab === 'results' ? 'View results' : 'View fixtures'}
+                </Link>
+              </>
+            )}
           </div>
 
-          <div
-            className="home-fixture-hub__categories"
-            aria-label="Fixture category filter"
-          >
-            {fixtureCategories.map((category) => (
-              <button
-                key={category.id}
-                type="button"
-                className={fixtureCategory === category.id ? 'is-active' : ''}
-                onClick={() => setFixtureCategory(category.id)}
-              >
-                {category.label}
-              </button>
-            ))}
+          <div className="home-fixture-hub__side">
+            <div className="home-fixture-hub__tabs" aria-label="Fixture hub tabs">
+              {fixtureTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={fixtureTab === tab.id ? 'is-active' : ''}
+                  onClick={() => setFixtureTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              className="home-fixture-hub__categories"
+              aria-label="Fixture category filter"
+            >
+              {fixtureCategories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  className={fixtureCategory === category.id ? 'is-active' : ''}
+                  onClick={() => setFixtureCategory(category.id)}
+                >
+                  {category.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="home-fixture-hub__hint">
+              Switch tabs and categories to quickly find the games that matter.
+            </p>
           </div>
         </div>
 
         {fixtureHubMatches.length > 0 ? (
-          <MatchCarousel
-            title={fixtureHubTitle}
-            linkTo={fixtureTab === 'results' ? '/results' : '/fixtures'}
-            matches={fixtureHubMatches}
-            teamsMap={teamsMap}
-            mode={fixtureHubMode}
-            showHeader={false}
-          />
-        ) : (
-          <div className="home-fixture-hub__empty">
-            <div>
-              <p className="home-fixture-hub__empty-eyebrow">
-                {fixtureHubTitle}
-              </p>
-              <h3>{fixtureHubEmptyTitle(fixtureTab)}</h3>
-              <p>{fixtureHubEmptyBody(fixtureTab)}</p>
-            </div>
-
-            {fixtureTab === 'results' ? (
-              <Link to="/results">View results</Link>
-            ) : (
-              <Link to="/fixtures">View fixtures</Link>
-            )}
+          <div className="home-fixture-hub__carousel">
+            <MatchCarousel
+              title={fixtureHubTitle}
+              linkTo={fixtureTab === 'results' ? '/results' : '/fixtures'}
+              matches={fixtureHubMatches}
+              teamsMap={teamsMap}
+              mode={fixtureHubMode}
+              showHeader={false}
+            />
           </div>
-        )}
+        ) : null}
       </section>
 
       <HomeNewsCarousel articles={newsArticles} />
