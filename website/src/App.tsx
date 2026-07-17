@@ -954,9 +954,7 @@ useEffect(() => {
               <p>See your favourite team's form, next fixture and latest result.</p>
             </div>
 
-            <div className="home-team-spotlight__auto-badge">
-  Auto-picked
-</div>
+            
           </div>
 
           <div className="home-team-spotlight__card">
