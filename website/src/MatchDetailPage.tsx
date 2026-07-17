@@ -128,6 +128,32 @@ type PlayerMatchupRow = {
 
 const NO_PLAYER_STATS: MatchPlayerStat[] = []
 
+function formatMatchReportContent(report: string | null | undefined): {
+  headline: string
+  paragraphs: string[]
+} | null {
+  const clean = report?.trim()
+
+  if (!clean) return null
+
+  const blocks = clean
+    .split(/\n+/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+
+  if (blocks.length >= 2) {
+    return {
+      headline: blocks[0].replace(/^#+\s*/, ''),
+      paragraphs: blocks.slice(1),
+    }
+  }
+
+  return {
+    headline: 'Match Report',
+    paragraphs: blocks,
+  }
+}
+
 function getFanVoterKey(): string {
   if (typeof window === 'undefined') return ''
 
@@ -709,6 +735,7 @@ export default function MatchDetailPage() {
   const matchLite = data as unknown as MatchLite
   const headerWinner = data ? matchWinnerSide(matchLite) : null
   const resultLine = data ? matchResultSummaryLine(matchLite) : null
+  const matchReportContent = formatMatchReportContent(data?.result?.match_report)
 
   const descriptionLine = useMemo(() => {
     if (!data) return ''
@@ -1065,11 +1092,6 @@ export default function MatchDetailPage() {
                         </p>
                       ) : null}
 
-                      {data.result.match_report ? (
-                        <p>
-                          <strong>Report:</strong> {data.result.match_report}
-                        </p>
-                      ) : null}
                     </div>
                   ) : null}
                 </section>
@@ -1392,7 +1414,23 @@ export default function MatchDetailPage() {
             ) : (
               <p className="match-centre-muted">No per-player rows yet.</p>
             )}
-          </section>
+                   </section>
+
+          {matchReportContent ? (
+            <section
+              className="match-centre-match-report"
+              aria-labelledby="match-report-title"
+            >
+              <p className="match-centre-match-report__eyebrow">Match report</p>
+              <h2 id="match-report-title">{matchReportContent.headline}</h2>
+
+              <div className="match-centre-match-report__body">
+                {matchReportContent.paragraphs.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </section>
       </main>
     </>
