@@ -114,6 +114,18 @@ type TopPerformerCard = {
   subLine: string
 }
 
+type PlayerMatchupOption = {
+  stat: MatchPlayerStat
+  playerName: string
+  teamName: string
+}
+
+type PlayerMatchupRow = {
+  label: string
+  homeValue: string | number
+  awayValue: string | number
+}
+
 const NO_PLAYER_STATS: MatchPlayerStat[] = []
 
 function getFanVoterKey(): string {
@@ -178,6 +190,45 @@ function impactScore(stat: MatchPlayerStat): number {
     stat.sixes * 2 +
     stat.fours
   )
+}
+
+function playerStatHasBowling(stat: MatchPlayerStat): boolean {
+  return (
+    stat.wickets > 0 ||
+    stat.maidens > 0 ||
+    stat.runs_conceded > 0 ||
+    oversFieldToBalls(stat.overs) > 0
+  )
+}
+
+function playerStatHasBatting(stat: MatchPlayerStat): boolean {
+  return stat.runs > 0 || stat.balls_faced > 0 || stat.fours > 0 || stat.sixes > 0
+}
+
+function preferredScorecardFocus(stat: MatchPlayerStat): 'batting' | 'bowling' {
+  if (playerStatHasBowling(stat) && stat.wickets * 25 >= stat.runs) {
+    return 'bowling'
+  }
+
+  return 'batting'
+}
+
+function playerMatchupSummary(stat: MatchPlayerStat): string {
+  const parts: string[] = []
+
+  if (playerStatHasBatting(stat)) {
+    parts.push(`${stat.runs} off ${stat.balls_faced}`)
+  }
+
+  if (playerStatHasBowling(stat)) {
+    parts.push(`${stat.wickets}/${stat.runs_conceded}`)
+  }
+
+  if (fieldingTotal(stat) > 0) {
+    parts.push(`${fieldingTotal(stat)} fielding`)
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : 'Scorecard row'
 }
 
 function buildTopPerformerCards({
@@ -340,6 +391,71 @@ function buildTopPerformerCards({
   return cards
 }
 
+function buildPlayerMatchupOptions({
+  stats,
+  teamId,
+  teamName,
+  playerName,
+}: {
+  stats: MatchPlayerStat[]
+  teamId: number
+  teamName: string
+  playerName: (playerId: number) => string
+}): PlayerMatchupOption[] {
+  const seen = new Set<number>()
+
+  return [...stats]
+    .filter((stat) => stat.team_id === teamId)
+    .filter((stat) => {
+      if (seen.has(stat.player_id)) return false
+      seen.add(stat.player_id)
+      return true
+    })
+    .sort((a, b) => impactScore(b) - impactScore(a))
+    .map((stat) => ({
+      stat,
+      playerName: playerName(stat.player_id),
+      teamName,
+    }))
+}
+
+function buildPlayerMatchupRows(
+  home: MatchPlayerStat,
+  away: MatchPlayerStat,
+): PlayerMatchupRow[] {
+  return [
+    { label: 'Runs', homeValue: home.runs, awayValue: away.runs },
+    { label: 'Balls', homeValue: home.balls_faced, awayValue: away.balls_faced },
+    {
+      label: 'Strike rate',
+      homeValue: formatTopPerformerStrikeRate(home.runs, home.balls_faced),
+      awayValue: formatTopPerformerStrikeRate(away.runs, away.balls_faced),
+    },
+    { label: '4s', homeValue: home.fours, awayValue: away.fours },
+    { label: '6s', homeValue: home.sixes, awayValue: away.sixes },
+    { label: 'Wickets', homeValue: home.wickets, awayValue: away.wickets },
+    {
+      label: 'Overs',
+      homeValue: formatTopPerformerOvers(home.overs),
+      awayValue: formatTopPerformerOvers(away.overs),
+    },
+    {
+      label: 'Runs conceded',
+      homeValue: home.runs_conceded,
+      awayValue: away.runs_conceded,
+    },
+    {
+      label: 'Economy',
+      homeValue: formatTopPerformerEconomy(home.runs_conceded, home.overs),
+      awayValue: formatTopPerformerEconomy(away.runs_conceded, away.overs),
+    },
+    { label: 'Maidens', homeValue: home.maidens, awayValue: away.maidens },
+    { label: 'Catches', homeValue: home.catches, awayValue: away.catches },
+    { label: 'Stumpings', homeValue: home.stumpings, awayValue: away.stumpings },
+    { label: 'Run outs', homeValue: home.run_outs, awayValue: away.run_outs },
+  ]
+}
+
 function fixturesHrefForMatch(category: string | null | undefined): string {
   const c = (category ?? '').trim().toLowerCase()
   if (c === 'mens' || c === 'men' || c === 'man') return '/mens/fixtures'
@@ -433,6 +549,8 @@ export default function MatchDetailPage() {
   const { map: teamsMap } = useTeamsMap()
   const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<number | null>(null)
+  const [matchupHomePlayerId, setMatchupHomePlayerId] = useState('')
+  const [matchupAwayPlayerId, setMatchupAwayPlayerId] = useState('')
 
   const [fanVoterKey] = useState(getFanVoterKey)
   const [selectedFanPlayerId, setSelectedFanPlayerId] = useState('')
@@ -521,6 +639,67 @@ export default function MatchDetailPage() {
       awayName,
     })
   }, [awayName, data, homeName, playerById, playerStats])
+
+  const playerMatchupOptions = useMemo(() => {
+    if (!data) return { home: [], away: [] }
+
+    return {
+      home: buildPlayerMatchupOptions({
+        stats: playerStats,
+        teamId: data.home_team_id,
+        teamName: homeName,
+        playerName: (id) => playerById.get(id) ?? `#${id}`,
+      }),
+      away: buildPlayerMatchupOptions({
+        stats: playerStats,
+        teamId: data.away_team_id,
+        teamName: awayName,
+        playerName: (id) => playerById.get(id) ?? `#${id}`,
+      }),
+    }
+  }, [awayName, data, homeName, playerById, playerStats])
+
+  useEffect(() => {
+    const currentExists = playerMatchupOptions.home.some(
+      (option) => String(option.stat.player_id) === matchupHomePlayerId,
+    )
+
+    if (!currentExists && playerMatchupOptions.home[0]) {
+      setMatchupHomePlayerId(String(playerMatchupOptions.home[0].stat.player_id))
+    }
+  }, [matchupHomePlayerId, playerMatchupOptions.home])
+
+  useEffect(() => {
+    const currentExists = playerMatchupOptions.away.some(
+      (option) => String(option.stat.player_id) === matchupAwayPlayerId,
+    )
+
+    if (!currentExists && playerMatchupOptions.away[0]) {
+      setMatchupAwayPlayerId(String(playerMatchupOptions.away[0].stat.player_id))
+    }
+  }, [matchupAwayPlayerId, playerMatchupOptions.away])
+
+  const selectedHomeMatchup = useMemo(
+    () =>
+      playerMatchupOptions.home.find(
+        (option) => String(option.stat.player_id) === matchupHomePlayerId,
+      ) ?? null,
+    [matchupHomePlayerId, playerMatchupOptions.home],
+  )
+
+  const selectedAwayMatchup = useMemo(
+    () =>
+      playerMatchupOptions.away.find(
+        (option) => String(option.stat.player_id) === matchupAwayPlayerId,
+      ) ?? null,
+    [matchupAwayPlayerId, playerMatchupOptions.away],
+  )
+
+  const playerMatchupRows = useMemo(() => {
+    if (!selectedHomeMatchup || !selectedAwayMatchup) return []
+
+    return buildPlayerMatchupRows(selectedHomeMatchup.stat, selectedAwayMatchup.stat)
+  }, [selectedAwayMatchup, selectedHomeMatchup])
 
   const title = data ? `${homeName} vs ${awayName}` : 'Match'
   const matchLite = data as unknown as MatchLite
@@ -638,6 +817,28 @@ export default function MatchDetailPage() {
 
   const showTopPerformers =
     data?.status === 'completed' && topPerformerCards.length > 0
+
+  const showPlayerMatchup =
+    data?.status === 'completed' &&
+    playerMatchupOptions.home.length > 0 &&
+    playerMatchupOptions.away.length > 0
+
+  const highlightPlayerStat = (stat: MatchPlayerStat) => {
+    const focus = preferredScorecardFocus(stat)
+
+    setHighlightedPlayerId(stat.player_id)
+    setScorecardInnings(
+      focus === 'bowling'
+        ? inningsForBowlingTeam(stat.team_id)
+        : inningsForBattingTeam(stat.team_id),
+    )
+
+    window.setTimeout(() => {
+      document
+        .getElementById('match-scorecard-title')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
+  }
 
   const highlightTopPerformer = (card: TopPerformerCard) => {
     setHighlightedPlayerId(card.playerId)
@@ -911,6 +1112,110 @@ export default function MatchDetailPage() {
                   </button>
                 ))}
               </div>
+            </section>
+          ) : null}
+
+          {showPlayerMatchup ? (
+            <section
+              className="match-centre-panel match-centre-player-matchup"
+              aria-labelledby="player-matchup-title"
+            >
+              <div className="match-centre-player-matchup__head">
+                <div>
+                  <p className="match-centre-player-matchup__eyebrow">
+                    Player match-up
+                  </p>
+                  <h2 id="player-matchup-title">Compare Players</h2>
+                  <p>Choose one player from each team and compare their match impact.</p>
+                </div>
+              </div>
+
+              <div className="match-centre-player-matchup__selectors">
+                <label>
+                  <span>{homeName}</span>
+                  <select
+                    value={matchupHomePlayerId}
+                    onChange={(event) => setMatchupHomePlayerId(event.target.value)}
+                  >
+                    {playerMatchupOptions.home.map((option) => (
+                      <option key={option.stat.player_id} value={option.stat.player_id}>
+                        {option.playerName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <strong aria-hidden>vs</strong>
+
+                <label>
+                  <span>{awayName}</span>
+                  <select
+                    value={matchupAwayPlayerId}
+                    onChange={(event) => setMatchupAwayPlayerId(event.target.value)}
+                  >
+                    {playerMatchupOptions.away.map((option) => (
+                      <option key={option.stat.player_id} value={option.stat.player_id}>
+                        {option.playerName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {selectedHomeMatchup && selectedAwayMatchup ? (
+                <>
+                  <div className="match-centre-player-matchup__cards">
+                    <button
+                      type="button"
+                      className={`match-centre-player-matchup__player${
+                        highlightedPlayerId === selectedHomeMatchup.stat.player_id
+                          ? ' is-active'
+                          : ''
+                      }`}
+                      onClick={() => highlightPlayerStat(selectedHomeMatchup.stat)}
+                    >
+                      <small>{selectedHomeMatchup.teamName}</small>
+                      <strong>{selectedHomeMatchup.playerName}</strong>
+                      <span>{playerMatchupSummary(selectedHomeMatchup.stat)}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`match-centre-player-matchup__player${
+                        highlightedPlayerId === selectedAwayMatchup.stat.player_id
+                          ? ' is-active'
+                          : ''
+                      }`}
+                      onClick={() => highlightPlayerStat(selectedAwayMatchup.stat)}
+                    >
+                      <small>{selectedAwayMatchup.teamName}</small>
+                      <strong>{selectedAwayMatchup.playerName}</strong>
+                      <span>{playerMatchupSummary(selectedAwayMatchup.stat)}</span>
+                    </button>
+                  </div>
+
+                  <div className="match-centre-player-matchup__table-wrap">
+                    <table className="match-centre-player-matchup__table">
+                      <thead>
+                        <tr>
+                          <th>{selectedHomeMatchup.playerName}</th>
+                          <th>Stat</th>
+                          <th>{selectedAwayMatchup.playerName}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {playerMatchupRows.map((row) => (
+                          <tr key={row.label}>
+                            <td>{row.homeValue}</td>
+                            <td>{row.label}</td>
+                            <td>{row.awayValue}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : null}
             </section>
           ) : null}
 
