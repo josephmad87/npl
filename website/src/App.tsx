@@ -755,15 +755,15 @@ useEffect(() => {
   }, [heroSlides.length])
 
 const galleryShowcaseItems = useMemo(() => {
-  if (gallery.length <= 5) return gallery
+  if (gallery.length <= 4) return gallery
 
-  return Array.from({ length: 5 }, (_, index) => {
+  return Array.from({ length: 4 }, (_, index) => {
     return gallery[(galleryWindowIndex + index) % gallery.length]
   })
 }, [gallery, galleryWindowIndex])
 
 useEffect(() => {
-  if (gallery.length <= 5) return
+  if (gallery.length <= 4) return
 
   const timer = globalThis.setInterval(() => {
     setGalleryWindowIndex((current) => (current + 1) % gallery.length)
