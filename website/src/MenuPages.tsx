@@ -107,6 +107,7 @@ function CategoryHomePage({ category }: { category: string }) {
 }
 
 const PUBLIC_LIST_PAGE_SIZE = 100
+const RESULTS_PAGE_SIZE = 4
 
 function resultYearLabel(match: MatchLite): string {
   const raw = match.match_date?.slice(0, 4) ?? ''
@@ -165,6 +166,7 @@ function ResultsPageContent({ category }: { category?: string }) {
   }, [category])
   const [selectedYear, setSelectedYear] = useState('all')
   const [selectedLeague, setSelectedLeague] = useState('all')
+  const [resultsPageIndex, setResultsPageIndex] = useState(0)
 
   const yearTabs = useMemo(() => {
     const years = Array.from(new Set(data.map(resultYearLabel)))
@@ -192,6 +194,31 @@ function ResultsPageContent({ category }: { category?: string }) {
       return true
     })
   }, [data, selectedYear, selectedLeague])
+
+  const resultsPageCount = Math.max(
+  1,
+  Math.ceil(filteredResults.length / RESULTS_PAGE_SIZE),
+)
+
+const resultsPageStart = resultsPageIndex * RESULTS_PAGE_SIZE
+
+const pagedResults = filteredResults.slice(
+  resultsPageStart,
+  resultsPageStart + RESULTS_PAGE_SIZE,
+)
+
+const canGoPreviousResults = resultsPageIndex > 0
+const canGoNextResults = resultsPageIndex < resultsPageCount - 1
+
+useEffect(() => {
+  setResultsPageIndex(0)
+}, [selectedYear, selectedLeague, category])
+
+useEffect(() => {
+  setResultsPageIndex((current) =>
+    Math.min(current, Math.max(0, resultsPageCount - 1)),
+  )
+}, [resultsPageCount])
 
   useEffect(() => {
     if (selectedYear !== 'all' && !yearTabs.includes(selectedYear)) {
@@ -280,21 +307,64 @@ function ResultsPageContent({ category }: { category?: string }) {
                 </div>
               </div>
             </div>
-            <div className="home-grid home-grid--matches home-grid--results-list">
-            {filteredResults.map((match) => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                  teamsMap={teamsMap}
-                  mode="result"
-                />
-            ))}
-          </div>
-          {filteredResults.length === 0 ? (
-            <EmptyState title="No results for this year and league filter" />
-          ) : null}
-          </>
-        ) : null}
+            {filteredResults.length > 0 ? (
+  <>
+    <div className="results-page__head">
+      <p>
+        Showing {resultsPageStart + 1}–
+        {Math.min(resultsPageStart + RESULTS_PAGE_SIZE, filteredResults.length)} of{' '}
+        {filteredResults.length}
+      </p>
+
+      {filteredResults.length > RESULTS_PAGE_SIZE ? (
+        <div className="results-page__controls" aria-label="Results pages">
+          <button
+            type="button"
+            className="results-page__nav-btn"
+            onClick={() =>
+              setResultsPageIndex((current) => Math.max(0, current - 1))
+            }
+            disabled={!canGoPreviousResults}
+            aria-label="Previous results"
+          >
+            ‹
+          </button>
+
+          <span>
+            {resultsPageIndex + 1} / {resultsPageCount}
+          </span>
+
+          <button
+            type="button"
+            className="results-page__nav-btn"
+            onClick={() =>
+              setResultsPageIndex((current) =>
+                Math.min(resultsPageCount - 1, current + 1),
+              )
+            }
+            disabled={!canGoNextResults}
+            aria-label="Next results"
+          >
+            ›
+          </button>
+        </div>
+      ) : null}
+    </div>
+
+    <div className="results-page__grid">
+      {pagedResults.map((match) => (
+        <MatchCard
+          key={match.id}
+          match={match}
+          teamsMap={teamsMap}
+          mode="result"
+        />
+      ))}
+    </div>
+  </>
+) : (
+  <EmptyState title="No results for this year and league filter" />
+)}
       </section>
     </main>
     </>
