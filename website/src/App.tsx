@@ -36,10 +36,105 @@ type PublicSponsor = {
   team_name: string | null
 }
 
+type HomeFixtureTab = 'live' | 'today' | 'upcoming' | 'results'
+type HomeFixtureCategory = 'all' | 'mens' | 'women' | 'youth'
+
+function localTodayKey(): string {
+  const today = new Date()
+
+  return [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, '0'),
+    String(today.getDate()).padStart(2, '0'),
+  ].join('-')
+}
+
+function matchDateKey(match: {
+  match_date?: string | null
+  start_time?: string | null
+}): string {
+  return String(match.match_date ?? match.start_time ?? '').slice(0, 10)
+}
+
+function isLiveMatch(match: { status?: string | null }): boolean {
+  return String(match.status ?? '').toLowerCase() === 'live'
+}
+
+function isTodayMatch(match: {
+  match_date?: string | null
+  start_time?: string | null
+}): boolean {
+  return matchDateKey(match) === localTodayKey()
+}
+
+function categoryGroup(category: string | null | undefined): HomeFixtureCategory {
+  const value = String(category ?? '').trim().toLowerCase()
+
+  if (value === 'mens' || value === 'men' || value === 'man') return 'mens'
+  if (
+    value === 'women' ||
+    value === 'womens' ||
+    value === 'woman' ||
+    value === 'ladies' ||
+    value === 'lady'
+  ) {
+    return 'women'
+  }
+
+  if (value === 'youth') return 'youth'
+
+  return 'all'
+}
+
+function categoryMatches(
+  category: string | null | undefined,
+  selected: HomeFixtureCategory,
+): boolean {
+  if (selected === 'all') return true
+  return categoryGroup(category) === selected
+}
+
+function tabMatches(
+  tab: HomeFixtureTab,
+  match: {
+    status?: string | null
+    match_date?: string | null
+    start_time?: string | null
+  },
+): boolean {
+  if (tab === 'live') return isLiveMatch(match)
+  if (tab === 'today') return isTodayMatch(match) || isLiveMatch(match)
+  if (tab === 'upcoming') return !isLiveMatch(match)
+  return true
+}
+
+function fixtureHubEmptyTitle(tab: HomeFixtureTab): string {
+  if (tab === 'live') return 'No live matches right now'
+  if (tab === 'today') return 'No matches scheduled for today'
+  if (tab === 'results') return 'No results published yet'
+  return 'No upcoming fixtures yet'
+}
+
+function fixtureHubEmptyBody(tab: HomeFixtureTab): string {
+  if (tab === 'live') {
+    return 'Check back on match day for live NPL action.'
+  }
+
+  if (tab === 'today') {
+    return 'There are no matches listed for today. View the fixtures page for upcoming games.'
+  }
+
+  if (tab === 'results') {
+    return 'Completed matches will appear here once results are published.'
+  }
+
+  return 'Fixtures will appear here once they are published.'
+}
+
 function App() {
   const { data: newsArticles = [] } = useRecentNews(36)
-  const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 10)
-  const { data: latestResults = [] } = useLatestResults(undefined, 6)
+  const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 24)
+  const { data: latestResults = [] } = useLatestResults(undefined, 12)
   const { map: teamsMap } = useTeamsMap()
   const { data: featuredTeams = [] } = useFeaturedTeams()
 
@@ -62,26 +157,12 @@ function App() {
   })
 
   const homepageSponsors = sponsors.filter((sponsor) => sponsor.team_id == null)
-    const todaysFixtures = useMemo(() => {
-    const today = new Date()
-    const todayKey = [
-      today.getFullYear(),
-      String(today.getMonth() + 1).padStart(2, '0'),
-      String(today.getDate()).padStart(2, '0'),
-    ].join('-')
-
-    return upcomingFixtures
-      .filter((match) => {
-        const matchDate = String(match.match_date ?? match.start_time ?? '').slice(0, 10)
-        const status = String(match.status ?? '').toLowerCase()
-
-        return matchDate === todayKey || status === 'live'
-      })
-      .slice(0, 6)
-  }, [upcomingFixtures])
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
+  const [fixtureTab, setFixtureTab] = useState<HomeFixtureTab>('today')
+  const [fixtureCategory, setFixtureCategory] =
+    useState<HomeFixtureCategory>('all')
 
   const heroSlides = useMemo(
     () =>
@@ -91,6 +172,33 @@ function App() {
       })),
     [newsArticles],
   )
+
+  const fixtureTabs: { id: HomeFixtureTab; label: string }[] = [
+    { id: 'live', label: 'Live Now' },
+    { id: 'today', label: 'Today' },
+    { id: 'upcoming', label: 'Upcoming' },
+    { id: 'results', label: 'Results' },
+  ]
+
+  const fixtureCategories: { id: HomeFixtureCategory; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'mens', label: 'Mens' },
+    { id: 'women', label: 'Women' },
+    { id: 'youth', label: 'Youth' },
+  ]
+
+  const fixtureHubMatches = useMemo(() => {
+    const source = fixtureTab === 'results' ? latestResults : upcomingFixtures
+
+    return source
+      .filter((match) => tabMatches(fixtureTab, match))
+      .filter((match) => categoryMatches(match.category, fixtureCategory))
+      .slice(0, 12)
+  }, [fixtureCategory, fixtureTab, latestResults, upcomingFixtures])
+
+  const fixtureHubMode = fixtureTab === 'results' ? 'result' : 'fixture'
+  const fixtureHubTitle =
+    fixtureTabs.find((tab) => tab.id === fixtureTab)?.label ?? 'Fixtures'
 
   useEffect(() => {
     if (heroSlides.length < 2) return
@@ -176,72 +284,86 @@ function App() {
         )}
       </section>
 
-            <section className="home-section home-match-carousel-section home-today-section">
-        {todaysFixtures.length > 0 ? (
+      <section className="home-section home-fixture-hub">
+        <div className="home-fixture-hub__head">
+          <div>
+            <p className="home-fixture-hub__eyebrow">Match centre</p>
+            <h2>Fixture Hub</h2>
+            <p>
+              Follow live matches, today’s fixtures, upcoming games and the latest
+              results.
+            </p>
+          </div>
+
+          <div className="home-fixture-hub__cta">
+            {fixtureTab === 'results' ? (
+              <Link to="/results">View all results</Link>
+            ) : (
+              <Link to="/fixtures">View all fixtures</Link>
+            )}
+          </div>
+        </div>
+
+        <div className="home-fixture-hub__controls">
+          <div className="home-fixture-hub__tabs" aria-label="Fixture hub tabs">
+            {fixtureTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={fixtureTab === tab.id ? 'is-active' : ''}
+                onClick={() => setFixtureTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div
+            className="home-fixture-hub__categories"
+            aria-label="Fixture category filter"
+          >
+            {fixtureCategories.map((category) => (
+              <button
+                key={category.id}
+                type="button"
+                className={fixtureCategory === category.id ? 'is-active' : ''}
+                onClick={() => setFixtureCategory(category.id)}
+              >
+                {category.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {fixtureHubMatches.length > 0 ? (
           <MatchCarousel
-            title="Live Now / Today’s Matches"
-            linkTo="/fixtures"
-            matches={todaysFixtures}
+            title={fixtureHubTitle}
+            linkTo={fixtureTab === 'results' ? '/results' : '/fixtures'}
+            matches={fixtureHubMatches}
             teamsMap={teamsMap}
-            mode="fixture"
+            mode={fixtureHubMode}
+            showHeader={false}
           />
         ) : (
-          <>
-            <SectionHeader title="Live Now / Today’s Matches" linkTo="/fixtures" />
-            <div className="home-today-empty">
-              <div>
-                <p className="home-today-empty__eyebrow">No live matches right now</p>
-                <h3>Check upcoming NPL fixtures</h3>
-                <p>
-                  There are no matches scheduled for today. View the full fixtures list
-                  for upcoming games.
-                </p>
-              </div>
-              <Link to="/fixtures">View fixtures</Link>
+          <div className="home-fixture-hub__empty">
+            <div>
+              <p className="home-fixture-hub__empty-eyebrow">
+                {fixtureHubTitle}
+              </p>
+              <h3>{fixtureHubEmptyTitle(fixtureTab)}</h3>
+              <p>{fixtureHubEmptyBody(fixtureTab)}</p>
             </div>
-          </>
+
+            {fixtureTab === 'results' ? (
+              <Link to="/results">View results</Link>
+            ) : (
+              <Link to="/fixtures">View fixtures</Link>
+            )}
+          </div>
         )}
       </section>
 
       <HomeNewsCarousel articles={newsArticles} />
-
-      <section className="home-section home-match-carousel-section">
-        {upcomingFixtures.length > 0 ? (
-          <MatchCarousel
-            title="Upcoming Fixtures"
-            linkTo="/fixtures"
-            matches={upcomingFixtures}
-            teamsMap={teamsMap}
-            mode="fixture"
-          />
-        ) : null}
-
-        {upcomingFixtures.length === 0 ? (
-          <>
-            <SectionHeader title="Upcoming Fixtures" linkTo="/fixtures" />
-            <EmptyState title="No upcoming fixtures yet" />
-          </>
-        ) : null}
-      </section>
-
-      <section className="home-section home-match-carousel-section">
-        {latestResults.length > 0 ? (
-          <MatchCarousel
-            title="Latest Results"
-            linkTo="/results"
-            matches={latestResults}
-            teamsMap={teamsMap}
-            mode="result"
-          />
-        ) : null}
-
-        {latestResults.length === 0 ? (
-          <>
-            <SectionHeader title="Latest Results" linkTo="/results" />
-            <EmptyState title="No results published yet" />
-          </>
-        ) : null}
-      </section>
 
       <NplTvSection />
 
