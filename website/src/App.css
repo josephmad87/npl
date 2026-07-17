@@ -8156,3 +8156,43 @@ table.league-standings-table .league-standings-table__form {
     width: 100%;
   }
 }
+/* Match centre: match report */
+.match-centre-match-report {
+  margin-top: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: #fff;
+  padding: 1.1rem;
+  box-shadow: 0 8px 24px rgba(31, 22, 64, 0.07);
+}
+
+.match-centre-match-report__eyebrow {
+  margin: 0 0 0.3rem;
+  color: var(--color-highlight);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.match-centre-match-report h2 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  line-height: 1.15;
+}
+
+.match-centre-match-report__body {
+  margin-top: 0.85rem;
+  color: var(--color-text);
+  font-size: 0.98rem;
+  line-height: 1.7;
+}
+
+.match-centre-match-report__body p {
+  margin: 0 0 0.9rem;
+}
+
+.match-centre-match-report__body p:last-child {
+  margin-bottom: 0;
+}
