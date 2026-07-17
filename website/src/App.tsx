@@ -2,18 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import './App.css'
-import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
 import { MatchCarousel } from './components/MatchCarousel'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
-import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { NplTvSection } from './components/NplTvSection'
 import { SponsorMarquee } from './components/SponsorMarquee'
 import {
   useLatestResults,
   useRecentNews,
-  useFeaturedTeams,
   useTeamsMap,
   useUpcomingFixtures,
 } from './lib/hooks'
@@ -96,7 +93,7 @@ type HomeSpotlightMatch = HomeHubMatch & {
 
 type TeamFormCode = 'W' | 'L' | 'T' | 'NR'
 
-const FOUR_HOUR_SPOTLIGHT_MS = 4 * 60 * 60 * 1000
+const SPOTLIGHT_ROTATION_MS = 15 * 60 * 1000
 
 function localTodayKey(): string {
   const today = new Date()
@@ -444,7 +441,6 @@ function App() {
   const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 80)
   const { data: latestResults = [] } = useLatestResults(undefined, 80)
   const { map: teamsMap } = useTeamsMap()
-  const { data: featuredTeams = [] } = useFeaturedTeams()
 
   const { data: spotlightTeams = [] } = useQuery({
     queryKey: ['home-team-spotlight-teams'],
@@ -486,6 +482,7 @@ function App() {
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
+  const [galleryWindowIndex, setGalleryWindowIndex] = useState(0)
   const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
   const [skippedSpotlightPlayerIds, setSkippedSpotlightPlayerIds] = useState<
   Set<number>
@@ -493,7 +490,6 @@ function App() {
   const [fixtureTab, setFixtureTab] = useState<HomeFixtureTab>('matchday')
   const [fixtureCategory, setFixtureCategory] =
     useState<HomeFixtureCategory>('all')
-  const [spotlightTeamId, setSpotlightTeamId] = useState('')
 
   const heroSlides = useMemo(
     () =>
@@ -516,6 +512,8 @@ function App() {
     { id: 'women', label: 'Women' },
     { id: 'youth', label: 'Youth' },
   ]
+
+  const spotlightSlot = Math.floor(spotlightNow / SPOTLIGHT_ROTATION_MS)
 
   const sortedSpotlightTeams = useMemo(
     () => [...spotlightTeams].sort((a, b) => a.name.localeCompare(b.name)),
@@ -550,26 +548,21 @@ const activeSpotlightPlayers = useMemo(
   [spotlightEligibleTeamIds, spotlightPlayers],
 )
 
-  useEffect(() => {
-    if (sortedSpotlightTeams.length === 0) return
 
-    const currentExists = sortedSpotlightTeams.some(
-      (team) => String(team.id) === spotlightTeamId,
-    )
-
-    if (!currentExists) {
-      setSpotlightTeamId(String(sortedSpotlightTeams[0].id))
-    }
-  }, [sortedSpotlightTeams, spotlightTeamId])
-
-  const selectedSpotlightTeam = useMemo(
-    () =>
-      sortedSpotlightTeams.find((team) => String(team.id) === spotlightTeamId) ??
-      sortedSpotlightTeams[0] ??
-      null,
-    [sortedSpotlightTeams, spotlightTeamId],
+  const spotlightTeamCandidates = useMemo(() => {
+  const playedTeams = sortedSpotlightTeams.filter((team) =>
+    spotlightEligibleTeamIds.has(team.id),
   )
 
+  return playedTeams.length > 0 ? playedTeams : sortedSpotlightTeams
+}, [sortedSpotlightTeams, spotlightEligibleTeamIds])
+
+const selectedSpotlightTeam = useMemo(() => {
+  if (spotlightTeamCandidates.length === 0) return null
+
+  return spotlightTeamCandidates[spotlightSlot % spotlightTeamCandidates.length]
+}, [spotlightSlot, spotlightTeamCandidates])
+  
   const fixtureHubMatches = useMemo(() => {
     const source = fixtureTab === 'results' ? latestResults : upcomingFixtures
 
@@ -627,7 +620,7 @@ const activeSpotlightPlayers = useMemo(
     ? resolveMediaUrl(selectedSpotlightTeam.logo_url)
     : null
 
-  const playerSpotlightSlot = Math.floor(spotlightNow / FOUR_HOUR_SPOTLIGHT_MS)
+  const playerSpotlightSlot = spotlightSlot
 
   const selectedSpotlightPlayer = useMemo(() => {
   const candidates = activeSpotlightPlayers.filter(
@@ -761,9 +754,27 @@ useEffect(() => {
     return () => globalThis.clearInterval(timer)
   }, [heroSlides.length])
 
+const galleryShowcaseItems = useMemo(() => {
+  if (gallery.length <= 4) return gallery
+
+  return Array.from({ length: 4 }, (_, index) => {
+    return gallery[(galleryWindowIndex + index) % gallery.length]
+  })
+}, [gallery, galleryWindowIndex])
+
+useEffect(() => {
+  if (gallery.length <= 4) return
+
+  const timer = globalThis.setInterval(() => {
+    setGalleryWindowIndex((current) => (current + 1) % gallery.length)
+  }, 5 * 60 * 1000)
+
+  return () => globalThis.clearInterval(timer)
+}, [gallery.length])
+  
   const currentSlideIndex =
     heroSlides.length > 0 ? activeSlideIndex % heroSlides.length : 0
-
+  
   return (
     <main className="container">
       <section className="hero-carousel" aria-label="Latest news highlights">
@@ -771,6 +782,8 @@ useEffect(() => {
           <>
             {heroSlides.map((slide, index) => {
               const isActive = index === currentSlideIndex
+
+  
 
               return (
                 <article
@@ -958,22 +971,10 @@ useEffect(() => {
             <div>
               <p className="home-team-spotlight__eyebrow">Team spotlight</p>
               <h2>Follow a Club</h2>
-              <p>Pick a team to see form, next fixture and latest result.</p>
+              <p>See your favourite team's form, next fixture and latest result.</p>
             </div>
 
-            <label className="home-team-spotlight__select-wrap">
-              <span>Choose team</span>
-              <select
-                value={String(selectedSpotlightTeam.id)}
-                onChange={(event) => setSpotlightTeamId(event.target.value)}
-              >
-                {sortedSpotlightTeams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            
           </div>
 
           <div className="home-team-spotlight__card">
@@ -1139,16 +1140,29 @@ useEffect(() => {
 
       <NplTvSection />
 
-      <FeaturedTeamsCarousel teams={featuredTeams} />
+  <section className="home-section home-gallery-wall">
+  <SectionHeader title="Gallery Preview" linkTo="/gallery" />
 
-      <section className="home-section">
-        <SectionHeader title="Gallery Preview" linkTo="/gallery" />
-        <div className="home-grid home-grid--gallery home-grid--gallery-row">
-          {gallery.map((item) => (
-            <GalleryCard key={item.id} item={item} onOpen={setGalleryActive} />
-          ))}
-        </div>
-      </section>
+  <div className="home-gallery-wall__grid">
+    {galleryShowcaseItems.map((item, index) => {
+      const imageUrl = resolveMediaUrl(item.thumbnail_url ?? item.file_url)
+
+      if (!imageUrl) return null
+
+      return (
+        <button
+          key={`${item.id}-${galleryWindowIndex}`}
+          type="button"
+          className={`home-gallery-wall__item home-gallery-wall__item--${index + 1}`}
+          onClick={() => setGalleryActive(item)}
+          aria-label={`Open gallery image: ${item.title}`}
+        >
+          <img src={imageUrl} alt="" loading="lazy" decoding="async" />
+        </button>
+      )
+    })}
+  </div>
+</section>
 
       <SponsorMarquee sponsors={homepageSponsors} />
 
