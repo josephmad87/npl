@@ -376,18 +376,6 @@ function playerRoleLabel(player: HomeSpotlightPlayer): string {
   return role || 'Cricketer'
 }
 
-function nextSpotlightChangeLabel(now: number): string {
-  const nextChange =
-    (Math.floor(now / FOUR_HOUR_SPOTLIGHT_MS) + 1) * FOUR_HOUR_SPOTLIGHT_MS
-  const remaining = Math.max(0, nextChange - now)
-  const hours = Math.floor(remaining / 3_600_000)
-  const minutes = Math.max(1, Math.ceil((remaining % 3_600_000) / 60_000))
-
-  if (hours <= 0) return `Changes in ${minutes}m`
-
-  return `Changes in ${hours}h ${minutes}m`
-}
-
 function playerAppearanceTitle(appearance: HomePlayerAppearance | undefined): string {
   if (!appearance) return 'No scorecard appearance yet'
 
@@ -498,7 +486,7 @@ function App() {
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
-  const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
+  const [, setSpotlightNow] = useState(() => Date.now())
   const [skippedSpotlightPlayerIds, setSkippedSpotlightPlayerIds] = useState<
   Set<number>
 >(() => new Set())
