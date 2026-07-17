@@ -9176,3 +9176,74 @@ table.league-standings-table .league-standings-table__form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+/* Player profile: recent form badges */
+.player-public-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.75rem;
+}
+
+.player-public-form__badge {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.9rem;
+  background: #fff;
+  padding: 0.85rem;
+  color: var(--color-text);
+  text-decoration: none;
+  box-shadow: 0 8px 22px rgba(31, 22, 64, 0.07);
+}
+
+.player-public-form__badge:hover,
+.player-public-form__badge:focus-visible {
+  border-color: var(--color-highlight);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-highlight) 24%, transparent);
+}
+
+.player-public-form__badge strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  min-width: 3rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.player-public-form__badge span {
+  color: var(--color-primary);
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.player-public-form__badge em {
+  color: var(--color-muted);
+  font-style: normal;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.player-public-form__badge--potm strong {
+  background: #e58b1b;
+}
+
+.player-public-form__badge--batting strong {
+  background: #12805c;
+}
+
+.player-public-form__badge--bowling strong {
+  background: #bf4927;
+}
+
+.player-public-form__badge--fielding strong {
+  background: #5c6370;
+}
+
+

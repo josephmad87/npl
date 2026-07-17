@@ -76,6 +76,14 @@ type PlayerMatchAppearance = {
   run_outs: number
   notes: string | null
 }
+type PlayerRecentFormBadge = {
+  key: string
+  code: string
+  label: string
+  fixture: string
+  href: string
+  tone: 'potm' | 'batting' | 'bowling' | 'fielding' | 'played'
+}
 
 function fmtRate(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return '—'
@@ -87,6 +95,74 @@ function statusClass(status: string): string {
   if (s === 'active') return 'player-public-status player-public-status--active'
   if (s === 'injured') return 'player-public-status player-public-status--injured'
   return 'player-public-status player-public-status--inactive'
+}
+
+function appearanceDateValue(row: PlayerMatchAppearance): number {
+  const raw = row.match_date
+
+  if (!raw) return Number.MIN_SAFE_INTEGER
+
+  const parsed = new Date(raw.length <= 10 ? `${raw}T12:00:00` : raw).getTime()
+
+  return Number.isNaN(parsed) ? Number.MIN_SAFE_INTEGER : parsed
+}
+
+function fieldingImpact(row: PlayerMatchAppearance): number {
+  return (row.catches ?? 0) + (row.stumpings ?? 0) + (row.run_outs ?? 0)
+}
+
+function recentFormCode(row: PlayerMatchAppearance): {
+  code: string
+  label: string
+  tone: PlayerRecentFormBadge['tone']
+} {
+  if (row.player_of_match) {
+    return { code: 'POTM', label: 'Player of the match', tone: 'potm' }
+  }
+
+  if ((row.runs ?? 0) >= 50) {
+    return {
+      code: '50+',
+      label: `${row.runs} runs off ${row.balls_faced} balls`,
+      tone: 'batting',
+    }
+  }
+
+  if ((row.wickets ?? 0) >= 3) {
+    return {
+      code: `${row.wickets}W`,
+      label: `${row.wickets}/${row.runs_conceded} with the ball`,
+      tone: 'bowling',
+    }
+  }
+
+  if ((row.runs ?? 0) >= 30) {
+    return {
+      code: '30+',
+      label: `${row.runs} runs off ${row.balls_faced} balls`,
+      tone: 'batting',
+    }
+  }
+
+  if ((row.wickets ?? 0) > 0) {
+    return {
+      code: `${row.wickets}W`,
+      label: `${row.wickets}/${row.runs_conceded} with the ball`,
+      tone: 'bowling',
+    }
+  }
+
+  if (fieldingImpact(row) > 0) {
+    return {
+      code: 'FIELD',
+      label: `${fieldingImpact(row)} fielding contribution${
+        fieldingImpact(row) === 1 ? '' : 's'
+      }`,
+      tone: 'fielding',
+    }
+  }
+
+  return { code: 'PLAY', label: 'Featured in the scorecard', tone: 'played' }
 }
 
 export default function PlayerDetailPage() {
@@ -216,7 +292,32 @@ export default function PlayerDetailPage() {
         }
       })
   }, [appearances])
+const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
+  () =>
+    appearances
+      .filter((row) => row.status === 'completed')
+      .sort((a, b) => appearanceDateValue(b) - appearanceDateValue(a))
+      .slice(0, 5)
+      .map((row) => {
+        const form = recentFormCode(row)
 
+        return {
+          key: `${row.stat_id}-${row.match_id}`,
+          ...form,
+          fixture: `${row.home_team_name} vs ${row.away_team_name}`,
+          href: matchSeoPath({
+            id: row.match_id,
+            home_name: row.home_team_name,
+            away_name: row.away_team_name,
+            league_name: row.league_name,
+            season_name: row.season_name,
+          }),
+        }
+      }),
+  [appearances],
+)
+
+  
   const teamLogoSrc = team?.logo_url ? resolveMediaUrl(team.logo_url) : null
 
   return (
@@ -345,7 +446,33 @@ export default function PlayerDetailPage() {
               </div>
             </article>
 
-            <section className="player-public-section" aria-label="Biography">
+{recentFormBadges.length > 0 ? (
+  <section
+    className="player-public-section player-public-form"
+    aria-label="Recent player form"
+  >
+    <SectionHeader title="Recent form" />
+    <p className="player-public-hint muted">
+      Automatically generated from this player’s latest scorecard appearances.
+    </p>
+
+    <div className="player-public-form__grid">
+      {recentFormBadges.map((badge) => (
+        <a
+          key={badge.key}
+          href={badge.href}
+          className={`player-public-form__badge player-public-form__badge--${badge.tone}`}
+        >
+          <strong>{badge.code}</strong>
+          <span>{badge.label}</span>
+          <em>{badge.fixture}</em>
+        </a>
+      ))}
+    </div>
+  </section>
+) : null}
+
+<section className="player-public-section" aria-label="Biography">
               <SectionHeader title="Profile" />
               <div className="player-public-prose">
                 <p>

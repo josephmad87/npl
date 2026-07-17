@@ -126,6 +126,7 @@ type PlayerMatchupRow = {
   awayValue: string | number
 }
 
+
 const NO_PLAYER_STATS: MatchPlayerStat[] = []
 
 function formatMatchReportContent(report: string | null | undefined): {
@@ -666,6 +667,7 @@ export default function MatchDetailPage() {
     })
   }, [awayName, data, homeName, playerById, playerStats])
 
+
   const playerMatchupOptions = useMemo(() => {
     if (!data) return { home: [], away: [] }
 
@@ -1139,9 +1141,10 @@ export default function MatchDetailPage() {
                 ))}
               </div>
             </section>
-          ) : null}
+                    ) : null}
 
-                  {showPlayerMatchup ? (
+
+          {showPlayerMatchup ? (
             <section
               className="match-centre-panel match-centre-player-matchup"
               aria-labelledby="player-matchup-title"
