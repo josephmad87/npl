@@ -7,13 +7,11 @@ import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryL
 import { MatchCarousel } from './components/MatchCarousel'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
-import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { NplTvSection } from './components/NplTvSection'
 import { SponsorMarquee } from './components/SponsorMarquee'
 import {
   useLatestResults,
   useRecentNews,
-  useFeaturedTeams,
   useTeamsMap,
   useUpcomingFixtures,
 } from './lib/hooks'
@@ -444,7 +442,6 @@ function App() {
   const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 80)
   const { data: latestResults = [] } = useLatestResults(undefined, 80)
   const { map: teamsMap } = useTeamsMap()
-  const { data: featuredTeams = [] } = useFeaturedTeams()
 
   const { data: spotlightTeams = [] } = useQuery({
     queryKey: ['home-team-spotlight-teams'],
@@ -1125,7 +1122,7 @@ useEffect(() => {
 
       <NplTvSection />
 
-      <FeaturedTeamsCarousel teams={featuredTeams} />
+    
 
       <section className="home-section">
         <SectionHeader title="Gallery Preview" linkTo="/gallery" />
