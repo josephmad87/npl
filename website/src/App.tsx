@@ -486,7 +486,7 @@ function App() {
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
-  const [, setSpotlightNow] = useState(() => Date.now())
+  const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
   const [skippedSpotlightPlayerIds, setSkippedSpotlightPlayerIds] = useState<
   Set<number>
 >(() => new Set())
