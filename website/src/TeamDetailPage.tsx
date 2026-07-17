@@ -106,6 +106,8 @@ type TeamSectionTabId =
   | 'shop'
   | 'team-photos'
 
+const TEAM_RESULTS_PAGE_SIZE = 4
+
 type TeamFormCode = 'W' | 'L' | 'T' | 'NR'
 
 function matchSeasonId(match: MatchLite): number | null {
@@ -253,6 +255,7 @@ export function TeamDetailPage() {
   const { map: teamsMap } = useTeamsMap()
   const [galleryActive, setGalleryActive] = useState<GalleryLightboxItem | null>(null)
   const [activeTab, setActiveTab] = useState<TeamSectionTabId>('leadership')
+  const [resultsPageIndex, setResultsPageIndex] = useState(0)
 
   const seasonRecordsQ = useQuery({
     queryKey: ['team-season-records', slug],
@@ -436,6 +439,32 @@ const teamSeasonSnapshot = useMemo(() => {
     [fixturesQ.data],
   )
 
+  const teamResults = useMemo(() => resultsQ.data ?? [], [resultsQ.data])
+
+const teamResultsPageCount = Math.max(
+  1,
+  Math.ceil(teamResults.length / TEAM_RESULTS_PAGE_SIZE),
+)
+
+const teamResultsPageStart = resultsPageIndex * TEAM_RESULTS_PAGE_SIZE
+
+const teamResultsPaged = teamResults.slice(
+  teamResultsPageStart,
+  teamResultsPageStart + TEAM_RESULTS_PAGE_SIZE,
+)
+
+const canGoPreviousResults = resultsPageIndex > 0
+const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
+
+useEffect(() => {
+  setResultsPageIndex((current) =>
+    Math.min(current, Math.max(0, teamResultsPageCount - 1)),
+  )
+}, [teamResultsPageCount])
+
+useEffect(() => {
+  setResultsPageIndex(0)
+}, [slug])
     const teamMerchandise = useMemo(
     () =>
       [...(merchandiseQ.data ?? [])].sort(
@@ -828,25 +857,63 @@ const teamSeasonSnapshot = useMemo(() => {
               ) : null}
 
               {activeTab === 'results' ? (
-                <section className="team-page__section" aria-label="Results">
-                <SectionHeader title="Results" />
-                {resultsQ.isLoading ? <Spinner label="Loading results…" /> : null}
-                {(resultsQ.data ?? []).length === 0 && !resultsQ.isLoading ? (
-                  <p className="muted">No recent results.</p>
-                ) : (
-                  <div className="home-grid home-grid--matches team-page__match-grid">
-                    {(resultsQ.data ?? []).map((match) => (
-                      <MatchCard
-                        key={match.id}
-                        match={match}
-                        teamsMap={teamsMap}
-                        mode="result"
-                      />
-                    ))}
-                  </div>
-                )}
-                </section>
-              ) : null}
+  <section className="team-page__section" aria-label="Results">
+    <div className="team-page__results-head">
+      <SectionHeader title="Results" />
+
+      {teamResults.length > TEAM_RESULTS_PAGE_SIZE ? (
+        <div className="team-page__results-controls" aria-label="Results pages">
+          <button
+            type="button"
+            className="team-page__results-nav-btn"
+            onClick={() =>
+              setResultsPageIndex((current) => Math.max(0, current - 1))
+            }
+            disabled={!canGoPreviousResults}
+            aria-label="Previous results"
+          >
+            ‹
+          </button>
+
+          <span>
+            {resultsPageIndex + 1} / {teamResultsPageCount}
+          </span>
+
+          <button
+            type="button"
+            className="team-page__results-nav-btn"
+            onClick={() =>
+              setResultsPageIndex((current) =>
+                Math.min(teamResultsPageCount - 1, current + 1),
+              )
+            }
+            disabled={!canGoNextResults}
+            aria-label="Next results"
+          >
+            ›
+          </button>
+        </div>
+      ) : null}
+    </div>
+
+    {resultsQ.isLoading ? <Spinner label="Loading results…" /> : null}
+
+    {teamResults.length === 0 && !resultsQ.isLoading ? (
+      <p className="muted">No recent results.</p>
+    ) : (
+      <div className="team-page__results-grid">
+        {teamResultsPaged.map((match) => (
+          <MatchCard
+            key={match.id}
+            match={match}
+            teamsMap={teamsMap}
+            mode="result"
+          />
+        ))}
+      </div>
+    )}
+  </section>
+) : null}
 
               {activeTab === 'squad' ? (
                 <section className="team-page__section" aria-label="Squad">
