@@ -7877,3 +7877,6 @@ table.league-standings-table .league-standings-table__form {
     grid-template-columns: 1fr;
   }
 }
+.match-centre-share-row--top {
+  margin: 0 0 1rem;
+}
