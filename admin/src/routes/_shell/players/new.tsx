@@ -1,17 +1,40 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { PlayerDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPost } from '@/lib/admin-client'
-import type { CompetitionCategoryValue } from '@/lib/competitionCategories'
+import {
+normalizeCompetitionCategory,
+  type CompetitionCategoryValue,
+} from '@/lib/competitionCategories'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
 import { PageHeader } from '@/components/PageHeader'
 
+function parseNewPlayerSearch(search: Record<string, unknown>): {
+  teamId?: number
+} {
+  const rawTeamId = search.teamId
+  const teamId =
+    typeof rawTeamId === 'number'
+      ? rawTeamId
+      : typeof rawTeamId === 'string'
+        ? Number(rawTeamId)
+        : null
+
+  return {
+    teamId:
+      teamId != null && Number.isFinite(teamId) && teamId > 0
+        ? teamId
+        : undefined,
+  }
+}
+
 export const Route = createFileRoute('/_shell/players/new')({
+  validateSearch: parseNewPlayerSearch,
   component: NewPlayerPage,
 })
 
@@ -20,6 +43,7 @@ const STATUSES = ['active', 'inactive', 'injured'] as const
 function NewPlayerPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { teamId: returnTeamId } = Route.useSearch()
   const teamsQ = useQuery({
     queryKey: ['admin', 'teams'],
     queryFn: () => adminListAll<TeamDto>('/admin/teams'),
@@ -27,7 +51,7 @@ function NewPlayerPage() {
 
   const [fullName, setFullName] = useState('')
   const [slug, setSlug] = useState('')
-  const [teamId, setTeamId] = useState<number | null>(null)
+  const [teamId, setTeamId] = useState<number | null>(returnTeamId ?? null)
   const [category, setCategory] = useState<CompetitionCategoryValue>('mens')
   const [role, setRole] = useState('')
   const [jerseyNumber, setJerseyNumber] = useState('')
@@ -36,6 +60,15 @@ function NewPlayerPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const teamOptions = teamsQ.data ?? []
+  const returnTeam = returnTeamId
+  ? teamOptions.find((team) => team.id === returnTeamId)
+  : undefined
+
+useEffect(() => {
+  if (!returnTeam) return
+  setTeamId(returnTeam.id)
+  setCategory(normalizeCompetitionCategory(returnTeam.category))
+}, [returnTeam])
 
   const save = async () => {
     const fn = fullName.trim()
@@ -71,10 +104,18 @@ function NewPlayerPage() {
         profile_photo_url: profilePhotoUrl?.trim() ?? null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'players'] })
-      void navigate({
-        to: '/players/$playerId',
-        params: { playerId: String(created.id) },
-      })
+      if (returnTeamId) {
+  void navigate({
+    to: '/teams/$teamId',
+    params: { teamId: String(returnTeamId) },
+  })
+  return
+}
+
+void navigate({
+  to: '/players/$playerId',
+  params: { playerId: String(created.id) },
+})
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Create failed')
     }
@@ -112,12 +153,29 @@ function NewPlayerPage() {
         descriptionAsTooltip
         description="POST /admin/players"
         actions={
-          <BackNavLink to="/players">Players</BackNavLink>
-        }
+  returnTeam ? (
+    <Link
+      to="/teams/$teamId"
+      params={{ teamId: String(returnTeam.id) }}
+      className="btn-ghost"
+    >
+      Back to {returnTeam.name}
+    </Link>
+  ) : (
+    <BackNavLink to="/players">Players</BackNavLink>
+  )
+}
       />
       <InlineEditForm
         error={saveError}
-        onCancel={() => void navigate({ to: '/players' })}
+        onCancel={() =>
+  returnTeamId
+    ? void navigate({
+        to: '/teams/$teamId',
+        params: { teamId: String(returnTeamId) },
+      })
+    : void navigate({ to: '/players' })
+}
         onSave={() => void save()}
         fields={[
           {
@@ -152,7 +210,15 @@ function NewPlayerPage() {
                 id="team_id"
                 className="inline-edit__control"
                 value={resolvedTeamId}
-                onChange={(e) => setTeamId(Number(e.target.value))}
+                onChange={(e) => {
+  const nextTeamId = Number(e.target.value)
+  setTeamId(nextTeamId)
+
+  const nextTeam = teamOptions.find((team) => team.id === nextTeamId)
+  if (nextTeam) {
+    setCategory(normalizeCompetitionCategory(nextTeam.category))
+  }
+}}
               >
                 {teamOptions.map((t) => (
                   <option key={t.id} value={t.id}>

@@ -19,7 +19,6 @@ import { resolvePlayerPhotoSrc } from '@/lib/playerPhotoSrc'
 import { SectionHintTip } from '@/components/SectionHintTip'
 import { StatusBadge } from '@/components/StatusBadge'
 import { normalizeCompetitionCategory } from '@/lib/competitionCategories'
-import { parseDetailRouteSearch } from '@/lib/detail-route-search'
 import {
   countsBattingInnings,
   formatCricketOvers,
@@ -28,8 +27,29 @@ import {
   oversFieldToBalls,
 } from '@/lib/cricket'
 
+function parsePlayerDetailSearch(search: Record<string, unknown>): {
+  mode?: 'edit'
+  teamId?: number
+} {
+  const rawTeamId = search.teamId
+  const teamId =
+    typeof rawTeamId === 'number'
+      ? rawTeamId
+      : typeof rawTeamId === 'string'
+        ? Number(rawTeamId)
+        : null
+
+  return {
+    mode: search.mode === 'edit' ? 'edit' : undefined,
+    teamId:
+      teamId != null && Number.isFinite(teamId) && teamId > 0
+        ? teamId
+        : undefined,
+  }
+}
+
 export const Route = createFileRoute('/_shell/players/$playerId')({
-  validateSearch: parseDetailRouteSearch,
+  validateSearch: parsePlayerDetailSearch,
   component: PlayerDetailPage,
 })
 
@@ -43,7 +63,7 @@ function fmtRate(n: number | null | undefined): string {
 function PlayerDetailPage() {
   const { playerId } = Route.useParams()
   const pid = Number(playerId)
-  const { mode } = Route.useSearch()
+  const { mode, teamId: returnTeamId } = Route.useSearch()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -80,6 +100,11 @@ function PlayerDetailPage() {
     return teamsQ.data?.find((t) => t.id === player.team_id)
   }, [player, teamsQ.data])
 
+  const returnTeam = useMemo(() => {
+  if (!returnTeamId) return undefined
+  return teamsQ.data?.find((team) => team.id === returnTeamId)
+}, [returnTeamId, teamsQ.data])
+
   const isEditing = mode === 'edit'
   const [patch, setPatch] = useState<Partial<PlayerDto>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -88,15 +113,24 @@ function PlayerDetailPage() {
     player ? { ...player, ...patch } : null
 
   const goView = () => {
-    if (!player) return
-    setPatch({})
-    setSaveError(null)
+  if (!player) return
+  setPatch({})
+  setSaveError(null)
+
+  if (returnTeamId) {
     void navigate({
-      to: '/players/$playerId',
-      params: { playerId: String(player.id) },
-      search: {},
+      to: '/teams/$teamId',
+      params: { teamId: String(returnTeamId) },
     })
+    return
   }
+
+  void navigate({
+    to: '/players/$playerId',
+    params: { playerId: String(player.id) },
+    search: {},
+  })
+}
 
   const beginEdit = () => {
     if (!player) return
@@ -105,7 +139,9 @@ function PlayerDetailPage() {
     void navigate({
       to: '/players/$playerId',
       params: { playerId: String(player.id) },
-      search: { mode: 'edit' },
+      search: returnTeamId
+  ? { mode: 'edit', teamId: returnTeamId }
+  : { mode: 'edit' },
     })
   }
 
@@ -285,7 +321,17 @@ function PlayerDetailPage() {
         }
         actions={
           <>
-            <BackNavLink to="/players">Players</BackNavLink>
+            {returnTeam ? (
+  <Link
+    to="/teams/$teamId"
+    params={{ teamId: String(returnTeam.id) }}
+    className="btn-ghost"
+  >
+    Back to {returnTeam.name}
+  </Link>
+) : (
+  <BackNavLink to="/players">Players</BackNavLink>
+)}
             {!isEditing ? (
               <button
                 type="button"

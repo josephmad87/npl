@@ -3349,3 +3349,295 @@ video.article-view__hero-img {
   object-fit: contain;
   border-radius: 0.75rem;
 }
+.team-grouped-catalog {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.team-grouped-catalog__category {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.team-grouped-catalog__category-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.team-grouped-catalog__eyebrow {
+  margin: 0 0 0.2rem;
+  color: var(--accent, #e58b1b);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.team-grouped-catalog__category-head h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.25rem;
+}
+
+.team-grouped-catalog__category-head > span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.team-grouped-catalog__status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.team-grouped-catalog__status {
+  min-width: 0;
+  border: 1px solid rgba(229, 139, 27, 0.24);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 0.85rem;
+}
+
+.team-grouped-catalog__status-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.team-grouped-catalog__status-head h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.team-grouped-catalog__status-head span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  background: rgba(229, 139, 27, 0.18);
+  color: #e58b1b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.team-grouped-catalog__cards {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.team-grouped-catalog__empty {
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 0.75rem;
+}
+
+@media (max-width: 1180px) {
+  .team-grouped-catalog__status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .team-grouped-catalog__cards {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
+.team-tab-catalog {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 1.15rem;
+}
+
+.team-tab-catalog__tabs {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  gap: 0.15rem;
+  padding: 0.35rem;
+  border: 1px solid rgba(229, 139, 27, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.team-tab-catalog__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.team-tab-catalog__tabs button {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 850;
+  padding: 0.72rem 1.25rem;
+  white-space: nowrap;
+}
+
+.team-tab-catalog__tabs button span {
+  color: rgba(255, 255, 255, 0.46);
+  font-weight: 850;
+}
+
+.team-tab-catalog__tabs button:hover,
+.team-tab-catalog__tabs button:focus-visible {
+  color: #fff;
+  background: rgba(229, 139, 27, 0.08);
+}
+
+.team-tab-catalog__tabs button.is-active {
+  background: rgba(191, 73, 39, 0.38);
+  color: #fff;
+}
+
+.team-tab-catalog__tabs button.is-active span {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.team-tab-catalog__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.team-tab-catalog__empty {
+  margin: 1rem 0 0;
+  padding: 1rem;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 0.9rem;
+}
+
+.team-tab-catalog__status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.team-tab-catalog__status-pill--archived {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.72);
+}
+.player-tab-catalog {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 1.15rem;
+}
+
+.player-tab-catalog__tabs {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  gap: 0.15rem;
+  padding: 0.35rem;
+  border: 1px solid rgba(229, 139, 27, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.player-tab-catalog__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.player-tab-catalog__tabs button {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 850;
+  padding: 0.72rem 1.25rem;
+  white-space: nowrap;
+}
+
+.player-tab-catalog__tabs button span {
+  color: rgba(255, 255, 255, 0.46);
+  font-weight: 850;
+}
+
+.player-tab-catalog__tabs button:hover,
+.player-tab-catalog__tabs button:focus-visible {
+  color: #fff;
+  background: rgba(229, 139, 27, 0.08);
+}
+
+.player-tab-catalog__tabs button.is-active {
+  background: rgba(191, 73, 39, 0.38);
+  color: #fff;
+}
+
+.player-tab-catalog__tabs button.is-active span {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.player-tab-catalog__team-row {
+  max-width: 28rem;
+}
+
+.player-tab-catalog__team-row label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.player-tab-catalog__team-row label span {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.player-tab-catalog__team-row select {
+  width: 100%;
+  border: 1px solid rgba(229, 139, 27, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  color: #fff;
+  padding: 0.72rem 1rem;
+  font: inherit;
+  font-weight: 800;
+}
+
+.player-tab-catalog__team-row select option {
+  color: #1f163f;
+  background: #fff;
+}
+
+.player-tab-catalog__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.player-tab-catalog__empty {
+  margin: 1rem 0 0;
+  padding: 1rem;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 0.9rem;
+}
