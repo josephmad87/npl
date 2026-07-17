@@ -87,6 +87,27 @@ class MatchPlayerStatOut(ORMModel):
     run_outs: int
     notes: str | None
 
+class FanPlayerMatchVoteIn(BaseModel):
+    player_id: int = Field(ge=1)
+    voter_key: str = Field(min_length=8, max_length=128)
+
+
+class FanPlayerMatchVoteChoiceOut(BaseModel):
+    player_id: int
+    player_name: str
+    team_id: int
+    votes: int = 0
+    percentage: float = 0
+
+
+class FanPlayerMatchVoteSummaryOut(BaseModel):
+    match_id: int
+    eligible: bool
+    reason: str | None = None
+    total_votes: int = 0
+    voter_player_id: int | None = None
+    choices: list[FanPlayerMatchVoteChoiceOut] = Field(default_factory=list)
+
 
 class MatchResultIn(BaseModel):
     outcome: str = Field(default="win", pattern="^(win|tie|no_result)$")
