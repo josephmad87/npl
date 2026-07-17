@@ -58,6 +58,33 @@ type HomeSpotlightTeam = {
   logo_url: string | null
 }
 
+type HomeSpotlightPlayer = {
+  id: number
+  full_name: string
+  slug: string
+  team_id: number | null
+  category: string | null
+  role: string | null
+  profile_photo_url: string | null
+}
+
+type HomePlayerAppearance = {
+  match_id: number
+  match_date: string | null
+  venue: string | null
+  home_team_name: string
+  away_team_name: string
+  runs: number | null
+  balls_faced: number | null
+  fours: number | null
+  sixes: number | null
+  overs: number | string | null
+  maidens: number | null
+  runs_conceded: number | null
+  wickets: number | null
+  player_of_match: boolean
+}
+
 type HomeSpotlightMatch = HomeHubMatch & {
   result?: {
     winning_team_id?: number | null
@@ -68,6 +95,8 @@ type HomeSpotlightMatch = HomeHubMatch & {
 }
 
 type TeamFormCode = 'W' | 'L' | 'T' | 'NR'
+
+const FOUR_HOUR_SPOTLIGHT_MS = 4 * 60 * 60 * 1000
 
 function localTodayKey(): string {
   const today = new Date()
@@ -326,6 +355,102 @@ function categoryResultsHref(category: string | null | undefined): string {
   return '/results'
 }
 
+function statNumber(value: number | string | null | undefined): number {
+  const parsed = Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function appearanceDateValue(appearance: HomePlayerAppearance): number {
+  const raw = appearance.match_date
+
+  if (!raw) return Number.MIN_SAFE_INTEGER
+
+  const parsed = new Date(raw.length <= 10 ? `${raw}T12:00:00` : raw).getTime()
+
+  return Number.isNaN(parsed) ? Number.MIN_SAFE_INTEGER : parsed
+}
+
+function playerRoleLabel(player: HomeSpotlightPlayer): string {
+  const role = player.role?.trim()
+
+  return role || 'Cricketer'
+}
+
+function nextSpotlightChangeLabel(now: number): string {
+  const nextChange =
+    (Math.floor(now / FOUR_HOUR_SPOTLIGHT_MS) + 1) * FOUR_HOUR_SPOTLIGHT_MS
+  const remaining = Math.max(0, nextChange - now)
+  const hours = Math.floor(remaining / 3_600_000)
+  const minutes = Math.max(1, Math.ceil((remaining % 3_600_000) / 60_000))
+
+  if (hours <= 0) return `Changes in ${minutes}m`
+
+  return `Changes in ${hours}h ${minutes}m`
+}
+
+function playerAppearanceTitle(appearance: HomePlayerAppearance | undefined): string {
+  if (!appearance) return 'No scorecard appearance yet'
+
+  return `${appearance.home_team_name} vs ${appearance.away_team_name}`
+}
+
+function recentPlayerImpactLine(
+  appearance: HomePlayerAppearance | undefined,
+): string {
+  if (!appearance) return 'Waiting for scorecard data'
+
+  const runs = statNumber(appearance.runs)
+  const balls = statNumber(appearance.balls_faced)
+  const wickets = statNumber(appearance.wickets)
+  const runsConceded = statNumber(appearance.runs_conceded)
+  const overs = appearance.overs
+  const pieces: string[] = []
+
+  if (appearance.player_of_match) pieces.push('Player of the match')
+  if (runs > 0 || balls > 0) pieces.push(`${runs} off ${balls}`)
+  if (wickets > 0 || overs != null) {
+    pieces.push(`${wickets}/${runsConceded}${overs != null ? ` in ${overs} ov` : ''}`)
+  }
+
+  return pieces.length > 0 ? pieces.join(' · ') : 'Played'
+}
+
+function battingAppearanceLine(
+  appearance: HomePlayerAppearance | undefined,
+): string {
+  if (!appearance) return 'No batting line yet'
+
+  const runs = statNumber(appearance.runs)
+  const balls = statNumber(appearance.balls_faced)
+
+  if (runs === 0 && balls === 0) return 'No batting line yet'
+
+  const fours = statNumber(appearance.fours)
+  const sixes = statNumber(appearance.sixes)
+  const boundaryBits: string[] = []
+
+  if (fours > 0) boundaryBits.push(`${fours}x4`)
+  if (sixes > 0) boundaryBits.push(`${sixes}x6`)
+
+  return `${runs} off ${balls}${boundaryBits.length > 0 ? ` · ${boundaryBits.join(' · ')}` : ''}`
+}
+
+function bowlingAppearanceLine(
+  appearance: HomePlayerAppearance | undefined,
+): string {
+  if (!appearance) return 'No bowling line yet'
+
+  const wickets = statNumber(appearance.wickets)
+  const runsConceded = statNumber(appearance.runs_conceded)
+  const overs = appearance.overs
+
+  if (wickets === 0 && runsConceded === 0 && overs == null) {
+    return 'No bowling line yet'
+  }
+
+  return `${wickets}/${runsConceded}${overs != null ? ` in ${overs} ov` : ''}`
+}
+
 function App() {
   const { data: newsArticles = [] } = useRecentNews(36)
   const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 80)
@@ -338,6 +463,15 @@ function App() {
     queryFn: async () =>
       fetchAllPaginatedList<HomeSpotlightTeam>(
         (page) => `/public/teams?page=${page}&page_size=100`,
+      ),
+    retry: 1,
+  })
+
+  const { data: spotlightPlayers = [] } = useQuery({
+    queryKey: ['home-player-spotlight-players'],
+    queryFn: async () =>
+      fetchAllPaginatedList<HomeSpotlightPlayer>(
+        (page) => `/public/players?page=${page}&page_size=100`,
       ),
     retry: 1,
   })
@@ -364,6 +498,7 @@ function App() {
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
+  const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
   const [fixtureTab, setFixtureTab] = useState<HomeFixtureTab>('matchday')
   const [fixtureCategory, setFixtureCategory] =
     useState<HomeFixtureCategory>('all')
@@ -394,6 +529,19 @@ function App() {
   const sortedSpotlightTeams = useMemo(
     () => [...spotlightTeams].sort((a, b) => a.name.localeCompare(b.name)),
     [spotlightTeams],
+  )
+
+  const activeTeamIds = useMemo(
+    () => new Set(sortedSpotlightTeams.map((team) => team.id)),
+    [sortedSpotlightTeams],
+  )
+
+  const activeSpotlightPlayers = useMemo(
+    () =>
+      spotlightPlayers
+        .filter((player) => player.team_id != null && activeTeamIds.has(player.team_id))
+        .sort((a, b) => a.full_name.localeCompare(b.full_name)),
+    [activeTeamIds, spotlightPlayers],
   )
 
   useEffect(() => {
@@ -472,6 +620,95 @@ function App() {
   const spotlightLogo = selectedSpotlightTeam
     ? resolveMediaUrl(selectedSpotlightTeam.logo_url)
     : null
+
+  const playerSpotlightSlot = Math.floor(spotlightNow / FOUR_HOUR_SPOTLIGHT_MS)
+
+  const selectedSpotlightPlayer = useMemo(() => {
+    if (activeSpotlightPlayers.length === 0) return null
+
+    return activeSpotlightPlayers[playerSpotlightSlot % activeSpotlightPlayers.length]
+  }, [activeSpotlightPlayers, playerSpotlightSlot])
+
+  const spotlightPlayerTeam = selectedSpotlightPlayer
+    ? sortedSpotlightTeams.find((team) => team.id === selectedSpotlightPlayer.team_id) ??
+      null
+    : null
+
+  const spotlightPlayerTeamName =
+    selectedSpotlightPlayer != null
+      ? spotlightPlayerTeam?.name ??
+        teamsMap[selectedSpotlightPlayer.team_id ?? -1]?.name ??
+        'Active team'
+      : ''
+
+  const spotlightPlayerPhoto = selectedSpotlightPlayer
+    ? resolveMediaUrl(selectedSpotlightPlayer.profile_photo_url)
+    : null
+
+  const spotlightPlayerAppearancesQ = useQuery({
+    queryKey: [
+      'home-player-spotlight-appearances',
+      selectedSpotlightPlayer?.slug ?? 'none',
+    ],
+    queryFn: () =>
+      fetchJson<HomePlayerAppearance[]>(
+        `/public/players/${selectedSpotlightPlayer?.slug}/match-appearances`,
+      ),
+    enabled: Boolean(selectedSpotlightPlayer?.slug),
+    retry: 1,
+  })
+
+  const spotlightPlayerAppearances = useMemo(
+    () =>
+      [...(spotlightPlayerAppearancesQ.data ?? [])].sort(
+        (a, b) => appearanceDateValue(b) - appearanceDateValue(a),
+      ),
+    [spotlightPlayerAppearancesQ.data],
+  )
+
+  const spotlightRecentAppearance = spotlightPlayerAppearances[0]
+  const spotlightBestBatting = useMemo(
+    () =>
+      spotlightPlayerAppearances
+        .filter(
+          (appearance) =>
+            statNumber(appearance.runs) > 0 || statNumber(appearance.balls_faced) > 0,
+        )
+        .sort(
+          (a, b) =>
+            statNumber(b.runs) - statNumber(a.runs) ||
+            statNumber(b.sixes) - statNumber(a.sixes) ||
+            statNumber(b.fours) - statNumber(a.fours) ||
+            statNumber(a.balls_faced) - statNumber(b.balls_faced),
+        )[0],
+    [spotlightPlayerAppearances],
+  )
+
+  const spotlightBestBowling = useMemo(
+    () =>
+      spotlightPlayerAppearances
+        .filter(
+          (appearance) =>
+            statNumber(appearance.wickets) > 0 ||
+            appearance.overs != null ||
+            statNumber(appearance.runs_conceded) > 0,
+        )
+        .sort(
+          (a, b) =>
+            statNumber(b.wickets) - statNumber(a.wickets) ||
+            statNumber(a.runs_conceded) - statNumber(b.runs_conceded) ||
+            statNumber(b.maidens) - statNumber(a.maidens),
+        )[0],
+    [spotlightPlayerAppearances],
+  )
+
+  useEffect(() => {
+    const timer = globalThis.setInterval(() => {
+      setSpotlightNow(Date.now())
+    }, 60_000)
+
+    return () => globalThis.clearInterval(timer)
+  }, [])
 
   useEffect(() => {
     if (heroSlides.length < 2) return
@@ -783,6 +1020,80 @@ function App() {
               <a href={categoryResultsHref(selectedSpotlightTeam.category)}>
                 Results
               </a>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {selectedSpotlightPlayer ? (
+        <section className="home-section home-player-spotlight">
+          <div className="home-player-spotlight__media">
+            {spotlightPlayerPhoto ? (
+              <img
+                src={spotlightPlayerPhoto}
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <span>{teamInitials(selectedSpotlightPlayer.full_name)}</span>
+            )}
+          </div>
+
+          <div className="home-player-spotlight__body">
+            <div className="home-player-spotlight__head">
+              <div>
+                <p className="home-player-spotlight__eyebrow">Player spotlight</p>
+                <h2>{selectedSpotlightPlayer.full_name}</h2>
+                <p>
+                  {spotlightPlayerTeamName} ·{' '}
+                  {formatCategoryLabel(
+                    selectedSpotlightPlayer.category ??
+                      spotlightPlayerTeam?.category ??
+                      '',
+                  )}{' '}
+                  · {playerRoleLabel(selectedSpotlightPlayer)}
+                </p>
+              </div>
+
+              <div className="home-player-spotlight__timer">
+                <span>Auto-picked</span>
+                <strong>{nextSpotlightChangeLabel(spotlightNow)}</strong>
+              </div>
+            </div>
+
+            <div className="home-player-spotlight__stats">
+              <article>
+                <span>Recent impact</span>
+                <strong>{recentPlayerImpactLine(spotlightRecentAppearance)}</strong>
+                <p>{playerAppearanceTitle(spotlightRecentAppearance)}</p>
+              </article>
+
+              <article>
+                <span>Best batting</span>
+                <strong>{battingAppearanceLine(spotlightBestBatting)}</strong>
+                <p>{playerAppearanceTitle(spotlightBestBatting)}</p>
+              </article>
+
+              <article>
+                <span>Best bowling</span>
+                <strong>{bowlingAppearanceLine(spotlightBestBowling)}</strong>
+                <p>{playerAppearanceTitle(spotlightBestBowling)}</p>
+              </article>
+            </div>
+
+            <div className="home-player-spotlight__links">
+              <Link
+                to="/players/$slug"
+                params={{ slug: selectedSpotlightPlayer.slug }}
+              >
+                View player profile
+              </Link>
+              {spotlightPlayerTeam ? (
+                <Link to="/teams/$slug" params={{ slug: spotlightPlayerTeam.slug }}>
+                  View team
+                </Link>
+              ) : null}
             </div>
           </div>
         </section>
