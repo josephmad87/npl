@@ -1119,7 +1119,7 @@ export default function MatchDetailPage() {
             </section>
           ) : null}
 
-          {showPlayerMatchup ? (
+                  {showPlayerMatchup ? (
             <section
               className="match-centre-panel match-centre-player-matchup"
               aria-labelledby="player-matchup-title"
@@ -1223,8 +1223,7 @@ export default function MatchDetailPage() {
                     </table>
                   </div>
                 </>
-                           ) : null}
-              )}
+              ) : null}
             </section>
           ) : null}
 
