@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import './App.css'
-import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
 import { MatchCarousel } from './components/MatchCarousel'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
@@ -483,6 +482,7 @@ function App() {
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
+  const [galleryWindowIndex, setGalleryWindowIndex] = useState(0)
   const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
   const [skippedSpotlightPlayerIds, setSkippedSpotlightPlayerIds] = useState<
   Set<number>
@@ -754,9 +754,27 @@ useEffect(() => {
     return () => globalThis.clearInterval(timer)
   }, [heroSlides.length])
 
+const galleryShowcaseItems = useMemo(() => {
+  if (gallery.length <= 5) return gallery
+
+  return Array.from({ length: 5 }, (_, index) => {
+    return gallery[(galleryWindowIndex + index) % gallery.length]
+  })
+}, [gallery, galleryWindowIndex])
+
+useEffect(() => {
+  if (gallery.length <= 5) return
+
+  const timer = globalThis.setInterval(() => {
+    setGalleryWindowIndex((current) => (current + 1) % gallery.length)
+  }, 5 * 60 * 1000)
+
+  return () => globalThis.clearInterval(timer)
+}, [gallery.length])
+  
   const currentSlideIndex =
     heroSlides.length > 0 ? activeSlideIndex % heroSlides.length : 0
-
+  
   return (
     <main className="container">
       <section className="hero-carousel" aria-label="Latest news highlights">
@@ -764,6 +782,8 @@ useEffect(() => {
           <>
             {heroSlides.map((slide, index) => {
               const isActive = index === currentSlideIndex
+
+  
 
               return (
                 <article
@@ -1120,16 +1140,29 @@ useEffect(() => {
 
       <NplTvSection />
 
-    
+  <section className="home-section home-gallery-wall">
+  <SectionHeader title="Gallery Preview" linkTo="/gallery" />
 
-      <section className="home-section">
-        <SectionHeader title="Gallery Preview" linkTo="/gallery" />
-        <div className="home-grid home-grid--gallery home-grid--gallery-row">
-          {gallery.map((item) => (
-            <GalleryCard key={item.id} item={item} onOpen={setGalleryActive} />
-          ))}
-        </div>
-      </section>
+  <div className="home-gallery-wall__grid">
+    {galleryShowcaseItems.map((item, index) => {
+      const imageUrl = resolveMediaUrl(item.thumbnail_url ?? item.file_url)
+
+      if (!imageUrl) return null
+
+      return (
+        <button
+          key={`${item.id}-${galleryWindowIndex}`}
+          type="button"
+          className={`home-gallery-wall__item home-gallery-wall__item--${index + 1}`}
+          onClick={() => setGalleryActive(item)}
+          aria-label={`Open gallery image: ${item.title}`}
+        >
+          <img src={imageUrl} alt="" loading="lazy" decoding="async" />
+        </button>
+      )
+    })}
+  </div>
+</section>
 
       <SponsorMarquee sponsors={homepageSponsors} />
 
