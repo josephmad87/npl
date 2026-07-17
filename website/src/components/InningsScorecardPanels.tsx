@@ -40,6 +40,7 @@ type InningsScorecardPanelsProps = Readonly<{
   stats: ScorecardStat[]
   playerName: (playerId: number) => string
   playerHref?: (playerId: number) => string | null | undefined
+  highlightedPlayerId?: number | null
   extrasLine?: string | null
 }>
 
@@ -226,6 +227,7 @@ export function InningsScorecardPanels({
   stats,
   playerName,
   playerHref,
+  highlightedPlayerId,
   extrasLine,
 }: InningsScorecardPanelsProps) {
   const sides = getInningsSides(
