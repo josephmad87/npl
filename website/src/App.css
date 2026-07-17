@@ -4306,19 +4306,10 @@ table.player-public-table {
   .site-header-mobile__summary::-webkit-details-marker {
     display: none;
   }
-
-  .site-header-mobile__summary::after {
-    content: 'ÃƒÂ¢Ã¢â€šÂ¬Ã‚Âº';
-    font-size: 1.15rem;
-    font-weight: 700;
-    opacity: 0.55;
-    display: inline-block;
-    transition: transform 0.15s ease;
-  }
-
-  .site-header-mobile__details[open] .site-header-mobile__summary::after {
-    transform: rotate(90deg);
-  }
+  
+.site-header-mobile__summary::after {
+  content: none;
+}
 
   .site-header-mobile__panel {
     padding: 0 0 0.35rem;
