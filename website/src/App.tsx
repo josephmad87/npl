@@ -96,7 +96,7 @@ type HomeSpotlightMatch = HomeHubMatch & {
 
 type TeamFormCode = 'W' | 'L' | 'T' | 'NR'
 
-const FOUR_HOUR_SPOTLIGHT_MS = 4 * 60 * 60 * 1000
+const SPOTLIGHT_ROTATION_MS = 15 * 60 * 1000
 
 function localTodayKey(): string {
   const today = new Date()
@@ -493,7 +493,6 @@ function App() {
   const [fixtureTab, setFixtureTab] = useState<HomeFixtureTab>('matchday')
   const [fixtureCategory, setFixtureCategory] =
     useState<HomeFixtureCategory>('all')
-  const [spotlightTeamId, setSpotlightTeamId] = useState('')
 
   const heroSlides = useMemo(
     () =>
@@ -516,6 +515,8 @@ function App() {
     { id: 'women', label: 'Women' },
     { id: 'youth', label: 'Youth' },
   ]
+
+  const spotlightSlot = Math.floor(spotlightNow / SPOTLIGHT_ROTATION_MS)
 
   const sortedSpotlightTeams = useMemo(
     () => [...spotlightTeams].sort((a, b) => a.name.localeCompare(b.name)),
@@ -550,26 +551,21 @@ const activeSpotlightPlayers = useMemo(
   [spotlightEligibleTeamIds, spotlightPlayers],
 )
 
-  useEffect(() => {
-    if (sortedSpotlightTeams.length === 0) return
 
-    const currentExists = sortedSpotlightTeams.some(
-      (team) => String(team.id) === spotlightTeamId,
-    )
-
-    if (!currentExists) {
-      setSpotlightTeamId(String(sortedSpotlightTeams[0].id))
-    }
-  }, [sortedSpotlightTeams, spotlightTeamId])
-
-  const selectedSpotlightTeam = useMemo(
-    () =>
-      sortedSpotlightTeams.find((team) => String(team.id) === spotlightTeamId) ??
-      sortedSpotlightTeams[0] ??
-      null,
-    [sortedSpotlightTeams, spotlightTeamId],
+  const spotlightTeamCandidates = useMemo(() => {
+  const playedTeams = sortedSpotlightTeams.filter((team) =>
+    spotlightEligibleTeamIds.has(team.id),
   )
 
+  return playedTeams.length > 0 ? playedTeams : sortedSpotlightTeams
+}, [sortedSpotlightTeams, spotlightEligibleTeamIds])
+
+const selectedSpotlightTeam = useMemo(() => {
+  if (spotlightTeamCandidates.length === 0) return null
+
+  return spotlightTeamCandidates[spotlightSlot % spotlightTeamCandidates.length]
+}, [spotlightSlot, spotlightTeamCandidates])
+  
   const fixtureHubMatches = useMemo(() => {
     const source = fixtureTab === 'results' ? latestResults : upcomingFixtures
 
@@ -627,7 +623,7 @@ const activeSpotlightPlayers = useMemo(
     ? resolveMediaUrl(selectedSpotlightTeam.logo_url)
     : null
 
-  const playerSpotlightSlot = Math.floor(spotlightNow / FOUR_HOUR_SPOTLIGHT_MS)
+  const playerSpotlightSlot = spotlightSlot
 
   const selectedSpotlightPlayer = useMemo(() => {
   const candidates = activeSpotlightPlayers.filter(
@@ -958,22 +954,12 @@ useEffect(() => {
             <div>
               <p className="home-team-spotlight__eyebrow">Team spotlight</p>
               <h2>Follow a Club</h2>
-              <p>Pick a team to see form, next fixture and latest result.</p>
+              <p>See your favourite team's form, next fixture and latest result.</p>
             </div>
 
-            <label className="home-team-spotlight__select-wrap">
-              <span>Choose team</span>
-              <select
-                value={String(selectedSpotlightTeam.id)}
-                onChange={(event) => setSpotlightTeamId(event.target.value)}
-              >
-                {sortedSpotlightTeams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="home-team-spotlight__auto-badge">
+  Auto-picked
+</div>
           </div>
 
           <div className="home-team-spotlight__card">
