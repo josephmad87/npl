@@ -125,16 +125,7 @@ type PlayerMatchupRow = {
   homeValue: string | number
   awayValue: string | number
 }
-type MatchPlayerFormBadge = {
-  key: string
-  playerId: number
-  playerName: string
-  teamName: string
-  code: string
-  label: string
-  line: string
-  tone: 'potm' | 'batting' | 'bowling' | 'fielding' | 'impact'
-}
+
 
 const NO_PLAYER_STATS: MatchPlayerStat[] = []
 
@@ -266,100 +257,7 @@ function playerMatchupSummary(stat: MatchPlayerStat): string {
 
   return parts.length > 0 ? parts.join(' · ') : 'Scorecard row'
 }
-function matchPlayerFormLabel(
-  stat: MatchPlayerStat,
-  playerOfMatchPlayerId: number | null | undefined,
-): Pick<MatchPlayerFormBadge, 'code' | 'label' | 'tone'> {
-  if (stat.player_id === playerOfMatchPlayerId) {
-    return { code: 'POTM', label: 'Player of the match', tone: 'potm' }
-  }
 
-  if (stat.runs >= 50) {
-    return { code: '50+', label: 'Batting form', tone: 'batting' }
-  }
-
-  if (stat.wickets >= 3) {
-    return { code: `${stat.wickets}W`, label: 'Bowling form', tone: 'bowling' }
-  }
-
-  if (stat.runs >= 30) {
-    return { code: '30+', label: 'Batting impact', tone: 'batting' }
-  }
-
-  if (stat.wickets > 0) {
-    return { code: `${stat.wickets}W`, label: 'Bowling impact', tone: 'bowling' }
-  }
-
-  if (fieldingTotal(stat) > 0) {
-    return { code: 'FIELD', label: 'Fielding impact', tone: 'fielding' }
-  }
-
-  return { code: 'IMPACT', label: 'Match involvement', tone: 'impact' }
-}
-
-function matchPlayerFormLine(stat: MatchPlayerStat): string {
-  const parts: string[] = []
-
-  if (playerStatHasBatting(stat)) {
-    parts.push(`${stat.runs} off ${stat.balls_faced}`)
-  }
-
-  if (playerStatHasBowling(stat)) {
-    parts.push(`${stat.wickets}/${stat.runs_conceded}`)
-  }
-
-  if (fieldingTotal(stat) > 0) {
-    parts.push(`${fieldingTotal(stat)} fielding`)
-  }
-
-  return parts.length > 0 ? parts.join(' · ') : 'Scorecard row'
-}
-
-function buildMatchPlayerFormBadges({
-  stats,
-  playerName,
-  playerOfMatchPlayerId,
-  homeTeamId,
-  awayTeamId,
-  homeName,
-  awayName,
-}: {
-  stats: MatchPlayerStat[]
-  playerName: (playerId: number) => string
-  playerOfMatchPlayerId: number | null | undefined
-  homeTeamId: number
-  awayTeamId: number
-  homeName: string
-  awayName: string
-}): MatchPlayerFormBadge[] {
-  return [...stats]
-    .filter((stat) => impactScore(stat) > 0)
-    .sort((a, b) => {
-      if (a.player_id === playerOfMatchPlayerId) return -1
-      if (b.player_id === playerOfMatchPlayerId) return 1
-
-      return impactScore(b) - impactScore(a)
-    })
-    .slice(0, 6)
-    .map((stat) => {
-      const label = matchPlayerFormLabel(stat, playerOfMatchPlayerId)
-
-      return {
-        key: `${stat.id}-${stat.player_id}`,
-        playerId: stat.player_id,
-        playerName: playerName(stat.player_id),
-        teamName: topPerformerTeamName(
-          stat.team_id,
-          homeTeamId,
-          awayTeamId,
-          homeName,
-          awayName,
-        ),
-        line: matchPlayerFormLine(stat),
-        ...label,
-      }
-    })
-}
 function buildTopPerformerCards({
   stats,
   playerName,
@@ -769,31 +667,6 @@ export default function MatchDetailPage() {
     })
   }, [awayName, data, homeName, playerById, playerStats])
 
-  const matchPlayerFormBadges = useMemo(() => {
-  if (!data) return []
-
-  return buildMatchPlayerFormBadges({
-    stats: playerStats,
-    playerName: (id) => playerById.get(id) ?? `#${id}`,
-    playerOfMatchPlayerId: data.result?.player_of_match_player_id ?? null,
-    homeTeamId: data.home_team_id,
-    awayTeamId: data.away_team_id,
-    homeName,
-    awayName,
-  })
-}, [awayName, data, homeName, playerById, playerStats])
-
-const showMatchPlayerForm = matchPlayerFormBadges.length > 0
-
-const highlightPlayerFormBadge = (playerId: number) => {
-  setHighlightedPlayerId(playerId)
-
-  globalThis.requestAnimationFrame(() => {
-    globalThis.document
-      ?.getElementById('match-scorecard-title')
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
-}
 
   const playerMatchupOptions = useMemo(() => {
     if (!data) return { home: [], away: [] }
@@ -1270,38 +1143,6 @@ const highlightPlayerFormBadge = (playerId: number) => {
             </section>
                     ) : null}
 
-          {showMatchPlayerForm ? (
-            <section
-              className="match-centre-panel match-centre-player-form"
-              aria-labelledby="match-player-form-title"
-            >
-              <div className="match-centre-player-form__head">
-                <div>
-                  <p className="match-centre-player-form__eyebrow">
-                    Player form
-                  </p>
-                  <h2 id="match-player-form-title">Form Badges</h2>
-                  <p>Automatically generated from the submitted scorecard.</p>
-                </div>
-              </div>
-
-              <div className="match-centre-player-form__grid">
-                {matchPlayerFormBadges.map((badge) => (
-                  <button
-                    key={badge.key}
-                    type="button"
-                    className={`match-centre-player-form__badge match-centre-player-form__badge--${badge.tone}`}
-                    onClick={() => highlightPlayerFormBadge(badge.playerId)}
-                  >
-                    <strong>{badge.code}</strong>
-                    <span>{badge.playerName}</span>
-                    <small>{badge.teamName}</small>
-                    <em>{badge.line}</em>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ) : null}
 
           {showPlayerMatchup ? (
             <section
