@@ -434,6 +434,10 @@ export default function MatchDetailPage() {
 
       <main className="container">
         <section className="menu-page match-centre">
+          <div className="match-centre-share-row match-centre-share-row--top">
+            <SocialShareButtons title={title} text={shareText} />
+          </div>
+
           <div className="match-centre-panels">
             <div className="match-centre-panels__col">
               <div className="match-centre-panel">
@@ -718,9 +722,7 @@ export default function MatchDetailPage() {
             </section>
           ) : null}
 
-          <div className="match-centre-share-row">
-            <SocialShareButtons title={title} text={shareText} />
-          </div>
+      
 
           <section
             className="match-centre-scorecard"
