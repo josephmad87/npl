@@ -156,14 +156,17 @@ function ResultsPageContent({ category }: { category?: string }) {
     },
     retry: 1,
   })
+
   const { map: teamsMap } = useTeamsMap()
   const title = `${category ? `${formatCategoryLabel(category)} ` : ''}Results`
+
   const pageSubtitle = useMemo(() => {
     const cat = category ? formatCategoryLabel(category).toLowerCase() : null
     return cat
       ? `Completed ${cat} match results and scorelines.`
       : 'Completed match results and scorelines across all competitions.'
   }, [category])
+
   const [selectedYear, setSelectedYear] = useState('all')
   const [selectedLeague, setSelectedLeague] = useState('all')
   const [resultsPageIndex, setResultsPageIndex] = useState(0)
@@ -182,6 +185,7 @@ function ResultsPageContent({ category }: { category?: string }) {
       selectedYear === 'all'
         ? data
         : data.filter((match) => resultYearLabel(match) === selectedYear)
+
     return Array.from(new Set(source.map(resultLeagueLabel))).sort((a, b) =>
       a.localeCompare(b),
     )
@@ -189,36 +193,32 @@ function ResultsPageContent({ category }: { category?: string }) {
 
   const filteredResults = useMemo(() => {
     return data.filter((match) => {
-      if (selectedYear !== 'all' && resultYearLabel(match) !== selectedYear) return false
-      if (selectedLeague !== 'all' && resultLeagueLabel(match) !== selectedLeague) return false
+      if (selectedYear !== 'all' && resultYearLabel(match) !== selectedYear) {
+        return false
+      }
+
+      if (selectedLeague !== 'all' && resultLeagueLabel(match) !== selectedLeague) {
+        return false
+      }
+
       return true
     })
   }, [data, selectedYear, selectedLeague])
 
   const resultsPageCount = Math.max(
-  1,
-  Math.ceil(filteredResults.length / RESULTS_PAGE_SIZE),
-)
-
-const resultsPageStart = resultsPageIndex * RESULTS_PAGE_SIZE
-
-const pagedResults = filteredResults.slice(
-  resultsPageStart,
-  resultsPageStart + RESULTS_PAGE_SIZE,
-)
-
-const canGoPreviousResults = resultsPageIndex > 0
-const canGoNextResults = resultsPageIndex < resultsPageCount - 1
-
-useEffect(() => {
-  setResultsPageIndex(0)
-}, [selectedYear, selectedLeague, category])
-
-useEffect(() => {
-  setResultsPageIndex((current) =>
-    Math.min(current, Math.max(0, resultsPageCount - 1)),
+    1,
+    Math.ceil(filteredResults.length / RESULTS_PAGE_SIZE),
   )
-}, [resultsPageCount])
+
+  const resultsPageStart = resultsPageIndex * RESULTS_PAGE_SIZE
+
+  const pagedResults = filteredResults.slice(
+    resultsPageStart,
+    resultsPageStart + RESULTS_PAGE_SIZE,
+  )
+
+  const canGoPreviousResults = resultsPageIndex > 0
+  const canGoNextResults = resultsPageIndex < resultsPageCount - 1
 
   useEffect(() => {
     if (selectedYear !== 'all' && !yearTabs.includes(selectedYear)) {
@@ -232,141 +232,192 @@ useEffect(() => {
     }
   }, [selectedLeague, leagueTabs])
 
+  useEffect(() => {
+    setResultsPageIndex(0)
+  }, [selectedYear, selectedLeague, category])
+
+  useEffect(() => {
+    setResultsPageIndex((current) =>
+      Math.min(current, Math.max(0, resultsPageCount - 1)),
+    )
+  }, [resultsPageCount])
+
   return (
     <>
       <PageHero variant="siteLogo" title={title} subtitle={pageSubtitle} />
-    <main className="container">
+
+      <main className="container">
         <section className="menu-page listings-page">
           {isLoading ? <Spinner label="Loading results…" /> : null}
-          {isError ? <ErrorNotice message="Could not load results." /> : null}
+
+          {isError ? (
+            <ErrorNotice message="Could not load results." />
+          ) : null}
+
           {!isLoading && !isError && data.length === 0 ? (
             <EmptyState
               title="No results to show yet"
               description="Results will appear here once matches are completed."
             />
           ) : null}
+
           {!isLoading && !isError && data.length > 0 ? (
             <>
-            <div className="results-tabs" aria-label="Filter results by year and league">
-              <div className="results-tabs__row">
-                <span className="results-tabs__label">Year</span>
-                <div className="results-tabs__list" role="tablist" aria-label="Years">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={selectedYear === 'all'}
-                    className={`results-tabs__btn${selectedYear === 'all' ? ' is-active' : ''}`}
-                    onClick={() => {
-                      setSelectedYear('all')
-                      setSelectedLeague('all')
-                    }}
+              <div
+                className="results-tabs"
+                aria-label="Filter results by year and league"
+              >
+                <div className="results-tabs__row">
+                  <span className="results-tabs__label">Year</span>
+
+                  <div
+                    className="results-tabs__list"
+                    role="tablist"
+                    aria-label="Years"
                   >
-                    All
-                  </button>
-                  {yearTabs.map((year) => (
                     <button
-                      key={year}
                       type="button"
                       role="tab"
-                      aria-selected={selectedYear === year}
-                      className={`results-tabs__btn${selectedYear === year ? ' is-active' : ''}`}
+                      aria-selected={selectedYear === 'all'}
+                      className={`results-tabs__btn${
+                        selectedYear === 'all' ? ' is-active' : ''
+                      }`}
                       onClick={() => {
-                        setSelectedYear(year)
+                        setSelectedYear('all')
                         setSelectedLeague('all')
                       }}
                     >
-                      {year}
+                      All
                     </button>
-                  ))}
+
+                    {yearTabs.map((year) => (
+                      <button
+                        key={year}
+                        type="button"
+                        role="tab"
+                        aria-selected={selectedYear === year}
+                        className={`results-tabs__btn${
+                          selectedYear === year ? ' is-active' : ''
+                        }`}
+                        onClick={() => {
+                          setSelectedYear(year)
+                          setSelectedLeague('all')
+                        }}
+                      >
+                        {year}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="results-tabs__row">
-                <span className="results-tabs__label">League</span>
-                <div className="results-tabs__list" role="tablist" aria-label="Leagues">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={selectedLeague === 'all'}
-                    className={`results-tabs__btn${selectedLeague === 'all' ? ' is-active' : ''}`}
-                    onClick={() => setSelectedLeague('all')}
+
+                <div className="results-tabs__row">
+                  <span className="results-tabs__label">League</span>
+
+                  <div
+                    className="results-tabs__list"
+                    role="tablist"
+                    aria-label="Leagues"
                   >
-                    All
-                  </button>
-                  {leagueTabs.map((league) => (
                     <button
-                      key={league}
                       type="button"
                       role="tab"
-                      aria-selected={selectedLeague === league}
-                      className={`results-tabs__btn${selectedLeague === league ? ' is-active' : ''}`}
-                      onClick={() => setSelectedLeague(league)}
+                      aria-selected={selectedLeague === 'all'}
+                      className={`results-tabs__btn${
+                        selectedLeague === 'all' ? ' is-active' : ''
+                      }`}
+                      onClick={() => setSelectedLeague('all')}
                     >
-                      {league}
+                      All
                     </button>
-                  ))}
+
+                    {leagueTabs.map((league) => (
+                      <button
+                        key={league}
+                        type="button"
+                        role="tab"
+                        aria-selected={selectedLeague === league}
+                        className={`results-tabs__btn${
+                          selectedLeague === league ? ' is-active' : ''
+                        }`}
+                        onClick={() => setSelectedLeague(league)}
+                      >
+                        {league}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-            {filteredResults.length > 0 ? (
-  <>
-    <div className="results-page__head">
-      <p>
-        Showing {resultsPageStart + 1}–
-        {Math.min(resultsPageStart + RESULTS_PAGE_SIZE, filteredResults.length)} of{' '}
-        {filteredResults.length}
-      </p>
 
-      {filteredResults.length > RESULTS_PAGE_SIZE ? (
-        <div className="results-page__controls" aria-label="Results pages">
-          <button
-            type="button"
-            className="results-page__nav-btn"
-            onClick={() =>
-              setResultsPageIndex((current) => Math.max(0, current - 1))
-            }
-            disabled={!canGoPreviousResults}
-            aria-label="Previous results"
-          >
-            ‹
-          </button>
+              {filteredResults.length > 0 ? (
+                <>
+                  <div className="results-page__head">
+                    <p>
+                      Showing {resultsPageStart + 1}–
+                      {Math.min(
+                        resultsPageStart + RESULTS_PAGE_SIZE,
+                        filteredResults.length,
+                      )}{' '}
+                      of {filteredResults.length}
+                    </p>
 
-          <span>
-            {resultsPageIndex + 1} / {resultsPageCount}
-          </span>
+                    {filteredResults.length > RESULTS_PAGE_SIZE ? (
+                      <div
+                        className="results-page__controls"
+                        aria-label="Results pages"
+                      >
+                        <button
+                          type="button"
+                          className="results-page__nav-btn"
+                          onClick={() =>
+                            setResultsPageIndex((current) =>
+                              Math.max(0, current - 1),
+                            )
+                          }
+                          disabled={!canGoPreviousResults}
+                          aria-label="Previous results"
+                        >
+                          ‹
+                        </button>
 
-          <button
-            type="button"
-            className="results-page__nav-btn"
-            onClick={() =>
-              setResultsPageIndex((current) =>
-                Math.min(resultsPageCount - 1, current + 1),
-              )
-            }
-            disabled={!canGoNextResults}
-            aria-label="Next results"
-          >
-            ›
-          </button>
-        </div>
-      ) : null}
-    </div>
+                        <span>
+                          {resultsPageIndex + 1} / {resultsPageCount}
+                        </span>
 
-    <div className="results-page__grid">
-      {pagedResults.map((match) => (
-        <MatchCard
-          key={match.id}
-          match={match}
-          teamsMap={teamsMap}
-          mode="result"
-        />
-      ))}
-    </div>
-  </>
-) : (
-  <EmptyState title="No results for this year and league filter" />
-)}
-      </section>
-    </main>
+                        <button
+                          type="button"
+                          className="results-page__nav-btn"
+                          onClick={() =>
+                            setResultsPageIndex((current) =>
+                              Math.min(resultsPageCount - 1, current + 1),
+                            )
+                          }
+                          disabled={!canGoNextResults}
+                          aria-label="Next results"
+                        >
+                          ›
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="results-page__grid">
+                    {pagedResults.map((match) => (
+                      <MatchCard
+                        key={match.id}
+                        match={match}
+                        teamsMap={teamsMap}
+                        mode="result"
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <EmptyState title="No results for this year and league filter" />
+              )}
+            </>
+          ) : null}
+        </section>
+      </main>
     </>
   )
 }
