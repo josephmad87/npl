@@ -17,6 +17,10 @@ import { type MatchLite, useTeamsMap } from './lib/hooks'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { sortFixturesByDateAsc } from './lib/sortFixtures'
 import { SponsorMarquee } from './components/SponsorMarquee'
+import {
+  computeSeasonStandings,
+  formatStandingsNrr,
+} from './lib/leagueSeasonAggregates'
 
 type TeamDetail = {
   id: number
@@ -101,6 +105,48 @@ type TeamSectionTabId =
   | 'gallery'
   | 'shop'
   | 'team-photos'
+
+type TeamFormCode = 'W' | 'L' | 'T' | 'NR'
+
+function matchSeasonId(match: MatchLite): number | null {
+  const value = (match as { season_id?: number | null }).season_id
+
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function matchDateValue(match: MatchLite): number {
+  const raw =
+    match.match_date ??
+    (match.start_time != null ? String(match.start_time).slice(0, 10) : null)
+
+  if (!raw) return Number.MIN_SAFE_INTEGER
+
+  const parsed = new Date(raw.length <= 10 ? `${raw}T12:00:00` : raw).getTime()
+
+  return Number.isNaN(parsed) ? Number.MIN_SAFE_INTEGER : parsed
+}
+
+function teamFormCode(match: MatchLite, teamId: number): TeamFormCode {
+  const result = match.result as
+    | {
+        outcome?: string | null
+        winning_team_id?: number | null
+      }
+    | null
+    | undefined
+
+  const outcome = String(result?.outcome ?? '').trim().toLowerCase()
+
+  if (outcome === 'tie') return 'T'
+  if (outcome === 'no_result') return 'NR'
+
+  const winnerId = result?.winning_team_id ?? null
+
+  if (winnerId === teamId) return 'W'
+  if (winnerId != null) return 'L'
+
+  return 'NR'
+}
 
 function StaffCard({
   role,
@@ -321,6 +367,63 @@ const sponsorsQ = useQuery({
     )
   }, [seasonRecordsQ.data])
 
+  const latestSeasonRecord = useMemo(() => {
+  const rows = seasonRecordsQ.data ?? []
+
+  if (rows.length === 0) return null
+
+  return [...rows].sort((a, b) => {
+    const dateCompare = (b.season_start ?? '').localeCompare(a.season_start ?? '')
+
+    if (dateCompare !== 0) return dateCompare
+
+    return b.season_id - a.season_id
+  })[0]
+}, [seasonRecordsQ.data])
+
+const teamSeasonSnapshot = useMemo(() => {
+  if (!data) return null
+
+  const allResults = resultsQ.data ?? []
+
+  if (allResults.length === 0) return null
+
+  const seasonResults =
+    latestSeasonRecord != null
+      ? allResults.filter((match) => matchSeasonId(match) === latestSeasonRecord.season_id)
+      : []
+
+  const snapshotMatches = seasonResults.length > 0 ? seasonResults : allResults
+
+  const teamIds = new Set<number>([data.id])
+
+  for (const match of snapshotMatches) {
+    teamIds.add(match.home_team_id)
+    teamIds.add(match.away_team_id)
+  }
+
+  const row = computeSeasonStandings(snapshotMatches, [...teamIds]).find(
+    (standing) => standing.teamId === data.id,
+  )
+
+  if (!row || row.played === 0) return null
+
+  const form = [...snapshotMatches]
+    .sort((a, b) => matchDateValue(b) - matchDateValue(a))
+    .slice(0, 5)
+    .map((match) => teamFormCode(match, data.id))
+
+  return {
+    label: latestSeasonRecord
+      ? `${latestSeasonRecord.league_name} · ${latestSeasonRecord.season_name}`
+      : 'Latest completed matches',
+    leagueSlug: latestSeasonRecord?.league_slug ?? null,
+    seasonSlug: latestSeasonRecord?.season_slug ?? null,
+    row,
+    form,
+  }
+}, [data, latestSeasonRecord, resultsQ.data])
+
   const playersSorted = useMemo(() => {
     const list = playersQ.data ?? []
     return [...list].sort((a, b) =>
@@ -414,7 +517,82 @@ const sponsorsQ = useQuery({
                   <p className="team-page__lede muted">{data.description.trim()}</p>
                 </div>
               ) : null}
+{teamSeasonSnapshot ? (
+  <section
+    className="team-page__snapshot"
+    aria-labelledby="team-season-snapshot-title"
+  >
+    <div className="team-page__snapshot-head">
+      <div>
+        <p className="team-page__snapshot-kicker">Season snapshot</p>
+        <h2 id="team-season-snapshot-title">{teamSeasonSnapshot.label}</h2>
+      </div>
 
+      {teamSeasonSnapshot.leagueSlug && teamSeasonSnapshot.seasonSlug ? (
+        <Link
+          to="/leagues/$leagueSlug/seasons/$seasonSlug"
+          params={{
+            leagueSlug: teamSeasonSnapshot.leagueSlug,
+            seasonSlug: teamSeasonSnapshot.seasonSlug,
+          }}
+          className="team-page__snapshot-link"
+        >
+          Full standings
+        </Link>
+      ) : null}
+    </div>
+
+    <div className="team-page__snapshot-grid">
+      <article>
+        <span>Played</span>
+        <strong>{teamSeasonSnapshot.row.played}</strong>
+      </article>
+      <article>
+        <span>Won</span>
+        <strong>{teamSeasonSnapshot.row.won}</strong>
+      </article>
+      <article>
+        <span>Lost</span>
+        <strong>{teamSeasonSnapshot.row.lost}</strong>
+      </article>
+      <article>
+        <span>Tied</span>
+        <strong>{teamSeasonSnapshot.row.tied}</strong>
+      </article>
+      <article>
+        <span>NR</span>
+        <strong>{teamSeasonSnapshot.row.nr}</strong>
+      </article>
+      <article>
+        <span>Points</span>
+        <strong>{teamSeasonSnapshot.row.points}</strong>
+      </article>
+      <article>
+        <span>NRR</span>
+        <strong>{formatStandingsNrr(teamSeasonSnapshot.row.nrr)}</strong>
+      </article>
+    </div>
+
+    <div className="team-page__snapshot-form">
+      <span>Recent form</span>
+
+      <div>
+        {teamSeasonSnapshot.form.length > 0 ? (
+          teamSeasonSnapshot.form.map((code, index) => (
+            <strong
+              key={`${code}-${index}`}
+              className={`team-page__snapshot-form-pill team-page__snapshot-form-pill--${code.toLowerCase()}`}
+            >
+              {code}
+            </strong>
+          ))
+        ) : (
+          <em>No recent form yet</em>
+        )}
+      </div>
+    </div>
+  </section>
+) : null}
               <div className="team-page__tabs" role="tablist" aria-label="Team page sections">
                 {teamTabs.map((tab) => (
                   <button
