@@ -7449,3 +7449,212 @@ table.league-standings-table .league-standings-table__form {
   color: var(--color-muted);
   font-weight: 800;
 }
+/* Compare Teams */
+.compare-teams-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.compare-teams-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: end;
+  border-radius: 1rem;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(229, 139, 27, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(53, 0, 0, 0.08), rgba(191, 73, 39, 0.08));
+  border: 1px solid color-mix(in srgb, var(--color-highlight) 30%, var(--color-border));
+}
+
+.compare-teams-picker label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.compare-teams-picker label span {
+  color: var(--color-muted);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.compare-teams-picker select {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary);
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-weight: 800;
+}
+
+.compare-teams-picker__versus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.compare-teams-summary,
+.compare-teams-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.compare-teams-summary article,
+.compare-teams-panel {
+  border-radius: 1rem;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 12%, var(--color-border));
+  box-shadow: 0 12px 30px rgba(31, 22, 64, 0.08);
+}
+
+.compare-teams-summary__eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--color-highlight);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.compare-teams-summary h2,
+.compare-teams-panel h2 {
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.compare-teams-summary a {
+  display: inline-flex;
+  margin-top: 0.75rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 0.55rem 0.85rem;
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.compare-teams-table-wrap {
+  margin-top: 0.85rem;
+  overflow-x: auto;
+}
+
+.compare-teams-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 34rem;
+}
+
+.compare-teams-table th {
+  background: var(--color-primary);
+  color: #fff;
+  padding: 0.65rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.compare-teams-table td {
+  padding: 0.7rem 0.65rem;
+  text-align: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  font-weight: 800;
+}
+
+.compare-teams-table td:nth-child(2) {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.compare-team-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+}
+
+.compare-head-to-head-list {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.compare-head-to-head-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: 0.75rem;
+  padding: 0.85rem;
+  background: color-mix(in srgb, var(--color-primary) 4%, #fff);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 10%, var(--color-border));
+}
+
+.compare-head-to-head-card h3,
+.compare-head-to-head-card p {
+  margin: 0;
+}
+
+.compare-head-to-head-card__date {
+  color: var(--color-highlight);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.compare-head-to-head-card__side {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-shrink: 0;
+}
+
+.compare-head-to-head-card__side a {
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 0.5rem 0.75rem;
+  text-decoration: none;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 760px) {
+  .compare-teams-picker,
+  .compare-teams-summary,
+  .compare-teams-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-teams-picker__versus {
+    width: 100%;
+  }
+
+  .compare-head-to-head-card {
+    flex-direction: column;
+  }
+
+  .compare-head-to-head-card__side {
+    justify-content: space-between;
+  }
+}
