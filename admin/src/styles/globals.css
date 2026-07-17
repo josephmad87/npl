@@ -3349,3 +3349,105 @@ video.article-view__hero-img {
   object-fit: contain;
   border-radius: 0.75rem;
 }
+.team-grouped-catalog {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.team-grouped-catalog__category {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.team-grouped-catalog__category-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.team-grouped-catalog__eyebrow {
+  margin: 0 0 0.2rem;
+  color: var(--accent, #e58b1b);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.team-grouped-catalog__category-head h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.25rem;
+}
+
+.team-grouped-catalog__category-head > span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.team-grouped-catalog__status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.team-grouped-catalog__status {
+  min-width: 0;
+  border: 1px solid rgba(229, 139, 27, 0.24);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 0.85rem;
+}
+
+.team-grouped-catalog__status-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.team-grouped-catalog__status-head h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.team-grouped-catalog__status-head span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  background: rgba(229, 139, 27, 0.18);
+  color: #e58b1b;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.team-grouped-catalog__cards {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.team-grouped-catalog__empty {
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 0.75rem;
+}
+
+@media (max-width: 1180px) {
+  .team-grouped-catalog__status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .team-grouped-catalog__cards {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}
