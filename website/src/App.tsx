@@ -17,6 +17,7 @@ import {
   useTeamsMap,
   useUpcomingFixtures,
 } from './lib/hooks'
+import { formatCategoryLabel } from './lib/formatters'
 import {
   extractList,
   fetchAllPaginatedList,
@@ -49,6 +50,25 @@ type HomeHubMatch = {
   away_team_id: number
 }
 
+type HomeSpotlightTeam = {
+  id: number
+  name: string
+  slug: string
+  category: string | null
+  logo_url: string | null
+}
+
+type HomeSpotlightMatch = HomeHubMatch & {
+  result?: {
+    winning_team_id?: number | null
+    outcome?: string | null
+    margin_text?: string | null
+    score_summary?: string | null
+  } | null
+}
+
+type TeamFormCode = 'W' | 'L' | 'T' | 'NR'
+
 function localTodayKey(): string {
   const today = new Date()
 
@@ -64,6 +84,20 @@ function matchDateKey(match: {
   start_time?: string | null
 }): string {
   return String(match.match_date ?? match.start_time ?? '').slice(0, 10)
+}
+
+function matchTimeValue(match: {
+  match_date?: string | null
+  start_time?: string | null
+}): number {
+  const raw = match.start_time || match.match_date
+
+  if (!raw) return Number.MAX_SAFE_INTEGER
+
+  const value = raw.length <= 10 ? `${raw}T12:00:00` : raw
+  const parsed = new Date(value).getTime()
+
+  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed
 }
 
 function isLiveMatch(match: { status?: string | null }): boolean {
@@ -94,7 +128,6 @@ function categoryGroup(category: string | null | undefined): HomeFixtureCategory
 
   if (
     value === 'youth' ||
-    value === 'youths' ||
     value === 'youths' ||
     value === 'junior' ||
     value === 'juniors' ||
@@ -208,12 +241,106 @@ function formatHubDate(match: {
   }).format(new Date(`${key}T12:00:00`))
 }
 
+function teamInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+}
+
+function teamHasMatch(teamId: number, match: HomeHubMatch): boolean {
+  return match.home_team_id === teamId || match.away_team_id === teamId
+}
+
+function opponentName(
+  teamId: number,
+  match: HomeHubMatch,
+  teamsMap: Record<number, { name?: string | null }>,
+): string {
+  const opponentId =
+    match.home_team_id === teamId ? match.away_team_id : match.home_team_id
+
+  return teamsMap[opponentId]?.name ?? `Team ${opponentId}`
+}
+
+function teamOutcome(match: HomeSpotlightMatch, teamId: number): TeamFormCode {
+  const outcome = String(match.result?.outcome ?? '').trim().toLowerCase()
+
+  if (outcome === 'tie') return 'T'
+  if (outcome === 'no_result') return 'NR'
+
+  const winnerId = match.result?.winning_team_id ?? null
+
+  if (winnerId === teamId) return 'W'
+  if (winnerId != null) return 'L'
+
+  return 'NR'
+}
+
+function teamResultLine(
+  match: HomeSpotlightMatch | undefined,
+  teamId: number,
+  teamsMap: Record<number, { name?: string | null }>,
+): string {
+  if (!match) return 'No recent result yet'
+
+  const outcome = teamOutcome(match, teamId)
+  const opponent = opponentName(teamId, match, teamsMap)
+  const margin = match.result?.margin_text?.trim()
+
+  if (outcome === 'W') {
+    return `Beat ${opponent}${margin ? ` · ${margin}` : ''}`
+  }
+
+  if (outcome === 'L') {
+    return `Lost to ${opponent}${margin ? ` · ${margin}` : ''}`
+  }
+
+  if (outcome === 'T') {
+    return `Tied with ${opponent}${margin ? ` · ${margin}` : ''}`
+  }
+
+  return `No result vs ${opponent}`
+}
+
+function categoryFixturesHref(category: string | null | undefined): string {
+  const group = categoryGroup(category)
+
+  if (group === 'mens') return '/mens/fixtures'
+  if (group === 'women') return '/women/fixtures'
+  if (group === 'youth') return '/youth/fixtures'
+
+  return '/fixtures'
+}
+
+function categoryResultsHref(category: string | null | undefined): string {
+  const group = categoryGroup(category)
+
+  if (group === 'mens') return '/mens/results'
+  if (group === 'women') return '/women/results'
+  if (group === 'youth') return '/youth/results'
+
+  return '/results'
+}
+
 function App() {
   const { data: newsArticles = [] } = useRecentNews(36)
   const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 80)
   const { data: latestResults = [] } = useLatestResults(undefined, 80)
   const { map: teamsMap } = useTeamsMap()
   const { data: featuredTeams = [] } = useFeaturedTeams()
+
+  const { data: spotlightTeams = [] } = useQuery({
+    queryKey: ['home-team-spotlight-teams'],
+    queryFn: async () =>
+      fetchAllPaginatedList<HomeSpotlightTeam>(
+        (page) => `/public/teams?page=${page}&page_size=100`,
+      ),
+    retry: 1,
+  })
 
   const { data: gallery = [] } = useQuery({
     queryKey: ['home-gallery'],
@@ -240,6 +367,7 @@ function App() {
   const [fixtureTab, setFixtureTab] = useState<HomeFixtureTab>('matchday')
   const [fixtureCategory, setFixtureCategory] =
     useState<HomeFixtureCategory>('all')
+  const [spotlightTeamId, setSpotlightTeamId] = useState('')
 
   const heroSlides = useMemo(
     () =>
@@ -262,6 +390,31 @@ function App() {
     { id: 'women', label: 'Women' },
     { id: 'youth', label: 'Youth' },
   ]
+
+  const sortedSpotlightTeams = useMemo(
+    () => [...spotlightTeams].sort((a, b) => a.name.localeCompare(b.name)),
+    [spotlightTeams],
+  )
+
+  useEffect(() => {
+    if (sortedSpotlightTeams.length === 0) return
+
+    const currentExists = sortedSpotlightTeams.some(
+      (team) => String(team.id) === spotlightTeamId,
+    )
+
+    if (!currentExists) {
+      setSpotlightTeamId(String(sortedSpotlightTeams[0].id))
+    }
+  }, [sortedSpotlightTeams, spotlightTeamId])
+
+  const selectedSpotlightTeam = useMemo(
+    () =>
+      sortedSpotlightTeams.find((team) => String(team.id) === spotlightTeamId) ??
+      sortedSpotlightTeams[0] ??
+      null,
+    [sortedSpotlightTeams, spotlightTeamId],
+  )
 
   const fixtureHubMatches = useMemo(() => {
     const source = fixtureTab === 'results' ? latestResults : upcomingFixtures
@@ -288,6 +441,37 @@ function App() {
       ? teamsMap[featuredHubMatch.away_team_id]?.name ??
         `Team ${featuredHubMatch.away_team_id}`
       : ''
+
+  const spotlightNextFixture = useMemo(() => {
+    if (!selectedSpotlightTeam) return undefined
+
+    return [...upcomingFixtures]
+      .filter((match) => teamHasMatch(selectedSpotlightTeam.id, match))
+      .sort((a, b) => matchTimeValue(a) - matchTimeValue(b))[0] as
+      | HomeSpotlightMatch
+      | undefined
+  }, [selectedSpotlightTeam, upcomingFixtures])
+
+  const spotlightLatestResult = useMemo(() => {
+    if (!selectedSpotlightTeam) return undefined
+
+    return latestResults.find((match) =>
+      teamHasMatch(selectedSpotlightTeam.id, match),
+    ) as HomeSpotlightMatch | undefined
+  }, [latestResults, selectedSpotlightTeam])
+
+  const spotlightForm = useMemo(() => {
+    if (!selectedSpotlightTeam) return []
+
+    return latestResults
+      .filter((match) => teamHasMatch(selectedSpotlightTeam.id, match))
+      .slice(0, 5)
+      .map((match) => teamOutcome(match as HomeSpotlightMatch, selectedSpotlightTeam.id))
+  }, [latestResults, selectedSpotlightTeam])
+
+  const spotlightLogo = selectedSpotlightTeam
+    ? resolveMediaUrl(selectedSpotlightTeam.logo_url)
+    : null
 
   useEffect(() => {
     if (heroSlides.length < 2) return
@@ -489,6 +673,120 @@ function App() {
       </section>
 
       <HomeNewsCarousel articles={newsArticles} />
+
+      {selectedSpotlightTeam ? (
+        <section className="home-section home-team-spotlight">
+          <div className="home-team-spotlight__head">
+            <div>
+              <p className="home-team-spotlight__eyebrow">Team spotlight</p>
+              <h2>Follow a Club</h2>
+              <p>Pick a team to see form, next fixture and latest result.</p>
+            </div>
+
+            <label className="home-team-spotlight__select-wrap">
+              <span>Choose team</span>
+              <select
+                value={String(selectedSpotlightTeam.id)}
+                onChange={(event) => setSpotlightTeamId(event.target.value)}
+              >
+                {sortedSpotlightTeams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="home-team-spotlight__card">
+            <div className="home-team-spotlight__identity">
+              <div className="home-team-spotlight__badge">
+                {spotlightLogo ? (
+                  <img src={spotlightLogo} alt="" loading="lazy" decoding="async" />
+                ) : (
+                  <span>{teamInitials(selectedSpotlightTeam.name)}</span>
+                )}
+              </div>
+
+              <div>
+                <p>{formatCategoryLabel(selectedSpotlightTeam.category ?? '')}</p>
+                <h3>{selectedSpotlightTeam.name}</h3>
+              </div>
+            </div>
+
+            <div className="home-team-spotlight__form">
+              <span>Recent form</span>
+
+              <div>
+                {spotlightForm.length > 0 ? (
+                  spotlightForm.map((code, index) => (
+                    <strong
+                      key={`${code}-${index}`}
+                      className={`home-team-spotlight__form-pill home-team-spotlight__form-pill--${code.toLowerCase()}`}
+                    >
+                      {code}
+                    </strong>
+                  ))
+                ) : (
+                  <em>No recent form</em>
+                )}
+              </div>
+            </div>
+
+            <div className="home-team-spotlight__facts">
+              <article>
+                <span>Next fixture</span>
+                <strong>
+                  {spotlightNextFixture
+                    ? `${selectedSpotlightTeam.name} vs ${opponentName(
+                        selectedSpotlightTeam.id,
+                        spotlightNextFixture,
+                        teamsMap,
+                      )}`
+                    : 'No upcoming fixture'}
+                </strong>
+                <p>
+                  {spotlightNextFixture
+                    ? `${formatHubDate(spotlightNextFixture)} · ${
+                        spotlightNextFixture.venue || 'Venue TBC'
+                      }`
+                    : 'Check the fixtures page for future updates.'}
+                </p>
+              </article>
+
+              <article>
+                <span>Latest result</span>
+                <strong>
+                  {teamResultLine(
+                    spotlightLatestResult,
+                    selectedSpotlightTeam.id,
+                    teamsMap,
+                  )}
+                </strong>
+                <p>
+                  {spotlightLatestResult?.result?.score_summary ??
+                    'Results will appear once published.'}
+                </p>
+              </article>
+            </div>
+
+            <div className="home-team-spotlight__links">
+              <Link
+                to="/teams/$slug"
+                params={{ slug: selectedSpotlightTeam.slug }}
+              >
+                Team page
+              </Link>
+              <a href={categoryFixturesHref(selectedSpotlightTeam.category)}>
+                Fixtures
+              </a>
+              <a href={categoryResultsHref(selectedSpotlightTeam.category)}>
+                Results
+              </a>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <NplTvSection />
 
