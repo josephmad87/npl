@@ -39,8 +39,8 @@ type InningsScorecardPanelsProps = Readonly<{
   awayLabel: string
   stats: ScorecardStat[]
   playerName: (playerId: number) => string
+  playerHref?: (playerId: number) => string | null | undefined
   extrasLine?: string | null
-  highlightedPlayerId?: number | null
 }>
 
 function teamLabel(
@@ -119,7 +119,28 @@ function ballsToOversLabel(balls: number): string {
 
   return `${overs}.${extraBalls}`
 }
+function ScorecardPlayerName({
+  playerId,
+  playerName,
+  playerHref,
+}: {
+  playerId: number
+  playerName: (playerId: number) => string
+  playerHref?: (playerId: number) => string | null | undefined
+}) {
+  const name = playerName(playerId)
+  const href = playerHref?.(playerId)
 
+  if (!href) {
+    return <span>{name}</span>
+  }
+
+  return (
+    <a href={href} className="innings-scorecard-panels__player-link">
+      {name}
+    </a>
+  )
+}
 function extrasRunsFromLine(extrasLine?: string | null): number {
   if (!extrasLine) {
     return 0
@@ -204,8 +225,8 @@ export function InningsScorecardPanels({
   awayLabel,
   stats,
   playerName,
+  playerHref,
   extrasLine,
-  highlightedPlayerId,
 }: InningsScorecardPanelsProps) {
   const sides = getInningsSides(
     innings,
@@ -277,7 +298,13 @@ export function InningsScorecardPanels({
                       s.player_id,
                     )}
                   >
-                    <td>{playerName(s.player_id)}</td>
+                    <td>
+  <ScorecardPlayerName
+    playerId={s.player_id}
+    playerName={playerName}
+    playerHref={playerHref}
+  />
+</td>
                     <td>{formatDismissalDisplay(s.dismissal)}</td>
                     <td>{s.runs}</td>
                     <td>{s.balls_faced}</td>
@@ -324,7 +351,13 @@ export function InningsScorecardPanels({
                       s.player_id,
                     )}
                   >
-                    <td>{playerName(s.player_id)}</td>
+                    <td>
+  <ScorecardPlayerName
+    playerId={s.player_id}
+    playerName={playerName}
+    playerHref={playerHref}
+  />
+</td>
                     <td>
                       {s.overs != null && s.overs !== ''
                         ? formatCricketOvers(s.overs)
