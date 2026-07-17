@@ -635,28 +635,22 @@ export default function MatchDetailPage() {
   }, [homePlayersQ.data, awayPlayersQ.data])
 
   const playerHrefById = useMemo(() => {
-  const m = new Map<number, string>()
+    const m = new Map<number, string>()
 
-  paste:
-
-```tsx id="47k4zx"
-const playerHrefById = useMemo(() => {
-  const m = new Map<number, string>()
-
-  for (const p of homePlayersQ.data ?? []) {
-    if (p.slug) {
-      m.set(p.id, `/players/${p.slug}`)
+    for (const p of homePlayersQ.data ?? []) {
+      if (p.slug) {
+        m.set(p.id, '/players/' + p.slug)
+      }
     }
-  }
 
-  for (const p of awayPlayersQ.data ?? []) {
-    if (p.slug) {
-      m.set(p.id, `/players/${p.slug}`)
+    for (const p of awayPlayersQ.data ?? []) {
+      if (p.slug) {
+        m.set(p.id, '/players/' + p.slug)
+      }
     }
-  }
 
-  return m
-}, [homePlayersQ.data, awayPlayersQ.data])
+    return m
+  }, [homePlayersQ.data, awayPlayersQ.data])
 
   const playerStats = data?.player_stats ?? NO_PLAYER_STATS
   const battingFirstTeamId = data?.result?.batting_first_team_id ?? null
@@ -1426,22 +1420,23 @@ const playerHrefById = useMemo(() => {
             ) : null}
 
             {playerStats.length > 0 ? (
-              innings={scorecardInnings}
-              battingFirstTeamId={battingFirstTeamId}
-              homeTeamId={data.home_team_id}
-              awayTeamId={data.away_team_id}
-              homeLabel={homeName}
-              awayLabel={awayName}
-              stats={playerStats}
-              playerName={(id) => playerById.get(id) ?? `#${id}`}
-              playerHref={(id) => playerHrefById.get(id) ?? null}
-              extrasLine={inningsExtrasLine}
-              highlightedPlayerId={highlightedPlayerId}
+              <InningsScorecardPanels
+                innings={scorecardInnings}
+                battingFirstTeamId={battingFirstTeamId}
+                homeTeamId={data.home_team_id}
+                awayTeamId={data.away_team_id}
+                homeLabel={homeName}
+                awayLabel={awayName}
+                stats={playerStats}
+                playerName={(id) => playerById.get(id) ?? `#${id}`}
+                playerHref={(id) => playerHrefById.get(id) ?? null}
+                extrasLine={inningsExtrasLine}
+                highlightedPlayerId={highlightedPlayerId}
               />
             ) : (
               <p className="match-centre-muted">No per-player rows yet.</p>
             )}
-                   </section>
+          </section>
 
           {matchReportContent ? (
             <section
