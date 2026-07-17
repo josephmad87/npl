@@ -793,6 +793,391 @@ type SearchResultItem = {
 }
 
 type SearchFilter = 'all' | SearchResultItem['kind']
+type CompareMatchResult = {
+  outcome?: string | null
+  winning_team_id?: number | null
+  margin_text?: string | null
+  score_summary?: string | null
+}
+
+type CompareOutcome = 'W' | 'L' | 'T' | 'NR'
+
+type CompareStats = {
+  played: number
+  won: number
+  lost: number
+  tied: number
+  nr: number
+  points: number
+}
+
+function compareMatchIncludesTeam(match: MatchLite, teamId: number): boolean {
+  return match.home_team_id === teamId || match.away_team_id === teamId
+}
+
+function compareMatchTime(match: MatchLite): number {
+  const raw = String(match.start_time ?? match.match_date ?? '')
+  const parsed = Date.parse(raw)
+
+  if (!Number.isNaN(parsed)) {
+    return parsed
+  }
+
+  return Number(match.id ?? 0)
+}
+
+function compareResultForTeam(match: MatchLite, teamId: number): CompareOutcome | null {
+  if (!compareMatchIncludesTeam(match, teamId)) return null
+
+  const result = (match as MatchLite & { result?: CompareMatchResult | null }).result
+  if (!result) return null
+
+  const outcome = String(result.outcome ?? 'win').trim().toLowerCase()
+
+  if (outcome === 'tie') return 'T'
+  if (outcome === 'no_result') return 'NR'
+
+  if (result.winning_team_id == null) return 'NR'
+
+  return result.winning_team_id === teamId ? 'W' : 'L'
+}
+
+function compareTeamStats(matches: MatchLite[], teamId: number): CompareStats {
+  return matches.reduce<CompareStats>(
+    (stats, match) => {
+      const outcome = compareResultForTeam(match, teamId)
+
+      if (!outcome) return stats
+
+      stats.played += 1
+
+      if (outcome === 'W') {
+        stats.won += 1
+        stats.points += 4
+      } else if (outcome === 'T') {
+        stats.tied += 1
+        stats.points += 3
+      } else if (outcome === 'NR') {
+        stats.nr += 1
+        stats.points += 2
+      } else {
+        stats.lost += 1
+      }
+
+      return stats
+    },
+    {
+      played: 0,
+      won: 0,
+      lost: 0,
+      tied: 0,
+      nr: 0,
+      points: 0,
+    },
+  )
+}
+
+function compareRecentForm(matches: MatchLite[], teamId: number): CompareOutcome[] {
+  return [...matches]
+    .filter((match) => compareMatchIncludesTeam(match, teamId))
+    .sort((a, b) => compareMatchTime(b) - compareMatchTime(a))
+    .map((match) => compareResultForTeam(match, teamId))
+    .filter((item): item is CompareOutcome => Boolean(item))
+    .slice(0, 5)
+}
+
+function compareOutcomeLabel(outcome: CompareOutcome): string {
+  if (outcome === 'W') return 'Win'
+  if (outcome === 'L') return 'Loss'
+  if (outcome === 'T') return 'Tie'
+  return 'No result'
+}
+
+function compareMatchDate(match: MatchLite): string {
+  const raw = match.match_date ?? match.start_time ?? ''
+  if (!raw) return 'Date TBC'
+
+  const d = new Date(raw)
+  if (Number.isNaN(d.valueOf())) return String(raw).slice(0, 10)
+
+  return new Intl.DateTimeFormat('en-ZW', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(d)
+}
+
+function CompareTeamsPageImpl() {
+  const { data: teams = [], isLoading: teamsLoading, isError: teamsError } = useQuery({
+    queryKey: ['compare-teams-list'],
+    queryFn: () =>
+      fetchAllPaginatedList<TeamLite>(
+        (page) => `/public/teams?page=${page}&page_size=100`,
+      ),
+    retry: 1,
+  })
+
+  const { data: results = [], isLoading: resultsLoading, isError: resultsError } = useQuery({
+    queryKey: ['compare-teams-results'],
+    queryFn: () =>
+      fetchAllPaginatedList<MatchLite>(
+        (page) => `/public/results?page=${page}&page_size=100`,
+      ),
+    retry: 1,
+  })
+
+  const [teamAId, setTeamAId] = useState('')
+  const [teamBId, setTeamBId] = useState('')
+
+  useEffect(() => {
+    if (teams.length === 0) return
+
+    const currentTeamExists = teams.some((team) => String(team.id) === teamAId)
+
+    if (!teamAId || !currentTeamExists) {
+      setTeamAId(String(teams[0].id))
+    }
+  }, [teamAId, teams])
+
+  useEffect(() => {
+    if (teams.length < 2) return
+
+    const currentTeamExists = teams.some((team) => String(team.id) === teamBId)
+    const fallback = teams.find((team) => String(team.id) !== teamAId)
+
+    if (!teamBId || !currentTeamExists || teamBId === teamAId) {
+      setTeamBId(fallback ? String(fallback.id) : '')
+    }
+  }, [teamAId, teamBId, teams])
+
+  const selectedTeamA = teams.find((team) => String(team.id) === teamAId) ?? null
+  const selectedTeamB = teams.find((team) => String(team.id) === teamBId) ?? null
+
+  const comparison = useMemo(() => {
+    if (!selectedTeamA || !selectedTeamB) return null
+
+    const teamAStats = compareTeamStats(results, selectedTeamA.id)
+    const teamBStats = compareTeamStats(results, selectedTeamB.id)
+
+    const headToHead = results
+      .filter(
+        (match) =>
+          compareMatchIncludesTeam(match, selectedTeamA.id) &&
+          compareMatchIncludesTeam(match, selectedTeamB.id),
+      )
+      .sort((a, b) => compareMatchTime(b) - compareMatchTime(a))
+
+    return {
+      teamAStats,
+      teamBStats,
+      teamAForm: compareRecentForm(results, selectedTeamA.id),
+      teamBForm: compareRecentForm(results, selectedTeamB.id),
+      headToHead,
+    }
+  }, [results, selectedTeamA, selectedTeamB])
+
+  const isLoading = teamsLoading || resultsLoading
+  const isError = teamsError || resultsError
+
+  const statRows = comparison
+    ? [
+        ['Matches', comparison.teamAStats.played, comparison.teamBStats.played],
+        ['Wins', comparison.teamAStats.won, comparison.teamBStats.won],
+        ['Losses', comparison.teamAStats.lost, comparison.teamBStats.lost],
+        ['Ties', comparison.teamAStats.tied, comparison.teamBStats.tied],
+        ['No results', comparison.teamAStats.nr, comparison.teamBStats.nr],
+        ['Points', comparison.teamAStats.points, comparison.teamBStats.points],
+      ]
+    : []
+
+  return (
+    <>
+      <PageHero
+        variant="siteLogo"
+        title="Compare Teams"
+        subtitle="Compare NPL teams by results, points, recent form, and head-to-head record."
+      />
+
+      <main className="container">
+        <section className="menu-page compare-teams-page">
+          {isLoading ? <Spinner label="Loading teams and results…" /> : null}
+          {isError ? <ErrorNotice message="Could not load comparison data." /> : null}
+
+          {!isLoading && !isError && teams.length < 2 ? (
+            <EmptyState
+              title="Not enough teams to compare"
+              description="At least two published teams are needed for this feature."
+            />
+          ) : null}
+
+          {!isLoading && !isError && teams.length >= 2 ? (
+            <>
+              <div className="compare-teams-picker">
+                <label>
+                  <span>Team 1</span>
+                  <select value={teamAId} onChange={(event) => setTeamAId(event.target.value)}>
+                    {teams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="compare-teams-picker__versus">vs</div>
+
+                <label>
+                  <span>Team 2</span>
+                  <select value={teamBId} onChange={(event) => setTeamBId(event.target.value)}>
+                    {teams.map((team) => (
+                      <option key={team.id} value={team.id} disabled={String(team.id) === teamAId}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {selectedTeamA && selectedTeamB && comparison ? (
+                <>
+                  <div className="compare-teams-summary">
+                    <article>
+                      <p className="compare-teams-summary__eyebrow">Team 1</p>
+                      <h2>{selectedTeamA.name}</h2>
+                      <Link to="/teams/$slug" params={{ slug: selectedTeamA.slug }}>
+                        View team profile
+                      </Link>
+                    </article>
+
+                    <article>
+                      <p className="compare-teams-summary__eyebrow">Team 2</p>
+                      <h2>{selectedTeamB.name}</h2>
+                      <Link to="/teams/$slug" params={{ slug: selectedTeamB.slug }}>
+                        View team profile
+                      </Link>
+                    </article>
+                  </div>
+
+                  <div className="compare-teams-panel">
+                    <h2>Season record comparison</h2>
+                    <div className="compare-teams-table-wrap">
+                      <table className="compare-teams-table">
+                        <thead>
+                          <tr>
+                            <th>{selectedTeamA.name}</th>
+                            <th>Stat</th>
+                            <th>{selectedTeamB.name}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {statRows.map(([label, aValue, bValue]) => (
+                            <tr key={label}>
+                              <td>{aValue}</td>
+                              <td>{label}</td>
+                              <td>{bValue}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="compare-teams-form-grid">
+                    <article className="compare-teams-panel">
+                      <h2>{selectedTeamA.name} recent form</h2>
+                      <div className="compare-team-form">
+                        {comparison.teamAForm.length > 0 ? (
+                          comparison.teamAForm.map((item, index) => (
+                            <span
+                              key={`${selectedTeamA.id}-${index}-${item}`}
+                              className={`league-form-pill league-form-pill--${item.toLowerCase()}`}
+                              title={compareOutcomeLabel(item)}
+                            >
+                              {item}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="league-form-empty">No recent results</span>
+                        )}
+                      </div>
+                    </article>
+
+                    <article className="compare-teams-panel">
+                      <h2>{selectedTeamB.name} recent form</h2>
+                      <div className="compare-team-form">
+                        {comparison.teamBForm.length > 0 ? (
+                          comparison.teamBForm.map((item, index) => (
+                            <span
+                              key={`${selectedTeamB.id}-${index}-${item}`}
+                              className={`league-form-pill league-form-pill--${item.toLowerCase()}`}
+                              title={compareOutcomeLabel(item)}
+                            >
+                              {item}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="league-form-empty">No recent results</span>
+                        )}
+                      </div>
+                    </article>
+                  </div>
+
+                  <div className="compare-teams-panel">
+                    <h2>Head-to-head</h2>
+                    {comparison.headToHead.length === 0 ? (
+                      <p className="muted">No published head-to-head results yet.</p>
+                    ) : (
+                      <div className="compare-head-to-head-list">
+                        {comparison.headToHead.slice(0, 6).map((match) => {
+                          const result = (match as MatchLite & {
+                            result?: CompareMatchResult | null
+                          }).result
+                          const teamAOutcome = compareResultForTeam(match, selectedTeamA.id)
+
+                          return (
+                            <article key={match.id} className="compare-head-to-head-card">
+                              <div>
+                                <p className="compare-head-to-head-card__date">
+                                  {compareMatchDate(match)}
+                                </p>
+                                <h3>
+                                  {selectedTeamA.name} vs {selectedTeamB.name}
+                                </h3>
+                                <p>
+                                  {result?.margin_text ??
+                                    result?.score_summary ??
+                                    'Result published'}
+                                </p>
+                              </div>
+
+                              <div className="compare-head-to-head-card__side">
+                                {teamAOutcome ? (
+                                  <span
+                                    className={`league-form-pill league-form-pill--${teamAOutcome.toLowerCase()}`}
+                                    title={`${selectedTeamA.name}: ${compareOutcomeLabel(teamAOutcome)}`}
+                                  >
+                                    {teamAOutcome}
+                                  </span>
+                                ) : null}
+                                <Link to="/matches/$matchId" params={{ matchId: String(match.id) }}>
+                                  Match centre
+                                </Link>
+                              </div>
+                            </article>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : null}
+            </>
+          ) : null}
+        </section>
+      </main>
+    </>
+  )
+}
 
 type PublicAboutContent = {
   mission: string
@@ -1292,3 +1677,4 @@ export const AboutUsPage = () => <AboutPageImpl />
 export const ContactUsPage = () => <ContactUsPageImpl />
 export const FixturesPage = () => <FixturesResultsPage mode="fixtures" />
 export const ResultsPage = () => <FixturesResultsPage mode="results" />
+export const CompareTeamsPage = () => <CompareTeamsPageImpl />
