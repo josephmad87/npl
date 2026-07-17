@@ -1223,10 +1223,7 @@ export default function MatchDetailPage() {
                     </table>
                   </div>
                 </>
-              ) : (
-                <p className="match-centre-player-matchup__empty">
-                  Select one player from each team to open the comparison.
-                </p>
+                           ) : null}
               )}
             </section>
           ) : null}
