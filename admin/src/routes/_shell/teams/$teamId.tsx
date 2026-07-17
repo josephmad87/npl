@@ -835,10 +835,14 @@ function TeamDetailPage() {
                 <CalendarPlus size={18} strokeWidth={2} aria-hidden />
                 New fixture
               </Link>
-              <Link to="/players/new" className="btn-ghost btn--with-icon">
-                <UserPlus size={18} strokeWidth={2} aria-hidden />
-                New player
-              </Link>
+              <Link
+  to="/players/new"
+  search={{ teamId: tid }}
+  className="btn-ghost btn--with-icon"
+>
+  <UserPlus size={18} strokeWidth={2} aria-hidden />
+  New player
+</Link>
             </div>
           </section>
 
@@ -1415,7 +1419,11 @@ function TeamDetailPage() {
             {players.length === 0 ? (
               <p className="muted">
                 No players assigned to this squad.{' '}
-                <Link to="/players/new" className="btn-ghost btn--with-icon">
+                <Link
+  to="/players/new"
+  search={{ teamId: tid }}
+  className="btn-ghost btn--with-icon"
+>
                   <UserPlus size={18} strokeWidth={2} aria-hidden />
                   Create player
                 </Link>
@@ -1459,10 +1467,11 @@ function TeamDetailPage() {
                                 </span>
                               ) : null}
                             <Link
-                              to="/players/$playerId"
-                              params={{ playerId: String(p.id) }}
-                              className="team-hub-player-link table-cell-with-badge"
-                            >
+  to="/players/$playerId"
+  params={{ playerId: String(p.id) }}
+  search={{ teamId: tid }}
+  className="team-hub-player-link table-cell-with-badge"
+>
                               <PlayerAvatar
                                 profilePhotoUrl={p.profile_photo_url}
                                 alt=""
@@ -1483,10 +1492,11 @@ function TeamDetailPage() {
                           </td>
                           <td>
                             <Link
-                              to="/players/$playerId"
-                              params={{ playerId: String(p.id) }}
-                              className="btn-ghost btn--with-icon"
-                            >
+  to="/players/$playerId"
+  params={{ playerId: String(p.id) }}
+  search={{ teamId: tid }}
+  className="btn-ghost btn--with-icon"
+>
                               <Eye size={18} strokeWidth={2} aria-hidden />
                               View
                             </Link>
