@@ -7658,3 +7658,16 @@ table.league-standings-table .league-standings-table__form {
     justify-content: space-between;
   }
 }
+/* Desktop nav: keep extra menu items from overlapping */
+@media (min-width: 721px) {
+  .main-nav {
+    gap: clamp(0.45rem, 1vw, 0.85rem);
+  }
+
+  .main-nav > a:not(.site-brand),
+  .menu-item > button,
+  .menu-item > a {
+    font-size: 0.84rem;
+    letter-spacing: 0.035em;
+  }
+}
