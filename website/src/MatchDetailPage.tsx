@@ -660,22 +660,26 @@ export default function MatchDetailPage() {
   }, [awayName, data, homeName, playerById, playerStats])
 
   useEffect(() => {
+    if (!matchupHomePlayerId) return
+
     const currentExists = playerMatchupOptions.home.some(
       (option) => String(option.stat.player_id) === matchupHomePlayerId,
     )
 
-    if (!currentExists && playerMatchupOptions.home[0]) {
-      setMatchupHomePlayerId(String(playerMatchupOptions.home[0].stat.player_id))
+    if (!currentExists) {
+      setMatchupHomePlayerId('')
     }
   }, [matchupHomePlayerId, playerMatchupOptions.home])
 
   useEffect(() => {
+    if (!matchupAwayPlayerId) return
+
     const currentExists = playerMatchupOptions.away.some(
       (option) => String(option.stat.player_id) === matchupAwayPlayerId,
     )
 
-    if (!currentExists && playerMatchupOptions.away[0]) {
-      setMatchupAwayPlayerId(String(playerMatchupOptions.away[0].stat.player_id))
+    if (!currentExists) {
+      setMatchupAwayPlayerId('')
     }
   }, [matchupAwayPlayerId, playerMatchupOptions.away])
 
@@ -1137,6 +1141,8 @@ export default function MatchDetailPage() {
                     value={matchupHomePlayerId}
                     onChange={(event) => setMatchupHomePlayerId(event.target.value)}
                   >
+                    <option value="">Select player</option>
+
                     {playerMatchupOptions.home.map((option) => (
                       <option key={option.stat.player_id} value={option.stat.player_id}>
                         {option.playerName}
@@ -1153,6 +1159,8 @@ export default function MatchDetailPage() {
                     value={matchupAwayPlayerId}
                     onChange={(event) => setMatchupAwayPlayerId(event.target.value)}
                   >
+                    <option value="">Select player</option>
+
                     {playerMatchupOptions.away.map((option) => (
                       <option key={option.stat.player_id} value={option.stat.player_id}>
                         {option.playerName}
@@ -1215,7 +1223,11 @@ export default function MatchDetailPage() {
                     </table>
                   </div>
                 </>
-              ) : null}
+              ) : (
+                <p className="match-centre-player-matchup__empty">
+                  Select one player from each team to open the comparison.
+                </p>
+              )}
             </section>
           ) : null}
 
