@@ -7,7 +7,7 @@ import { publicDisplayMatchStatus } from './lib/matchStatus'
 import { InningsScorecardPanels } from './components/InningsScorecardPanels'
 import { SocialShareButtons } from './components/SocialShareButtons'
 import { Spinner } from './components/Spinner'
-import { getInningsSides, type InningsNumber } from './lib/cricket'
+import { getInningsSides, oversFieldToBalls, type InningsNumber } from './lib/cricket'
 import { formatCategoryLabel, formatMatchDate } from './lib/formatters'
 import { type MatchLite, useTeamsMap } from './lib/hooks'
 import {
@@ -38,6 +38,9 @@ type MatchResultDetail = {
 
 type MatchPlayerStat = {
   id: number
+  lineup_order?: number
+  batting_order?: number | null
+  bowling_order?: number | null
   player_id: number
   team_id: number
   runs: number
@@ -99,6 +102,20 @@ type FanPlayerVoteSummary = {
   choices: FanPlayerVoteChoice[]
 }
 
+type TopPerformerCard = {
+  id: string
+  title: string
+  playerId: number
+  teamId: number
+  focus: 'batting' | 'bowling'
+  playerName: string
+  teamName: string
+  mainLine: string
+  subLine: string
+}
+
+const NO_PLAYER_STATS: MatchPlayerStat[] = []
+
 function getFanVoterKey(): string {
   if (typeof window === 'undefined') return ''
 
@@ -116,7 +133,212 @@ function getFanVoterKey(): string {
   return next
 }
 
-const NO_PLAYER_STATS: MatchPlayerStat[] = []
+function formatTopPerformerStrikeRate(runs: number, balls: number): string {
+  if (balls <= 0) return '—'
+  return ((runs * 100) / balls).toFixed(2)
+}
+
+function formatTopPerformerEconomy(
+  runsConceded: number,
+  overs: string | number | null,
+): string {
+  const balls = oversFieldToBalls(overs)
+  if (balls <= 0) return '—'
+  return ((runsConceded * 6) / balls).toFixed(2)
+}
+
+function formatTopPerformerOvers(overs: string | number | null): string {
+  if (overs == null || overs === '') return '—'
+  return String(overs)
+}
+
+function topPerformerTeamName(
+  teamId: number,
+  homeTeamId: number,
+  awayTeamId: number,
+  homeName: string,
+  awayName: string,
+): string {
+  if (teamId === homeTeamId) return homeName
+  if (teamId === awayTeamId) return awayName
+  return `Team #${teamId}`
+}
+
+function fieldingTotal(stat: MatchPlayerStat): number {
+  return stat.catches + stat.stumpings + stat.run_outs
+}
+
+function impactScore(stat: MatchPlayerStat): number {
+  return (
+    stat.runs +
+    stat.wickets * 25 +
+    stat.catches * 8 +
+    stat.stumpings * 10 +
+    stat.run_outs * 10 +
+    stat.sixes * 2 +
+    stat.fours
+  )
+}
+
+function buildTopPerformerCards({
+  stats,
+  playerName,
+  homeTeamId,
+  awayTeamId,
+  homeName,
+  awayName,
+}: {
+  stats: MatchPlayerStat[]
+  playerName: (playerId: number) => string
+  homeTeamId: number
+  awayTeamId: number
+  homeName: string
+  awayName: string
+}): TopPerformerCard[] {
+  if (stats.length === 0) return []
+
+  const bestBatter = [...stats]
+    .filter((stat) => stat.runs > 0 || stat.balls_faced > 0)
+    .sort(
+      (a, b) =>
+        b.runs - a.runs ||
+        b.sixes - a.sixes ||
+        b.fours - a.fours ||
+        a.balls_faced - b.balls_faced,
+    )[0]
+
+  const bestBowler = [...stats]
+    .filter(
+      (stat) =>
+        stat.wickets > 0 ||
+        oversFieldToBalls(stat.overs) > 0 ||
+        stat.runs_conceded > 0,
+    )
+    .sort((a, b) => {
+      const aBalls = oversFieldToBalls(a.overs)
+      const bBalls = oversFieldToBalls(b.overs)
+      const aEconomy = aBalls > 0 ? (a.runs_conceded * 6) / aBalls : 999
+      const bEconomy = bBalls > 0 ? (b.runs_conceded * 6) / bBalls : 999
+
+      return (
+        b.wickets - a.wickets ||
+        aEconomy - bEconomy ||
+        b.maidens - a.maidens ||
+        a.runs_conceded - b.runs_conceded
+      )
+    })[0]
+
+  const bestImpact = [...stats].sort(
+    (a, b) => impactScore(b) - impactScore(a),
+  )[0]
+
+  const bestFielder = [...stats]
+    .filter((stat) => fieldingTotal(stat) > 0)
+    .sort(
+      (a, b) =>
+        fieldingTotal(b) - fieldingTotal(a) ||
+        b.catches - a.catches ||
+        b.stumpings - a.stumpings ||
+        b.run_outs - a.run_outs,
+    )[0]
+
+  const cards: TopPerformerCard[] = []
+
+  if (bestBatter) {
+    cards.push({
+      id: 'batter',
+      title: 'Best Batter',
+      playerId: bestBatter.player_id,
+      teamId: bestBatter.team_id,
+      focus: 'batting',
+      playerName: playerName(bestBatter.player_id),
+      teamName: topPerformerTeamName(
+        bestBatter.team_id,
+        homeTeamId,
+        awayTeamId,
+        homeName,
+        awayName,
+      ),
+      mainLine: `${bestBatter.runs} runs from ${bestBatter.balls_faced} balls`,
+      subLine: `SR ${formatTopPerformerStrikeRate(
+        bestBatter.runs,
+        bestBatter.balls_faced,
+      )} · ${bestBatter.fours} fours · ${bestBatter.sixes} sixes`,
+    })
+  }
+
+  if (bestBowler && bestBowler.wickets > 0) {
+    cards.push({
+      id: 'bowler',
+      title: 'Best Bowler',
+      playerId: bestBowler.player_id,
+      teamId: bestBowler.team_id,
+      focus: 'bowling',
+      playerName: playerName(bestBowler.player_id),
+      teamName: topPerformerTeamName(
+        bestBowler.team_id,
+        homeTeamId,
+        awayTeamId,
+        homeName,
+        awayName,
+      ),
+      mainLine: `${bestBowler.wickets}/${bestBowler.runs_conceded} from ${formatTopPerformerOvers(
+        bestBowler.overs,
+      )} overs`,
+      subLine: `Economy ${formatTopPerformerEconomy(
+        bestBowler.runs_conceded,
+        bestBowler.overs,
+      )} · ${bestBowler.maidens} maidens`,
+    })
+  }
+
+  if (bestImpact && impactScore(bestImpact) > 0) {
+    const focus =
+      bestImpact.wickets > 0 && bestImpact.wickets * 25 >= bestImpact.runs
+        ? 'bowling'
+        : 'batting'
+
+    cards.push({
+      id: 'impact',
+      title: 'All-round Impact',
+      playerId: bestImpact.player_id,
+      teamId: bestImpact.team_id,
+      focus,
+      playerName: playerName(bestImpact.player_id),
+      teamName: topPerformerTeamName(
+        bestImpact.team_id,
+        homeTeamId,
+        awayTeamId,
+        homeName,
+        awayName,
+      ),
+      mainLine: `${bestImpact.runs} runs · ${bestImpact.wickets} wickets`,
+      subLine: `${bestImpact.catches} catches · ${bestImpact.stumpings} stumpings · ${bestImpact.run_outs} run outs`,
+    })
+  }
+
+  if (bestFielder) {
+    cards.push({
+      id: 'fielder',
+      title: 'Best Fielder',
+      playerId: bestFielder.player_id,
+      teamId: bestFielder.team_id,
+      focus: 'bowling',
+      playerName: playerName(bestFielder.player_id),
+      teamName: topPerformerTeamName(
+        bestFielder.team_id,
+        homeTeamId,
+        awayTeamId,
+        homeName,
+        awayName,
+      ),
+      mainLine: `${bestFielder.catches} catches · ${bestFielder.stumpings} stumpings`,
+      subLine: `${bestFielder.run_outs} run outs`,
+    })
+  }
+
+  return cards
+}
 
 function fixturesHrefForMatch(category: string | null | undefined): string {
   const c = (category ?? '').trim().toLowerCase()
@@ -210,6 +432,7 @@ export default function MatchDetailPage() {
   const { matchId } = useParams({ strict: false }) as { matchId?: string }
   const { map: teamsMap } = useTeamsMap()
   const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
+  const [highlightedPlayerId, setHighlightedPlayerId] = useState<number | null>(null)
 
   const [fanVoterKey] = useState(getFanVoterKey)
   const [selectedFanPlayerId, setSelectedFanPlayerId] = useState('')
@@ -286,6 +509,19 @@ export default function MatchDetailPage() {
     return formatExtrasBreakdown(data.result, side)
   }, [data, scorecardInnings, battingFirstTeamId])
 
+  const topPerformerCards = useMemo(() => {
+    if (!data) return []
+
+    return buildTopPerformerCards({
+      stats: playerStats,
+      playerName: (id) => playerById.get(id) ?? `#${id}`,
+      homeTeamId: data.home_team_id,
+      awayTeamId: data.away_team_id,
+      homeName,
+      awayName,
+    })
+  }, [awayName, data, homeName, playerById, playerStats])
+
   const title = data ? `${homeName} vs ${awayName}` : 'Match'
   const matchLite = data as unknown as MatchLite
   const headerWinner = data ? matchWinnerSide(matchLite) : null
@@ -340,12 +576,12 @@ export default function MatchDetailPage() {
   }, [data])
 
   const displayStatus = publicDisplayMatchStatus(data?.status, data?.match_date)
-  
+
   const showResultBlock =
     data != null && (data.result != null || playerStats.length > 0)
   const playersLoading = homePlayersQ.isLoading || awayPlayersQ.isLoading
 
-    const canShowFanPlayerVote =
+  const canShowFanPlayerVote =
     data?.status === 'completed' && data.result != null && playerStats.length > 0
 
   const fanVoteQ = useQuery({
@@ -388,6 +624,36 @@ export default function MatchDetailPage() {
     }
   }
 
+  const inningsForBattingTeam = (teamId: number): InningsNumber => {
+    if (!data) return 1
+
+    const firstBattingTeamId = battingFirstTeamId ?? data.home_team_id
+
+    return teamId === firstBattingTeamId ? 1 : 2
+  }
+
+  const inningsForBowlingTeam = (teamId: number): InningsNumber => {
+    return inningsForBattingTeam(teamId) === 1 ? 2 : 1
+  }
+
+  const showTopPerformers =
+    data?.status === 'completed' && topPerformerCards.length > 0
+
+  const highlightTopPerformer = (card: TopPerformerCard) => {
+    setHighlightedPlayerId(card.playerId)
+    setScorecardInnings(
+      card.focus === 'bowling'
+        ? inningsForBowlingTeam(card.teamId)
+        : inningsForBattingTeam(card.teamId),
+    )
+
+    window.setTimeout(() => {
+      document
+        .getElementById('match-scorecard-title')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
+  }
+
   if (isLoading) {
     return (
       <main className="container">
@@ -428,8 +694,6 @@ export default function MatchDetailPage() {
 
         <h1 className="match-centre-hero__title">{title}</h1>
         <p className="match-centre-hero__desc">{descriptionLine}</p>
-
-        
       </header>
 
       <main className="container">
@@ -521,14 +785,14 @@ export default function MatchDetailPage() {
                       </span>
                     </dd>
                   </div>
-                  
+
                   <div className="match-centre-detail__row">
                     <dt>Status</dt>
                     <dd>
                       <span
                         className={`match-centre__status-pill ${matchStatusPillClass(
-  displayStatus,
-)}`}
+                          displayStatus,
+                        )}`}
                       >
                         {formatStatusLabel(displayStatus)}
                       </span>
@@ -604,7 +868,6 @@ export default function MatchDetailPage() {
                     </div>
                   ) : null}
                 </section>
-               
               ) : (
                 <p className="match-centre-empty-hint">
                   No result or scorecard yet.
@@ -613,7 +876,45 @@ export default function MatchDetailPage() {
             </div>
           </div>
 
-                    {canShowFanPlayerVote ? (
+          {showTopPerformers ? (
+            <section
+              className="match-centre-panel match-centre-top-performers"
+              aria-labelledby="top-performers-title"
+            >
+              <div className="match-centre-top-performers__head">
+                <div>
+                  <p className="match-centre-top-performers__eyebrow">
+                    Match impact
+                  </p>
+                  <h2 id="top-performers-title">Top Performers</h2>
+                  <p>Tap a card to jump to that player’s scorecard row.</p>
+                </div>
+              </div>
+
+              <div className="match-centre-top-performers__grid">
+                {topPerformerCards.map((card) => (
+                  <button
+                    key={`${card.id}-${card.playerId}`}
+                    type="button"
+                    className={`match-centre-top-performer-card${
+                      highlightedPlayerId === card.playerId ? ' is-active' : ''
+                    }`}
+                    onClick={() => highlightTopPerformer(card)}
+                  >
+                    <span className="match-centre-top-performer-card__label">
+                      {card.title}
+                    </span>
+                    <strong>{card.playerName}</strong>
+                    <small>{card.teamName}</small>
+                    <span>{card.mainLine}</span>
+                    <em>{card.subLine}</em>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {canShowFanPlayerVote ? (
             <section
               className="match-centre-panel match-centre-fan-pom"
               aria-labelledby="fan-player-of-match-title"
@@ -722,8 +1023,6 @@ export default function MatchDetailPage() {
             </section>
           ) : null}
 
-      
-
           <section
             className="match-centre-scorecard"
             aria-labelledby="match-scorecard-title"
@@ -775,6 +1074,7 @@ export default function MatchDetailPage() {
                 stats={playerStats}
                 playerName={(id) => playerById.get(id) ?? `#${id}`}
                 extrasLine={inningsExtrasLine}
+                highlightedPlayerId={highlightedPlayerId}
               />
             ) : (
               <p className="match-centre-muted">No per-player rows yet.</p>
