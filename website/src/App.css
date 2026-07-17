@@ -8156,13 +8156,3 @@ table.league-standings-table .league-standings-table__form {
     width: 100%;
   }
 }
-.match-centre-player-matchup__empty {
-  margin: 0.85rem 0 0;
-  border: 1px dashed var(--color-border);
-  border-radius: 0.9rem;
-  background: #fff;
-  color: var(--color-muted);
-  padding: 1rem;
-  text-align: center;
-  font-weight: 800;
-}
