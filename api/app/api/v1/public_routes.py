@@ -12,7 +12,7 @@ from app.models.contact_message import ContactMessage
 from app.models.article import Article
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season, SeasonTeam
-from app.models.match import Match, MatchPlayerStat
+from app.models.match import FanPlayerMatchVote, Match, MatchPlayerStat
 from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
 from app.models.player import Player
 from app.models.sponsor import Sponsor
@@ -22,7 +22,12 @@ from app.schemas.contact_message import ContactMessageCreate, ContactMessageOut
 from app.schemas.articles import ArticleOut
 from app.schemas.gallery import GalleryItemOut
 from app.schemas.leagues import LeagueDetailPublicOut, LeagueOut
-from app.schemas.matches import MatchDetailOut
+from app.schemas.matches import (
+    FanPlayerMatchVoteChoiceOut,
+    FanPlayerMatchVoteIn,
+    FanPlayerMatchVoteSummaryOut,
+    MatchDetailOut,
+)
 from app.schemas.merchandise import (
     MerchandiseOrderCreate,
     MerchandiseOrderOut,
@@ -455,7 +460,181 @@ def get_match(match_id: int, db: Session = Depends(get_db)) -> MatchDetailOut:
     if m is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
     return MatchDetailOut.model_validate(m)
+def _fan_player_vote_summary(
+    match_id: int,
+    db: Session,
+    voter_key: str | None = None,
+) -> FanPlayerMatchVoteSummaryOut:
+    match = db.scalar(
+        select(Match)
+        .options(
+            joinedload(Match.result),
+            selectinload(Match.player_stats),
+        )
+        .where(Match.id == match_id),
+    )
 
+    if match is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Match not found"},
+        )
+
+    if match.status != "completed" or match.result is None:
+        return FanPlayerMatchVoteSummaryOut(
+            match_id=match_id,
+            eligible=False,
+            reason="Fan Player of the Match voting opens after the result is published.",
+        )
+
+    if not match.player_stats:
+        return FanPlayerMatchVoteSummaryOut(
+            match_id=match_id,
+            eligible=False,
+            reason="Fan Player of the Match voting opens after the scorecard is entered.",
+        )
+
+    stats_by_player = {stat.player_id: stat for stat in match.player_stats}
+    player_ids = list(stats_by_player)
+
+    players = db.scalars(select(Player).where(Player.id.in_(player_ids))).all()
+    player_names = {player.id: player.full_name for player in players}
+
+    vote_rows = db.execute(
+        select(FanPlayerMatchVote.player_id, func.count(FanPlayerMatchVote.id))
+        .where(FanPlayerMatchVote.match_id == match_id)
+        .group_by(FanPlayerMatchVote.player_id),
+    ).all()
+
+    vote_counts = {int(player_id): int(count) for player_id, count in vote_rows}
+    total_votes = sum(vote_counts.get(player_id, 0) for player_id in player_ids)
+
+    voter_player_id: int | None = None
+
+    if voter_key and voter_key.strip():
+        existing_vote = db.scalar(
+            select(FanPlayerMatchVote).where(
+                FanPlayerMatchVote.match_id == match_id,
+                FanPlayerMatchVote.voter_key == voter_key.strip(),
+            ),
+        )
+        if existing_vote is not None:
+            voter_player_id = existing_vote.player_id
+
+    choices: list[FanPlayerMatchVoteChoiceOut] = []
+
+    for stat in sorted(match.player_stats, key=lambda s: (s.team_id, s.lineup_order, s.id)):
+        votes = vote_counts.get(stat.player_id, 0)
+        percentage = round((votes / total_votes) * 100, 1) if total_votes else 0
+
+        choices.append(
+            FanPlayerMatchVoteChoiceOut(
+                player_id=stat.player_id,
+                player_name=player_names.get(stat.player_id, f"Player #{stat.player_id}"),
+                team_id=stat.team_id,
+                votes=votes,
+                percentage=percentage,
+            ),
+        )
+
+    return FanPlayerMatchVoteSummaryOut(
+        match_id=match_id,
+        eligible=True,
+        total_votes=total_votes,
+        voter_player_id=voter_player_id,
+        choices=choices,
+    )
+
+
+@router.get(
+    "/matches/{match_id}/fan-player-vote",
+    response_model=FanPlayerMatchVoteSummaryOut,
+)
+def get_fan_player_vote(
+    match_id: int,
+    voter_key: str | None = Query(default=None, min_length=8, max_length=128),
+    db: Session = Depends(get_db),
+) -> FanPlayerMatchVoteSummaryOut:
+    return _fan_player_vote_summary(match_id, db, voter_key)
+
+
+@router.post(
+    "/matches/{match_id}/fan-player-vote",
+    response_model=FanPlayerMatchVoteSummaryOut,
+)
+def submit_fan_player_vote(
+    match_id: int,
+    body: FanPlayerMatchVoteIn,
+    db: Session = Depends(get_db),
+) -> FanPlayerMatchVoteSummaryOut:
+    match = db.scalar(
+        select(Match)
+        .options(
+            joinedload(Match.result),
+            selectinload(Match.player_stats),
+        )
+        .where(Match.id == match_id),
+    )
+
+    if match is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Match not found"},
+        )
+
+    if match.status != "completed" or match.result is None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "vote_closed",
+                "message": "Fan Player of the Match voting opens after the result is published.",
+            },
+        )
+
+    if not match.player_stats:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "scorecard_required",
+                "message": "Fan Player of the Match voting opens after the scorecard is entered.",
+            },
+        )
+
+    candidate_player_ids = {stat.player_id for stat in match.player_stats}
+
+    if body.player_id not in candidate_player_ids:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "invalid_player",
+                "message": "Selected player is not in this match scorecard.",
+            },
+        )
+
+    voter_key = body.voter_key.strip()
+
+    existing_vote = db.scalar(
+        select(FanPlayerMatchVote).where(
+            FanPlayerMatchVote.match_id == match_id,
+            FanPlayerMatchVote.voter_key == voter_key,
+        ),
+    )
+
+    if existing_vote is None:
+        db.add(
+            FanPlayerMatchVote(
+                match_id=match_id,
+                player_id=body.player_id,
+                voter_key=voter_key,
+            ),
+        )
+    else:
+        existing_vote.player_id = body.player_id
+        existing_vote.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+
+    return _fan_player_vote_summary(match_id, db, voter_key)
 
 @router.get("/news", response_model=dict)
 def list_news(

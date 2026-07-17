@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -42,6 +42,12 @@ class Match(Base):
         "MatchPlayerStat",
         back_populates="match",
         order_by="MatchPlayerStat.lineup_order,MatchPlayerStat.id",
+        cascade="all, delete-orphan",
+    )
+
+    fan_player_votes: Mapped[list["FanPlayerMatchVote"]] = relationship(
+        "FanPlayerMatchVote",
+        back_populates="match",
         cascade="all, delete-orphan",
     )
 
@@ -108,3 +114,39 @@ class MatchPlayerStat(Base):
     notes: Mapped[str | None] = mapped_column(Text)
 
     match: Mapped["Match"] = relationship("Match", back_populates="player_stats")
+
+    class FanPlayerMatchVote(Base):
+    __tablename__ = "fan_player_match_votes"
+    __table_args__ = (
+        UniqueConstraint(
+            "match_id",
+            "voter_key",
+            name="uq_fan_player_match_votes_match_voter",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(
+        ForeignKey("matches.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    player_id: Mapped[int] = mapped_column(
+        ForeignKey("players.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    voter_key: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    match: Mapped["Match"] = relationship("Match", back_populates="fan_player_votes")

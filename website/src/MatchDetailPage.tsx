@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import nplLogoUrl from './assets/logo.png'
 import { ErrorNotice } from './components/ErrorNotice'
@@ -15,7 +15,7 @@ import {
   matchWinnerSide,
 } from './lib/match-result'
 import { formatExtrasBreakdown } from './lib/match-extras'
-import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { fetchAllPaginatedList, fetchJson, postJson, resolveMediaUrl } from './lib/publicApi'
 
 type MatchResultDetail = {
   winning_team_id: number | null
@@ -81,6 +81,40 @@ type MatchDetail = {
 }
 
 type PublicPlayerRow = { id: number; full_name: string }
+
+type FanPlayerVoteChoice = {
+  player_id: number
+  player_name: string
+  team_id: number
+  votes: number
+  percentage: number
+}
+
+type FanPlayerVoteSummary = {
+  match_id: number
+  eligible: boolean
+  reason: string | null
+  total_votes: number
+  voter_player_id: number | null
+  choices: FanPlayerVoteChoice[]
+}
+
+function getFanVoterKey(): string {
+  if (typeof window === 'undefined') return ''
+
+  const storageKey = 'npl_fan_player_vote_key'
+  const existing = window.localStorage.getItem(storageKey)
+
+  if (existing) return existing
+
+  const next =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+  window.localStorage.setItem(storageKey, next)
+
+  return next
+}
 
 const NO_PLAYER_STATS: MatchPlayerStat[] = []
 
@@ -176,6 +210,11 @@ export default function MatchDetailPage() {
   const { matchId } = useParams({ strict: false }) as { matchId?: string }
   const { map: teamsMap } = useTeamsMap()
   const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
+
+  const [fanVoterKey] = useState(getFanVoterKey)
+  const [selectedFanPlayerId, setSelectedFanPlayerId] = useState('')
+  const [fanVoteSubmitting, setFanVoteSubmitting] = useState(false)
+  const [fanVoteError, setFanVoteError] = useState<string | null>(null)
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['match-detail', matchId],
@@ -305,6 +344,49 @@ export default function MatchDetailPage() {
   const showResultBlock =
     data != null && (data.result != null || playerStats.length > 0)
   const playersLoading = homePlayersQ.isLoading || awayPlayersQ.isLoading
+
+    const canShowFanPlayerVote =
+    data?.status === 'completed' && data.result != null && playerStats.length > 0
+
+  const fanVoteQ = useQuery({
+    queryKey: ['fan-player-vote', matchId, fanVoterKey],
+    queryFn: () =>
+      fetchJson<FanPlayerVoteSummary>(
+        `/public/matches/${matchId}/fan-player-vote?voter_key=${encodeURIComponent(
+          fanVoterKey,
+        )}`,
+      ),
+    enabled: Boolean(matchId && fanVoterKey && canShowFanPlayerVote),
+    retry: 1,
+  })
+
+  useEffect(() => {
+    const picked = fanVoteQ.data?.voter_player_id
+
+    if (picked != null) {
+      setSelectedFanPlayerId(String(picked))
+    }
+  }, [fanVoteQ.data?.voter_player_id])
+
+  const submitFanVote = async () => {
+    if (!matchId || !selectedFanPlayerId || !fanVoterKey) return
+
+    setFanVoteSubmitting(true)
+    setFanVoteError(null)
+
+    try {
+      await postJson(`/public/matches/${matchId}/fan-player-vote`, {
+        player_id: Number(selectedFanPlayerId),
+        voter_key: fanVoterKey,
+      })
+
+      await fanVoteQ.refetch()
+    } catch {
+      setFanVoteError('Could not save your vote. Please try again.')
+    } finally {
+      setFanVoteSubmitting(false)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -527,9 +609,118 @@ export default function MatchDetailPage() {
             </div>
           </div>
 
+                    {canShowFanPlayerVote ? (
+            <section
+              className="match-centre-panel match-centre-fan-pom"
+              aria-labelledby="fan-player-of-match-title"
+            >
+              <div className="match-centre-fan-pom__head">
+                <div>
+                  <p className="match-centre-fan-pom__eyebrow">Fan vote</p>
+                  <h2 id="fan-player-of-match-title">Fan Player of the Match</h2>
+                  <p>
+                    Pick your standout player from the match
+                  </p>
+                </div>
+
+                {fanVoteQ.data ? (
+                  <strong>{fanVoteQ.data.total_votes} votes</strong>
+                ) : null}
+              </div>
+
+              {fanVoteQ.isLoading ? (
+                <p className="match-centre-muted">Loading fan vote…</p>
+              ) : null}
+
+              {fanVoteQ.isError ? (
+                <p className="match-centre-muted">
+                  Fan voting is not available right now.
+                </p>
+              ) : null}
+
+              {fanVoteQ.data && !fanVoteQ.data.eligible ? (
+                <p className="match-centre-muted">
+                  {fanVoteQ.data.reason ?? 'Fan voting is not open yet.'}
+                </p>
+              ) : null}
+
+              {fanVoteQ.data?.eligible ? (
+                <>
+                  <div className="match-centre-fan-pom__choices">
+                    {fanVoteQ.data.choices.map((choice) => {
+                      const teamName =
+                        choice.team_id === data.home_team_id
+                          ? homeName
+                          : choice.team_id === data.away_team_id
+                            ? awayName
+                            : `Team #${choice.team_id}`
+
+                      return (
+                        <label
+                          key={choice.player_id}
+                          className={`match-centre-fan-pom__choice${
+                            selectedFanPlayerId === String(choice.player_id)
+                              ? ' is-selected'
+                              : ''
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="fan-player-of-match"
+                            value={choice.player_id}
+                            checked={selectedFanPlayerId === String(choice.player_id)}
+                            onChange={(event) => setSelectedFanPlayerId(event.target.value)}
+                          />
+
+                          <span className="match-centre-fan-pom__choice-body">
+                            <span>
+                              <strong>{choice.player_name}</strong>
+                              <small>{teamName}</small>
+                            </span>
+
+                            <span className="match-centre-fan-pom__vote-meta">
+                              {choice.votes} vote{choice.votes === 1 ? '' : 's'} ·{' '}
+                              {choice.percentage}%
+                            </span>
+
+                            <span className="match-centre-fan-pom__bar" aria-hidden>
+                              <span style={{ width: `${choice.percentage}%` }} />
+                            </span>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+
+                  <div className="match-centre-fan-pom__actions">
+                    <button
+                      type="button"
+                      disabled={!selectedFanPlayerId || fanVoteSubmitting}
+                      onClick={() => void submitFanVote()}
+                    >
+                      {fanVoteSubmitting
+                        ? 'Saving…'
+                        : fanVoteQ.data.voter_player_id
+                          ? 'Update vote'
+                          : 'Submit vote'}
+                    </button>
+
+                    {fanVoteQ.data.voter_player_id ? (
+                      <p>Thanks — your fan vote has been counted.</p>
+                    ) : null}
+
+                    {fanVoteError ? (
+                      <p className="match-centre-fan-pom__error">{fanVoteError}</p>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
+            </section>
+          ) : null}
+
           <div className="match-centre-share-row">
-  <SocialShareButtons title={title} text={shareText} />
-</div>
+            <SocialShareButtons title={title} text={shareText} />
+          </div>
 
           <section
             className="match-centre-scorecard"

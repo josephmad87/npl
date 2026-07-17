@@ -7671,3 +7671,158 @@ table.league-standings-table .league-standings-table__form {
     letter-spacing: 0.035em;
   }
 }
+/* Match centre: Fan Player of the Match vote */
+.match-centre-fan-pom {
+  margin-top: 1rem;
+}
+
+.match-centre-fan-pom__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.85rem;
+}
+
+.match-centre-fan-pom__eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--color-highlight);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.match-centre-fan-pom__head h2 {
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.match-centre-fan-pom__head p {
+  margin: 0.3rem 0 0;
+  color: var(--color-muted);
+}
+
+.match-centre-fan-pom__head strong {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.match-centre-fan-pom__choices {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.match-centre-fan-pom__choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 12%, var(--color-border));
+  border-radius: 0.85rem;
+  padding: 0.7rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.match-centre-fan-pom__choice.is-selected {
+  border-color: var(--color-highlight);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-highlight) 25%, transparent);
+}
+
+.match-centre-fan-pom__choice input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--color-highlight);
+}
+
+.match-centre-fan-pom__choice-body {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.match-centre-fan-pom__choice-body strong {
+  display: block;
+  color: var(--color-primary);
+}
+
+.match-centre-fan-pom__choice-body small {
+  display: block;
+  color: var(--color-muted);
+  margin-top: 0.1rem;
+}
+
+.match-centre-fan-pom__vote-meta {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.match-centre-fan-pom__bar {
+  display: block;
+  height: 0.45rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-border) 70%, #fff);
+}
+
+.match-centre-fan-pom__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-highlight);
+}
+
+.match-centre-fan-pom__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.9rem;
+}
+
+.match-centre-fan-pom__actions button {
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 0.65rem 1.05rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.match-centre-fan-pom__actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.match-centre-fan-pom__actions p {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.match-centre-fan-pom__error {
+  color: #991b1b !important;
+  font-weight: 800;
+}
+
+@media (max-width: 720px) {
+  .match-centre-fan-pom__head {
+    flex-direction: column;
+  }
+
+  .match-centre-fan-pom__actions button {
+    width: 100%;
+  }
+}
