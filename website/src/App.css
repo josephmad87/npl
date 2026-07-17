@@ -7880,3 +7880,110 @@ table.league-standings-table .league-standings-table__form {
 .match-centre-share-row--top {
   margin: 0 0 1rem;
 }
+/* Match centre: top performers */
+.match-centre-top-performers {
+  margin-top: 1rem;
+}
+
+.match-centre-top-performers__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.match-centre-top-performers__eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--color-highlight);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.match-centre-top-performers__head h2 {
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.match-centre-top-performers__head p {
+  margin: 0.3rem 0 0;
+  color: var(--color-muted);
+}
+
+.match-centre-top-performers__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.match-centre-top-performer-card {
+  appearance: none;
+  display: grid;
+  gap: 0.25rem;
+  min-height: 9.5rem;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 14%, var(--color-border));
+  border-radius: 0.9rem;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(229, 139, 27, 0.13), transparent 34%),
+    #fff;
+  color: var(--color-text);
+  padding: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(31, 22, 64, 0.07);
+}
+
+.match-centre-top-performer-card:hover,
+.match-centre-top-performer-card:focus-visible,
+.match-centre-top-performer-card.is-active {
+  border-color: var(--color-highlight);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-highlight) 24%, transparent);
+}
+
+.match-centre-top-performer-card__label {
+  color: var(--color-highlight);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.match-centre-top-performer-card strong {
+  color: var(--color-primary);
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.match-centre-top-performer-card small {
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.match-centre-top-performer-card span:not(.match-centre-top-performer-card__label) {
+  font-weight: 850;
+}
+
+.match-centre-top-performer-card em {
+  color: var(--color-muted);
+  font-style: normal;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.match-centre-scorecard-table__highlight td {
+  background: color-mix(in srgb, var(--color-highlight) 18%, #fff);
+  box-shadow: inset 3px 0 0 var(--color-highlight);
+}
+
+@media (max-width: 1000px) {
+  .match-centre-top-performers__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .match-centre-top-performers__grid {
+    grid-template-columns: 1fr;
+  }
+}
