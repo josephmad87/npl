@@ -40,6 +40,7 @@ type InningsScorecardPanelsProps = Readonly<{
   stats: ScorecardStat[]
   playerName: (playerId: number) => string
   extrasLine?: string | null
+  highlightedPlayerId?: number | null
 }>
 
 function teamLabel(
@@ -185,6 +186,14 @@ function formatInningsHeading(
   return `${teamName} ${totalRuns}/${wickets} (${oversLabel} overs)`
 }
 
+function highlightedRowClass(
+  highlightedPlayerId: number | null | undefined,
+  playerId: number,
+): string | undefined {
+  return highlightedPlayerId === playerId
+    ? 'match-centre-scorecard-table__highlight'
+    : undefined
+}
 
 export function InningsScorecardPanels({
   innings,
@@ -196,6 +205,7 @@ export function InningsScorecardPanels({
   stats,
   playerName,
   extrasLine,
+  highlightedPlayerId,
 }: InningsScorecardPanelsProps) {
   const sides = getInningsSides(
     innings,
@@ -220,37 +230,29 @@ export function InningsScorecardPanels({
     awayLabel,
   )
 
+  const battingRows = stats
+    .filter(
+      (s) =>
+        s.team_id === sides.battingTeamId &&
+        (s.batting_order != null || hasBattingLine(s)),
+    )
+    .sort(compareBattingOrder)
 
- const battingRows = stats
-  .filter(
-    (s) =>
-      s.team_id === sides.battingTeamId &&
-      (s.batting_order != null || hasBattingLine(s)),
+  const bowlingRows = stats
+    .filter((s) => s.team_id === sides.bowlingTeamId && hasBowlingLine(s))
+    .sort(compareBowlingOrder)
+
+  const battingHeading = formatInningsHeading(
+    battingLabel,
+    battingRows,
+    bowlingRows,
+    extrasLine,
   )
-  .sort(compareBattingOrder)
 
- const bowlingRows = stats
-  .filter(
-    (s) =>
-      s.team_id === sides.bowlingTeamId &&
-      hasBowlingLine(s),
-  )
-  .sort(compareBowlingOrder)
-
-const battingHeading = formatInningsHeading(
-  battingLabel,
-  battingRows,
-  bowlingRows,
-  extrasLine,
-)
-  
   return (
     <div className="innings-scorecard-panels">
-  <section className="innings-scorecard-panels__section">
-       
-    <h3 className="innings-scorecard-panels__h">
-            {battingHeading}
-                </h3>
+      <section className="innings-scorecard-panels__section">
+        <h3 className="innings-scorecard-panels__h">{battingHeading}</h3>
 
         {battingRows.length > 0 ? (
           <div className="table-scroll match-stats-scroll">
@@ -266,27 +268,32 @@ const battingHeading = formatInningsHeading(
                   <th>SR</th>
                 </tr>
               </thead>
-               <tbody>
-                    {battingRows.map((s) => (
-                        <tr key={`bat-${s.id}`}>
-                          <td>{playerName(s.player_id)}</td>
-                          <td>{formatDismissalDisplay(s.dismissal)}</td>
-                          <td>{s.runs}</td>
-                          <td>{s.balls_faced}</td>
-                          <td>{s.fours}</td>
-                          <td>{s.sixes}</td>
-                          <td>{formatStrikeRate(s.runs, s.balls_faced)}</td>
-                </tr>
-              ))}
+              <tbody>
+                {battingRows.map((s) => (
+                  <tr
+                    key={`bat-${s.id}`}
+                    className={highlightedRowClass(
+                      highlightedPlayerId,
+                      s.player_id,
+                    )}
+                  >
+                    <td>{playerName(s.player_id)}</td>
+                    <td>{formatDismissalDisplay(s.dismissal)}</td>
+                    <td>{s.runs}</td>
+                    <td>{s.balls_faced}</td>
+                    <td>{s.fours}</td>
+                    <td>{s.sixes}</td>
+                    <td>{formatStrikeRate(s.runs, s.balls_faced)}</td>
+                  </tr>
+                ))}
 
-            {extrasLine ? (
-              <tr className="batting-scorecard-table__extras">
-                  <td>Extras</td>
+                {extrasLine ? (
+                  <tr className="batting-scorecard-table__extras">
+                    <td>Extras</td>
                     <td colSpan={6}>{extrasLine.replace(/^Extras\s*/i, '')}</td>
-                       </tr>
-  ) : null}
-</tbody>
-                
+                  </tr>
+                ) : null}
+              </tbody>
             </table>
           </div>
         ) : (
@@ -310,7 +317,13 @@ const battingHeading = formatInningsHeading(
               </thead>
               <tbody>
                 {bowlingRows.map((s) => (
-                  <tr key={`bowl-${s.id}`}>
+                  <tr
+                    key={`bowl-${s.id}`}
+                    className={highlightedRowClass(
+                      highlightedPlayerId,
+                      s.player_id,
+                    )}
+                  >
                     <td>{playerName(s.player_id)}</td>
                     <td>
                       {s.overs != null && s.overs !== ''
