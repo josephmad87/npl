@@ -20,9 +20,9 @@ type TeamCategoryGroup = 'mens' | 'women' | 'youth'
 type TeamStatusGroup = 'active' | 'inactive' | 'archived'
 
 const CATEGORY_GROUPS: { key: TeamCategoryGroup; label: string }[] = [
-  { key: 'mens', label: 'Mens Teams' },
-  { key: 'women', label: 'Women Teams' },
-  { key: 'youth', label: 'Youth Teams' },
+  { key: 'mens', label: 'Mens' },
+  { key: 'women', label: 'Women' },
+  { key: 'youth', label: 'Youth' },
 ]
 
 const STATUS_GROUPS: { key: TeamStatusGroup; label: string }[] = [
@@ -74,6 +74,20 @@ function teamSearchText(team: TeamDto): string {
     .join(' ')
 }
 
+function TeamStatusBadge({ status }: { status: string | null | undefined }) {
+  const group = teamStatusGroup(status)
+
+  if (group === 'archived') {
+    return (
+      <span className="team-tab-catalog__status-pill team-tab-catalog__status-pill--archived">
+        Archived
+      </span>
+    )
+  }
+
+  return <StatusBadge status={group as 'active' | 'inactive'} />
+}
+
 function TeamCard({ team }: { team: TeamDto }) {
   return (
     <Link
@@ -93,7 +107,7 @@ function TeamCard({ team }: { team: TeamDto }) {
         </p>
       </div>
       <div className="entity-thumb-card__footer">
-        <StatusBadge status={team.status as 'active' | 'inactive'} />
+        <TeamStatusBadge status={team.status} />
       </div>
     </Link>
   )
@@ -116,10 +130,7 @@ const columns: ColumnDef<TeamDto, unknown>[] = [
   {
     accessorKey: 'status',
     header: 'Status',
-    cell: ({ getValue }) => {
-      const v = getValue() as string
-      return <StatusBadge status={v as 'active' | 'inactive'} />
-    },
+    cell: ({ row }) => <TeamStatusBadge status={row.original.status} />,
   },
 ]
 
@@ -130,6 +141,8 @@ function TeamsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedLeagueId, setSelectedLeagueId] = useState<number | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [activeCategory, setActiveCategory] = useState<TeamCategoryGroup>('mens')
+  const [activeStatus, setActiveStatus] = useState<TeamStatusGroup>('active')
 
   const [teamsQ, seasonsQ, leaguesQ] = useQueries({
     queries: [
@@ -180,25 +193,48 @@ function TeamsPage() {
     )
   }, [leagueFilteredData, searchQuery])
 
-  const groupedTeams = useMemo(
+  const categoryCounts = useMemo(
     () =>
-      CATEGORY_GROUPS.map((category) => {
-        const categoryTeams = queryFilteredData.filter(
-          (team) => teamCategoryGroup(team.category) === category.key,
-        )
-
-        return {
-          ...category,
-          total: categoryTeams.length,
-          statusGroups: STATUS_GROUPS.map((status) => ({
-            ...status,
-            teams: categoryTeams
-              .filter((team) => teamStatusGroup(team.status) === status.key)
-              .sort((a, b) => a.name.localeCompare(b.name)),
-          })),
-        }
-      }),
+      CATEGORY_GROUPS.reduce<Record<TeamCategoryGroup, number>>(
+        (acc, category) => {
+          acc[category.key] = queryFilteredData.filter(
+            (team) => teamCategoryGroup(team.category) === category.key,
+          ).length
+          return acc
+        },
+        { mens: 0, women: 0, youth: 0 },
+      ),
     [queryFilteredData],
+  )
+
+  const categoryFilteredData = useMemo(
+    () =>
+      queryFilteredData.filter(
+        (team) => teamCategoryGroup(team.category) === activeCategory,
+      ),
+    [activeCategory, queryFilteredData],
+  )
+
+  const statusCounts = useMemo(
+    () =>
+      STATUS_GROUPS.reduce<Record<TeamStatusGroup, number>>(
+        (acc, status) => {
+          acc[status.key] = categoryFilteredData.filter(
+            (team) => teamStatusGroup(team.status) === status.key,
+          ).length
+          return acc
+        },
+        { active: 0, inactive: 0, archived: 0 },
+      ),
+    [categoryFilteredData],
+  )
+
+  const tabFilteredData = useMemo(
+    () =>
+      categoryFilteredData
+        .filter((team) => teamStatusGroup(team.status) === activeStatus)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [activeStatus, categoryFilteredData],
   )
 
   const selectedTeamIds = useMemo(
@@ -248,10 +284,46 @@ function TeamsPage() {
     </div>
   )
 
+  const renderTabs = (
+    <div className="team-tab-catalog">
+      <div className="team-tab-catalog__tabs" aria-label="Team categories">
+        {CATEGORY_GROUPS.map((category) => (
+          <button
+            key={category.key}
+            type="button"
+            className={activeCategory === category.key ? 'is-active' : ''}
+            onClick={() => {
+              setActiveCategory(category.key)
+              setRowSelection({})
+            }}
+          >
+            {category.label} <span>({categoryCounts[category.key]})</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="team-tab-catalog__tabs" aria-label="Team statuses">
+        {STATUS_GROUPS.map((status) => (
+          <button
+            key={status.key}
+            type="button"
+            className={activeStatus === status.key ? 'is-active' : ''}
+            onClick={() => {
+              setActiveStatus(status.key)
+              setRowSelection({})
+            }}
+          >
+            {status.label} <span>({statusCounts[status.key]})</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
   const bulkArchive = async () => {
     if (selectedTeamIds.length === 0) return
 
-    const names = queryFilteredData
+    const names = tabFilteredData
       .filter((team) => selectedTeamIds.includes(team.id))
       .map((team) => team.name)
       .join(', ')
@@ -296,63 +368,28 @@ function TeamsPage() {
       ) : mode === 'cards' ? (
         <>
           {renderToolbar}
+          {renderTabs}
 
-          <div className="team-grouped-catalog">
-            {queryFilteredData.length === 0 ? (
-              <p className="muted">No teams match your filters.</p>
-            ) : (
-              groupedTeams.map((category) =>
-                category.total > 0 ? (
-                  <section
-                    key={category.key}
-                    className="team-grouped-catalog__category"
-                  >
-                    <div className="team-grouped-catalog__category-head">
-                      <div>
-                        <p className="team-grouped-catalog__eyebrow">Category</p>
-                        <h2>{category.label}</h2>
-                      </div>
-                      <span>{category.total} teams</span>
-                    </div>
-
-                    <div className="team-grouped-catalog__status-grid">
-                      {category.statusGroups.map((status) => (
-                        <section
-                          key={`${category.key}-${status.key}`}
-                          className={`team-grouped-catalog__status team-grouped-catalog__status--${status.key}`}
-                        >
-                          <div className="team-grouped-catalog__status-head">
-                            <h3>{status.label}</h3>
-                            <span>{status.teams.length}</span>
-                          </div>
-
-                          {status.teams.length > 0 ? (
-                            <div className="team-grouped-catalog__cards">
-                              {status.teams.map((team) => (
-                                <TeamCard key={team.id} team={team} />
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="team-grouped-catalog__empty muted">
-                              No {status.label.toLowerCase()} teams.
-                            </p>
-                          )}
-                        </section>
-                      ))}
-                    </div>
-                  </section>
-                ) : null,
-              )
-            )}
-          </div>
+          {tabFilteredData.length === 0 ? (
+            <p className="team-tab-catalog__empty muted">
+              No teams match this category and status.
+            </p>
+          ) : (
+            <div className="team-tab-catalog__cards">
+              {tabFilteredData.map((team) => (
+                <TeamCard key={team.id} team={team} />
+              ))}
+            </div>
+          )}
         </>
       ) : (
         <>
           {renderToolbar}
+          {renderTabs}
 
           <EntityTable
             columns={columns}
-            data={queryFilteredData}
+            data={tabFilteredData}
             hideToolbar
             enableRowSelection
             getRowId={(row) => String(row.id)}
