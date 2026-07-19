@@ -47,5 +47,5 @@ class AdminUserCreate(BaseModel):
     password: str = Field(min_length=8)
     full_name: str | None = None
     role: str = Field(
-        pattern="^(super_admin|competition_manager|content_editor|read_only_admin)$",
+        pattern="^(super_admin|competition_manager|content_editor|read_only_admin|scorer)$",
     )
