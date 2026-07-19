@@ -12,7 +12,7 @@ from app.models.contact_message import ContactMessage
 from app.models.article import Article
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season, SeasonTeam
-from app.models.match import FanPlayerMatchVote, Match, MatchPlayerStat
+from app.models.match import FanPlayerMatchVote, Match, MatchBallEvent, MatchPlayerStat
 from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
 from app.models.player import Player
 from app.models.sponsor import Sponsor
@@ -26,6 +26,9 @@ from app.schemas.matches import (
     FanPlayerMatchVoteChoiceOut,
     FanPlayerMatchVoteIn,
     FanPlayerMatchVoteSummaryOut,
+    LiveBallEventOut,
+    LiveScoreInningsSummaryOut,
+    LiveScoreStateOut,
     MatchDetailOut,
 )
 from app.schemas.merchandise import (
@@ -890,3 +893,71 @@ def submit_contact_message(
     db.commit()
     db.refresh(msg)
     return ContactMessageOut.model_validate(msg)
+
+
+# ---------------------------------------------------------------------------
+# Public live score state
+# ---------------------------------------------------------------------------
+
+def _public_live_ball_label(event: MatchBallEvent) -> str:
+    if event.wicket_type:
+        return "W"
+    if event.extras_type:
+        code = event.extras_type.lower().replace("_", " ")
+        return f"{event.runs_extras}{code[:2]}"
+    return str(event.runs_batter)
+
+
+def _public_live_overs_label(legal_balls: int) -> str:
+    return f"{legal_balls // 6}.{legal_balls % 6}"
+
+
+def _public_live_event_out(event: MatchBallEvent) -> LiveBallEventOut:
+    return LiveBallEventOut.model_validate(event)
+
+
+def _public_live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
+    events = list(
+        db.scalars(
+            select(MatchBallEvent)
+            .where(MatchBallEvent.match_id == match.id)
+            .order_by(MatchBallEvent.sequence_number, MatchBallEvent.id),
+        ).all(),
+    )
+
+    summaries: list[LiveScoreInningsSummaryOut] = []
+    for innings in sorted({event.innings for event in events}):
+        rows = [event for event in events if event.innings == innings]
+        runs = sum(event.runs_batter + event.runs_extras for event in rows)
+        wickets = sum(1 for event in rows if event.wicket_type)
+        legal_balls = sum(1 for event in rows if event.is_legal_delivery)
+        last_rows = rows[-6:]
+        summaries.append(
+            LiveScoreInningsSummaryOut(
+                innings=innings,
+                batting_team_id=rows[-1].batting_team_id,
+                bowling_team_id=rows[-1].bowling_team_id,
+                runs=runs,
+                wickets=wickets,
+                legal_balls=legal_balls,
+                overs_label=_public_live_overs_label(legal_balls),
+                last_six=[_public_live_ball_label(event) for event in last_rows],
+                last_event=_public_live_event_out(rows[-1]),
+            ),
+        )
+
+    return LiveScoreStateOut(
+        match_id=match.id,
+        status=match.status,
+        current_innings=summaries[-1].innings if summaries else None,
+        summaries=summaries,
+        events=[_public_live_event_out(event) for event in events],
+    )
+
+
+@router.get("/matches/{match_id}/live", response_model=LiveScoreStateOut)
+def public_live_score_state(match_id: int, db: Session = Depends(get_db)) -> LiveScoreStateOut:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    return _public_live_score_state(db, match)
