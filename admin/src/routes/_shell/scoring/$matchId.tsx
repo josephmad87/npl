@@ -7,6 +7,7 @@ import type {
   LiveBallEventInput,
   LiveScoreStateDto,
   MatchDto,
+  MatchLiveSetupInput,
   MatchSquadDto,
   MatchSquadRole,
   MatchSquadSaveInput,
@@ -129,6 +130,37 @@ function selectedRoleCount(players: PlayerDto[], roles: PlayerRoleMap, role: Mat
   return players.filter((player) => roles[player.id] === role).length
 }
 
+
+
+function otherMatchTeamId(match: MatchDto | null, teamId: number | ''): number | '' {
+  if (!match || !teamId) return ''
+  if (teamId === match.home_team_id) return match.away_team_id
+  if (teamId === match.away_team_id) return match.home_team_id
+  return ''
+}
+
+function teamNameById(teams: ScoringTeam[], teamId: number | ''): string {
+  if (!teamId) return ''
+  return teams.find((team) => team.id === teamId)?.name ?? `Team ${teamId}`
+}
+
+function parseSetupId(raw: string | null | undefined, label: string): number | '' {
+  const match = raw?.match(new RegExp(`${label}:\\s*(\\d+)`, 'i'))
+  if (!match) return ''
+  const parsed = Number(match[1])
+  return Number.isFinite(parsed) ? parsed : ''
+}
+
+function parseSetupText(raw: string | null | undefined, label: string): string {
+  const match = raw?.match(new RegExp(`${label}:\\s*([^;]+)`, 'i'))
+  return match?.[1]?.trim() ?? ''
+}
+
+function parseUmpire(raw: string | null | undefined, label: string): string {
+  const value = parseSetupText(raw, label)
+  return value
+}
+
 function LiveScoringPage() {
   const { matchId } = Route.useParams()
   const mid = Number(matchId)
@@ -201,6 +233,13 @@ function LiveScoringPage() {
   const [bowlerPlayerId, setBowlerPlayerId] = useState<number | ''>('')
   const [notes, setNotes] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
+  const [tossWinnerTeamId, setTossWinnerTeamId] = useState<number | ''>('')
+  const [tossDecision, setTossDecision] = useState<'bat' | 'bowl'>('bat')
+  const [battingFirstTeamId, setBattingFirstTeamId] = useState<number | ''>('')
+  const [umpire1, setUmpire1] = useState('')
+  const [umpire2, setUmpire2] = useState('')
+  const [reserveUmpire, setReserveUmpire] = useState('')
+  const [setupHydratedMatchId, setSetupHydratedMatchId] = useState<number | null>(null)
   const [playerRoles, setPlayerRoles] = useState<PlayerRoleMap>({})
   const [squadDirty, setSquadDirty] = useState(false)
   const [wicketOpen, setWicketOpen] = useState(false)
@@ -224,6 +263,35 @@ function LiveScoringPage() {
   }, [match, teamById])
 
   useEffect(() => {
+    if (!match || setupHydratedMatchId === match.id) return
+
+    const savedTossWinner = parseSetupId(match.toss_info, 'Toss winner')
+    const savedBattingFirst = parseSetupId(match.toss_info, 'Batting first')
+    const savedDecision = parseSetupText(match.toss_info, 'Decision').toLowerCase()
+
+    setTossWinnerTeamId(savedTossWinner || match.home_team_id)
+    setTossDecision(savedDecision === 'bowl' ? 'bowl' : 'bat')
+    setBattingFirstTeamId(savedBattingFirst || match.home_team_id)
+    setUmpire1(parseUmpire(match.umpires, 'Umpire 1'))
+    setUmpire2(parseUmpire(match.umpires, 'Umpire 2'))
+    setReserveUmpire(parseUmpire(match.umpires, 'Reserve/TV'))
+    setSetupHydratedMatchId(match.id)
+  }, [match, setupHydratedMatchId])
+
+  const updateTossWinner = (teamId: number) => {
+    setTossWinnerTeamId(teamId)
+    const otherTeamId = otherMatchTeamId(match, teamId)
+    setBattingFirstTeamId(tossDecision === 'bat' ? teamId : otherTeamId)
+  }
+
+  const updateTossDecision = (decision: 'bat' | 'bowl') => {
+    setTossDecision(decision)
+    if (!tossWinnerTeamId) return
+    const otherTeamId = otherMatchTeamId(match, tossWinnerTeamId)
+    setBattingFirstTeamId(decision === 'bat' ? tossWinnerTeamId : otherTeamId)
+  }
+
+  useEffect(() => {
     if (!squadQ.data || squadDirty) return
 
     const next: PlayerRoleMap = {}
@@ -238,12 +306,15 @@ function LiveScoringPage() {
   useEffect(() => {
     if (!match) return
 
+    const firstBattingTeam = battingFirstTeamId || match.home_team_id
+    const secondBattingTeam = otherMatchTeamId(match, firstBattingTeam) || match.away_team_id
+
     if (innings === 1) {
-      setBattingTeamId(match.home_team_id)
-      setBowlingTeamId(match.away_team_id)
+      setBattingTeamId(firstBattingTeam)
+      setBowlingTeamId(secondBattingTeam)
     } else {
-      setBattingTeamId(match.away_team_id)
-      setBowlingTeamId(match.home_team_id)
+      setBattingTeamId(secondBattingTeam)
+      setBowlingTeamId(firstBattingTeam)
     }
 
     setStrikerPlayerId('')
@@ -252,7 +323,7 @@ function LiveScoringPage() {
     setWicketPlayerId('')
     setFielderPlayerId('')
     setNewBatterPlayerId('')
-  }, [innings, match])
+  }, [battingFirstTeamId, innings, match])
 
   const teamHasSavedSquad = useMemo(() => {
     const result = new Map<number, boolean>()
@@ -323,6 +394,31 @@ function LiveScoringPage() {
     matchTeams.find((team) => team.id === battingTeamId)?.name ?? 'Batting team'
   const bowlingTeamName =
     matchTeams.find((team) => team.id === bowlingTeamId)?.name ?? 'Bowling team'
+
+  const setupMutation = useMutation({
+    mutationFn: () => {
+      if (!match) throw new Error('Match not loaded.')
+      if (!tossWinnerTeamId || !battingFirstTeamId) {
+        throw new Error('Choose toss winner and batting first team.')
+      }
+
+      const body: MatchLiveSetupInput = {
+        toss_winner_team_id: tossWinnerTeamId,
+        toss_decision: tossDecision,
+        batting_first_team_id: battingFirstTeamId,
+        umpire_1: umpire1.trim() || null,
+        umpire_2: umpire2.trim() || null,
+        reserve_umpire: reserveUmpire.trim() || null,
+      }
+
+      return adminPutJson<MatchDto>(`/admin/matches/${mid}/live/setup`, body)
+    },
+    onSuccess: async () => {
+      setActionError(null)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
+    },
+    onError: (error: Error) => setActionError(error.message),
+  })
 
   const saveSquadMutation = useMutation({
     mutationFn: () => {
@@ -577,13 +673,15 @@ function LiveScoringPage() {
   )
   const inningsTarget =
     innings === 1 && currentSummary ? currentSummary.runs + 1 : null
+  const tossWinnerName = teamNameById(matchTeams, tossWinnerTeamId)
+  const battingFirstName = teamNameById(matchTeams, battingFirstTeamId)
 
   return (
     <>
       <PageHeader
         title="Live scoring"
         descriptionAsTooltip
-        description="Pick match day squads first, then score ball-by-ball from the selected XI and substitutes."
+        description="Record match setup, pick match day squads, then score ball-by-ball from the selected XI and substitutes."
         actions={<Link to="/scoring">Scoring dashboard</Link>}
       />
 
@@ -613,6 +711,109 @@ function LiveScoringPage() {
         {liveQ.isError ? <p className="login-error">{liveQ.error.message}</p> : null}
         {squadQ.isError ? <p className="login-error">{squadQ.error.message}</p> : null}
         {actionError ? <p className="login-error">{actionError}</p> : null}
+      </section>
+
+      <section className="team-hub-section">
+        <div className="team-hub-section-head">
+          <div className="team-hub-section-head__lead">
+            <h2 className="team-hub-section__title">Match setup</h2>
+            <p className="muted">
+              Record the toss, batting first team and umpire names before the first ball.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-primary btn--with-icon"
+            onClick={() => void setupMutation.mutate()}
+            disabled={setupMutation.isPending}
+          >
+            <Save size={18} strokeWidth={2} aria-hidden />
+            {setupMutation.isPending ? 'Saving…' : 'Save setup'}
+          </button>
+        </div>
+
+        <div className="inline-edit__grid">
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Toss won by</span>
+            <select
+              className="inline-edit__control"
+              value={tossWinnerTeamId}
+              onChange={(event) => updateTossWinner(Number(event.target.value))}
+            >
+              <option value="">Choose team</option>
+              {matchTeams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Toss decision</span>
+            <select
+              className="inline-edit__control"
+              value={tossDecision}
+              onChange={(event) => updateTossDecision(event.target.value as 'bat' | 'bowl')}
+            >
+              <option value="bat">Bat first</option>
+              <option value="bowl">Bowl first</option>
+            </select>
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Team batting first</span>
+            <select
+              className="inline-edit__control"
+              value={battingFirstTeamId}
+              onChange={(event) => setBattingFirstTeamId(Number(event.target.value))}
+            >
+              <option value="">Choose team</option>
+              {matchTeams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Umpire 1</span>
+            <input
+              className="inline-edit__control"
+              value={umpire1}
+              onChange={(event) => setUmpire1(event.target.value)}
+              placeholder="Enter umpire name"
+            />
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Umpire 2</span>
+            <input
+              className="inline-edit__control"
+              value={umpire2}
+              onChange={(event) => setUmpire2(event.target.value)}
+              placeholder="Enter umpire name"
+            />
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Reserve / TV umpire</span>
+            <input
+              className="inline-edit__control"
+              value={reserveUmpire}
+              onChange={(event) => setReserveUmpire(event.target.value)}
+              placeholder="Optional"
+            />
+          </label>
+        </div>
+
+        <p className="muted">
+          {tossWinnerName
+            ? `${tossWinnerName} won the toss and chose to ${tossDecision}. `
+            : 'Choose the team that won the toss. '}
+          {battingFirstName ? `${battingFirstName} will bat first.` : ''}
+        </p>
       </section>
 
       <section className="team-hub-section">
