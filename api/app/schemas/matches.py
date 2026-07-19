@@ -109,6 +109,93 @@ class FanPlayerMatchVoteSummaryOut(BaseModel):
     choices: list[FanPlayerMatchVoteChoiceOut] = Field(default_factory=list)
 
 
+class MatchScorerAssignmentIn(BaseModel):
+    user_ids: list[int] = Field(default_factory=list)
+
+
+class MatchScorerAssignmentOut(BaseModel):
+    id: int
+    match_id: int
+    user_id: int
+    user_email: str
+    user_full_name: str | None = None
+    assigned_by_user_id: int | None = None
+    created_at: datetime
+
+
+class LiveScoreStartIn(BaseModel):
+    batting_team_id: int = Field(ge=1)
+    bowling_team_id: int = Field(ge=1)
+
+
+class LiveScoreCompleteIn(BaseModel):
+    status: str = Field(default="completed", pattern="^(completed|abandoned|cancelled)$")
+
+
+class LiveBallEventIn(BaseModel):
+    innings: int = Field(ge=1, le=4)
+    over_number: int = Field(ge=0, le=999)
+    ball_number: int = Field(ge=0, le=12)
+    batting_team_id: int = Field(ge=1)
+    bowling_team_id: int = Field(ge=1)
+    striker_player_id: int = Field(ge=1)
+    non_striker_player_id: int | None = Field(default=None, ge=1)
+    bowler_player_id: int = Field(ge=1)
+    runs_batter: int = Field(default=0, ge=0, le=6)
+    runs_extras: int = Field(default=0, ge=0, le=12)
+    extras_type: str | None = Field(default=None, max_length=32)
+    is_legal_delivery: bool = True
+    wicket_type: str | None = Field(default=None, max_length=64)
+    wicket_player_id: int | None = Field(default=None, ge=1)
+    dismissal_text: str | None = Field(default=None, max_length=255)
+    notes: str | None = None
+
+
+class LiveBallEventOut(ORMModel):
+    id: int
+    match_id: int
+    innings: int
+    over_number: int
+    ball_number: int
+    batting_team_id: int
+    bowling_team_id: int
+    striker_player_id: int
+    non_striker_player_id: int | None
+    bowler_player_id: int
+    runs_batter: int
+    runs_extras: int
+    extras_type: str | None
+    is_legal_delivery: bool
+    wicket_type: str | None
+    wicket_player_id: int | None
+    dismissal_text: str | None
+    notes: str | None
+    sequence_number: int
+    created_by_user_id: int | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class LiveScoreInningsSummaryOut(BaseModel):
+    innings: int
+    batting_team_id: int
+    bowling_team_id: int
+    runs: int = 0
+    wickets: int = 0
+    legal_balls: int = 0
+    overs_label: str = "0.0"
+    last_six: list[str] = Field(default_factory=list)
+    last_event: LiveBallEventOut | None = None
+
+
+class LiveScoreStateOut(BaseModel):
+    match_id: int
+    status: str
+    current_innings: int | None = None
+    summaries: list[LiveScoreInningsSummaryOut] = Field(default_factory=list)
+    events: list[LiveBallEventOut] = Field(default_factory=list)
+
+
 class MatchResultIn(BaseModel):
     outcome: str = Field(default="win", pattern="^(win|tie|no_result)$")
     winning_team_id: int | None = None
