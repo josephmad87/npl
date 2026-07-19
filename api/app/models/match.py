@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -10,6 +10,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.league import Season
     from app.models.team import Team
+    from app.models.user import User
 
 
 class Match(Base):
@@ -48,6 +49,18 @@ class Match(Base):
     fan_player_votes: Mapped[list["FanPlayerMatchVote"]] = relationship(
         "FanPlayerMatchVote",
         back_populates="match",
+        cascade="all, delete-orphan",
+    )
+
+    scorer_assignments: Mapped[list["MatchScorerAssignment"]] = relationship(
+        "MatchScorerAssignment",
+        back_populates="match",
+        cascade="all, delete-orphan",
+    )
+    ball_events: Mapped[list["MatchBallEvent"]] = relationship(
+        "MatchBallEvent",
+        back_populates="match",
+        order_by="MatchBallEvent.sequence_number,MatchBallEvent.id",
         cascade="all, delete-orphan",
     )
 
@@ -150,3 +163,88 @@ class FanPlayerMatchVote(Base):
     )
 
     match: Mapped["Match"] = relationship("Match", back_populates="fan_player_votes")
+
+
+class MatchScorerAssignment(Base):
+    __tablename__ = "match_scorer_assignments"
+    __table_args__ = (
+        UniqueConstraint(
+            "match_id",
+            "user_id",
+            name="uq_match_scorer_assignments_match_user",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(
+        ForeignKey("matches.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    assigned_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    match: Mapped["Match"] = relationship("Match", back_populates="scorer_assignments")
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+    assigned_by: Mapped["User | None"] = relationship("User", foreign_keys=[assigned_by_user_id])
+
+
+class MatchBallEvent(Base):
+    __tablename__ = "match_ball_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "match_id",
+            "sequence_number",
+            name="uq_match_ball_events_match_sequence",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(
+        ForeignKey("matches.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    innings: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    over_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    ball_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    batting_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="RESTRICT"), nullable=False, index=True)
+    bowling_team_id: Mapped[int] = mapped_column(ForeignKey("teams.id", ondelete="RESTRICT"), nullable=False, index=True)
+    striker_player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="RESTRICT"), nullable=False, index=True)
+    non_striker_player_id: Mapped[int | None] = mapped_column(ForeignKey("players.id", ondelete="SET NULL"), index=True)
+    bowler_player_id: Mapped[int] = mapped_column(ForeignKey("players.id", ondelete="RESTRICT"), nullable=False, index=True)
+    runs_batter: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    runs_extras: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    extras_type: Mapped[str | None] = mapped_column(String(32))
+    is_legal_delivery: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    wicket_type: Mapped[str | None] = mapped_column(String(64))
+    wicket_player_id: Mapped[int | None] = mapped_column(ForeignKey("players.id", ondelete="SET NULL"), index=True)
+    dismissal_text: Mapped[str | None] = mapped_column(String(255))
+    notes: Mapped[str | None] = mapped_column(Text)
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    match: Mapped["Match"] = relationship("Match", back_populates="ball_events")
