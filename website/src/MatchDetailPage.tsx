@@ -6,6 +6,7 @@ import { ErrorNotice } from './components/ErrorNotice'
 import { publicDisplayMatchStatus } from './lib/matchStatus'
 import { InningsScorecardPanels } from './components/InningsScorecardPanels'
 import { SocialShareButtons } from './components/SocialShareButtons'
+import { LiveScorePanel } from './components/LiveScorePanel'
 import { Spinner } from './components/Spinner'
 import { getInningsSides, oversFieldToBalls, type InningsNumber } from './lib/cricket'
 import { formatCategoryLabel, formatMatchDate } from './lib/formatters'
@@ -953,6 +954,19 @@ export default function MatchDetailPage() {
           <div className="match-centre-share-row match-centre-share-row--top">
             <SocialShareButtons title={title} text={shareText} />
           </div>
+
+
+          {String(data.status).toLowerCase() === 'live' ? (
+            <LiveScorePanel
+              matchId={data.id}
+              matchStatus={data.status}
+              homeTeamId={data.home_team_id}
+              awayTeamId={data.away_team_id}
+              homeName={homeName}
+              awayName={awayName}
+              showEvents
+            />
+          ) : null}
 
           <div className="match-centre-panels">
             <div className="match-centre-panels__col">

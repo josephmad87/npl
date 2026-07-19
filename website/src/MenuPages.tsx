@@ -13,6 +13,7 @@ import { FixturesListing } from './components/FixturesListing'
 import { NewsCard } from './components/NewsCard'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { PageHero } from './components/PageHero'
+import LiveScoresPageImpl from './LiveScoresPage'
 import { SectionHeader } from './components/SectionHeader'
 import { Spinner } from './components/Spinner'
 import { TeamCard } from './components/TeamCard'
@@ -1798,4 +1799,5 @@ export const AboutUsPage = () => <AboutPageImpl />
 export const ContactUsPage = () => <ContactUsPageImpl />
 export const FixturesPage = () => <FixturesResultsPage mode="fixtures" />
 export const ResultsPage = () => <FixturesResultsPage mode="results" />
+export const LiveScoresPage = () => <LiveScoresPageImpl />
 export const CompareTeamsPage = () => <CompareTeamsPageImpl />

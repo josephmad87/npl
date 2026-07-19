@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import './App.css'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
 import { MatchCarousel } from './components/MatchCarousel'
+import { LiveMatchCard } from './components/LiveMatchCard'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
 import { NplTvSection } from './components/NplTvSection'
@@ -577,6 +578,11 @@ const selectedSpotlightTeam = useMemo(() => {
   const fixtureHubTitle =
     fixtureTabs.find((tab) => tab.id === fixtureTab)?.label ?? 'Fixtures'
 
+  const liveHomepageMatches = useMemo(
+    () => upcomingFixtures.filter(isLiveMatch).slice(0, 4),
+    [upcomingFixtures],
+  )
+
   const featuredHomeName =
     featuredHubMatch != null
       ? teamsMap[featuredHubMatch.home_team_id]?.name ??
@@ -962,6 +968,33 @@ useEffect(() => {
           </div>
         ) : null}
       </section>
+
+
+      {liveHomepageMatches.length > 0 ? (
+        <section className="home-section home-live-scores">
+          <div className="home-live-scores__head">
+            <div>
+              <p className="home-live-scores__eyebrow">Live now</p>
+              <h2>Ball-by-ball scores</h2>
+              <p>Follow every match that is currently being scored live.</p>
+            </div>
+            <Link to="/live" className="home-live-scores__link">
+              Open live centre
+            </Link>
+          </div>
+
+          <div className="home-live-scores__grid">
+            {liveHomepageMatches.map((match) => (
+              <LiveMatchCard
+                key={match.id}
+                match={match}
+                teamsMap={teamsMap}
+                compact
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <HomeNewsCarousel articles={newsArticles} />
 
