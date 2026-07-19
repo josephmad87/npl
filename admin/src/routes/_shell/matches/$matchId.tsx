@@ -1,9 +1,19 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { ClipboardList, SquarePen, Table2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import type { LeagueDto, MatchDto, PlayerDto, SeasonDto, TeamDto } from '@/lib/api-types'
+import { ClipboardList, PlayCircle, Save, SquarePen, Table2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import type {
+  LeagueDto,
+  MatchDto,
+  PlayerDto,
+  ScorerAssignmentDto,
+  SeasonDto,
+  TeamDto,
+  UserDto,
+} from '@/lib/api-types'
 import { adminGet, adminListAll, adminPatch } from '@/lib/admin-client'
+import { apiFetch } from '@/lib/api'
+import { getSession } from '@/lib/session'
 import { invalidateCompetitionDataQueries } from '@/lib/invalidate-competition-data'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BadgeImage } from '@/components/BadgeImage'
@@ -75,6 +85,24 @@ function formatMatchResultOutcome(match: MatchDto): string | null {
   return null
 }
 
+
+function adminAccessToken(): string | undefined {
+  const session = getSession() as
+    | { accessToken?: string; access_token?: string; token?: string }
+    | null
+    | undefined
+
+  return session?.accessToken ?? session?.access_token ?? session?.token
+}
+
+async function adminPutJson<T>(path: string, body: unknown): Promise<T> {
+  return apiFetch<T>(path, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+    accessToken: adminAccessToken(),
+  })
+}
+
 function MatchDetailPage() {
   const { matchId } = Route.useParams()
   const mid = Number(matchId)
@@ -109,6 +137,17 @@ function MatchDetailPage() {
   const playersQ = useQuery({
     queryKey: ['admin', 'players'],
     queryFn: () => adminListAll<PlayerDto>('/admin/players'),
+  })
+  const usersQ = useQuery({
+    queryKey: ['admin', 'users', 'scorers'],
+    queryFn: () => adminListAll<UserDto>('/admin/users'),
+    retry: 1,
+  })
+  const scorersQ = useQuery({
+    queryKey: ['admin', 'matches', mid, 'scorers'],
+    queryFn: () => adminGet<ScorerAssignmentDto[]>(`/admin/matches/${mid}/scorers`),
+    enabled: Number.isFinite(mid),
+    retry: 1,
   })
 
   const match = matchesQ.data
@@ -157,6 +196,9 @@ function MatchDetailPage() {
   const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
   const [patch, setPatch] = useState<Partial<MatchDto>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [selectedScorerIds, setSelectedScorerIds] = useState<number[]>([])
+  const [scorerSaveError, setScorerSaveError] = useState<string | null>(null)
+  const [isSavingScorers, setIsSavingScorers] = useState(false)
 
   const merged: MatchDto | null =
     match ? { ...match, ...patch } : null
@@ -214,6 +256,49 @@ function MatchDetailPage() {
       goView()
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Save failed')
+    }
+  }
+
+
+  const scorerUsers = useMemo(
+    () =>
+      (usersQ.data ?? [])
+        .filter((user) => user.role === 'scorer' && user.is_active)
+        .sort((a, b) =>
+          (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email),
+        ),
+    [usersQ.data],
+  )
+
+  useEffect(() => {
+    setSelectedScorerIds((scorersQ.data ?? []).map((row) => row.user_id))
+  }, [scorersQ.data])
+
+  const assignedScorerNames = useMemo(() => {
+    const rows = scorersQ.data ?? []
+    if (rows.length === 0) return 'No scorer assigned yet.'
+    return rows
+      .map((row) => row.user_full_name?.trim() || row.user_email)
+      .join(', ')
+  }, [scorersQ.data])
+
+  const saveScorerAssignments = async () => {
+    if (!Number.isFinite(mid)) return
+
+    setIsSavingScorers(true)
+    setScorerSaveError(null)
+
+    try {
+      await adminPutJson<ScorerAssignmentDto[]>(`/admin/matches/${mid}/scorers`, {
+        user_ids: selectedScorerIds,
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'matches', mid, 'scorers'],
+      })
+    } catch (e: unknown) {
+      setScorerSaveError(e instanceof Error ? e.message : 'Could not save scorers')
+    } finally {
+      setIsSavingScorers(false)
     }
   }
 
@@ -392,6 +477,14 @@ function MatchDetailPage() {
                 >
                   <Table2 size={18} strokeWidth={2} aria-hidden />
                   Result & scorecard
+                </Link>
+                <Link
+                  to="/scoring/$matchId"
+                  params={{ matchId: String(mid) }}
+                  className="btn-ghost btn--with-icon"
+                >
+                  <PlayCircle size={18} strokeWidth={2} aria-hidden />
+                  Live scoring
                 </Link>
                 <button
                   type="button"
@@ -683,6 +776,80 @@ function MatchDetailPage() {
         />
       ) : (
         <>
+          <section className="team-hub-section">
+            <div className="team-hub-section-head">
+              <div className="team-hub-section-head__lead">
+                <h2 className="team-hub-section__title">Live scoring access</h2>
+                <p className="muted">
+                  Assign scorer accounts to this match, then open the live scoring
+                  screen. Current assignment: {assignedScorerNames}
+                </p>
+              </div>
+              <Link
+                to="/scoring/$matchId"
+                params={{ matchId: String(mid) }}
+                className="btn-primary btn--with-icon"
+              >
+                <PlayCircle size={18} strokeWidth={2} aria-hidden />
+                Open live scoring
+              </Link>
+            </div>
+
+            {usersQ.isError ? (
+              <p className="muted">
+                Scorer picker could not load. Only super admins can list users in
+                the current backend. Scorers already assigned can still open their
+                scoring screen.
+              </p>
+            ) : (
+              <div className="inline-edit__grid">
+                <label className="inline-edit__field">
+                  <span className="inline-edit__label">Assigned scorer accounts</span>
+                  <select
+                    multiple
+                    className="inline-edit__control"
+                    value={selectedScorerIds.map(String)}
+                    onChange={(event) => {
+                      const next = Array.from(event.currentTarget.selectedOptions)
+                        .map((option) => Number(option.value))
+                        .filter((value) => Number.isFinite(value))
+                      setSelectedScorerIds(next)
+                    }}
+                  >
+                    {scorerUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.full_name?.trim() || user.email} — {user.email}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="inline-edit__field">
+                  <span className="inline-edit__label">Actions</span>
+                  <button
+                    type="button"
+                    className="btn-ghost btn--with-icon"
+                    onClick={() => void saveScorerAssignments()}
+                    disabled={isSavingScorers || usersQ.isLoading}
+                  >
+                    <Save size={18} strokeWidth={2} aria-hidden />
+                    {isSavingScorers ? 'Saving…' : 'Save scorers'}
+                  </button>
+                  {scorerSaveError ? (
+                    <p className="login-error">{scorerSaveError}</p>
+                  ) : null}
+                  {usersQ.isLoading ? <p className="muted">Loading scorers…</p> : null}
+                  {!usersQ.isLoading && scorerUsers.length === 0 ? (
+                    <p className="muted">
+                      No active scorer users yet. Create a user with the scorer
+                      role first.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </section>
+
           <div className="match-detail-panels">
             <div className="match-detail-panels__left">
               <DetailFields
