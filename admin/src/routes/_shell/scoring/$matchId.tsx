@@ -438,6 +438,34 @@ function LiveScoringPage() {
     onError: (error: Error) => setActionError(error.message),
   })
 
+  const endCurrentInnings = () => {
+    if (innings >= 2) {
+      setActionError('This is already the second innings. Use Match over when the match is finished.')
+      return
+    }
+
+    if (legalBalls === 0 && (currentSummary?.runs ?? 0) === 0 && (currentSummary?.wickets ?? 0) === 0) {
+      const ok = window.confirm('No balls have been recorded in this innings yet. End innings anyway?')
+      if (!ok) return
+    }
+
+    const ok = window.confirm('End this innings and move to the second innings?')
+    if (!ok) return
+
+    setActionError(null)
+    setNotes('')
+    setWicketOpen(false)
+    setFielderPlayerId('')
+    setNewBatterPlayerId('')
+    setInnings(innings + 1)
+  }
+
+  const markMatchOver = () => {
+    const ok = window.confirm('Mark this match as completed? This will remove it from live scoring.')
+    if (!ok) return
+    void completeMutation.mutate('completed')
+  }
+
   const submitBall = (
     input: {
       runsBatter?: number
@@ -547,6 +575,8 @@ function LiveScoringPage() {
   const availableNewBatters = battingPlayers.filter(
     (player) => player.id !== strikerPlayerId && player.id !== nonStrikerPlayerId,
   )
+  const inningsTarget =
+    innings === 1 && currentSummary ? currentSummary.runs + 1 : null
 
   return (
     <>
@@ -667,6 +697,7 @@ function LiveScoringPage() {
             <h2 className="team-hub-section__title">Current score</h2>
             <p className="muted">
               {battingTeamName}: {currentScore}
+              {inningsTarget ? ` · target for next innings: ${inningsTarget}` : ''}
             </p>
           </div>
           <button
@@ -977,13 +1008,23 @@ function LiveScoringPage() {
             <RotateCcw size={18} strokeWidth={2} aria-hidden />
             Refresh
           </button>
+          {innings === 1 ? (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={endCurrentInnings}
+              disabled={ballMutation.isPending || undoMutation.isPending}
+            >
+              End innings
+            </button>
+          ) : null}
           <button
             type="button"
-            className="btn-ghost"
-            onClick={() => void completeMutation.mutate('completed')}
+            className="btn-primary"
+            onClick={markMatchOver}
             disabled={completeMutation.isPending}
           >
-            Mark completed
+            Match over
           </button>
           <button
             type="button"
