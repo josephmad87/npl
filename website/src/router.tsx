@@ -2,6 +2,7 @@ import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/
 import App from './App'
 import {
   AboutUsPage,
+  CompareTeamsPage,
   ContactUsPage,
   FixturesPage,
   LiveScoresPage,
@@ -263,6 +264,11 @@ const resultsRoute = createRoute({
   path: '/results',
   component: ResultsPage,
 })
+const compareTeamsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/compare-teams',
+  component: CompareTeamsPage,
+})
 const liveScoresRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/live',
@@ -308,6 +314,7 @@ const routeTree = rootRoute.addChildren([
   fixturesRoute,
   resultsRoute,
   liveScoresRoute,
+  compareTeamsRoute,
 ])
 
 export const router = createRouter({
