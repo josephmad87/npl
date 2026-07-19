@@ -87,6 +87,11 @@ export function AppShell() {
     .filter(Boolean)
     .join(' ')
 
+  const ScoringIcon = adminRouteIconForPath('/scoring')
+  const scoringActive = pathname === '/scoring' || pathname.startsWith('/scoring/')
+  const showExtraScoringNav =
+  session?.role === 'scorer' && !NAV_ITEMS.some((item) => item.to === '/scoring')
+
   return (
     <div className={shellClass}>
       {isMobile && mobileNavOpen ? (
@@ -149,7 +154,29 @@ export function AppShell() {
                 </span>
               </Link>
             )
-          })}
+                    })}
+
+          {showExtraScoringNav ? (
+            <Link
+              key="/scoring"
+              to="/scoring"
+              aria-label="Scoring"
+              aria-current={scoringActive ? 'page' : undefined}
+              data-active={scoringActive}
+              title="Scoring"
+              onClick={closeMobileNav}
+            >
+              <ScoringIcon
+                className="app-shell__nav-icon"
+                size={20}
+                strokeWidth={2}
+                aria-hidden
+              />
+              <span className="app-shell__nav-text" aria-hidden="true">
+                Scoring
+              </span>
+            </Link>
+          ) : null}
         </nav>
         {!isMobile ? (
           <div className="app-shell__sidebar-footer">
