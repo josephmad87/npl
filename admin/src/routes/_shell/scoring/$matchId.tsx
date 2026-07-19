@@ -7,6 +7,9 @@ import type {
   LiveBallEventInput,
   LiveScoreStateDto,
   MatchDto,
+  MatchSquadDto,
+  MatchSquadRole,
+  MatchSquadSaveInput,
   Paginated,
   PlayerDto,
   TeamDto,
@@ -26,6 +29,32 @@ type ScoringTeam = {
   name: string
 }
 
+type PlayerRoleMap = Record<number, MatchSquadRole | ''>
+
+type BallSubmitPayload = {
+  body: LiveBallEventInput
+  newBatterId?: number | null
+}
+
+type DismissalOption = {
+  value: string
+  label: string
+  needsFielder: boolean
+  fielderLabel?: string
+}
+
+const DISMISSAL_OPTIONS: DismissalOption[] = [
+  { value: 'bowled', label: 'Bowled', needsFielder: false },
+  { value: 'caught', label: 'Caught', needsFielder: true, fielderLabel: 'Catcher' },
+  { value: 'caught_and_bowled', label: 'Caught & bowled', needsFielder: false },
+  { value: 'lbw', label: 'LBW', needsFielder: false },
+  { value: 'run_out', label: 'Run out', needsFielder: true, fielderLabel: 'Run out fielder' },
+  { value: 'stumped', label: 'Stumped', needsFielder: true, fielderLabel: 'Wicketkeeper' },
+  { value: 'hit_wicket', label: 'Hit wicket', needsFielder: false },
+  { value: 'retired_hurt', label: 'Retired hurt', needsFielder: false },
+  { value: 'retired_out', label: 'Retired out', needsFielder: false },
+]
+
 function adminAccessToken(): string | undefined {
   const session = getSession() as
     | { accessToken?: string; access_token?: string; token?: string }
@@ -39,6 +68,15 @@ async function adminDeleteJson<T>(path: string): Promise<T> {
   return apiFetch<T>(path, {
     method: 'DELETE',
     accessToken: adminAccessToken(),
+  })
+}
+
+async function adminPutJson<T>(path: string, body: unknown): Promise<T> {
+  return apiFetch<T>(path, {
+    method: 'PUT',
+    accessToken: adminAccessToken(),
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
   })
 }
 
@@ -69,8 +107,26 @@ function matchWhen(match: MatchDto): string {
 
 function liveEventLabel(event: LiveBallEventDto): string {
   if (event.wicket_type) return 'W'
-  if (event.extras_type) return `${event.runs_extras} ${event.extras_type.replaceAll('_', ' ')}`
+  if (event.extras_type) return `${event.runs_extras} ${event.extras_type.split('_').join(' ')}`
   return String(event.runs_batter)
+}
+
+function playerName(playerById: Map<number, PlayerDto>, playerId: number | null | undefined): string {
+  if (!playerId) return '—'
+  return playerById.get(playerId)?.full_name ?? `#${playerId}`
+}
+
+function dismissalLabel(value: string | null | undefined): string {
+  if (!value) return ''
+  return DISMISSAL_OPTIONS.find((item) => item.value === value)?.label ?? value.split('_').join(' ')
+}
+
+function totalRunsForStrike(body: LiveBallEventInput): number {
+  return (body.runs_batter ?? 0) + (body.runs_extras ?? 0)
+}
+
+function selectedRoleCount(players: PlayerDto[], roles: PlayerRoleMap, role: MatchSquadRole): number {
+  return players.filter((player) => roles[player.id] === role).length
 }
 
 function LiveScoringPage() {
@@ -95,6 +151,13 @@ function LiveScoringPage() {
     queryFn: () => adminGet<LiveScoreStateDto>(`/admin/matches/${mid}/live`),
     enabled: Number.isFinite(mid),
     refetchInterval: 10000,
+    retry: 1,
+  })
+
+  const squadQ = useQuery({
+    queryKey: ['admin', 'matches', mid, 'squads'],
+    queryFn: () => adminGet<MatchSquadDto>(`/admin/matches/${mid}/squads`),
+    enabled: Number.isFinite(mid) && Boolean(match),
     retry: 1,
   })
 
@@ -126,8 +189,7 @@ function LiveScoringPage() {
   )
 
   const playerById = useMemo(
-    () =>
-      new Map((playersQ.data ?? []).map((player) => [player.id, player] as const)),
+    () => new Map((playersQ.data ?? []).map((player) => [player.id, player] as const)),
     [playersQ.data],
   )
 
@@ -137,9 +199,15 @@ function LiveScoringPage() {
   const [strikerPlayerId, setStrikerPlayerId] = useState<number | ''>('')
   const [nonStrikerPlayerId, setNonStrikerPlayerId] = useState<number | ''>('')
   const [bowlerPlayerId, setBowlerPlayerId] = useState<number | ''>('')
-  const [wicketPlayerId, setWicketPlayerId] = useState<number | ''>('')
   const [notes, setNotes] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
+  const [playerRoles, setPlayerRoles] = useState<PlayerRoleMap>({})
+  const [squadDirty, setSquadDirty] = useState(false)
+  const [wicketOpen, setWicketOpen] = useState(false)
+  const [wicketType, setWicketType] = useState('caught')
+  const [wicketPlayerId, setWicketPlayerId] = useState<number | ''>('')
+  const [fielderPlayerId, setFielderPlayerId] = useState<number | ''>('')
+  const [newBatterPlayerId, setNewBatterPlayerId] = useState<number | ''>('')
 
   const matchTeams = useMemo<ScoringTeam[]>(() => {
     if (!match) return []
@@ -156,6 +224,18 @@ function LiveScoringPage() {
   }, [match, teamById])
 
   useEffect(() => {
+    if (!squadQ.data || squadDirty) return
+
+    const next: PlayerRoleMap = {}
+    for (const team of squadQ.data.teams) {
+      for (const player of team.players) {
+        next[player.player_id] = player.role
+      }
+    }
+    setPlayerRoles(next)
+  }, [squadDirty, squadQ.data])
+
+  useEffect(() => {
     if (!match) return
 
     if (innings === 1) {
@@ -170,18 +250,44 @@ function LiveScoringPage() {
     setNonStrikerPlayerId('')
     setBowlerPlayerId('')
     setWicketPlayerId('')
+    setFielderPlayerId('')
+    setNewBatterPlayerId('')
   }, [innings, match])
 
+  const teamHasSavedSquad = useMemo(() => {
+    const result = new Map<number, boolean>()
+    for (const team of matchTeams) {
+      result.set(
+        team.id,
+        (playersQ.data ?? []).some(
+          (player) => player.team_id === team.id && Boolean(playerRoles[player.id]),
+        ),
+      )
+    }
+    return result
+  }, [matchTeams, playerRoles, playersQ.data])
+
+  const playersForTeam = (teamId: number | '') => {
+    if (!teamId) return []
+    return (playersQ.data ?? []).filter((player) => player.team_id === teamId)
+  }
+
+  const scoringPlayersForTeam = (teamId: number | '') => {
+    const players = playersForTeam(teamId)
+    if (!teamId || !teamHasSavedSquad.get(teamId)) return players
+    return players.filter((player) => Boolean(playerRoles[player.id]))
+  }
+
   const battingPlayers = useMemo(
-    () =>
-      (playersQ.data ?? []).filter((player) => player.team_id === battingTeamId),
-    [battingTeamId, playersQ.data],
+    () => scoringPlayersForTeam(battingTeamId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [battingTeamId, playersQ.data, playerRoles, teamHasSavedSquad],
   )
 
   const bowlingPlayers = useMemo(
-    () =>
-      (playersQ.data ?? []).filter((player) => player.team_id === bowlingTeamId),
-    [bowlingTeamId, playersQ.data],
+    () => scoringPlayersForTeam(bowlingTeamId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bowlingTeamId, playersQ.data, playerRoles, teamHasSavedSquad],
   )
 
   useEffect(() => {
@@ -200,7 +306,10 @@ function LiveScoringPage() {
     if (!bowlerPlayerId && bowlingPlayers[0]) {
       setBowlerPlayerId(bowlingPlayers[0].id)
     }
-  }, [bowlerPlayerId, bowlingPlayers])
+    if (!fielderPlayerId && bowlingPlayers[0]) {
+      setFielderPlayerId(bowlingPlayers[0].id)
+    }
+  }, [bowlerPlayerId, bowlingPlayers, fielderPlayerId])
 
   const currentSummary = useMemo(
     () => liveQ.data?.summaries.find((summary) => summary.innings === innings) ?? null,
@@ -214,6 +323,38 @@ function LiveScoringPage() {
     matchTeams.find((team) => team.id === battingTeamId)?.name ?? 'Batting team'
   const bowlingTeamName =
     matchTeams.find((team) => team.id === bowlingTeamId)?.name ?? 'Bowling team'
+
+  const saveSquadMutation = useMutation({
+    mutationFn: () => {
+      if (!match) throw new Error('Match not loaded.')
+      const body: MatchSquadSaveInput = {
+        teams: matchTeams.map((team) => {
+          const players = playersForTeam(team.id)
+            .map((player, index) => ({ player, index }))
+            .filter(({ player }) => Boolean(playerRoles[player.id]))
+
+          return {
+            team_id: team.id,
+            players: players.map(({ player, index }) => ({
+              player_id: player.id,
+              role: playerRoles[player.id] as MatchSquadRole,
+              lineup_order: index + 1,
+              is_captain: false,
+              is_wicketkeeper: false,
+            })),
+          }
+        }),
+      }
+
+      return adminPutJson<MatchSquadDto>(`/admin/matches/${mid}/squads`, body)
+    },
+    onSuccess: async () => {
+      setActionError(null)
+      setSquadDirty(false)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'squads'] })
+    },
+    onError: (error: Error) => setActionError(error.message),
+  })
 
   const startMutation = useMutation({
     mutationFn: () => {
@@ -234,12 +375,41 @@ function LiveScoringPage() {
     onError: (error: Error) => setActionError(error.message),
   })
 
+  const applyPostBallState = (body: LiveBallEventInput, newBatterId: number | null) => {
+    let nextStriker = strikerPlayerId
+    let nextNonStriker = nonStrikerPlayerId
+
+    if (body.wicket_type && newBatterId) {
+      if (body.wicket_player_id === nextStriker) {
+        nextStriker = newBatterId
+      } else if (body.wicket_player_id === nextNonStriker) {
+        nextNonStriker = newBatterId
+      }
+    }
+
+    const oddRuns = totalRunsForStrike(body) % 2 === 1
+    const endOfOver = body.is_legal_delivery !== false && (legalBalls + 1) % 6 === 0
+
+    if (oddRuns !== endOfOver && nextStriker && nextNonStriker) {
+      const oldStriker = nextStriker
+      nextStriker = nextNonStriker
+      nextNonStriker = oldStriker
+    }
+
+    setStrikerPlayerId(nextStriker)
+    setNonStrikerPlayerId(nextNonStriker)
+  }
+
   const ballMutation = useMutation({
-    mutationFn: (body: LiveBallEventInput) =>
-      adminPost<LiveBallEventDto>(`/admin/matches/${mid}/live/balls`, body),
-    onSuccess: async () => {
+    mutationFn: (payload: BallSubmitPayload) =>
+      adminPost<LiveBallEventDto>(`/admin/matches/${mid}/live/balls`, payload.body),
+    onSuccess: async (_created, payload) => {
       setActionError(null)
       setNotes('')
+      setWicketOpen(false)
+      setFielderPlayerId('')
+      setNewBatterPlayerId('')
+      applyPostBallState(payload.body, payload.newBatterId ?? null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
     },
     onError: (error: Error) => setActionError(error.message),
@@ -268,21 +438,25 @@ function LiveScoringPage() {
     onError: (error: Error) => setActionError(error.message),
   })
 
-  const submitBall = (input: {
-    runsBatter?: number
-    runsExtras?: number
-    extrasType?: string | null
-    isLegalDelivery?: boolean
-    wicketType?: string | null
-  }) => {
+  const submitBall = (
+    input: {
+      runsBatter?: number
+      runsExtras?: number
+      extrasType?: string | null
+      isLegalDelivery?: boolean
+      wicketType?: string | null
+      wicketPlayerId?: number | null
+      fielderPlayerId?: number | null
+      dismissalText?: string | null
+    },
+    newBatterId?: number | null,
+  ) => {
     if (!battingTeamId || !bowlingTeamId || !strikerPlayerId || !bowlerPlayerId) {
       setActionError('Choose teams, striker and bowler first.')
       return
     }
 
-    const isWicket = Boolean(input.wicketType)
-
-    void ballMutation.mutate({
+    const body: LiveBallEventInput = {
       innings,
       over_number: nextOverNumber,
       ball_number: nextBallNumber,
@@ -296,10 +470,54 @@ function LiveScoringPage() {
       extras_type: input.extrasType ?? null,
       is_legal_delivery: input.isLegalDelivery ?? true,
       wicket_type: input.wicketType ?? null,
-      wicket_player_id: isWicket ? wicketPlayerId || strikerPlayerId : null,
-      dismissal_text: isWicket ? 'Wicket' : null,
+      wicket_player_id: input.wicketType
+        ? input.wicketPlayerId ?? (wicketPlayerId || strikerPlayerId)
+        : null,
+      fielder_player_id: input.fielderPlayerId ?? null,
+      dismissal_text: input.dismissalText ?? null,
       notes: notes.trim() || null,
-    })
+    }
+
+    void ballMutation.mutate({ body, newBatterId })
+  }
+
+  const submitWicket = () => {
+    const option = DISMISSAL_OPTIONS.find((item) => item.value === wicketType)
+    if (!option) {
+      setActionError('Choose a dismissal mode.')
+      return
+    }
+
+    const playerOut = wicketPlayerId || strikerPlayerId
+    if (!playerOut) {
+      setActionError('Choose the player who is out.')
+      return
+    }
+
+    let fielderId: number | null = null
+    if (wicketType === 'caught_and_bowled') {
+      fielderId = bowlerPlayerId || null
+    } else if (option.needsFielder) {
+      if (!fielderPlayerId) {
+        setActionError(`Choose the ${option.fielderLabel ?? 'fielder'}.`)
+        return
+      }
+      fielderId = fielderPlayerId
+    }
+
+    const newBatter = newBatterPlayerId || null
+    const parts = [option.label]
+    if (fielderId) parts.push(`fielder: ${playerName(playerById, fielderId)}`)
+
+    submitBall(
+      {
+        wicketType,
+        wicketPlayerId: playerOut,
+        fielderPlayerId: fielderId,
+        dismissalText: parts.join(' · '),
+      },
+      newBatter,
+    )
   }
 
   if (matchesQ.isLoading) {
@@ -315,41 +533,43 @@ function LiveScoringPage() {
       <>
         <PageHeader title="Match not found" />
         <Link to="/scoring" className="btn-ghost">
-          Back to live scoring
+          Back to scoring dashboard
         </Link>
       </>
     )
   }
 
-  const title = `${matchTeams[0]?.name ?? `Team ${match.home_team_id}`} vs ${
-    matchTeams[1]?.name ?? `Team ${match.away_team_id}`
-  }`
+  const currentScore = currentSummary
+    ? `${currentSummary.runs}/${currentSummary.wickets} (${currentSummary.overs_label})`
+    : '0/0 (0.0)'
+
+  const currentWicketOption = DISMISSAL_OPTIONS.find((item) => item.value === wicketType)
+  const availableNewBatters = battingPlayers.filter(
+    (player) => player.id !== strikerPlayerId && player.id !== nonStrikerPlayerId,
+  )
 
   return (
     <>
       <PageHeader
-        title={title}
-        description={`${matchWhen(match)} · ${match.venue ?? 'Venue TBC'}`}
-        actions={
-          <Link to="/scoring" className="btn-ghost">
-            Assigned matches
-          </Link>
-        }
+        title="Live scoring"
+        descriptionAsTooltip
+        description="Pick match day squads first, then score ball-by-ball from the selected XI and substitutes."
+        actions={<Link to="/scoring">Scoring dashboard</Link>}
       />
 
       <section className="team-hub-section">
         <div className="team-hub-section-head">
           <div className="team-hub-section-head__lead">
-            <h2 className="team-hub-section__title">Live score</h2>
+            <h2 className="team-hub-section__title">
+              {match.title || `Match #${match.id}`}
+            </h2>
             <p className="muted">
-              {battingTeamName} {currentSummary?.runs ?? 0}/
-              {currentSummary?.wickets ?? 0} after{' '}
-              {currentSummary?.overs_label ?? '0.0'} overs
+              {matchWhen(match)} · {match.venue ?? 'Venue TBC'}
             </p>
           </div>
           <StatusBadge
             status={
-              (liveQ.data?.status ?? match.status) as
+              match.status as
                 | 'scheduled'
                 | 'live'
                 | 'completed'
@@ -361,7 +581,104 @@ function LiveScoringPage() {
         </div>
 
         {liveQ.isError ? <p className="login-error">{liveQ.error.message}</p> : null}
+        {squadQ.isError ? <p className="login-error">{squadQ.error.message}</p> : null}
         {actionError ? <p className="login-error">{actionError}</p> : null}
+      </section>
+
+      <section className="team-hub-section">
+        <div className="team-hub-section-head">
+          <div className="team-hub-section-head__lead">
+            <h2 className="team-hub-section__title">Match day squad</h2>
+            <p className="muted">
+              Select up to 11 playing XI and up to 4 substitutes per team. Once saved,
+              the scoring controls use only these players.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-primary btn--with-icon"
+            onClick={() => void saveSquadMutation.mutate()}
+            disabled={saveSquadMutation.isPending || playersQ.isLoading}
+          >
+            <Save size={18} strokeWidth={2} aria-hidden />
+            {saveSquadMutation.isPending ? 'Saving…' : 'Save squads'}
+          </button>
+        </div>
+
+        {matchTeams.map((team) => {
+          const teamPlayers = playersForTeam(team.id)
+          const playingCount = selectedRoleCount(teamPlayers, playerRoles, 'playing_xi')
+          const substituteCount = selectedRoleCount(teamPlayers, playerRoles, 'substitute')
+
+          return (
+            <div key={team.id} className="team-hub-section" style={{ marginTop: '1rem' }}>
+              <div className="team-hub-section-head">
+                <div className="team-hub-section-head__lead">
+                  <h3 className="team-hub-section__title">{team.name}</h3>
+                  <p className="muted">
+                    Playing XI: {playingCount}/11 · Subs: {substituteCount}/4
+                  </p>
+                </div>
+              </div>
+
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Match day role</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamPlayers.map((player) => (
+                      <tr key={player.id}>
+                        <td>{player.full_name}</td>
+                        <td>
+                          <select
+                            className="inline-edit__control"
+                            value={playerRoles[player.id] ?? ''}
+                            onChange={(event) => {
+                              const value = event.target.value as MatchSquadRole | ''
+                              setPlayerRoles((current) => ({
+                                ...current,
+                                [player.id]: value,
+                              }))
+                              setSquadDirty(true)
+                            }}
+                          >
+                            <option value="">Not in match day squad</option>
+                            <option value="playing_xi">Playing XI</option>
+                            <option value="substitute">Substitute</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })}
+      </section>
+
+      <section className="team-hub-section">
+        <div className="team-hub-section-head">
+          <div className="team-hub-section-head__lead">
+            <h2 className="team-hub-section__title">Current score</h2>
+            <p className="muted">
+              {battingTeamName}: {currentScore}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-ghost btn--with-icon"
+            onClick={() => void startMutation.mutate()}
+            disabled={startMutation.isPending}
+          >
+            <Save size={18} strokeWidth={2} aria-hidden />
+            {startMutation.isPending ? 'Starting…' : 'Start / mark live'}
+          </button>
+        </div>
 
         <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Innings">
           <button
@@ -436,7 +753,7 @@ function LiveScoringPage() {
                 setNonStrikerPlayerId(event.target.value ? Number(event.target.value) : '')
               }
             >
-              <option value="">Optional</option>
+              <option value="">Choose non-striker</option>
               {battingPlayers.map((player) => (
                 <option key={player.id} value={player.id}>
                   {player.full_name}
@@ -460,24 +777,6 @@ function LiveScoringPage() {
               ))}
             </select>
           </label>
-
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Wicket player</span>
-            <select
-              className="inline-edit__control"
-              value={wicketPlayerId}
-              onChange={(event) =>
-                setWicketPlayerId(event.target.value ? Number(event.target.value) : '')
-              }
-            >
-              <option value="">Default striker</option>
-              {battingPlayers.map((player) => (
-                <option key={player.id} value={player.id}>
-                  {player.full_name}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
 
         <div className="team-hub-section-head">
@@ -487,15 +786,6 @@ function LiveScoringPage() {
               {bowlingTeamName} bowling · over {nextOverNumber}.{nextBallNumber}
             </p>
           </div>
-          <button
-            type="button"
-            className="btn-ghost btn--with-icon"
-            onClick={() => void startMutation.mutate()}
-            disabled={startMutation.isPending}
-          >
-            <Save size={18} strokeWidth={2} aria-hidden />
-            {startMutation.isPending ? 'Starting…' : 'Start / mark live'}
-          </button>
         </div>
 
         <div className="catalog-card-grid">
@@ -510,16 +800,19 @@ function LiveScoringPage() {
               {runs}
             </button>
           ))}
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() =>
-              submitBall({ runsExtras: 1, extrasType: 'wide', isLegalDelivery: false })
-            }
-            disabled={ballMutation.isPending}
-          >
-            Wide
-          </button>
+          {[1, 2, 3, 4].map((runs) => (
+            <button
+              key={`wide-${runs}`}
+              type="button"
+              className="btn-ghost"
+              onClick={() =>
+                submitBall({ runsExtras: runs, extrasType: 'wide', isLegalDelivery: false })
+              }
+              disabled={ballMutation.isPending}
+            >
+              Wide {runs}
+            </button>
+          ))}
           <button
             type="button"
             className="btn-ghost"
@@ -530,29 +823,35 @@ function LiveScoringPage() {
           >
             No ball
           </button>
+          {[1, 2, 3, 4].map((runs) => (
+            <button
+              key={`bye-${runs}`}
+              type="button"
+              className="btn-ghost"
+              onClick={() => submitBall({ runsExtras: runs, extrasType: 'bye' })}
+              disabled={ballMutation.isPending}
+            >
+              Bye {runs}
+            </button>
+          ))}
+          {[1, 2, 3, 4].map((runs) => (
+            <button
+              key={`leg-bye-${runs}`}
+              type="button"
+              className="btn-ghost"
+              onClick={() => submitBall({ runsExtras: runs, extrasType: 'leg_bye' })}
+              disabled={ballMutation.isPending}
+            >
+              Leg bye {runs}
+            </button>
+          ))}
           <button
             type="button"
             className="btn-ghost"
-            onClick={() => submitBall({ runsExtras: 1, extrasType: 'bye' })}
+            onClick={() => setWicketOpen((open) => !open)}
             disabled={ballMutation.isPending}
           >
-            Bye
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => submitBall({ runsExtras: 1, extrasType: 'leg_bye' })}
-            disabled={ballMutation.isPending}
-          >
-            Leg bye
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => submitBall({ wicketType: 'out' })}
-            disabled={ballMutation.isPending}
-          >
-            Wicket
+            Out / wicket
           </button>
           <button
             type="button"
@@ -564,6 +863,100 @@ function LiveScoringPage() {
             Undo last ball
           </button>
         </div>
+
+        {wicketOpen ? (
+          <div className="team-hub-section" style={{ marginTop: '1rem' }}>
+            <div className="team-hub-section-head">
+              <div className="team-hub-section-head__lead">
+                <h3 className="team-hub-section__title">Wicket details</h3>
+                <p className="muted">
+                  Pick the player out, mode of dismissal, fielder if needed, and new batter.
+                </p>
+              </div>
+            </div>
+
+            <div className="inline-edit__grid">
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">Player out</span>
+                <select
+                  className="inline-edit__control"
+                  value={wicketPlayerId || strikerPlayerId}
+                  onChange={(event) => setWicketPlayerId(Number(event.target.value))}
+                >
+                  {battingPlayers.map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.full_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">Mode of dismissal</span>
+                <select
+                  className="inline-edit__control"
+                  value={wicketType}
+                  onChange={(event) => setWicketType(event.target.value)}
+                >
+                  {DISMISSAL_OPTIONS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {currentWicketOption?.needsFielder ? (
+                <label className="inline-edit__field">
+                  <span className="inline-edit__label">
+                    {currentWicketOption.fielderLabel ?? 'Fielder'}
+                  </span>
+                  <select
+                    className="inline-edit__control"
+                    value={fielderPlayerId}
+                    onChange={(event) =>
+                      setFielderPlayerId(event.target.value ? Number(event.target.value) : '')
+                    }
+                  >
+                    <option value="">Choose fielder</option>
+                    {bowlingPlayers.map((player) => (
+                      <option key={player.id} value={player.id}>
+                        {player.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">New batter</span>
+                <select
+                  className="inline-edit__control"
+                  value={newBatterPlayerId}
+                  onChange={(event) =>
+                    setNewBatterPlayerId(event.target.value ? Number(event.target.value) : '')
+                  }
+                >
+                  <option value="">Choose new batter</option>
+                  {availableNewBatters.map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.full_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={submitWicket}
+              disabled={ballMutation.isPending}
+            >
+              Save wicket
+            </button>
+          </div>
+        ) : null}
 
         <label className="inline-edit__field">
           <span className="inline-edit__label">Ball note</span>
@@ -621,9 +1014,10 @@ function LiveScoringPage() {
               <thead>
                 <tr>
                   <th>Ball</th>
-                  <th>Batting</th>
+                  <th>Batter</th>
                   <th>Bowler</th>
                   <th>Result</th>
+                  <th>Dismissal / fielder</th>
                   <th>Notes</th>
                 </tr>
               </thead>
@@ -633,9 +1027,21 @@ function LiveScoringPage() {
                     <td>
                       {event.innings}.{event.over_number}.{event.ball_number}
                     </td>
-                    <td>{playerById.get(event.striker_player_id)?.full_name ?? event.striker_player_id}</td>
-                    <td>{playerById.get(event.bowler_player_id)?.full_name ?? event.bowler_player_id}</td>
+                    <td>{playerName(playerById, event.striker_player_id)}</td>
+                    <td>{playerName(playerById, event.bowler_player_id)}</td>
                     <td>{liveEventLabel(event)}</td>
+                    <td>
+                      {event.wicket_type
+                        ? `${dismissalLabel(event.wicket_type)} · out: ${playerName(
+                            playerById,
+                            event.wicket_player_id,
+                          )}${
+                            event.fielder_player_id
+                              ? ` · fielder: ${playerName(playerById, event.fielder_player_id)}`
+                              : ''
+                          }`
+                        : '—'}
+                    </td>
                     <td>{event.notes ?? event.dismissal_text ?? '—'}</td>
                   </tr>
                 ))}

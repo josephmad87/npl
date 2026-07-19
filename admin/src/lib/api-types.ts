@@ -387,6 +387,45 @@ export type ScorerAssignmentDto = {
   created_at: string
 }
 
+export type MatchSquadRole = 'playing_xi' | 'substitute'
+
+export type MatchSquadPlayerDto = {
+  id: number
+  match_id: number
+  team_id: number
+  player_id: number
+  role: MatchSquadRole
+  lineup_order: number
+  is_captain: boolean
+  is_wicketkeeper: boolean
+  created_by_user_id: number | null
+  created_at: string
+  updated_at: string
+}
+
+export type MatchSquadTeamDto = {
+  team_id: number
+  players: MatchSquadPlayerDto[]
+}
+
+export type MatchSquadDto = {
+  match_id: number
+  teams: MatchSquadTeamDto[]
+}
+
+export type MatchSquadSaveInput = {
+  teams: Array<{
+    team_id: number
+    players: Array<{
+      player_id: number
+      role: MatchSquadRole
+      lineup_order?: number
+      is_captain?: boolean
+      is_wicketkeeper?: boolean
+    }>
+  }>
+}
+
 export type LiveBallEventDto = {
   id: number
   match_id: number
@@ -404,6 +443,7 @@ export type LiveBallEventDto = {
   is_legal_delivery: boolean
   wicket_type: string | null
   wicket_player_id: number | null
+  fielder_player_id: number | null
   dismissal_text: string | null
   notes: string | null
   sequence_number: number
@@ -447,6 +487,7 @@ export type LiveBallEventInput = {
   is_legal_delivery?: boolean
   wicket_type?: string | null
   wicket_player_id?: number | null
+  fielder_player_id?: number | null
   dismissal_text?: string | null
   notes?: string | null
 }

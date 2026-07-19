@@ -113,6 +113,47 @@ class MatchScorerAssignmentIn(BaseModel):
     user_ids: list[int] = Field(default_factory=list)
 
 
+class MatchSquadPlayerIn(BaseModel):
+    player_id: int = Field(ge=1)
+    role: str = Field(pattern="^(playing_xi|substitute)$")
+    lineup_order: int = Field(default=0, ge=0)
+    is_captain: bool = False
+    is_wicketkeeper: bool = False
+
+
+class MatchSquadTeamIn(BaseModel):
+    team_id: int = Field(ge=1)
+    players: list[MatchSquadPlayerIn] = Field(default_factory=list)
+
+
+class MatchSquadSaveIn(BaseModel):
+    teams: list[MatchSquadTeamIn] = Field(default_factory=list)
+
+
+class MatchSquadPlayerOut(ORMModel):
+    id: int
+    match_id: int
+    team_id: int
+    player_id: int
+    role: str
+    lineup_order: int
+    is_captain: bool
+    is_wicketkeeper: bool
+    created_by_user_id: int | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MatchSquadTeamOut(BaseModel):
+    team_id: int
+    players: list[MatchSquadPlayerOut] = Field(default_factory=list)
+
+
+class MatchSquadOut(BaseModel):
+    match_id: int
+    teams: list[MatchSquadTeamOut] = Field(default_factory=list)
+
+
 class MatchScorerAssignmentOut(BaseModel):
     id: int
     match_id: int
@@ -147,6 +188,7 @@ class LiveBallEventIn(BaseModel):
     is_legal_delivery: bool = True
     wicket_type: str | None = Field(default=None, max_length=64)
     wicket_player_id: int | None = Field(default=None, ge=1)
+    fielder_player_id: int | None = Field(default=None, ge=1)
     dismissal_text: str | None = Field(default=None, max_length=255)
     notes: str | None = None
 
@@ -168,6 +210,7 @@ class LiveBallEventOut(ORMModel):
     is_legal_delivery: bool
     wicket_type: str | None
     wicket_player_id: int | None
+    fielder_player_id: int | None
     dismissal_text: str | None
     notes: str | None
     sequence_number: int

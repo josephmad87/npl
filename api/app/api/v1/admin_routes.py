@@ -26,7 +26,14 @@ from app.models.contact_message import ContactMessage
 from app.models.gallery import GalleryItem
 from app.models.sponsor import Sponsor
 from app.models.league import League, Season, SeasonTeam
-from app.models.match import Match, MatchBallEvent, MatchPlayerStat, MatchResult, MatchScorerAssignment
+from app.models.match import (
+    Match,
+    MatchBallEvent,
+    MatchDaySquadPlayer,
+    MatchPlayerStat,
+    MatchResult,
+    MatchScorerAssignment,
+)
 from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
@@ -53,6 +60,10 @@ from app.schemas.matches import (
     MatchResultIn,
     MatchScorerAssignmentIn,
     MatchScorerAssignmentOut,
+    MatchSquadOut,
+    MatchSquadPlayerOut,
+    MatchSquadSaveIn,
+    MatchSquadTeamOut,
     MatchUpdate,
 )
 from app.schemas.merchandise import (
@@ -1945,14 +1956,78 @@ def _assert_live_team_ids(match: Match, *team_ids: int) -> None:
         )
 
 
-def _assert_live_player(db: Session, player_id: int | None, team_ids: set[int]) -> None:
+def _match_day_squad_ids(
+    db: Session,
+    match_id: int,
+    team_id: int | None = None,
+) -> set[int]:
+    stmt = select(MatchDaySquadPlayer.player_id).where(MatchDaySquadPlayer.match_id == match_id)
+    if team_id is not None:
+        stmt = stmt.where(MatchDaySquadPlayer.team_id == team_id)
+    return set(db.scalars(stmt).all())
+
+
+def _assert_live_player(
+    db: Session,
+    player_id: int | None,
+    team_ids: set[int],
+    allowed_player_ids: set[int] | None = None,
+    label: str = "Player",
+) -> None:
     if player_id is None:
         return
     player = db.get(Player, player_id)
     if player is None or player.team_id not in team_ids:
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": "Player must belong to one of the match teams."},
+            detail={"code": "validation", "message": f"{label} must belong to the correct match team."},
+        )
+    if allowed_player_ids is not None and allowed_player_ids and player_id not in allowed_player_ids:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": f"{label} must be in the saved match day squad."},
+        )
+
+
+def _squad_player_out(row: MatchDaySquadPlayer) -> MatchSquadPlayerOut:
+    return MatchSquadPlayerOut.model_validate(row)
+
+
+def _match_squad_out(db: Session, match: Match) -> MatchSquadOut:
+    rows = list(
+        db.scalars(
+            select(MatchDaySquadPlayer)
+            .where(MatchDaySquadPlayer.match_id == match.id)
+            .order_by(
+                MatchDaySquadPlayer.team_id,
+                MatchDaySquadPlayer.lineup_order,
+                MatchDaySquadPlayer.id,
+            ),
+        ).all(),
+    )
+    teams: list[MatchSquadTeamOut] = []
+    for team_id in (match.home_team_id, match.away_team_id):
+        team_rows = [row for row in rows if row.team_id == team_id]
+        teams.append(
+            MatchSquadTeamOut(
+                team_id=team_id,
+                players=[_squad_player_out(row) for row in team_rows],
+            ),
+        )
+    return MatchSquadOut(match_id=match.id, teams=teams)
+
+
+def _validate_squad_player(db: Session, match: Match, team_id: int, player_id: int) -> None:
+    if team_id not in {match.home_team_id, match.away_team_id}:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Squad team ids must belong to this match."},
+        )
+    player = db.get(Player, player_id)
+    if player is None or player.team_id != team_id:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Squad players must belong to the selected team."},
         )
 
 
@@ -2151,6 +2226,114 @@ def admin_set_match_scorers(
     return [_assignment_out(row) for row in rows]
 
 
+@router.get("/matches/{match_id}/squads", response_model=MatchSquadOut)
+def admin_match_day_squad(
+    match_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> MatchSquadOut:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+    return _match_squad_out(db, match)
+
+
+@router.put("/matches/{match_id}/squads", response_model=MatchSquadOut)
+def admin_save_match_day_squad(
+    match_id: int,
+    body: MatchSquadSaveIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> MatchSquadOut:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+
+    allowed_team_ids = {match.home_team_id, match.away_team_id}
+    seen_players: set[int] = set()
+    normalized: list[tuple[int, int, str, int, bool, bool]] = []
+
+    for team in body.teams:
+        if team.team_id not in allowed_team_ids:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Squad team ids must belong to this match."},
+            )
+
+        playing_count = 0
+        substitute_count = 0
+        for idx, item in enumerate(team.players):
+            if item.player_id in seen_players:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"code": "validation", "message": "A player can only appear once in a match day squad."},
+                )
+            seen_players.add(item.player_id)
+            _validate_squad_player(db, match, team.team_id, item.player_id)
+
+            if item.role == "playing_xi":
+                playing_count += 1
+            elif item.role == "substitute":
+                substitute_count += 1
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"code": "validation", "message": "Squad role must be playing_xi or substitute."},
+                )
+
+            normalized.append(
+                (
+                    team.team_id,
+                    item.player_id,
+                    item.role,
+                    item.lineup_order or idx + 1,
+                    item.is_captain,
+                    item.is_wicketkeeper,
+                ),
+            )
+
+        if playing_count > 11:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Playing XI cannot contain more than 11 players."},
+            )
+        if substitute_count > 4:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Substitutes cannot contain more than 4 players."},
+            )
+
+    db.execute(delete(MatchDaySquadPlayer).where(MatchDaySquadPlayer.match_id == match_id))
+    for team_id, player_id, role, lineup_order, is_captain, is_wicketkeeper in normalized:
+        db.add(
+            MatchDaySquadPlayer(
+                match_id=match_id,
+                team_id=team_id,
+                player_id=player_id,
+                role=role,
+                lineup_order=lineup_order,
+                is_captain=is_captain,
+                is_wicketkeeper=is_wicketkeeper,
+                created_by_user_id=actor.id,
+            ),
+        )
+    db.commit()
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="save_match_day_squad",
+        entity_type="match",
+        entity_id=match_id,
+        summary=f"Saved match day squad for match {match_id}",
+    )
+    db.commit()
+
+    return _match_squad_out(db, match)
+
+
 @router.get("/matches/{match_id}/live", response_model=LiveScoreStateOut)
 def admin_live_score_state(
     match_id: int,
@@ -2196,11 +2379,46 @@ def admin_create_live_ball(
     _assert_can_score_match(db, match_id, actor)
     _assert_live_team_ids(match, body.batting_team_id, body.bowling_team_id)
 
-    team_ids = {match.home_team_id, match.away_team_id}
-    _assert_live_player(db, body.striker_player_id, team_ids)
-    _assert_live_player(db, body.non_striker_player_id, team_ids)
-    _assert_live_player(db, body.bowler_player_id, team_ids)
-    _assert_live_player(db, body.wicket_player_id, team_ids)
+    batting_squad_ids = _match_day_squad_ids(db, match_id, body.batting_team_id)
+    bowling_squad_ids = _match_day_squad_ids(db, match_id, body.bowling_team_id)
+    batting_allowed = batting_squad_ids or None
+    bowling_allowed = bowling_squad_ids or None
+
+    _assert_live_player(
+        db,
+        body.striker_player_id,
+        {body.batting_team_id},
+        batting_allowed,
+        "Striker",
+    )
+    _assert_live_player(
+        db,
+        body.non_striker_player_id,
+        {body.batting_team_id},
+        batting_allowed,
+        "Non-striker",
+    )
+    _assert_live_player(
+        db,
+        body.bowler_player_id,
+        {body.bowling_team_id},
+        bowling_allowed,
+        "Bowler",
+    )
+    _assert_live_player(
+        db,
+        body.wicket_player_id,
+        {body.batting_team_id},
+        batting_allowed,
+        "Player out",
+    )
+    _assert_live_player(
+        db,
+        body.fielder_player_id,
+        {body.bowling_team_id},
+        bowling_allowed,
+        "Fielder",
+    )
 
     latest_sequence = db.scalar(
         select(func.max(MatchBallEvent.sequence_number)).where(MatchBallEvent.match_id == match_id),
