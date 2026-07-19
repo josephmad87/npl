@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
@@ -96,6 +96,13 @@ function matchTimeMs(m: MatchDto): number {
 function DashboardHome() {
   const session = getSession()
   const navigate = useNavigate()
+  const isScorer = session?.role === 'scorer'
+
+  useEffect(() => {
+    if (!isScorer) return
+    void navigate({ to: '/scoring' })
+  }, [isScorer, navigate])
+
   const showMatchTables = navVisibleForRole(
     {
       to: '/matches',
@@ -104,6 +111,7 @@ function DashboardHome() {
     },
     session?.role,
   )
+
   const queries = useQueries({
     queries: [
       {
@@ -112,6 +120,7 @@ function DashboardHome() {
           adminGet<Paginated<TeamDto>>(
             '/admin/teams?page=1&page_size=1&status=active',
           ).then((r) => r.total),
+        enabled: !isScorer,
       },
       {
         queryKey: ['admin', 'totals', 'players'],
@@ -119,6 +128,7 @@ function DashboardHome() {
           adminGet<Paginated<PlayerDto>>('/admin/players?page=1&page_size=1').then(
             (r) => r.total,
           ),
+        enabled: !isScorer,
       },
       {
         queryKey: ['admin', 'totals', 'leagues'],
@@ -126,6 +136,7 @@ function DashboardHome() {
           adminGet<Paginated<LeagueDto>>('/admin/leagues?page=1&page_size=1').then(
             (r) => r.total,
           ),
+        enabled: !isScorer,
       },
       {
         queryKey: ['admin', 'totals', 'matches'],
@@ -133,16 +144,17 @@ function DashboardHome() {
           adminGet<Paginated<MatchDto>>('/admin/matches?page=1&page_size=1').then(
             (r) => r.total,
           ),
+        enabled: !isScorer,
       },
       {
         queryKey: ['admin', 'teams'],
         queryFn: () => adminListAll<TeamDto>('/admin/teams'),
-        enabled: showMatchTables,
+        enabled: showMatchTables && !isScorer,
       },
       {
         queryKey: ['admin', 'matches'],
         queryFn: () => adminListAll<MatchDto>('/admin/matches'),
-        enabled: showMatchTables,
+        enabled: showMatchTables && !isScorer,
       },
     ],
   })
@@ -243,6 +255,7 @@ function DashboardHome() {
     },
     { accessorKey: 'venue', header: 'Venue' },
   ]
+
   const [matchTab, setMatchTab] = useState<'fixtures' | 'results'>('fixtures')
   const showingFixtures = matchTab === 'fixtures'
 
@@ -251,7 +264,9 @@ function DashboardHome() {
   )
 
   let body: ReactNode
-  if (loading) {
+  if (isScorer) {
+    body = <p className="muted">Opening scoring dashboard…</p>
+  } else if (loading) {
     body = <p className="muted">Loading…</p>
   } else if (err) {
     body = <p className="login-error">{err.message}</p>
@@ -266,11 +281,7 @@ function DashboardHome() {
             const stat = stats[m.statIndex]
             const ModIcon = adminRouteIconForPath(m.to)
             return (
-              <Link
-                key={m.to}
-                to={m.to}
-                className="dashboard-module-card"
-              >
+              <Link key={m.to} to={m.to} className="dashboard-module-card">
                 <span className="dashboard-module-card__glyph" aria-hidden>
                   <ModIcon size={20} strokeWidth={2} />
                 </span>
@@ -292,12 +303,18 @@ function DashboardHome() {
 
         {showMatchTables ? (
           <section className="team-hub-section dashboard-match-panel">
-            <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Match views">
+            <div
+              className="dashboard-match-panel__tabs"
+              role="tablist"
+              aria-label="Match views"
+            >
               <button
                 type="button"
                 role="tab"
                 aria-selected={showingFixtures}
-                className={`dashboard-match-panel__tab${showingFixtures ? ' is-active' : ''}`}
+                className={`dashboard-match-panel__tab${
+                  showingFixtures ? ' is-active' : ''
+                }`}
                 onClick={() => setMatchTab('fixtures')}
               >
                 Fixtures
@@ -306,7 +323,9 @@ function DashboardHome() {
                 type="button"
                 role="tab"
                 aria-selected={!showingFixtures}
-                className={`dashboard-match-panel__tab${!showingFixtures ? ' is-active' : ''}`}
+                className={`dashboard-match-panel__tab${
+                  !showingFixtures ? ' is-active' : ''
+                }`}
                 onClick={() => setMatchTab('results')}
               >
                 Results
