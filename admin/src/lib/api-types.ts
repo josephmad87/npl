@@ -426,6 +426,16 @@ export type MatchSquadSaveInput = {
   }>
 }
 
+
+export type MatchLiveSetupInput = {
+  toss_winner_team_id: number
+  toss_decision: 'bat' | 'bowl'
+  batting_first_team_id: number
+  umpire_1?: string | null
+  umpire_2?: string | null
+  reserve_umpire?: string | null
+}
+
 export type LiveBallEventDto = {
   id: number
   match_id: number

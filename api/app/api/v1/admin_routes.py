@@ -57,6 +57,7 @@ from app.schemas.matches import (
     MatchBulkCancelIn,
     MatchCreate,
     MatchDetailOut,
+    MatchLiveSetupIn,
     MatchResultIn,
     MatchScorerAssignmentIn,
     MatchScorerAssignmentOut,
@@ -2332,6 +2333,80 @@ def admin_save_match_day_squad(
     db.commit()
 
     return _match_squad_out(db, match)
+
+
+def _match_team_name(match: Match, team_id: int) -> str:
+    if team_id == match.home_team_id:
+        return match.home_team.name if match.home_team else f"Team {team_id}"
+    if team_id == match.away_team_id:
+        return match.away_team.name if match.away_team else f"Team {team_id}"
+    return f"Team {team_id}"
+
+
+@router.put("/matches/{match_id}/live/setup", response_model=MatchDetailOut)
+def admin_save_live_match_setup(
+    match_id: int,
+    body: MatchLiveSetupIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> MatchDetailOut:
+    match = db.scalar(
+        select(Match)
+        .options(
+            joinedload(Match.home_team),
+            joinedload(Match.away_team),
+            joinedload(Match.result),
+            selectinload(Match.player_stats),
+            joinedload(Match.season).joinedload(Season.league),
+        )
+        .where(Match.id == match_id)
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+    _assert_live_team_ids(match, body.toss_winner_team_id, body.batting_first_team_id)
+
+    team_ids = {match.home_team_id, match.away_team_id}
+    bowling_first_team_id = next((tid for tid in team_ids if tid != body.batting_first_team_id), None)
+    if bowling_first_team_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Could not determine the bowling team."},
+        )
+
+    toss_team = _match_team_name(match, body.toss_winner_team_id)
+    batting_first_team = _match_team_name(match, body.batting_first_team_id)
+    decision_label = "bat" if body.toss_decision == "bat" else "bowl"
+
+    match.toss_info = (
+        f"Toss winner: {body.toss_winner_team_id} - {toss_team}; "
+        f"Decision: {decision_label}; "
+        f"Batting first: {body.batting_first_team_id} - {batting_first_team}"
+    )
+
+    umpire_parts: list[str] = []
+    if body.umpire_1 and body.umpire_1.strip():
+        umpire_parts.append(f"Umpire 1: {body.umpire_1.strip()}")
+    if body.umpire_2 and body.umpire_2.strip():
+        umpire_parts.append(f"Umpire 2: {body.umpire_2.strip()}")
+    if body.reserve_umpire and body.reserve_umpire.strip():
+        umpire_parts.append(f"Reserve/TV: {body.reserve_umpire.strip()}")
+    match.umpires = "; ".join(umpire_parts) if umpire_parts else None
+
+    db.commit()
+    db.refresh(match)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="save_live_match_setup",
+        entity_type="match",
+        entity_id=match_id,
+        summary=f"Saved toss and umpire setup for match {match_id}",
+    )
+    db.commit()
+
+    return MatchDetailOut.model_validate(match)
 
 
 @router.get("/matches/{match_id}/live", response_model=LiveScoreStateOut)
