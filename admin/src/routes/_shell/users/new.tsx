@@ -17,6 +17,7 @@ const ROLES: { value: AdminRole; label: string }[] = [
   { value: 'competition_manager', label: 'Competition manager' },
   { value: 'content_editor', label: 'Content editor' },
   { value: 'read_only_admin', label: 'Read-only admin' },
+  { value: 'scorer', label: 'Scorer' },
 ]
 
 function NewAdminUserPage() {

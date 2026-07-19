@@ -6,6 +6,7 @@ export type AdminRole =
   | 'competition_manager'
   | 'content_editor'
   | 'read_only_admin'
+  | 'scorer'
 
 export type AdminSession = {
   email: string
@@ -14,6 +15,7 @@ export type AdminSession = {
   accessToken: string
   refreshToken: string
 }
+
 
 export function getSession(): AdminSession | null {
   try {
@@ -53,6 +55,7 @@ const ROLE_LABELS: Record<AdminRole, string> = {
   competition_manager: 'Competition Manager',
   content_editor: 'Content Editor',
   read_only_admin: 'Read-only',
+  scorer: 'Scorer',
 }
 
 export function roleLabel(role: AdminRole): string {
@@ -64,6 +67,7 @@ const KNOWN_ROLES: readonly AdminRole[] = [
   'competition_manager',
   'content_editor',
   'read_only_admin',
+  'scorer',
 ] as const
 
 export function parseAdminRole(role: string): AdminRole {

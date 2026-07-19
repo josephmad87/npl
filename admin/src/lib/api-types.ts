@@ -375,3 +375,78 @@ export type MerchandiseOrderDto = {
   status: string
   created_at: string
 }
+
+
+export type ScorerAssignmentDto = {
+  id: number
+  match_id: number
+  user_id: number
+  user_email: string
+  user_full_name: string | null
+  assigned_by_user_id: number | null
+  created_at: string
+}
+
+export type LiveBallEventDto = {
+  id: number
+  match_id: number
+  innings: number
+  over_number: number
+  ball_number: number
+  batting_team_id: number
+  bowling_team_id: number
+  striker_player_id: number
+  non_striker_player_id: number | null
+  bowler_player_id: number
+  runs_batter: number
+  runs_extras: number
+  extras_type: string | null
+  is_legal_delivery: boolean
+  wicket_type: string | null
+  wicket_player_id: number | null
+  dismissal_text: string | null
+  notes: string | null
+  sequence_number: number
+  created_by_user_id: number | null
+  created_at: string
+  updated_at: string
+}
+
+export type LiveScoreInningsSummaryDto = {
+  innings: number
+  batting_team_id: number
+  bowling_team_id: number
+  runs: number
+  wickets: number
+  legal_balls: number
+  overs_label: string
+  last_six: string[]
+  last_event: LiveBallEventDto | null
+}
+
+export type LiveScoreStateDto = {
+  match_id: number
+  status: string
+  current_innings: number | null
+  summaries: LiveScoreInningsSummaryDto[]
+  events: LiveBallEventDto[]
+}
+
+export type LiveBallEventInput = {
+  innings: number
+  over_number: number
+  ball_number: number
+  batting_team_id: number
+  bowling_team_id: number
+  striker_player_id: number
+  non_striker_player_id?: number | null
+  bowler_player_id: number
+  runs_batter?: number
+  runs_extras?: number
+  extras_type?: string | null
+  is_legal_delivery?: boolean
+  wicket_type?: string | null
+  wicket_player_id?: number | null
+  dismissal_text?: string | null
+  notes?: string | null
+}
