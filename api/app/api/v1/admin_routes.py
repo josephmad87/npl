@@ -9,6 +9,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.deps import (
+    get_current_user,
     require_admin_reader,
     require_admin_writer,
     require_competition_writer,
@@ -25,7 +26,7 @@ from app.models.contact_message import ContactMessage
 from app.models.gallery import GalleryItem
 from app.models.sponsor import Sponsor
 from app.models.league import League, Season, SeasonTeam
-from app.models.match import Match, MatchPlayerStat, MatchResult
+from app.models.match import Match, MatchBallEvent, MatchPlayerStat, MatchResult, MatchScorerAssignment
 from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
@@ -39,7 +40,21 @@ from app.schemas.auth import AdminUserCreate, UserMe
 from app.schemas.gallery import GalleryItemCreate, GalleryItemOut, GalleryItemUpdate
 from app.schemas.leagues import LeagueCreate, LeagueOut, LeagueUpdate
 from app.schemas.seasons import SeasonCreate, SeasonOut, SeasonPublicOut, SeasonUpdate
-from app.schemas.matches import MatchBulkCancelIn, MatchCreate, MatchDetailOut, MatchResultIn, MatchUpdate
+from app.schemas.matches import (
+    LiveBallEventIn,
+    LiveBallEventOut,
+    LiveScoreCompleteIn,
+    LiveScoreStartIn,
+    LiveScoreStateOut,
+    LiveScoreInningsSummaryOut,
+    MatchBulkCancelIn,
+    MatchCreate,
+    MatchDetailOut,
+    MatchResultIn,
+    MatchScorerAssignmentIn,
+    MatchScorerAssignmentOut,
+    MatchUpdate,
+)
 from app.schemas.merchandise import (
     MerchandiseOrderOut,
     MerchandiseOrderUpdate,
@@ -1891,3 +1906,356 @@ def admin_update_contact_message(
     )
     db.commit()
     return ContactMessageOut.model_validate(msg)
+
+
+# ---------------------------------------------------------------------------
+# Live scoring / scorer assignments
+# ---------------------------------------------------------------------------
+
+def _is_competition_actor(user: User) -> bool:
+    return user.role in ("super_admin", "competition_manager")
+
+
+def _assert_can_score_match(db: Session, match_id: int, actor: User) -> None:
+    if _is_competition_actor(actor):
+        return
+
+    if actor.role == "scorer":
+        assigned = db.scalar(
+            select(MatchScorerAssignment.id).where(
+                MatchScorerAssignment.match_id == match_id,
+                MatchScorerAssignment.user_id == actor.id,
+            ),
+        )
+        if assigned is not None:
+            return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={"code": "forbidden", "message": "You are not assigned to score this match."},
+    )
+
+
+def _assert_live_team_ids(match: Match, *team_ids: int) -> None:
+    allowed = {match.home_team_id, match.away_team_id}
+    if any(tid not in allowed for tid in team_ids):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Team ids must belong to this match."},
+        )
+
+
+def _assert_live_player(db: Session, player_id: int | None, team_ids: set[int]) -> None:
+    if player_id is None:
+        return
+    player = db.get(Player, player_id)
+    if player is None or player.team_id not in team_ids:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Player must belong to one of the match teams."},
+        )
+
+
+def _live_ball_label(event: MatchBallEvent) -> str:
+    if event.wicket_type:
+        return "W"
+    if event.extras_type:
+        code = event.extras_type.lower().replace("_", " ")
+        return f"{event.runs_extras}{code[:2]}"
+    return str(event.runs_batter)
+
+
+def _live_overs_label(legal_balls: int) -> str:
+    return f"{legal_balls // 6}.{legal_balls % 6}"
+
+
+def _live_event_out(event: MatchBallEvent) -> LiveBallEventOut:
+    return LiveBallEventOut.model_validate(event)
+
+
+def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
+    events = list(
+        db.scalars(
+            select(MatchBallEvent)
+            .where(MatchBallEvent.match_id == match.id)
+            .order_by(MatchBallEvent.sequence_number, MatchBallEvent.id),
+        ).all(),
+    )
+
+    summaries: list[LiveScoreInningsSummaryOut] = []
+    innings_numbers = sorted({event.innings for event in events})
+
+    for innings in innings_numbers:
+        rows = [event for event in events if event.innings == innings]
+        if not rows:
+            continue
+
+        runs = sum(event.runs_batter + event.runs_extras for event in rows)
+        wickets = sum(1 for event in rows if event.wicket_type)
+        legal_balls = sum(1 for event in rows if event.is_legal_delivery)
+        last_rows = rows[-6:]
+
+        summaries.append(
+            LiveScoreInningsSummaryOut(
+                innings=innings,
+                batting_team_id=rows[-1].batting_team_id,
+                bowling_team_id=rows[-1].bowling_team_id,
+                runs=runs,
+                wickets=wickets,
+                legal_balls=legal_balls,
+                overs_label=_live_overs_label(legal_balls),
+                last_six=[_live_ball_label(event) for event in last_rows],
+                last_event=_live_event_out(rows[-1]),
+            ),
+        )
+
+    current_innings = summaries[-1].innings if summaries else None
+
+    return LiveScoreStateOut(
+        match_id=match.id,
+        status=match.status,
+        current_innings=current_innings,
+        summaries=summaries,
+        events=[_live_event_out(event) for event in events],
+    )
+
+
+def _assignment_out(row: MatchScorerAssignment) -> MatchScorerAssignmentOut:
+    return MatchScorerAssignmentOut(
+        id=row.id,
+        match_id=row.match_id,
+        user_id=row.user_id,
+        user_email=row.user.email if row.user else "",
+        user_full_name=row.user.full_name if row.user else None,
+        assigned_by_user_id=row.assigned_by_user_id,
+        created_at=row.created_at,
+    )
+
+
+@router.get("/scorer/matches", response_model=list[MatchDetailOut])
+def scorer_assigned_matches(
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> list[MatchDetailOut]:
+    if actor.role == "scorer":
+        stmt = (
+            select(Match)
+            .join(MatchScorerAssignment, MatchScorerAssignment.match_id == Match.id)
+            .options(
+                joinedload(Match.result),
+                selectinload(Match.player_stats),
+                joinedload(Match.season).joinedload(Season.league),
+            )
+            .where(MatchScorerAssignment.user_id == actor.id)
+            .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
+        )
+    elif _is_competition_actor(actor):
+        stmt = (
+            select(Match)
+            .options(
+                joinedload(Match.result),
+                selectinload(Match.player_stats),
+                joinedload(Match.season).joinedload(Season.league),
+            )
+            .where(Match.status.in_(("scheduled", "live")))
+            .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "forbidden", "message": "Scorer access required."},
+        )
+
+    matches = db.scalars(stmt).unique().all()
+    return [MatchDetailOut.model_validate(match) for match in matches]
+
+
+@router.get("/matches/{match_id}/scorers", response_model=list[MatchScorerAssignmentOut])
+def admin_match_scorers(
+    match_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> list[MatchScorerAssignmentOut]:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+
+    rows = list(
+        db.scalars(
+            select(MatchScorerAssignment)
+            .options(joinedload(MatchScorerAssignment.user))
+            .where(MatchScorerAssignment.match_id == match_id)
+            .order_by(MatchScorerAssignment.id),
+        ).all(),
+    )
+    return [_assignment_out(row) for row in rows]
+
+
+@router.put("/matches/{match_id}/scorers", response_model=list[MatchScorerAssignmentOut])
+def admin_set_match_scorers(
+    match_id: int,
+    body: MatchScorerAssignmentIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_competition_writer),
+) -> list[MatchScorerAssignmentOut]:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+
+    user_ids = list(dict.fromkeys(body.user_ids))
+    users = list(db.scalars(select(User).where(User.id.in_(user_ids))).all()) if user_ids else []
+    found_ids = {user.id for user in users}
+    missing_ids = [user_id for user_id in user_ids if user_id not in found_ids]
+    if missing_ids:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": f"Unknown scorer user id(s): {missing_ids}"},
+        )
+
+    invalid_users = [user.email for user in users if user.role != "scorer"]
+    if invalid_users:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": f"Only scorer users can be assigned: {invalid_users}"},
+        )
+
+    db.execute(delete(MatchScorerAssignment).where(MatchScorerAssignment.match_id == match_id))
+    for user in users:
+        db.add(
+            MatchScorerAssignment(
+                match_id=match_id,
+                user_id=user.id,
+                assigned_by_user_id=actor.id,
+            ),
+        )
+    db.commit()
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="assign_scorers",
+        entity_type="match",
+        entity_id=match_id,
+        summary=f"Assigned {len(users)} scorer(s) to match {match_id}",
+    )
+    db.commit()
+
+    rows = list(
+        db.scalars(
+            select(MatchScorerAssignment)
+            .options(joinedload(MatchScorerAssignment.user))
+            .where(MatchScorerAssignment.match_id == match_id)
+            .order_by(MatchScorerAssignment.id),
+        ).all(),
+    )
+    return [_assignment_out(row) for row in rows]
+
+
+@router.get("/matches/{match_id}/live", response_model=LiveScoreStateOut)
+def admin_live_score_state(
+    match_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> LiveScoreStateOut:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+    return _live_score_state(db, match)
+
+
+@router.post("/matches/{match_id}/live/start", response_model=LiveScoreStateOut)
+def admin_start_live_score(
+    match_id: int,
+    body: LiveScoreStartIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> LiveScoreStateOut:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+    _assert_live_team_ids(match, body.batting_team_id, body.bowling_team_id)
+
+    match.status = "live"
+    db.commit()
+    db.refresh(match)
+    return _live_score_state(db, match)
+
+
+@router.post("/matches/{match_id}/live/balls", response_model=LiveBallEventOut, status_code=status.HTTP_201_CREATED)
+def admin_create_live_ball(
+    match_id: int,
+    body: LiveBallEventIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> LiveBallEventOut:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+    _assert_live_team_ids(match, body.batting_team_id, body.bowling_team_id)
+
+    team_ids = {match.home_team_id, match.away_team_id}
+    _assert_live_player(db, body.striker_player_id, team_ids)
+    _assert_live_player(db, body.non_striker_player_id, team_ids)
+    _assert_live_player(db, body.bowler_player_id, team_ids)
+    _assert_live_player(db, body.wicket_player_id, team_ids)
+
+    latest_sequence = db.scalar(
+        select(func.max(MatchBallEvent.sequence_number)).where(MatchBallEvent.match_id == match_id),
+    )
+    next_sequence = int(latest_sequence or 0) + 1
+
+    event = MatchBallEvent(
+        match_id=match_id,
+        sequence_number=next_sequence,
+        created_by_user_id=actor.id,
+        **body.model_dump(),
+    )
+    db.add(event)
+    match.status = "live"
+    db.commit()
+    db.refresh(event)
+    return _live_event_out(event)
+
+
+@router.delete("/matches/{match_id}/live/balls/last", response_model=LiveScoreStateOut)
+def admin_delete_last_live_ball(
+    match_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> LiveScoreStateOut:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+
+    event = db.scalar(
+        select(MatchBallEvent)
+        .where(MatchBallEvent.match_id == match_id)
+        .order_by(MatchBallEvent.sequence_number.desc(), MatchBallEvent.id.desc()),
+    )
+    if event is not None:
+        db.delete(event)
+        db.commit()
+
+    return _live_score_state(db, match)
+
+
+@router.post("/matches/{match_id}/live/complete", response_model=LiveScoreStateOut)
+def admin_complete_live_score(
+    match_id: int,
+    body: LiveScoreCompleteIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> LiveScoreStateOut:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+
+    match.status = body.status
+    db.commit()
+    db.refresh(match)
+    return _live_score_state(db, match)
