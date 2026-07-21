@@ -1,10 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
 import type { UserDto } from '@/lib/api-types'
-import { adminListAll } from '@/lib/admin-client'
+import { adminListAll, adminPatch } from '@/lib/admin-client'
 import { CatalogFilterGrid } from '@/components/CatalogFilterGrid'
 import { EntityTable } from '@/components/EntityTable'
 import { ListViewModeSwitch } from '@/components/ListViewModeSwitch'
@@ -29,7 +29,7 @@ function userInitials(u: UserDto): string {
   return em.slice(0, 2).toUpperCase()
 }
 
-const columns: ColumnDef<UserDto, unknown>[] = [
+const baseColumns: ColumnDef<UserDto, unknown>[] = [
   {
     accessorKey: 'full_name',
     header: 'Name',
@@ -54,11 +54,68 @@ const columns: ColumnDef<UserDto, unknown>[] = [
 function UsersPage() {
   const [mode, setMode] = useListViewMode('users')
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
+  const [statusError, setStatusError] = useState<string | null>(null)
   const q = useQuery({
     queryKey: ['admin', 'users'],
     queryFn: () => adminListAll<UserDto>('/admin/users'),
   })
+
+  const userStatusMutation = useMutation({
+    mutationFn: ({ user, isActive }: { user: UserDto; isActive: boolean }) =>
+      adminPatch<UserDto>(`/admin/users/${user.id}`, { is_active: isActive }),
+    onSuccess: async () => {
+      setStatusError(null)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+    },
+    onError: (error: Error) => setStatusError(error.message),
+  })
+
+  const changeScorerStatus = (user: UserDto, isActive: boolean) => {
+    const label = user.full_name?.trim() || user.email
+    const ok = window.confirm(
+      isActive
+        ? `Reactivate scorer account for ${label}?`
+        : `Deactivate scorer account for ${label}? This will also remove the scorer from open fixtures.`,
+    )
+
+    if (!ok) return
+
+    userStatusMutation.mutate({ user, isActive })
+  }
+
+  const columns = useMemo<ColumnDef<UserDto, unknown>[]>(
+    () => [
+      ...baseColumns,
+      {
+        id: 'actions',
+        header: 'Actions',
+        cell: ({ row }) => {
+          const user = row.original
+
+          if (user.role !== 'scorer') {
+            return <span className="muted">—</span>
+          }
+
+          return (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={(event) => {
+                event.stopPropagation()
+                changeScorerStatus(user, !user.is_active)
+              }}
+              disabled={userStatusMutation.isPending}
+            >
+              {user.is_active ? 'Deactivate scorer' : 'Reactivate scorer'}
+            </button>
+          )
+        },
+      },
+    ],
+    [userStatusMutation.isPending],
+  )
 
   const data = q.data ?? []
   const queryFilteredData = useMemo(() => {
@@ -87,6 +144,7 @@ function UsersPage() {
           </Link>
         }
       />
+      {statusError ? <p className="login-error">{statusError}</p> : null}
       {!q.isLoading && !q.isError && mode === 'table' ? (
         <div className="catalog-browse">
           <div className="catalog-toolbar">
@@ -146,6 +204,20 @@ function UsersPage() {
               </div>
               <div className="entity-thumb-card__footer">
                 <StatusBadge status={u.is_active ? 'active' : 'inactive'} />
+                {u.role === 'scorer' ? (
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      changeScorerStatus(u, !u.is_active)
+                    }}
+                    disabled={userStatusMutation.isPending}
+                  >
+                    {u.is_active ? 'Deactivate scorer' : 'Reactivate scorer'}
+                  </button>
+                ) : null}
               </div>
             </Link>
           )}
