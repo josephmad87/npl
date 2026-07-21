@@ -451,9 +451,18 @@ export type LiveBallEventDto = {
   runs_extras: number
   extras_type: string | null
   is_legal_delivery: boolean
+  completed_runs: number
+  boundary_runs: number
+  boundary_type: string | null
+  penalty_runs_batting: number
+  penalty_runs_fielding: number
+  short_runs: number
+  is_dead_ball: boolean
   wicket_type: string | null
   wicket_player_id: number | null
   fielder_player_id: number | null
+  wicket_end: 'striker' | 'non_striker' | null
+  batters_crossed: boolean
   dismissal_text: string | null
   notes: string | null
   sequence_number: number
@@ -495,9 +504,18 @@ export type LiveBallEventInput = {
   runs_extras?: number
   extras_type?: string | null
   is_legal_delivery?: boolean
+  completed_runs?: number
+  boundary_runs?: number
+  boundary_type?: string | null
+  penalty_runs_batting?: number
+  penalty_runs_fielding?: number
+  short_runs?: number
+  is_dead_ball?: boolean
   wicket_type?: string | null
   wicket_player_id?: number | null
   fielder_player_id?: number | null
+  wicket_end?: 'striker' | 'non_striker' | null
+  batters_crossed?: boolean
   dismissal_text?: string | null
   notes?: string | null
 }

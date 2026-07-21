@@ -7,6 +7,7 @@ import type {
   LiveBallEventInput,
   LiveScoreStateDto,
   MatchDto,
+  MatchLiveSetupInput,
   MatchSquadDto,
   MatchSquadRole,
   MatchSquadSaveInput,
@@ -37,6 +38,8 @@ type BallSubmitPayload = {
   strikeRuns?: number
 }
 
+type WicketEnd = 'striker' | 'non_striker'
+
 type DismissalOption = {
   value: string
   label: string
@@ -54,6 +57,10 @@ const DISMISSAL_OPTIONS: DismissalOption[] = [
   { value: 'hit_wicket', label: 'Hit wicket', needsFielder: false },
   { value: 'retired_hurt', label: 'Retired hurt', needsFielder: false },
   { value: 'retired_out', label: 'Retired out', needsFielder: false },
+  { value: 'retired_not_out', label: 'Retired not out', needsFielder: false },
+  { value: 'hit_ball_twice', label: 'Hit the ball twice', needsFielder: false },
+  { value: 'obstructing_field', label: 'Obstructing the field', needsFielder: false },
+  { value: 'timed_out', label: 'Timed out', needsFielder: false },
 ]
 
 function adminAccessToken(): string | undefined {
@@ -107,33 +114,44 @@ function matchWhen(match: MatchDto): string {
 }
 
 function liveEventLabel(event: LiveBallEventDto): string {
+  if (event.is_dead_ball) {
+    if (event.penalty_runs_batting) return `Penalty +${event.penalty_runs_batting}`
+    if (event.penalty_runs_fielding) return `Penalty fielding +${event.penalty_runs_fielding}`
+    return 'Dead ball'
+  }
+
   if (event.wicket_type) return 'W'
 
   const extrasType = event.extras_type
-  if (!extrasType) return String(event.runs_batter)
+  let label = ''
 
-  if (extrasType === 'wide') {
-    return event.runs_extras === 1 ? 'Wide' : `Wide ${event.runs_extras}`
-  }
-
-  if (extrasType === 'no_ball') {
-    return event.runs_batter > 0
+  if (!extrasType) {
+    label = String(event.runs_batter)
+  } else if (extrasType === 'wide') {
+    label = event.runs_extras === 1 ? 'Wide' : `Wide ${event.runs_extras}`
+  } else if (extrasType === 'no_ball') {
+    label = event.runs_batter > 0
       ? `${event.runs_batter} + no ball`
       : 'No ball'
+  } else if (extrasType === 'bye') {
+    label = `Bye ${event.runs_extras}`
+  } else if (extrasType === 'leg_bye') {
+    label = `Leg bye ${event.runs_extras}`
+  } else if (extrasType === 'no_ball_bye') {
+    label = `No ball + bye ${Math.max(0, event.runs_extras - 1)}`
+  } else if (extrasType === 'no_ball_leg_bye') {
+    label = `No ball + leg bye ${Math.max(0, event.runs_extras - 1)}`
+  } else if (extrasType === 'penalty') {
+    label = event.penalty_runs_batting
+      ? `Penalty +${event.penalty_runs_batting}`
+      : `Penalty fielding +${event.penalty_runs_fielding}`
+  } else {
+    label = `${event.runs_extras} ${extrasType.split('_').join(' ')}`
   }
 
-  if (extrasType === 'bye') return `Bye ${event.runs_extras}`
-  if (extrasType === 'leg_bye') return `Leg bye ${event.runs_extras}`
-
-  if (extrasType === 'no_ball_bye') {
-    return `No ball + bye ${Math.max(0, event.runs_extras - 1)}`
-  }
-
-  if (extrasType === 'no_ball_leg_bye') {
-    return `No ball + leg bye ${Math.max(0, event.runs_extras - 1)}`
-  }
-
-  return `${event.runs_extras} ${extrasType.split('_').join(' ')}`
+  if (event.boundary_type) label += ' · boundary'
+  if (event.short_runs) label += ` · ${event.short_runs} short`
+  return label
 }
 
 function playerName(playerById: Map<number, PlayerDto>, playerId: number | null | undefined): string {
@@ -229,6 +247,14 @@ function LiveScoringPage() {
   const [wicketPlayerId, setWicketPlayerId] = useState<number | ''>('')
   const [fielderPlayerId, setFielderPlayerId] = useState<number | ''>('')
   const [newBatterPlayerId, setNewBatterPlayerId] = useState<number | ''>('')
+  const [wicketEnd, setWicketEnd] = useState<WicketEnd>('striker')
+  const [battersCrossed, setBattersCrossed] = useState(false)
+  const [tossWinnerTeamId, setTossWinnerTeamId] = useState<number | ''>('')
+  const [tossDecision, setTossDecision] = useState<'bat' | 'bowl'>('bat')
+  const [battingFirstTeamId, setBattingFirstTeamId] = useState<number | ''>('')
+  const [umpire1, setUmpire1] = useState('')
+  const [umpire2, setUmpire2] = useState('')
+  const [reserveUmpire, setReserveUmpire] = useState('')
 
   const matchTeams = useMemo<ScoringTeam[]>(() => {
     if (!match) return []
@@ -245,6 +271,38 @@ function LiveScoringPage() {
   }, [match, teamById])
 
   useEffect(() => {
+    if (!match || matchTeams.length < 2) return
+    if (!tossWinnerTeamId) setTossWinnerTeamId(match.home_team_id)
+    if (!battingFirstTeamId) setBattingFirstTeamId(match.home_team_id)
+  }, [battingFirstTeamId, match, matchTeams.length, tossWinnerTeamId])
+
+  useEffect(() => {
+    if (!tossWinnerTeamId || matchTeams.length < 2) return
+    const otherTeamId = matchTeams.find((team) => team.id !== tossWinnerTeamId)?.id
+    if (!otherTeamId) return
+    setBattingFirstTeamId(tossDecision === 'bat' ? tossWinnerTeamId : otherTeamId)
+  }, [matchTeams, tossDecision, tossWinnerTeamId])
+
+  useEffect(() => {
+    if (!match?.umpires) return
+    const parts = match.umpires.split(',').map((part) => part.trim())
+    setUmpire1((current) => current || parts[0] || '')
+    setUmpire2((current) => current || parts[1] || '')
+    setReserveUmpire((current) => current || parts[2] || '')
+  }, [match?.umpires])
+
+  useEffect(() => {
+    if (!match?.toss_info || !matchTeams.length) return
+    const lower = match.toss_info.toLowerCase()
+    const tossTeam = matchTeams.find((team) => lower.includes(team.name.toLowerCase()))
+    const battingTeam = matchTeams.find((team) => lower.includes(`${team.name.toLowerCase()} batting first`))
+    if (tossTeam) setTossWinnerTeamId((current) => current || tossTeam.id)
+    if (lower.includes('bowl first')) setTossDecision('bowl')
+    if (lower.includes('bat first')) setTossDecision('bat')
+    if (battingTeam) setBattingFirstTeamId((current) => current || battingTeam.id)
+  }, [match?.toss_info, matchTeams])
+
+  useEffect(() => {
     if (!squadQ.data || squadDirty) return
 
     const next: PlayerRoleMap = {}
@@ -259,12 +317,16 @@ function LiveScoringPage() {
   useEffect(() => {
     if (!match) return
 
+    const firstBattingTeamId = battingFirstTeamId || match.home_team_id
+    const firstBowlingTeamId =
+      firstBattingTeamId === match.home_team_id ? match.away_team_id : match.home_team_id
+
     if (innings === 1) {
-      setBattingTeamId(match.home_team_id)
-      setBowlingTeamId(match.away_team_id)
+      setBattingTeamId(firstBattingTeamId)
+      setBowlingTeamId(firstBowlingTeamId)
     } else {
-      setBattingTeamId(match.away_team_id)
-      setBowlingTeamId(match.home_team_id)
+      setBattingTeamId(firstBowlingTeamId)
+      setBowlingTeamId(firstBattingTeamId)
     }
 
     setStrikerPlayerId('')
@@ -273,7 +335,7 @@ function LiveScoringPage() {
     setWicketPlayerId('')
     setFielderPlayerId('')
     setNewBatterPlayerId('')
-  }, [innings, match])
+  }, [battingFirstTeamId, innings, match])
 
   const teamHasSavedSquad = useMemo(() => {
     const result = new Map<number, boolean>()
@@ -344,6 +406,28 @@ function LiveScoringPage() {
     matchTeams.find((team) => team.id === battingTeamId)?.name ?? 'Batting team'
   const bowlingTeamName =
     matchTeams.find((team) => team.id === bowlingTeamId)?.name ?? 'Bowling team'
+
+  const saveSetupMutation = useMutation({
+    mutationFn: () => {
+      if (!tossWinnerTeamId || !battingFirstTeamId) {
+        throw new Error('Choose toss winner and batting first team.')
+      }
+      const body: MatchLiveSetupInput = {
+        toss_winner_team_id: tossWinnerTeamId,
+        toss_decision: tossDecision,
+        batting_first_team_id: battingFirstTeamId,
+        umpire_1: umpire1.trim() || null,
+        umpire_2: umpire2.trim() || null,
+        reserve_umpire: reserveUmpire.trim() || null,
+      }
+      return adminPutJson<MatchDto>(`/admin/matches/${mid}/live/setup`, body)
+    },
+    onSuccess: async () => {
+      setActionError(null)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
+    },
+    onError: (error: Error) => setActionError(error.message),
+  })
 
   const saveSquadMutation = useMutation({
     mutationFn: () => {
@@ -434,6 +518,8 @@ function LiveScoringPage() {
       setWicketOpen(false)
       setFielderPlayerId('')
       setNewBatterPlayerId('')
+      setWicketEnd('striker')
+      setBattersCrossed(false)
       applyPostBallState(payload.body, payload.newBatterId ?? null, payload.strikeRuns ?? 0)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
     },
@@ -497,9 +583,18 @@ function LiveScoringPage() {
       runsExtras?: number
       extrasType?: string | null
       isLegalDelivery?: boolean
+      completedRuns?: number
+      boundaryRuns?: number
+      boundaryType?: string | null
+      penaltyRunsBatting?: number
+      penaltyRunsFielding?: number
+      shortRuns?: number
+      isDeadBall?: boolean
       wicketType?: string | null
       wicketPlayerId?: number | null
       fielderPlayerId?: number | null
+      wicketEnd?: WicketEnd | null
+      battersCrossed?: boolean
       dismissalText?: string | null
       strikeRuns?: number
     },
@@ -523,11 +618,21 @@ function LiveScoringPage() {
       runs_extras: input.runsExtras ?? 0,
       extras_type: input.extrasType ?? null,
       is_legal_delivery: input.isLegalDelivery ?? true,
+      completed_runs:
+        input.completedRuns ?? input.strikeRuns ?? input.runsBatter ?? 0,
+      boundary_runs: input.boundaryRuns ?? 0,
+      boundary_type: input.boundaryType ?? null,
+      penalty_runs_batting: input.penaltyRunsBatting ?? 0,
+      penalty_runs_fielding: input.penaltyRunsFielding ?? 0,
+      short_runs: input.shortRuns ?? 0,
+      is_dead_ball: input.isDeadBall ?? false,
       wicket_type: input.wicketType ?? null,
       wicket_player_id: input.wicketType
         ? input.wicketPlayerId ?? (wicketPlayerId || strikerPlayerId)
         : null,
       fielder_player_id: input.fielderPlayerId ?? null,
+      wicket_end: input.wicketEnd ?? null,
+      batters_crossed: input.battersCrossed ?? false,
       dismissal_text: input.dismissalText ?? null,
       notes: notes.trim() || null,
     }
@@ -572,6 +677,8 @@ function LiveScoringPage() {
         wicketType,
         wicketPlayerId: playerOut,
         fielderPlayerId: fielderId,
+        wicketEnd: wicketType === 'run_out' ? wicketEnd : null,
+        battersCrossed,
         dismissalText: parts.join(' · '),
       },
       newBatter,
@@ -643,6 +750,85 @@ function LiveScoringPage() {
         {liveQ.isError ? <p className="login-error">{liveQ.error.message}</p> : null}
         {squadQ.isError ? <p className="login-error">{squadQ.error.message}</p> : null}
         {actionError ? <p className="login-error">{actionError}</p> : null}
+      </section>
+
+      <section className="team-hub-section">
+        <div className="team-hub-section-head">
+          <div className="team-hub-section-head__lead">
+            <h2 className="team-hub-section__title">Match setup</h2>
+            <p className="muted">
+              Save the toss, batting-first team, and umpire names before the first ball.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-primary btn--with-icon"
+            onClick={() => void saveSetupMutation.mutate()}
+            disabled={saveSetupMutation.isPending}
+          >
+            <Save size={18} strokeWidth={2} aria-hidden />
+            {saveSetupMutation.isPending ? 'Saving…' : 'Save setup'}
+          </button>
+        </div>
+
+        <div className="inline-edit__grid">
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Toss won by</span>
+            <select
+              className="inline-edit__control"
+              value={tossWinnerTeamId}
+              onChange={(event) => setTossWinnerTeamId(Number(event.target.value))}
+            >
+              {matchTeams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Toss decision</span>
+            <select
+              className="inline-edit__control"
+              value={tossDecision}
+              onChange={(event) => setTossDecision(event.target.value as 'bat' | 'bowl')}
+            >
+              <option value="bat">Bat first</option>
+              <option value="bowl">Bowl first</option>
+            </select>
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Team batting first</span>
+            <select
+              className="inline-edit__control"
+              value={battingFirstTeamId}
+              onChange={(event) => setBattingFirstTeamId(Number(event.target.value))}
+            >
+              {matchTeams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Umpire 1</span>
+            <input className="inline-edit__control" value={umpire1} onChange={(event) => setUmpire1(event.target.value)} />
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Umpire 2</span>
+            <input className="inline-edit__control" value={umpire2} onChange={(event) => setUmpire2(event.target.value)} />
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Reserve / TV umpire</span>
+            <input className="inline-edit__control" value={reserveUmpire} onChange={(event) => setReserveUmpire(event.target.value)} />
+          </label>
+        </div>
       </section>
 
       <section className="team-hub-section">
@@ -862,7 +1048,15 @@ function LiveScoringPage() {
                 key={runs}
                 type="button"
                 className="btn-primary"
-                onClick={() => submitBall({ runsBatter: runs, strikeRuns: runs })}
+                onClick={() =>
+                  submitBall({
+                    runsBatter: runs,
+                    strikeRuns: runs,
+                    completedRuns: runs,
+                    boundaryRuns: runs === 4 || runs === 6 ? runs : 0,
+                    boundaryType: runs === 4 ? 'four' : runs === 6 ? 'six' : null,
+                  })
+                }
                 disabled={ballMutation.isPending}
               >
                 {runs}
@@ -1019,6 +1213,83 @@ function LiveScoringPage() {
                 Leg bye {runs}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="team-hub-section" style={{ marginTop: '1rem' }}>
+          <div className="team-hub-section-head">
+            <div className="team-hub-section-head__lead">
+              <h4 className="team-hub-section__title">MCC adjustments</h4>
+              <p className="muted">Dead ball, penalties, and short-run corrections do not behave like normal scoring balls.</p>
+            </div>
+          </div>
+          <div className="catalog-card-grid">
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() =>
+                submitBall({
+                  extrasType: null,
+                  isLegalDelivery: false,
+                  isDeadBall: true,
+                  strikeRuns: 0,
+                  dismissalText: 'Dead ball',
+                })
+              }
+              disabled={ballMutation.isPending}
+            >
+              Dead ball
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() =>
+                submitBall({
+                  extrasType: 'penalty',
+                  isLegalDelivery: false,
+                  isDeadBall: true,
+                  penaltyRunsBatting: 5,
+                  strikeRuns: 0,
+                  dismissalText: 'Five penalty runs to batting side',
+                })
+              }
+              disabled={ballMutation.isPending}
+            >
+              +5 batting penalty
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() =>
+                submitBall({
+                  extrasType: 'penalty',
+                  isLegalDelivery: false,
+                  isDeadBall: true,
+                  penaltyRunsFielding: 5,
+                  strikeRuns: 0,
+                  dismissalText: 'Five penalty runs to fielding side',
+                })
+              }
+              disabled={ballMutation.isPending}
+            >
+              +5 fielding penalty
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() =>
+                submitBall({
+                  runsBatter: 1,
+                  completedRuns: 2,
+                  shortRuns: 1,
+                  strikeRuns: 1,
+                  dismissalText: 'One short run called',
+                })
+              }
+              disabled={ballMutation.isPending}
+            >
+              Short run: ran 2, score 1
+            </button>
             <button
               type="button"
               className="btn-ghost"
@@ -1102,6 +1373,32 @@ function LiveScoringPage() {
                   </select>
                 </label>
               ) : null}
+
+              {wicketType === 'run_out' ? (
+                <label className="inline-edit__field">
+                  <span className="inline-edit__label">Wicket broken at</span>
+                  <select
+                    className="inline-edit__control"
+                    value={wicketEnd}
+                    onChange={(event) => setWicketEnd(event.target.value as WicketEnd)}
+                  >
+                    <option value="striker">Striker end</option>
+                    <option value="non_striker">Non-striker end</option>
+                  </select>
+                </label>
+              ) : null}
+
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">Batters crossed?</span>
+                <select
+                  className="inline-edit__control"
+                  value={battersCrossed ? 'yes' : 'no'}
+                  onChange={(event) => setBattersCrossed(event.target.value === 'yes')}
+                >
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </label>
 
               <label className="inline-edit__field">
                 <span className="inline-edit__label">New batter</span>
@@ -1224,6 +1521,8 @@ function LiveScoringPage() {
                             event.fielder_player_id
                               ? ` · fielder: ${playerName(playerById, event.fielder_player_id)}`
                               : ''
+                          }${event.wicket_end ? ` · end: ${event.wicket_end.replace('_', '-')}` : ''}${
+                            event.batters_crossed ? ' · crossed' : ''
                           }`
                         : '—'}
                     </td>

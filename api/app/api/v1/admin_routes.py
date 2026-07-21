@@ -54,6 +54,7 @@ from app.schemas.matches import (
     LiveScoreStartIn,
     LiveScoreStateOut,
     LiveScoreInningsSummaryOut,
+    MatchLiveSetupIn,
     MatchBulkCancelIn,
     MatchCreate,
     MatchDetailOut,
@@ -2032,34 +2033,42 @@ def _validate_squad_player(db: Session, match: Match, team_id: int, player_id: i
 
 
 def _live_ball_label(event: MatchBallEvent) -> str:
+    if event.is_dead_ball:
+        if event.penalty_runs_batting:
+            return f"P{event.penalty_runs_batting}"
+        if event.penalty_runs_fielding:
+            return f"P-fielding {event.penalty_runs_fielding}"
+        return "Dead"
+
     if event.wicket_type:
         return "W"
 
     extras_type = (event.extras_type or "").strip().lower()
     if not extras_type:
-        return str(event.runs_batter)
+        label = str(event.runs_batter)
+    elif extras_type == "wide":
+        label = "wd" if event.runs_extras == 1 else f"{event.runs_extras}wd"
+    elif extras_type == "no_ball":
+        label = "nb" if event.runs_batter == 0 else f"{event.runs_batter}+nb"
+    elif extras_type == "bye":
+        label = f"{event.runs_extras}b"
+    elif extras_type == "leg_bye":
+        label = f"{event.runs_extras}lb"
+    elif extras_type == "no_ball_bye":
+        label = f"nb+{max(0, event.runs_extras - 1)}b"
+    elif extras_type == "no_ball_leg_bye":
+        label = f"nb+{max(0, event.runs_extras - 1)}lb"
+    elif extras_type == "penalty":
+        label = f"P{event.penalty_runs_batting or event.penalty_runs_fielding}"
+    else:
+        code = extras_type.replace("_", " ")
+        label = f"{event.runs_extras}{code[:2]}"
 
-    if extras_type == "wide":
-        return "wd" if event.runs_extras == 1 else f"{event.runs_extras}wd"
-
-    if extras_type == "no_ball":
-        return "nb" if event.runs_batter == 0 else f"{event.runs_batter}+nb"
-
-    if extras_type == "bye":
-        return f"{event.runs_extras}b"
-
-    if extras_type == "leg_bye":
-        return f"{event.runs_extras}lb"
-
-    if extras_type == "no_ball_bye":
-        return f"nb+{max(0, event.runs_extras - 1)}b"
-
-    if extras_type == "no_ball_leg_bye":
-        return f"nb+{max(0, event.runs_extras - 1)}lb"
-
-    code = extras_type.replace("_", " ")
-    return f"{event.runs_extras}{code[:2]}"
-
+    if event.boundary_type:
+        label = f"{label} boundary"
+    if event.short_runs:
+        label = f"{label} · {event.short_runs} short"
+    return label
 
 def _live_overs_label(legal_balls: int) -> str:
     return f"{legal_balls // 6}.{legal_balls % 6}"
@@ -2071,6 +2080,9 @@ def _live_event_out(event: MatchBallEvent) -> LiveBallEventOut:
 
 def _validate_live_ball_event(body: LiveBallEventIn) -> None:
     extras_type = (body.extras_type or "").strip().lower() or None
+    boundary_type = (body.boundary_type or "").strip().lower() or None
+    wicket_type = (body.wicket_type or "").strip().lower() or None
+
     allowed_extras = {
         None,
         "wide",
@@ -2079,6 +2091,23 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
         "leg_bye",
         "no_ball_bye",
         "no_ball_leg_bye",
+        "penalty",
+    }
+    allowed_boundaries = {None, "four", "six", "overthrow_boundary"}
+    allowed_wickets = {
+        "bowled",
+        "caught",
+        "caught_and_bowled",
+        "lbw",
+        "run_out",
+        "stumped",
+        "hit_wicket",
+        "retired_hurt",
+        "retired_out",
+        "retired_not_out",
+        "hit_ball_twice",
+        "obstructing_field",
+        "timed_out",
     }
 
     if extras_type not in allowed_extras:
@@ -2086,9 +2115,50 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
             status_code=400,
             detail={
                 "code": "validation",
-                "message": "extras_type must be wide, no_ball, bye, leg_bye, no_ball_bye, or no_ball_leg_bye.",
+                "message": "extras_type must be wide, no_ball, bye, leg_bye, no_ball_bye, no_ball_leg_bye, or penalty.",
             },
         )
+
+    if boundary_type not in allowed_boundaries:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "boundary_type must be four, six, or overthrow_boundary."},
+        )
+
+    if boundary_type == "four" and body.boundary_runs != 4:
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "A four boundary must have boundary_runs=4."})
+    if boundary_type == "six" and body.boundary_runs != 6:
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "A six boundary must have boundary_runs=6."})
+    if boundary_type is None and body.boundary_runs not in (0,):
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "boundary_runs requires a boundary_type."})
+
+    if body.short_runs and body.completed_runs <= body.short_runs:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "completed_runs must be greater than short_runs when a short run is called."},
+        )
+
+    if body.penalty_runs_batting not in (0, 5, 10) or body.penalty_runs_fielding not in (0, 5, 10):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Penalty runs must be recorded in five-run units."},
+        )
+
+    if body.penalty_runs_batting and body.penalty_runs_fielding:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "One ball event cannot award penalties to both sides."},
+        )
+
+    if body.is_dead_ball:
+        if body.is_legal_delivery:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Dead ball events are not legal deliveries."})
+        if body.runs_batter or body.runs_extras or wicket_type:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Dead ball events cannot record batter runs, extras, or a wicket. Use penalty fields only if needed."},
+            )
+        return
 
     if extras_type is None:
         if body.runs_extras != 0:
@@ -2096,7 +2166,17 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
                 status_code=400,
                 detail={"code": "validation", "message": "runs_extras requires an extras_type."},
             )
-        return
+
+    if extras_type == "penalty":
+        if body.runs_batter or body.runs_extras:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Penalty events use penalty fields, not batter runs or extras."},
+            )
+        if not (body.penalty_runs_batting or body.penalty_runs_fielding):
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Penalty event must include penalty runs."})
+        if body.is_legal_delivery:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Standalone penalty events are not legal deliveries."})
 
     if extras_type == "wide":
         if body.is_legal_delivery:
@@ -2114,7 +2194,6 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
                 status_code=400,
                 detail={"code": "validation", "message": "A Wide must include the one-run penalty."},
             )
-        return
 
     if extras_type == "no_ball":
         if body.is_legal_delivery:
@@ -2127,7 +2206,6 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
                 status_code=400,
                 detail={"code": "validation", "message": "A No-ball must include the one-run penalty."},
             )
-        return
 
     if extras_type in {"bye", "leg_bye"}:
         if not body.is_legal_delivery:
@@ -2145,7 +2223,6 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
                 status_code=400,
                 detail={"code": "validation", "message": "Byes and leg-byes must record at least one run."},
             )
-        return
 
     if extras_type in {"no_ball_bye", "no_ball_leg_bye"}:
         if body.is_legal_delivery:
@@ -2164,6 +2241,50 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
                 detail={"code": "validation", "message": "No-ball byes/leg-byes must include the one-run No-ball penalty plus completed runs."},
             )
 
+    if wicket_type:
+        if wicket_type not in allowed_wickets:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown mode of dismissal."})
+        if body.wicket_player_id is None and wicket_type not in {"timed_out"}:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Choose the player who is out."})
+        if wicket_type in {"caught", "run_out", "stumped"} and body.fielder_player_id is None:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "This dismissal requires a fielder."})
+        if wicket_type in {"bowled", "lbw", "hit_wicket"} and body.fielder_player_id is not None:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "This dismissal should not record a fielder."})
+        if extras_type == "wide" and wicket_type not in {"hit_wicket", "obstructing_field", "run_out", "stumped"}:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "After a Wide, the batter can only be out hit wicket, obstructing the field, run out, or stumped."},
+            )
+        if extras_type in {"no_ball", "no_ball_bye", "no_ball_leg_bye"} and wicket_type not in {"hit_wicket", "obstructing_field", "run_out"}:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "After a No-ball, the batter cannot be out bowled, caught, LBW, or stumped."},
+            )
+        if wicket_type == "run_out" and body.wicket_end is None:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Run out requires the wicket end."})
+
+
+def _assert_bowler_can_bowl_current_over(db: Session, match_id: int, body: LiveBallEventIn) -> None:
+    if body.is_dead_ball:
+        return
+    if body.ball_number != 1 or body.over_number <= 0:
+        return
+
+    previous = db.scalar(
+        select(MatchBallEvent)
+        .where(
+            MatchBallEvent.match_id == match_id,
+            MatchBallEvent.innings == body.innings,
+            MatchBallEvent.over_number == body.over_number - 1,
+            MatchBallEvent.is_dead_ball.is_(False),
+        )
+        .order_by(MatchBallEvent.sequence_number.desc(), MatchBallEvent.id.desc()),
+    )
+    if previous is not None and previous.bowler_player_id == body.bowler_player_id:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "The same bowler cannot bowl consecutive overs."},
+        )
 
 def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
     events = list(
@@ -2182,7 +2303,7 @@ def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
         if not rows:
             continue
 
-        runs = sum(event.runs_batter + event.runs_extras for event in rows)
+        runs = sum(event.runs_batter + event.runs_extras + event.penalty_runs_batting for event in rows)
         wickets = sum(1 for event in rows if event.wicket_type)
         legal_balls = sum(1 for event in rows if event.is_legal_delivery)
         last_rows = rows[-6:]
@@ -2464,6 +2585,62 @@ def admin_live_score_state(
     return _live_score_state(db, match)
 
 
+@router.put("/matches/{match_id}/live/setup", response_model=MatchDetailOut)
+def admin_save_live_match_setup(
+    match_id: int,
+    body: MatchLiveSetupIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> Match:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+    _assert_live_team_ids(match, body.toss_winner_team_id, body.batting_first_team_id)
+
+    bowling_first_team_id = match.away_team_id if body.batting_first_team_id == match.home_team_id else match.home_team_id
+    if body.toss_decision == "bat" and body.batting_first_team_id != body.toss_winner_team_id:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "If the toss winner chose to bat, that team must bat first."},
+        )
+    if body.toss_decision == "bowl" and body.batting_first_team_id == body.toss_winner_team_id:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "If the toss winner chose to bowl, the other team must bat first."},
+        )
+
+    toss_team = db.get(Team, body.toss_winner_team_id)
+    batting_team = db.get(Team, body.batting_first_team_id)
+    bowling_team = db.get(Team, bowling_first_team_id)
+    if toss_team is None or batting_team is None or bowling_team is None:
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "Invalid setup team."})
+
+    decision_text = "bat first" if body.toss_decision == "bat" else "bowl first"
+    match.toss_info = f"{toss_team.name} won the toss and chose to {decision_text}. {batting_team.name} batting first."
+
+    umpire_names = [
+        (body.umpire_1 or "").strip(),
+        (body.umpire_2 or "").strip(),
+        (body.reserve_umpire or "").strip(),
+    ]
+    match.umpires = ", ".join([name for name in umpire_names if name]) or None
+
+    db.commit()
+    db.refresh(match)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="save_live_match_setup",
+        entity_type="match",
+        entity_id=match_id,
+        summary=f"Saved live match setup for match {match_id}",
+    )
+    db.commit()
+    return match
+
+
 @router.post("/matches/{match_id}/live/start", response_model=LiveScoreStateOut)
 def admin_start_live_score(
     match_id: int,
@@ -2537,6 +2714,7 @@ def admin_create_live_ball(
         bowling_allowed,
         "Fielder",
     )
+    _assert_bowler_can_bowl_current_over(db, match_id, body)
 
     latest_sequence = db.scalar(
         select(func.max(MatchBallEvent.sequence_number)).where(MatchBallEvent.match_id == match_id),
