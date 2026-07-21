@@ -15,6 +15,7 @@ class MatchBase(BaseModel):
     venue: str | None = None
     match_date: date | None = None
     start_time: datetime | None = None
+    match_overs: float = Field(default=40.0, ge=1, le=300)
     toss_info: str | None = None
     umpires: str | None = None
     status: str = "scheduled"
@@ -35,6 +36,7 @@ class MatchUpdate(BaseModel):
     venue: str | None = None
     match_date: date | None = None
     start_time: datetime | None = None
+    match_overs: float | None = Field(default=None, ge=1, le=300)
     toss_info: str | None = None
     umpires: str | None = None
     status: str | None = None
@@ -170,6 +172,7 @@ class MatchLiveSetupIn(BaseModel):
     toss_winner_team_id: int = Field(ge=1)
     toss_decision: str = Field(pattern="^(bat|bowl)$")
     batting_first_team_id: int = Field(ge=1)
+    match_overs: float = Field(default=40.0, ge=1, le=300)
     umpire_1: str | None = Field(default=None, max_length=128)
     umpire_2: str | None = Field(default=None, max_length=128)
     reserve_umpire: str | None = Field(default=None, max_length=128)
@@ -181,6 +184,7 @@ class LiveScoreStartIn(BaseModel):
 
 class LiveScoreCompleteIn(BaseModel):
     status: str = Field(default="completed", pattern="^(completed|abandoned|cancelled)$")
+    match_overs: float | None = Field(default=None, ge=1, le=300)
 
 
 class LiveBallEventIn(BaseModel):
@@ -344,6 +348,7 @@ class MatchDetailOut(ORMModel):
     venue: str | None
     match_date: date | None
     start_time: datetime | None
+    match_overs: Decimal = Decimal("40.0")
     toss_info: str | None
     umpires: str | None
     status: str
