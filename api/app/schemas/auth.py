@@ -49,3 +49,12 @@ class AdminUserCreate(BaseModel):
     role: str = Field(
         pattern="^(super_admin|competition_manager|content_editor|read_only_admin|scorer)$",
     )
+
+
+class AdminUserUpdate(BaseModel):
+    full_name: str | None = Field(default=None, max_length=255)
+    role: str | None = Field(
+        default=None,
+        pattern="^(super_admin|competition_manager|content_editor|read_only_admin|scorer)$",
+    )
+    is_active: bool | None = None
