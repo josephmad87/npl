@@ -967,7 +967,7 @@ function LiveScoringPage() {
         event.extras_type === 'no_ball_bye' ||
         event.extras_type === 'no_ball_leg_bye',
       )
-      .reduce((total, event) => total + 1, 0)
+      .reduce((total) => total + 1, 0)
     const byes = events
       .filter((event) => event.extras_type === 'bye' || event.extras_type === 'no_ball_bye')
       .reduce((total, event) => total + (event.extras_type === 'no_ball_bye' ? Math.max(0, event.runs_extras - 1) : event.runs_extras), 0)
