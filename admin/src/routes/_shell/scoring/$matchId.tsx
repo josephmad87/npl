@@ -45,7 +45,7 @@ type EditingBallDraft = {
   body: LiveBallEventInput
 }
 
-type ScorerPanel = 'score' | 'setup' | 'squads' | 'corrections' | 'balls'
+type ScorerPanel = 'score' | 'setup' | 'squads' | 'balls' | 'corrections' | 'review' | 'help'
 
 const EXTRAS_OPTIONS = [
   { value: '', label: 'None' },
@@ -347,6 +347,7 @@ function LiveScoringPage() {
   const [editBallError, setEditBallError] = useState<string | null>(null)
   const [activeScorerPanel, setActiveScorerPanel] = useState<ScorerPanel>('score')
   const [extrasOpen, setExtrasOpen] = useState(false)
+  const [finalReviewConfirmed, setFinalReviewConfirmed] = useState(false)
 
   const matchTeams = useMemo<ScoringTeam[]>(() => {
     if (!match) return []
@@ -576,6 +577,7 @@ function LiveScoringPage() {
     },
     onSuccess: async () => {
       setActionError(null)
+      setFinalReviewConfirmed(false)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
     },
@@ -675,6 +677,7 @@ function LiveScoringPage() {
       }),
     onSuccess: async () => {
       setActionError(null)
+      setFinalReviewConfirmed(false)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
     },
@@ -751,7 +754,13 @@ function LiveScoringPage() {
   }
 
   const markMatchOver = () => {
-    const ok = window.confirm('Finalize this match into the official result and scorecard? Check match overs first, because NRR uses those overs.')
+    if (!finalReviewConfirmed) {
+      setActionError('Open Review, check the innings/fielding/NRR details, then tick the final confirmation box.')
+      setActiveScorerPanel('review')
+      return
+    }
+
+    const ok = window.confirm('Finalize this match into the official result, scorecard, player stats, fielding stats, standings and NRR?')
     if (!ok) return
     void completeMutation.mutate('completed')
   }
@@ -912,6 +921,8 @@ function LiveScoringPage() {
     { id: 'squads', label: 'Squads', hint: hasMatchDaySquads ? 'Saved' : 'Pick XI' },
     { id: 'balls', label: 'Balls', hint: `${liveQ.data?.events.length ?? 0} recorded` },
     { id: 'corrections', label: 'Fix', hint: editingBall ? 'Editing' : 'Correct ball' },
+    { id: 'review', label: 'Review', hint: 'Finalize' },
+    { id: 'help', label: 'Help', hint: 'Scorer guide' },
   ]
 
   const overStripOverNumber =
@@ -930,6 +941,78 @@ function LiveScoringPage() {
     !strikerPlayerId || !bowlerPlayerId ? 'Choose striker and bowler before scoring.' : null,
     wicketOpen && wicketType !== 'retired_hurt' && wicketType !== 'retired_not_out' && !newBatterPlayerId
       ? 'Select the new batter before saving a wicket.'
+      : null,
+  ].filter((warning): warning is string => Boolean(warning))
+
+  const allLiveEvents = [...(liveQ.data?.events ?? [])].sort(
+    (a, b) => a.sequence_number - b.sequence_number || a.id - b.id,
+  )
+  const reviewSummaries = [...(liveQ.data?.summaries ?? [])].sort(
+    (a, b) => a.innings - b.innings,
+  )
+  const firstReviewSummary = reviewSummaries.find((summary) => summary.innings === 1) ?? null
+  const secondReviewSummary = reviewSummaries.find((summary) => summary.innings === 2) ?? null
+  const reviewTeamName = (teamId: number | null | undefined) =>
+    teamId ? teamById.get(teamId)?.name ?? `Team ${teamId}` : 'Team'
+  const inningsEvents = (inningsNumber: number) =>
+    allLiveEvents.filter((event) => event.innings === inningsNumber)
+  const reviewExtrasText = (inningsNumber: number) => {
+    const events = inningsEvents(inningsNumber)
+    const wides = events
+      .filter((event) => event.extras_type === 'wide')
+      .reduce((total, event) => total + event.runs_extras, 0)
+    const noBalls = events
+      .filter((event) =>
+        event.extras_type === 'no_ball' ||
+        event.extras_type === 'no_ball_bye' ||
+        event.extras_type === 'no_ball_leg_bye',
+      )
+      .reduce((total, event) => total + 1, 0)
+    const byes = events
+      .filter((event) => event.extras_type === 'bye' || event.extras_type === 'no_ball_bye')
+      .reduce((total, event) => total + (event.extras_type === 'no_ball_bye' ? Math.max(0, event.runs_extras - 1) : event.runs_extras), 0)
+    const legByes = events
+      .filter((event) => event.extras_type === 'leg_bye' || event.extras_type === 'no_ball_leg_bye')
+      .reduce((total, event) => total + (event.extras_type === 'no_ball_leg_bye' ? Math.max(0, event.runs_extras - 1) : event.runs_extras), 0)
+    const penalties = events.reduce(
+      (total, event) => total + event.penalty_runs_batting + event.penalty_runs_fielding,
+      0,
+    )
+
+    return `Wides ${wides}, no-balls ${noBalls}, byes ${byes}, leg-byes ${legByes}, penalties ${penalties}`
+  }
+  const reviewWicketEvents = allLiveEvents.filter((event) => Boolean(event.wicket_type))
+  const reviewFieldingEvents = reviewWicketEvents.filter(
+    (event) => event.fielder_player_id || event.wicket_type === 'caught_and_bowled',
+  )
+  const reviewResultPreview = (() => {
+    if (!firstReviewSummary || !secondReviewSummary) {
+      return 'Second innings not complete yet.'
+    }
+
+    if (secondReviewSummary.runs > firstReviewSummary.runs) {
+      const wicketsLeft = Math.max(0, 10 - secondReviewSummary.wickets)
+      return `${reviewTeamName(secondReviewSummary.batting_team_id)} by ${wicketsLeft} wicket${wicketsLeft === 1 ? '' : 's'}`
+    }
+
+    if (firstReviewSummary.runs > secondReviewSummary.runs) {
+      const margin = firstReviewSummary.runs - secondReviewSummary.runs
+      return `${reviewTeamName(firstReviewSummary.batting_team_id)} by ${margin} run${margin === 1 ? '' : 's'}`
+    }
+
+    return 'Tie'
+  })()
+  const finalReviewWarnings = [
+    allLiveEvents.length === 0 ? 'No balls have been recorded.' : null,
+    !hasMatchDaySquads ? 'Match day squads have not been saved for both teams.' : null,
+    !firstReviewSummary ? 'First innings is missing.' : null,
+    !secondReviewSummary ? 'Second innings is missing.' : null,
+    !matchOvers || Number(matchOvers) <= 0 ? 'Match overs per side is missing or invalid.' : null,
+    reviewWicketEvents.some((event) =>
+      (event.wicket_type === 'caught' || event.wicket_type === 'run_out' || event.wicket_type === 'stumped') &&
+      !event.fielder_player_id,
+    )
+      ? 'Some caught/run out/stumped wickets do not have a fielder selected.'
       : null,
   ].filter((warning): warning is string => Boolean(warning))
 
@@ -986,7 +1069,7 @@ function LiveScoringPage() {
         }
         .live-scorer-tabs {
           display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
           gap: 0.45rem;
           margin-top: 0.75rem;
         }
@@ -1131,6 +1214,46 @@ function LiveScoringPage() {
           border-color: rgba(220, 38, 38, 0.45) !important;
           color: #b91c1c !important;
         }
+        .live-scorer-review-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 0.75rem;
+        }
+        .live-scorer-review-card {
+          border: 1px solid rgba(100, 116, 139, 0.25);
+          border-radius: 1rem;
+          background: #ffffff;
+          color: #111827;
+          padding: 0.85rem;
+        }
+        .live-scorer-review-card strong {
+          display: block;
+          margin-bottom: 0.3rem;
+        }
+        .live-scorer-checklist {
+          display: grid;
+          gap: 0.45rem;
+          margin: 0.75rem 0;
+        }
+        .live-scorer-checklist li {
+          margin-left: 1.1rem;
+        }
+        .live-scorer-final-confirm {
+          display: flex;
+          gap: 0.6rem;
+          align-items: flex-start;
+          margin: 1rem 0;
+          color: #111827;
+          font-weight: 800;
+        }
+        .live-scorer-final-confirm input {
+          margin-top: 0.2rem;
+        }
+        .live-scorer-help-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+          gap: 0.75rem;
+        }
         @media (max-width: 900px) {
           .live-scorer-primary-grid,
           .live-scorer-cockpit {
@@ -1146,7 +1269,7 @@ function LiveScoringPage() {
             grid-template-columns: 1fr;
           }
           .live-scorer-tabs {
-            grid-template-columns: repeat(5, minmax(58px, 1fr));
+            grid-template-columns: repeat(7, minmax(58px, 1fr));
             overflow-x: auto;
             padding-bottom: 0.1rem;
           }
@@ -2041,10 +2164,13 @@ function LiveScoringPage() {
           <button
             type="button"
             className="btn-primary"
-            onClick={markMatchOver}
+            onClick={() => {
+              setFinalReviewConfirmed(false)
+              setActiveScorerPanel('review')
+            }}
             disabled={completeMutation.isPending}
           >
-            Match over / finalize result
+            Review & finalize
           </button>
           <button
             type="button"
@@ -2056,6 +2182,149 @@ function LiveScoringPage() {
           </button>
         </div>
       </section>
+      ) : null}
+
+      {activeScorerPanel === 'review' ? (
+        <section className="team-hub-section">
+          <div className="team-hub-section-head">
+            <div className="team-hub-section-head__lead">
+              <h2 className="team-hub-section__title">Final review</h2>
+              <p className="muted">
+                Check the score, extras, wickets, fielding credits, and match overs before creating the official result and player stats.
+              </p>
+            </div>
+          </div>
+
+          <div className="live-scorer-review-grid">
+            {reviewSummaries.length > 0 ? (
+              reviewSummaries.map((summary) => (
+                <div key={summary.innings} className="live-scorer-review-card">
+                  <strong>{summary.innings === 1 ? '1st innings' : '2nd innings'}</strong>
+                  <p>
+                    {reviewTeamName(summary.batting_team_id)} {summary.runs}/{summary.wickets} in {summary.overs_label} overs
+                  </p>
+                  <p className="muted">Bowling: {reviewTeamName(summary.bowling_team_id)}</p>
+                  <p className="muted">{reviewExtrasText(summary.innings)}</p>
+                </div>
+              ))
+            ) : (
+              <div className="live-scorer-review-card">
+                <strong>No innings yet</strong>
+                <p className="muted">Start scoring before final review.</p>
+              </div>
+            )}
+
+            <div className="live-scorer-review-card">
+              <strong>Result preview</strong>
+              <p>{reviewResultPreview}</p>
+              <p className="muted">Match overs per side: {matchOvers || 'not set'}</p>
+            </div>
+
+            <div className="live-scorer-review-card">
+              <strong>NRR check</strong>
+              <p className="muted">
+                All-out innings use the full match overs. Full-overs innings use the full match overs. A successful chase uses the actual overs faced.
+              </p>
+            </div>
+          </div>
+
+          <div className="team-hub-section" style={{ marginTop: '1rem' }}>
+            <h3 className="team-hub-section__title">Fielding credits</h3>
+            {reviewFieldingEvents.length > 0 ? (
+              <ul className="live-scorer-checklist">
+                {reviewFieldingEvents.map((event) => (
+                  <li key={event.id}>
+                    {event.innings}.{event.over_number}.{event.ball_number}: {dismissalLabel(event.wicket_type)} · out: {playerName(playerById, event.wicket_player_id)}
+                    {event.wicket_type === 'caught_and_bowled'
+                      ? ` · catch: ${playerName(playerById, event.bowler_player_id)}`
+                      : event.fielder_player_id
+                        ? ` · fielder: ${playerName(playerById, event.fielder_player_id)}`
+                        : ''}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">No caught, stumped, or run-out fielding credits recorded yet.</p>
+            )}
+          </div>
+
+          {finalReviewWarnings.length > 0 ? (
+            <div className="live-scorer-warning-list" role="alert">
+              {finalReviewWarnings.map((warning) => (
+                <div key={warning} className="live-scorer-warning">
+                  {warning}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <label className="live-scorer-final-confirm">
+            <input
+              type="checkbox"
+              checked={finalReviewConfirmed}
+              onChange={(event) => setFinalReviewConfirmed(event.target.checked)}
+            />
+            <span>
+              I have checked the score, wickets, fielding credits, extras, and NRR match overs. Finalize this match as official.
+            </span>
+          </label>
+
+          <div className="catalog-toolbar">
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setActiveScorerPanel('score')}
+            >
+              Back to scoring
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={markMatchOver}
+              disabled={completeMutation.isPending || !finalReviewConfirmed}
+            >
+              {completeMutation.isPending ? 'Finalizing…' : 'Finalize official result'}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {activeScorerPanel === 'help' ? (
+        <section className="team-hub-section">
+          <div className="team-hub-section-head">
+            <div className="team-hub-section-head__lead">
+              <h2 className="team-hub-section__title">Scorer help</h2>
+              <p className="muted">Quick guide for live scorers during match day.</p>
+            </div>
+          </div>
+
+          <div className="live-scorer-help-grid">
+            <div className="live-scorer-review-card">
+              <strong>Normal ball</strong>
+              <p className="muted">Choose striker, non-striker, bowler, then tap 0, 1, 2, 3, 4 or 6. Strike rotates automatically on odd runs and at the end of an over.</p>
+            </div>
+            <div className="live-scorer-review-card">
+              <strong>Extras</strong>
+              <p className="muted">Tap Extras / MCC for wides, no-balls, byes, leg-byes, penalties, dead ball, and short-run adjustments.</p>
+            </div>
+            <div className="live-scorer-review-card">
+              <strong>Wicket</strong>
+              <p className="muted">Tap Out / wicket, choose the player out, dismissal type, fielder if required, wicket end for run outs, and the new batter.</p>
+            </div>
+            <div className="live-scorer-review-card">
+              <strong>Correction</strong>
+              <p className="muted">Use Undo last for the latest mistake. Use Balls → Edit/Delete for an earlier ball. The score and scorecard are recalculated after correction.</p>
+            </div>
+            <div className="live-scorer-review-card">
+              <strong>End innings</strong>
+              <p className="muted">Use End innings when the first innings is complete, then pick the second-innings striker, non-striker and bowler.</p>
+            </div>
+            <div className="live-scorer-review-card">
+              <strong>Finalize</strong>
+              <p className="muted">Use Review & finalize only after both innings are checked. Super admins can Reset test data for practice fixtures.</p>
+            </div>
+          </div>
+        </section>
       ) : null}
 
       {editingBall && activeScorerPanel === 'corrections' ? (
