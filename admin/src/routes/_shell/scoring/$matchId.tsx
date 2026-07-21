@@ -167,47 +167,6 @@ function matchWhen(match: MatchDto): string {
   return '—'
 }
 
-function liveEventLabel(event: LiveBallEventDto): string {
-  if (event.is_dead_ball) {
-    if (event.penalty_runs_batting) return `Penalty +${event.penalty_runs_batting}`
-    if (event.penalty_runs_fielding) return `Penalty fielding +${event.penalty_runs_fielding}`
-    return 'Dead ball'
-  }
-
-  if (event.wicket_type) return 'W'
-
-  const extrasType = event.extras_type
-  let label = ''
-
-  if (!extrasType) {
-    label = String(event.runs_batter)
-  } else if (extrasType === 'wide') {
-    label = event.runs_extras === 1 ? 'Wide' : `Wide ${event.runs_extras}`
-  } else if (extrasType === 'no_ball') {
-    label = event.runs_batter > 0
-      ? `${event.runs_batter} + no ball`
-      : 'No ball'
-  } else if (extrasType === 'bye') {
-    label = `Bye ${event.runs_extras}`
-  } else if (extrasType === 'leg_bye') {
-    label = `Leg bye ${event.runs_extras}`
-  } else if (extrasType === 'no_ball_bye') {
-    label = `No ball + bye ${Math.max(0, event.runs_extras - 1)}`
-  } else if (extrasType === 'no_ball_leg_bye') {
-    label = `No ball + leg bye ${Math.max(0, event.runs_extras - 1)}`
-  } else if (extrasType === 'penalty') {
-    label = event.penalty_runs_batting
-      ? `Penalty +${event.penalty_runs_batting}`
-      : `Penalty fielding +${event.penalty_runs_fielding}`
-  } else {
-    label = `${event.runs_extras} ${extrasType.split('_').join(' ')}`
-  }
-
-  if (event.boundary_type) label += ' · boundary'
-  if (event.short_runs) label += ` · ${event.short_runs} short`
-  return label
-}
-
 function playerName(playerById: Map<number, PlayerDto>, playerId: number | null | undefined): string {
   if (!playerId) return '—'
   return playerById.get(playerId)?.full_name ?? `#${playerId}`
