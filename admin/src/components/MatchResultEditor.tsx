@@ -95,6 +95,10 @@ function extrasTotal(e: ExtrasFields): number {
 }
 
 function defaultAllottedOversForMatch(match: MatchDto): string {
+  if (match.match_overs != null && String(match.match_overs).trim() !== '') {
+    return String(match.match_overs)
+  }
+
   const text = [
     match.season?.league?.slug,
     match.season?.league?.name,

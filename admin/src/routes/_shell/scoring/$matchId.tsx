@@ -255,6 +255,7 @@ function LiveScoringPage() {
   const [umpire1, setUmpire1] = useState('')
   const [umpire2, setUmpire2] = useState('')
   const [reserveUmpire, setReserveUmpire] = useState('')
+  const [matchOvers, setMatchOvers] = useState('40.0')
 
   const matchTeams = useMemo<ScoringTeam[]>(() => {
     if (!match) return []
@@ -274,6 +275,9 @@ function LiveScoringPage() {
     if (!match || matchTeams.length < 2) return
     if (!tossWinnerTeamId) setTossWinnerTeamId(match.home_team_id)
     if (!battingFirstTeamId) setBattingFirstTeamId(match.home_team_id)
+    if (match.match_overs != null && String(match.match_overs).trim() !== '') {
+      setMatchOvers(String(match.match_overs))
+    }
   }, [battingFirstTeamId, match, matchTeams.length, tossWinnerTeamId])
 
   useEffect(() => {
@@ -412,10 +416,15 @@ function LiveScoringPage() {
       if (!tossWinnerTeamId || !battingFirstTeamId) {
         throw new Error('Choose toss winner and batting first team.')
       }
+      const overs = Number(matchOvers)
+      if (!Number.isFinite(overs) || overs <= 0) {
+        throw new Error('Enter valid match overs, for example 40.0 or 20.0.')
+      }
       const body: MatchLiveSetupInput = {
         toss_winner_team_id: tossWinnerTeamId,
         toss_decision: tossDecision,
         batting_first_team_id: battingFirstTeamId,
+        match_overs: matchOvers,
         umpire_1: umpire1.trim() || null,
         umpire_2: umpire2.trim() || null,
         reserve_umpire: reserveUmpire.trim() || null,
@@ -540,6 +549,7 @@ function LiveScoringPage() {
     mutationFn: (status: 'completed' | 'abandoned' | 'cancelled') =>
       adminPost<LiveScoreStateDto>(`/admin/matches/${mid}/live/complete`, {
         status,
+        match_overs: matchOvers,
       }),
     onSuccess: async () => {
       setActionError(null)
@@ -572,7 +582,7 @@ function LiveScoringPage() {
   }
 
   const markMatchOver = () => {
-    const ok = window.confirm('Mark this match as completed? This will remove it from live scoring.')
+    const ok = window.confirm('Finalize this match into the official result and scorecard? Check match overs first, because NRR uses those overs.')
     if (!ok) return
     void completeMutation.mutate('completed')
   }
@@ -812,6 +822,18 @@ function LiveScoringPage() {
                 </option>
               ))}
             </select>
+          </label>
+
+          <label className="inline-edit__field">
+            <span className="inline-edit__label">Match overs per side</span>
+            <input
+              className="inline-edit__control"
+              inputMode="decimal"
+              value={matchOvers}
+              onChange={(event) => setMatchOvers(event.target.value)}
+              placeholder="40.0"
+            />
+            <span className="muted">Used for official result and NRR. Example: 40.0 or 20.0.</span>
           </label>
 
           <label className="inline-edit__field">
@@ -1465,7 +1487,7 @@ function LiveScoringPage() {
             onClick={markMatchOver}
             disabled={completeMutation.isPending}
           >
-            Match over
+            Match over / finalize result
           </button>
           <button
             type="button"
