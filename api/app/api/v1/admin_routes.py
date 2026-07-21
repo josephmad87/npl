@@ -3485,6 +3485,84 @@ def _finalize_live_match_result(
     recompute_player_career_stats(db, affected_player_ids)
 
 
+@router.post("/matches/{match_id}/live/reset-test", response_model=LiveScoreStateOut)
+def admin_reset_live_test_match(
+    match_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super_admin),
+) -> LiveScoreStateOut:
+    """Reset a test fixture without deleting the fixture or scorer assignment.
+
+    This removes all data captured during live scoring and recomputes affected
+    player career totals so test runs do not affect player stats or standings.
+    """
+    match = db.scalar(
+        select(Match)
+        .options(joinedload(Match.result), selectinload(Match.player_stats))
+        .where(Match.id == match_id),
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+
+    affected_player_ids = affected_player_ids_for_match(db, match_id)
+    affected_player_ids.update(
+        db.scalars(
+            select(MatchBallEvent.striker_player_id).where(MatchBallEvent.match_id == match_id),
+        ).all(),
+    )
+    affected_player_ids.update(
+        player_id
+        for player_id in db.scalars(
+            select(MatchBallEvent.non_striker_player_id).where(MatchBallEvent.match_id == match_id),
+        ).all()
+        if player_id is not None
+    )
+    affected_player_ids.update(
+        db.scalars(
+            select(MatchBallEvent.bowler_player_id).where(MatchBallEvent.match_id == match_id),
+        ).all(),
+    )
+    affected_player_ids.update(
+        player_id
+        for player_id in db.scalars(
+            select(MatchBallEvent.wicket_player_id).where(MatchBallEvent.match_id == match_id),
+        ).all()
+        if player_id is not None
+    )
+    affected_player_ids.update(
+        player_id
+        for player_id in db.scalars(
+            select(MatchBallEvent.fielder_player_id).where(MatchBallEvent.match_id == match_id),
+        ).all()
+        if player_id is not None
+    )
+
+    db.execute(delete(MatchBallEvent).where(MatchBallEvent.match_id == match_id))
+    db.execute(delete(MatchDaySquadPlayer).where(MatchDaySquadPlayer.match_id == match_id))
+    db.execute(delete(MatchPlayerStat).where(MatchPlayerStat.match_id == match_id))
+    db.execute(delete(MatchResult).where(MatchResult.match_id == match_id))
+
+    match.status = "scheduled"
+    match.toss_info = None
+    match.umpires = None
+    match.match_overs = Decimal("40.0")
+
+    if affected_player_ids:
+        recompute_player_career_stats(db, affected_player_ids)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="reset_live_test_match",
+        entity_type="match",
+        entity_id=match_id,
+        summary=f"Reset test live scoring data for match {match_id}",
+    )
+    db.commit()
+    db.refresh(match)
+    return _live_score_state(db, match)
+
+
 @router.post("/matches/{match_id}/live/complete", response_model=LiveScoreStateOut)
 def admin_complete_live_score(
     match_id: int,
