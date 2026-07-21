@@ -25,6 +25,7 @@ class Match(Base):
     venue: Mapped[str | None] = mapped_column(String(255))
     match_date: Mapped[date | None] = mapped_column(Date, index=True)
     start_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    match_overs: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("40.0"), nullable=False)
     toss_info: Mapped[str | None] = mapped_column(String(512))
     umpires: Mapped[str | None] = mapped_column(String(512))
     status: Mapped[str] = mapped_column(String(32), default="scheduled", nullable=False, index=True)
