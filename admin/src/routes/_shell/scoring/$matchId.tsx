@@ -7,7 +7,6 @@ import type {
   LiveBallEventInput,
   LiveScoreStateDto,
   MatchDto,
-  MatchLiveSetupInput,
   MatchSquadDto,
   MatchSquadRole,
   MatchSquadSaveInput,
@@ -35,6 +34,7 @@ type PlayerRoleMap = Record<number, MatchSquadRole | ''>
 type BallSubmitPayload = {
   body: LiveBallEventInput
   newBatterId?: number | null
+  strikeRuns?: number
 }
 
 type DismissalOption = {
@@ -108,8 +108,32 @@ function matchWhen(match: MatchDto): string {
 
 function liveEventLabel(event: LiveBallEventDto): string {
   if (event.wicket_type) return 'W'
-  if (event.extras_type) return `${event.runs_extras} ${event.extras_type.split('_').join(' ')}`
-  return String(event.runs_batter)
+
+  const extrasType = event.extras_type
+  if (!extrasType) return String(event.runs_batter)
+
+  if (extrasType === 'wide') {
+    return event.runs_extras === 1 ? 'Wide' : `Wide ${event.runs_extras}`
+  }
+
+  if (extrasType === 'no_ball') {
+    return event.runs_batter > 0
+      ? `${event.runs_batter} + no ball`
+      : 'No ball'
+  }
+
+  if (extrasType === 'bye') return `Bye ${event.runs_extras}`
+  if (extrasType === 'leg_bye') return `Leg bye ${event.runs_extras}`
+
+  if (extrasType === 'no_ball_bye') {
+    return `No ball + bye ${Math.max(0, event.runs_extras - 1)}`
+  }
+
+  if (extrasType === 'no_ball_leg_bye') {
+    return `No ball + leg bye ${Math.max(0, event.runs_extras - 1)}`
+  }
+
+  return `${event.runs_extras} ${extrasType.split('_').join(' ')}`
 }
 
 function playerName(playerById: Map<number, PlayerDto>, playerId: number | null | undefined): string {
@@ -122,43 +146,8 @@ function dismissalLabel(value: string | null | undefined): string {
   return DISMISSAL_OPTIONS.find((item) => item.value === value)?.label ?? value.split('_').join(' ')
 }
 
-function totalRunsForStrike(body: LiveBallEventInput): number {
-  return (body.runs_batter ?? 0) + (body.runs_extras ?? 0)
-}
-
 function selectedRoleCount(players: PlayerDto[], roles: PlayerRoleMap, role: MatchSquadRole): number {
   return players.filter((player) => roles[player.id] === role).length
-}
-
-
-
-function otherMatchTeamId(match: MatchDto | null, teamId: number | ''): number | '' {
-  if (!match || !teamId) return ''
-  if (teamId === match.home_team_id) return match.away_team_id
-  if (teamId === match.away_team_id) return match.home_team_id
-  return ''
-}
-
-function teamNameById(teams: ScoringTeam[], teamId: number | ''): string {
-  if (!teamId) return ''
-  return teams.find((team) => team.id === teamId)?.name ?? `Team ${teamId}`
-}
-
-function parseSetupId(raw: string | null | undefined, label: string): number | '' {
-  const match = raw?.match(new RegExp(`${label}:\\s*(\\d+)`, 'i'))
-  if (!match) return ''
-  const parsed = Number(match[1])
-  return Number.isFinite(parsed) ? parsed : ''
-}
-
-function parseSetupText(raw: string | null | undefined, label: string): string {
-  const match = raw?.match(new RegExp(`${label}:\\s*([^;]+)`, 'i'))
-  return match?.[1]?.trim() ?? ''
-}
-
-function parseUmpire(raw: string | null | undefined, label: string): string {
-  const value = parseSetupText(raw, label)
-  return value
 }
 
 function LiveScoringPage() {
@@ -233,13 +222,6 @@ function LiveScoringPage() {
   const [bowlerPlayerId, setBowlerPlayerId] = useState<number | ''>('')
   const [notes, setNotes] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
-  const [tossWinnerTeamId, setTossWinnerTeamId] = useState<number | ''>('')
-  const [tossDecision, setTossDecision] = useState<'bat' | 'bowl'>('bat')
-  const [battingFirstTeamId, setBattingFirstTeamId] = useState<number | ''>('')
-  const [umpire1, setUmpire1] = useState('')
-  const [umpire2, setUmpire2] = useState('')
-  const [reserveUmpire, setReserveUmpire] = useState('')
-  const [setupHydratedMatchId, setSetupHydratedMatchId] = useState<number | null>(null)
   const [playerRoles, setPlayerRoles] = useState<PlayerRoleMap>({})
   const [squadDirty, setSquadDirty] = useState(false)
   const [wicketOpen, setWicketOpen] = useState(false)
@@ -263,35 +245,6 @@ function LiveScoringPage() {
   }, [match, teamById])
 
   useEffect(() => {
-    if (!match || setupHydratedMatchId === match.id) return
-
-    const savedTossWinner = parseSetupId(match.toss_info, 'Toss winner')
-    const savedBattingFirst = parseSetupId(match.toss_info, 'Batting first')
-    const savedDecision = parseSetupText(match.toss_info, 'Decision').toLowerCase()
-
-    setTossWinnerTeamId(savedTossWinner || match.home_team_id)
-    setTossDecision(savedDecision === 'bowl' ? 'bowl' : 'bat')
-    setBattingFirstTeamId(savedBattingFirst || match.home_team_id)
-    setUmpire1(parseUmpire(match.umpires, 'Umpire 1'))
-    setUmpire2(parseUmpire(match.umpires, 'Umpire 2'))
-    setReserveUmpire(parseUmpire(match.umpires, 'Reserve/TV'))
-    setSetupHydratedMatchId(match.id)
-  }, [match, setupHydratedMatchId])
-
-  const updateTossWinner = (teamId: number) => {
-    setTossWinnerTeamId(teamId)
-    const otherTeamId = otherMatchTeamId(match, teamId)
-    setBattingFirstTeamId(tossDecision === 'bat' ? teamId : otherTeamId)
-  }
-
-  const updateTossDecision = (decision: 'bat' | 'bowl') => {
-    setTossDecision(decision)
-    if (!tossWinnerTeamId) return
-    const otherTeamId = otherMatchTeamId(match, tossWinnerTeamId)
-    setBattingFirstTeamId(decision === 'bat' ? tossWinnerTeamId : otherTeamId)
-  }
-
-  useEffect(() => {
     if (!squadQ.data || squadDirty) return
 
     const next: PlayerRoleMap = {}
@@ -306,15 +259,12 @@ function LiveScoringPage() {
   useEffect(() => {
     if (!match) return
 
-    const firstBattingTeam = battingFirstTeamId || match.home_team_id
-    const secondBattingTeam = otherMatchTeamId(match, firstBattingTeam) || match.away_team_id
-
     if (innings === 1) {
-      setBattingTeamId(firstBattingTeam)
-      setBowlingTeamId(secondBattingTeam)
+      setBattingTeamId(match.home_team_id)
+      setBowlingTeamId(match.away_team_id)
     } else {
-      setBattingTeamId(secondBattingTeam)
-      setBowlingTeamId(firstBattingTeam)
+      setBattingTeamId(match.away_team_id)
+      setBowlingTeamId(match.home_team_id)
     }
 
     setStrikerPlayerId('')
@@ -323,7 +273,7 @@ function LiveScoringPage() {
     setWicketPlayerId('')
     setFielderPlayerId('')
     setNewBatterPlayerId('')
-  }, [battingFirstTeamId, innings, match])
+  }, [innings, match])
 
   const teamHasSavedSquad = useMemo(() => {
     const result = new Map<number, boolean>()
@@ -395,31 +345,6 @@ function LiveScoringPage() {
   const bowlingTeamName =
     matchTeams.find((team) => team.id === bowlingTeamId)?.name ?? 'Bowling team'
 
-  const setupMutation = useMutation({
-    mutationFn: () => {
-      if (!match) throw new Error('Match not loaded.')
-      if (!tossWinnerTeamId || !battingFirstTeamId) {
-        throw new Error('Choose toss winner and batting first team.')
-      }
-
-      const body: MatchLiveSetupInput = {
-        toss_winner_team_id: tossWinnerTeamId,
-        toss_decision: tossDecision,
-        batting_first_team_id: battingFirstTeamId,
-        umpire_1: umpire1.trim() || null,
-        umpire_2: umpire2.trim() || null,
-        reserve_umpire: reserveUmpire.trim() || null,
-      }
-
-      return adminPutJson<MatchDto>(`/admin/matches/${mid}/live/setup`, body)
-    },
-    onSuccess: async () => {
-      setActionError(null)
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
-    },
-    onError: (error: Error) => setActionError(error.message),
-  })
-
   const saveSquadMutation = useMutation({
     mutationFn: () => {
       if (!match) throw new Error('Match not loaded.')
@@ -471,7 +396,11 @@ function LiveScoringPage() {
     onError: (error: Error) => setActionError(error.message),
   })
 
-  const applyPostBallState = (body: LiveBallEventInput, newBatterId: number | null) => {
+  const applyPostBallState = (
+    body: LiveBallEventInput,
+    newBatterId: number | null,
+    strikeRuns: number,
+  ) => {
     let nextStriker = strikerPlayerId
     let nextNonStriker = nonStrikerPlayerId
 
@@ -483,7 +412,7 @@ function LiveScoringPage() {
       }
     }
 
-    const oddRuns = totalRunsForStrike(body) % 2 === 1
+    const oddRuns = strikeRuns % 2 === 1
     const endOfOver = body.is_legal_delivery !== false && (legalBalls + 1) % 6 === 0
 
     if (oddRuns !== endOfOver && nextStriker && nextNonStriker) {
@@ -505,7 +434,7 @@ function LiveScoringPage() {
       setWicketOpen(false)
       setFielderPlayerId('')
       setNewBatterPlayerId('')
-      applyPostBallState(payload.body, payload.newBatterId ?? null)
+      applyPostBallState(payload.body, payload.newBatterId ?? null, payload.strikeRuns ?? 0)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
     },
     onError: (error: Error) => setActionError(error.message),
@@ -572,6 +501,7 @@ function LiveScoringPage() {
       wicketPlayerId?: number | null
       fielderPlayerId?: number | null
       dismissalText?: string | null
+      strikeRuns?: number
     },
     newBatterId?: number | null,
   ) => {
@@ -602,7 +532,11 @@ function LiveScoringPage() {
       notes: notes.trim() || null,
     }
 
-    void ballMutation.mutate({ body, newBatterId })
+    void ballMutation.mutate({
+      body,
+      newBatterId,
+      strikeRuns: input.strikeRuns ?? input.runsBatter ?? 0,
+    })
   }
 
   const submitWicket = () => {
@@ -673,15 +607,13 @@ function LiveScoringPage() {
   )
   const inningsTarget =
     innings === 1 && currentSummary ? currentSummary.runs + 1 : null
-  const tossWinnerName = teamNameById(matchTeams, tossWinnerTeamId)
-  const battingFirstName = teamNameById(matchTeams, battingFirstTeamId)
 
   return (
     <>
       <PageHeader
         title="Live scoring"
         descriptionAsTooltip
-        description="Record match setup, pick match day squads, then score ball-by-ball from the selected XI and substitutes."
+        description="Pick match day squads first, then score ball-by-ball from the selected XI and substitutes."
         actions={<Link to="/scoring">Scoring dashboard</Link>}
       />
 
@@ -711,109 +643,6 @@ function LiveScoringPage() {
         {liveQ.isError ? <p className="login-error">{liveQ.error.message}</p> : null}
         {squadQ.isError ? <p className="login-error">{squadQ.error.message}</p> : null}
         {actionError ? <p className="login-error">{actionError}</p> : null}
-      </section>
-
-      <section className="team-hub-section">
-        <div className="team-hub-section-head">
-          <div className="team-hub-section-head__lead">
-            <h2 className="team-hub-section__title">Match setup</h2>
-            <p className="muted">
-              Record the toss, batting first team and umpire names before the first ball.
-            </p>
-          </div>
-          <button
-            type="button"
-            className="btn-primary btn--with-icon"
-            onClick={() => void setupMutation.mutate()}
-            disabled={setupMutation.isPending}
-          >
-            <Save size={18} strokeWidth={2} aria-hidden />
-            {setupMutation.isPending ? 'Saving…' : 'Save setup'}
-          </button>
-        </div>
-
-        <div className="inline-edit__grid">
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Toss won by</span>
-            <select
-              className="inline-edit__control"
-              value={tossWinnerTeamId}
-              onChange={(event) => updateTossWinner(Number(event.target.value))}
-            >
-              <option value="">Choose team</option>
-              {matchTeams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Toss decision</span>
-            <select
-              className="inline-edit__control"
-              value={tossDecision}
-              onChange={(event) => updateTossDecision(event.target.value as 'bat' | 'bowl')}
-            >
-              <option value="bat">Bat first</option>
-              <option value="bowl">Bowl first</option>
-            </select>
-          </label>
-
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Team batting first</span>
-            <select
-              className="inline-edit__control"
-              value={battingFirstTeamId}
-              onChange={(event) => setBattingFirstTeamId(Number(event.target.value))}
-            >
-              <option value="">Choose team</option>
-              {matchTeams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Umpire 1</span>
-            <input
-              className="inline-edit__control"
-              value={umpire1}
-              onChange={(event) => setUmpire1(event.target.value)}
-              placeholder="Enter umpire name"
-            />
-          </label>
-
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Umpire 2</span>
-            <input
-              className="inline-edit__control"
-              value={umpire2}
-              onChange={(event) => setUmpire2(event.target.value)}
-              placeholder="Enter umpire name"
-            />
-          </label>
-
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Reserve / TV umpire</span>
-            <input
-              className="inline-edit__control"
-              value={reserveUmpire}
-              onChange={(event) => setReserveUmpire(event.target.value)}
-              placeholder="Optional"
-            />
-          </label>
-        </div>
-
-        <p className="muted">
-          {tossWinnerName
-            ? `${tossWinnerName} won the toss and chose to ${tossDecision}. `
-            : 'Choose the team that won the toss. '}
-          {battingFirstName ? `${battingFirstName} will bat first.` : ''}
-        </p>
       </section>
 
       <section className="team-hub-section">
@@ -1020,80 +849,194 @@ function LiveScoringPage() {
           </div>
         </div>
 
-        <div className="catalog-card-grid">
-          {[0, 1, 2, 3, 4, 6].map((runs) => (
+        <div className="team-hub-section" style={{ marginTop: '1rem' }}>
+          <div className="team-hub-section-head">
+            <div className="team-hub-section-head__lead">
+              <h4 className="team-hub-section__title">Batter runs</h4>
+              <p className="muted">Legal delivery unless you use a no-ball option below.</p>
+            </div>
+          </div>
+          <div className="catalog-card-grid">
+            {[0, 1, 2, 3, 4, 6].map((runs) => (
+              <button
+                key={runs}
+                type="button"
+                className="btn-primary"
+                onClick={() => submitBall({ runsBatter: runs, strikeRuns: runs })}
+                disabled={ballMutation.isPending}
+              >
+                {runs}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="team-hub-section" style={{ marginTop: '1rem' }}>
+          <div className="team-hub-section-head">
+            <div className="team-hub-section-head__lead">
+              <h4 className="team-hub-section__title">Wides</h4>
+              <p className="muted">Wide is not a legal delivery. The total includes the one-run wide penalty.</p>
+            </div>
+          </div>
+          <div className="catalog-card-grid">
+            {[0, 1, 2, 3, 4].map((completedRuns) => {
+              const totalWides = completedRuns + 1
+
+              return (
+                <button
+                  key={`wide-${completedRuns}`}
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() =>
+                    submitBall({
+                      runsExtras: totalWides,
+                      extrasType: 'wide',
+                      isLegalDelivery: false,
+                      strikeRuns: completedRuns,
+                    })
+                  }
+                  disabled={ballMutation.isPending}
+                >
+                  {completedRuns === 0 ? 'Wide' : `Wide + ${completedRuns}`}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="team-hub-section" style={{ marginTop: '1rem' }}>
+          <div className="team-hub-section-head">
+            <div className="team-hub-section-head__lead">
+              <h4 className="team-hub-section__title">No-balls</h4>
+              <p className="muted">No-ball is not a legal delivery. Bat runs go to the batter; byes/leg-byes stay as extras.</p>
+            </div>
+          </div>
+          <div className="catalog-card-grid">
             <button
-              key={runs}
-              type="button"
-              className="btn-primary"
-              onClick={() => submitBall({ runsBatter: runs })}
-              disabled={ballMutation.isPending}
-            >
-              {runs}
-            </button>
-          ))}
-          {[1, 2, 3, 4].map((runs) => (
-            <button
-              key={`wide-${runs}`}
               type="button"
               className="btn-ghost"
               onClick={() =>
-                submitBall({ runsExtras: runs, extrasType: 'wide', isLegalDelivery: false })
+                submitBall({
+                  runsExtras: 1,
+                  extrasType: 'no_ball',
+                  isLegalDelivery: false,
+                  strikeRuns: 0,
+                })
               }
               disabled={ballMutation.isPending}
             >
-              Wide {runs}
+              No ball
             </button>
-          ))}
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() =>
-              submitBall({ runsExtras: 1, extrasType: 'no_ball', isLegalDelivery: false })
-            }
-            disabled={ballMutation.isPending}
-          >
-            No ball
-          </button>
-          {[1, 2, 3, 4].map((runs) => (
+            {[1, 2, 3, 4, 6].map((runs) => (
+              <button
+                key={`no-ball-bat-${runs}`}
+                type="button"
+                className="btn-ghost"
+                onClick={() =>
+                  submitBall({
+                    runsBatter: runs,
+                    runsExtras: 1,
+                    extrasType: 'no_ball',
+                    isLegalDelivery: false,
+                    strikeRuns: runs,
+                  })
+                }
+                disabled={ballMutation.isPending}
+              >
+                NB + {runs} bat
+              </button>
+            ))}
+            {[1, 2, 3, 4].map((runs) => (
+              <button
+                key={`no-ball-bye-${runs}`}
+                type="button"
+                className="btn-ghost"
+                onClick={() =>
+                  submitBall({
+                    runsExtras: runs + 1,
+                    extrasType: 'no_ball_bye',
+                    isLegalDelivery: false,
+                    strikeRuns: runs,
+                  })
+                }
+                disabled={ballMutation.isPending}
+              >
+                NB + {runs} bye
+              </button>
+            ))}
+            {[1, 2, 3, 4].map((runs) => (
+              <button
+                key={`no-ball-leg-bye-${runs}`}
+                type="button"
+                className="btn-ghost"
+                onClick={() =>
+                  submitBall({
+                    runsExtras: runs + 1,
+                    extrasType: 'no_ball_leg_bye',
+                    isLegalDelivery: false,
+                    strikeRuns: runs,
+                  })
+                }
+                disabled={ballMutation.isPending}
+              >
+                NB + {runs} leg bye
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="team-hub-section" style={{ marginTop: '1rem' }}>
+          <div className="team-hub-section-head">
+            <div className="team-hub-section-head__lead">
+              <h4 className="team-hub-section__title">Byes and leg-byes</h4>
+              <p className="muted">These are legal deliveries unless the no-ball options above are used.</p>
+            </div>
+          </div>
+          <div className="catalog-card-grid">
+            {[1, 2, 3, 4].map((runs) => (
+              <button
+                key={`bye-${runs}`}
+                type="button"
+                className="btn-ghost"
+                onClick={() =>
+                  submitBall({ runsExtras: runs, extrasType: 'bye', strikeRuns: runs })
+                }
+                disabled={ballMutation.isPending}
+              >
+                Bye {runs}
+              </button>
+            ))}
+            {[1, 2, 3, 4].map((runs) => (
+              <button
+                key={`leg-bye-${runs}`}
+                type="button"
+                className="btn-ghost"
+                onClick={() =>
+                  submitBall({ runsExtras: runs, extrasType: 'leg_bye', strikeRuns: runs })
+                }
+                disabled={ballMutation.isPending}
+              >
+                Leg bye {runs}
+              </button>
+            ))}
             <button
-              key={`bye-${runs}`}
               type="button"
               className="btn-ghost"
-              onClick={() => submitBall({ runsExtras: runs, extrasType: 'bye' })}
+              onClick={() => setWicketOpen((open) => !open)}
               disabled={ballMutation.isPending}
             >
-              Bye {runs}
+              Out / wicket
             </button>
-          ))}
-          {[1, 2, 3, 4].map((runs) => (
             <button
-              key={`leg-bye-${runs}`}
               type="button"
-              className="btn-ghost"
-              onClick={() => submitBall({ runsExtras: runs, extrasType: 'leg_bye' })}
-              disabled={ballMutation.isPending}
+              className="btn-ghost btn--with-icon"
+              onClick={() => void undoMutation.mutate()}
+              disabled={undoMutation.isPending}
             >
-              Leg bye {runs}
+              <Undo2 size={18} strokeWidth={2} aria-hidden />
+              Undo last ball
             </button>
-          ))}
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => setWicketOpen((open) => !open)}
-            disabled={ballMutation.isPending}
-          >
-            Out / wicket
-          </button>
-          <button
-            type="button"
-            className="btn-ghost btn--with-icon"
-            onClick={() => void undoMutation.mutate()}
-            disabled={undoMutation.isPending}
-          >
-            <Undo2 size={18} strokeWidth={2} aria-hidden />
-            Undo last ball
-          </button>
+          </div>
         </div>
 
         {wicketOpen ? (

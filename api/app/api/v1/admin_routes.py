@@ -57,7 +57,6 @@ from app.schemas.matches import (
     MatchBulkCancelIn,
     MatchCreate,
     MatchDetailOut,
-    MatchLiveSetupIn,
     MatchResultIn,
     MatchScorerAssignmentIn,
     MatchScorerAssignmentOut,
@@ -2035,10 +2034,31 @@ def _validate_squad_player(db: Session, match: Match, team_id: int, player_id: i
 def _live_ball_label(event: MatchBallEvent) -> str:
     if event.wicket_type:
         return "W"
-    if event.extras_type:
-        code = event.extras_type.lower().replace("_", " ")
-        return f"{event.runs_extras}{code[:2]}"
-    return str(event.runs_batter)
+
+    extras_type = (event.extras_type or "").strip().lower()
+    if not extras_type:
+        return str(event.runs_batter)
+
+    if extras_type == "wide":
+        return "wd" if event.runs_extras == 1 else f"{event.runs_extras}wd"
+
+    if extras_type == "no_ball":
+        return "nb" if event.runs_batter == 0 else f"{event.runs_batter}+nb"
+
+    if extras_type == "bye":
+        return f"{event.runs_extras}b"
+
+    if extras_type == "leg_bye":
+        return f"{event.runs_extras}lb"
+
+    if extras_type == "no_ball_bye":
+        return f"nb+{max(0, event.runs_extras - 1)}b"
+
+    if extras_type == "no_ball_leg_bye":
+        return f"nb+{max(0, event.runs_extras - 1)}lb"
+
+    code = extras_type.replace("_", " ")
+    return f"{event.runs_extras}{code[:2]}"
 
 
 def _live_overs_label(legal_balls: int) -> str:
@@ -2047,6 +2067,102 @@ def _live_overs_label(legal_balls: int) -> str:
 
 def _live_event_out(event: MatchBallEvent) -> LiveBallEventOut:
     return LiveBallEventOut.model_validate(event)
+
+
+def _validate_live_ball_event(body: LiveBallEventIn) -> None:
+    extras_type = (body.extras_type or "").strip().lower() or None
+    allowed_extras = {
+        None,
+        "wide",
+        "no_ball",
+        "bye",
+        "leg_bye",
+        "no_ball_bye",
+        "no_ball_leg_bye",
+    }
+
+    if extras_type not in allowed_extras:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "validation",
+                "message": "extras_type must be wide, no_ball, bye, leg_bye, no_ball_bye, or no_ball_leg_bye.",
+            },
+        )
+
+    if extras_type is None:
+        if body.runs_extras != 0:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "runs_extras requires an extras_type."},
+            )
+        return
+
+    if extras_type == "wide":
+        if body.is_legal_delivery:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Wide balls are not legal deliveries."},
+            )
+        if body.runs_batter != 0:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Runs from a Wide are extras, not batter runs."},
+            )
+        if body.runs_extras < 1:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "A Wide must include the one-run penalty."},
+            )
+        return
+
+    if extras_type == "no_ball":
+        if body.is_legal_delivery:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "No-balls are not legal deliveries."},
+            )
+        if body.runs_extras < 1:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "A No-ball must include the one-run penalty."},
+            )
+        return
+
+    if extras_type in {"bye", "leg_bye"}:
+        if not body.is_legal_delivery:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Use no_ball_bye or no_ball_leg_bye when byes/leg-byes happen on a No-ball."},
+            )
+        if body.runs_batter != 0:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Byes and leg-byes are extras, not batter runs."},
+            )
+        if body.runs_extras < 1:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Byes and leg-byes must record at least one run."},
+            )
+        return
+
+    if extras_type in {"no_ball_bye", "no_ball_leg_bye"}:
+        if body.is_legal_delivery:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "No-ball byes and no-ball leg-byes are not legal deliveries."},
+            )
+        if body.runs_batter != 0:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "No-ball byes/leg-byes are extras, not batter runs."},
+            )
+        if body.runs_extras < 2:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "No-ball byes/leg-byes must include the one-run No-ball penalty plus completed runs."},
+            )
 
 
 def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
@@ -2335,80 +2451,6 @@ def admin_save_match_day_squad(
     return _match_squad_out(db, match)
 
 
-def _match_team_name(match: Match, team_id: int) -> str:
-    if team_id == match.home_team_id:
-        return match.home_team.name if match.home_team else f"Team {team_id}"
-    if team_id == match.away_team_id:
-        return match.away_team.name if match.away_team else f"Team {team_id}"
-    return f"Team {team_id}"
-
-
-@router.put("/matches/{match_id}/live/setup", response_model=MatchDetailOut)
-def admin_save_live_match_setup(
-    match_id: int,
-    body: MatchLiveSetupIn,
-    db: Session = Depends(get_db),
-    actor: User = Depends(get_current_user),
-) -> MatchDetailOut:
-    match = db.scalar(
-        select(Match)
-        .options(
-            joinedload(Match.home_team),
-            joinedload(Match.away_team),
-            joinedload(Match.result),
-            selectinload(Match.player_stats),
-            joinedload(Match.season).joinedload(Season.league),
-        )
-        .where(Match.id == match_id)
-    )
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
-    _assert_live_team_ids(match, body.toss_winner_team_id, body.batting_first_team_id)
-
-    team_ids = {match.home_team_id, match.away_team_id}
-    bowling_first_team_id = next((tid for tid in team_ids if tid != body.batting_first_team_id), None)
-    if bowling_first_team_id is None:
-        raise HTTPException(
-            status_code=400,
-            detail={"code": "validation", "message": "Could not determine the bowling team."},
-        )
-
-    toss_team = _match_team_name(match, body.toss_winner_team_id)
-    batting_first_team = _match_team_name(match, body.batting_first_team_id)
-    decision_label = "bat" if body.toss_decision == "bat" else "bowl"
-
-    match.toss_info = (
-        f"Toss winner: {body.toss_winner_team_id} - {toss_team}; "
-        f"Decision: {decision_label}; "
-        f"Batting first: {body.batting_first_team_id} - {batting_first_team}"
-    )
-
-    umpire_parts: list[str] = []
-    if body.umpire_1 and body.umpire_1.strip():
-        umpire_parts.append(f"Umpire 1: {body.umpire_1.strip()}")
-    if body.umpire_2 and body.umpire_2.strip():
-        umpire_parts.append(f"Umpire 2: {body.umpire_2.strip()}")
-    if body.reserve_umpire and body.reserve_umpire.strip():
-        umpire_parts.append(f"Reserve/TV: {body.reserve_umpire.strip()}")
-    match.umpires = "; ".join(umpire_parts) if umpire_parts else None
-
-    db.commit()
-    db.refresh(match)
-
-    write_audit(
-        db,
-        actor_user_id=actor.id,
-        action="save_live_match_setup",
-        entity_type="match",
-        entity_id=match_id,
-        summary=f"Saved toss and umpire setup for match {match_id}",
-    )
-    db.commit()
-
-    return MatchDetailOut.model_validate(match)
-
-
 @router.get("/matches/{match_id}/live", response_model=LiveScoreStateOut)
 def admin_live_score_state(
     match_id: int,
@@ -2453,6 +2495,7 @@ def admin_create_live_ball(
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
     _assert_can_score_match(db, match_id, actor)
     _assert_live_team_ids(match, body.batting_team_id, body.bowling_team_id)
+    _validate_live_ball_event(body)
 
     batting_squad_ids = _match_day_squad_ids(db, match_id, body.batting_team_id)
     bowling_squad_ids = _match_day_squad_ids(db, match_id, body.bowling_team_id)
