@@ -569,7 +569,8 @@ export function LiveScorePanel({
     queryKey: ['public-live-score', matchId],
     queryFn: () => fetchJson<LiveScoreState>(`/public/matches/${matchId}/live`),
     enabled: Number.isFinite(matchId),
-    refetchInterval: isLive ? 15_000 : false,
+    refetchInterval: isLive ? 3_000 : false,
+    refetchIntervalInBackground: false,
     retry: 1,
   })
 
