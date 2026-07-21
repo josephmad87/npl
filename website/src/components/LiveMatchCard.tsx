@@ -77,7 +77,8 @@ export function LiveMatchCard({
     queryKey: ['public-live-score-card', match.id],
     queryFn: () => fetchJson<LiveScoreState>(`/public/matches/${match.id}/live`),
     enabled: Number.isFinite(match.id),
-    refetchInterval: 15_000,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   })
 
