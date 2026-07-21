@@ -193,6 +193,7 @@ export type MatchDto = {
   venue: string | null
   match_date: string | null
   start_time: string | null
+  match_overs: string | number
   toss_info: string | null
   umpires: string | null
   status: string
@@ -431,9 +432,15 @@ export type MatchLiveSetupInput = {
   toss_winner_team_id: number
   toss_decision: 'bat' | 'bowl'
   batting_first_team_id: number
+  match_overs: string | number
   umpire_1?: string | null
   umpire_2?: string | null
   reserve_umpire?: string | null
+}
+
+export type LiveScoreCompleteInput = {
+  status: 'completed' | 'abandoned' | 'cancelled'
+  match_overs?: string | number | null
 }
 
 export type LiveBallEventDto = {
