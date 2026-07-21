@@ -43,7 +43,7 @@ from app.schemas.about_content import AboutContentBody, AboutContentOut
 from app.schemas.contact_message import ContactMessageOut, ContactMessageUpdate
 from app.schemas.articles import ArticleCreate, ArticleOut, ArticleUpdate
 from app.schemas.audit import AuditLogOut
-from app.schemas.auth import AdminUserCreate, UserMe
+from app.schemas.auth import AdminUserCreate, AdminUserUpdate, UserMe
 from app.schemas.gallery import GalleryItemCreate, GalleryItemOut, GalleryItemUpdate
 from app.schemas.leagues import LeagueCreate, LeagueOut, LeagueUpdate
 from app.schemas.seasons import SeasonCreate, SeasonOut, SeasonPublicOut, SeasonUpdate
@@ -519,6 +519,179 @@ def create_admin_user(
     )
     db.commit()
     return user
+
+def _active_super_admin_count(db: Session) -> int:
+    raw = db.scalar(
+        select(func.count())
+        .select_from(User)
+        .where(User.role == "super_admin", User.is_active.is_(True))
+    )
+    return int(raw or 0)
+
+
+def _remove_scorer_from_open_matches(db: Session, user_id: int) -> int:
+    rows = list(
+        db.scalars(
+            select(MatchScorerAssignment)
+            .join(Match, MatchScorerAssignment.match_id == Match.id)
+            .where(
+                MatchScorerAssignment.user_id == user_id,
+                Match.status.in_(("scheduled", "live", "postponed")),
+            )
+        ).all()
+    )
+
+    for row in rows:
+        db.delete(row)
+
+    return len(rows)
+
+
+def _set_admin_user_active_status(
+    db: Session,
+    *,
+    actor: User,
+    user_id: int,
+    is_active: bool,
+) -> User:
+    user = db.get(User, user_id)
+
+    if user is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "User not found"},
+        )
+
+    if user.id == actor.id and not is_active:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "You cannot deactivate your own account."},
+        )
+
+    if user.role == "super_admin" and user.is_active and not is_active and _active_super_admin_count(db) <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "You cannot deactivate the last active super admin."},
+        )
+
+    removed_assignments = 0
+    if user.role == "scorer" and not is_active:
+        removed_assignments = _remove_scorer_from_open_matches(db, user.id)
+
+    user.is_active = is_active
+    db.commit()
+    db.refresh(user)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="user_activate" if is_active else "user_deactivate",
+        entity_type="user",
+        entity_id=user.id,
+        summary=(
+            f"{'Reactivated' if is_active else 'Deactivated'} user {user.email}"
+            + (f" and removed {removed_assignments} open scorer assignment(s)" if removed_assignments else "")
+        ),
+    )
+    db.commit()
+
+    return user
+
+
+@router.patch("/users/{user_id}", response_model=UserMe)
+def admin_update_user(
+    user_id: int,
+    body: AdminUserUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super_admin),
+) -> User:
+    user = db.get(User, user_id)
+
+    if user is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "User not found"},
+        )
+
+    patch = body.model_dump(exclude_unset=True)
+    next_role = patch.get("role", user.role)
+    next_active = patch.get("is_active", user.is_active)
+
+    if user.id == actor.id and next_active is False:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "You cannot deactivate your own account."},
+        )
+
+    if (
+        user.role == "super_admin"
+        and user.is_active
+        and (next_role != "super_admin" or next_active is False)
+        and _active_super_admin_count(db) <= 1
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "You cannot remove or deactivate the last active super admin."},
+        )
+
+    old_role = user.role
+    removed_assignments = 0
+
+    if "full_name" in patch:
+        user.full_name = patch["full_name"]
+    if "role" in patch:
+        user.role = patch["role"]
+    if "is_active" in patch:
+        user.is_active = patch["is_active"]
+
+    if old_role == "scorer" and user.is_active is False:
+        removed_assignments = _remove_scorer_from_open_matches(db, user.id)
+
+    db.commit()
+    db.refresh(user)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="user_update",
+        entity_type="user",
+        entity_id=user.id,
+        summary=(
+            f"Updated user {user.email}"
+            + (f" and removed {removed_assignments} open scorer assignment(s)" if removed_assignments else "")
+        ),
+    )
+    db.commit()
+
+    return user
+
+
+@router.delete("/users/{user_id}", response_model=UserMe)
+def admin_deactivate_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super_admin),
+) -> User:
+    return _set_admin_user_active_status(
+        db,
+        actor=actor,
+        user_id=user_id,
+        is_active=False,
+    )
+
+
+@router.post("/users/{user_id}/reactivate", response_model=UserMe)
+def admin_reactivate_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super_admin),
+) -> User:
+    return _set_admin_user_active_status(
+        db,
+        actor=actor,
+        user_id=user_id,
+        is_active=True,
+    )
 
 
 @router.get("/teams", response_model=dict)
