@@ -66,6 +66,7 @@ class PlayerStatsPatch(BaseModel):
     best_bowling: str | None = None
     catches: int = 0
     stumpings: int = 0
+    run_outs: int = 0
     player_of_match_awards: int = 0
 
 
@@ -99,6 +100,7 @@ class PlayerUpdate(BaseModel):
     best_bowling: str | None = None
     catches: int | None = None
     stumpings: int | None = None
+    run_outs: int | None = None
     player_of_match_awards: int | None = None
 
 
@@ -143,4 +145,5 @@ class PlayerOut(ORMModel):
     best_bowling: str | None
     catches: int
     stumpings: int
+    run_outs: int
     player_of_match_awards: int

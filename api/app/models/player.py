@@ -39,6 +39,7 @@ class Player(Base):
     best_bowling: Mapped[str | None] = mapped_column(String(64))
     catches: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     stumpings: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    run_outs: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     player_of_match_awards: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Team.captain_player_id also points at players.id — restrict this link to the squad FK.

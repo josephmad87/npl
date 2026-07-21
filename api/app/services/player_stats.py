@@ -100,6 +100,7 @@ def recompute_player_career_stats(db: Session, player_ids: Iterable[int]) -> Non
         bowling_balls = 0
         catches = 0
         stumpings = 0
+        run_outs = 0
         best_wickets = 0
         best_runs_conceded: int | None = None
 
@@ -116,6 +117,7 @@ def recompute_player_career_stats(db: Session, player_ids: Iterable[int]) -> Non
             bowling_balls += overs_to_balls(st.overs)
             catches += st.catches
             stumpings += st.stumpings
+            run_outs += st.run_outs
 
             wkts = st.wickets
             conceded = st.runs_conceded
@@ -159,6 +161,7 @@ def recompute_player_career_stats(db: Session, player_ids: Iterable[int]) -> Non
         player.best_bowling = best_bowling
         player.catches = catches
         player.stumpings = stumpings
+        player.run_outs = run_outs
         player.player_of_match_awards = potm_count
 
 
