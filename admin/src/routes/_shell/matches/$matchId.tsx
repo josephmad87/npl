@@ -282,6 +282,27 @@ function MatchDetailPage() {
       .join(', ')
   }, [scorersQ.data])
 
+  const selectedScorerSet = useMemo(
+    () => new Set(selectedScorerIds),
+    [selectedScorerIds],
+  )
+
+  const setScorerSelected = (userId: number, checked: boolean) => {
+    setSelectedScorerIds((current) => {
+      const next = new Set(current)
+      if (checked) {
+        next.add(userId)
+      } else {
+        next.delete(userId)
+      }
+      return Array.from(next).sort((a, b) => a - b)
+    })
+  }
+
+  const clearScorerAssignments = () => {
+    setSelectedScorerIds([])
+  }
+
   const saveScorerAssignments = async () => {
     if (!Number.isFinite(mid)) return
 
@@ -803,47 +824,95 @@ function MatchDetailPage() {
               </p>
             ) : (
               <div className="inline-edit__grid">
-                <label className="inline-edit__field">
-                  <span className="inline-edit__label">Assigned scorer accounts</span>
-                  <select
-                    multiple
-                    className="inline-edit__control"
-                    value={selectedScorerIds.map(String)}
-                    onChange={(event) => {
-                      const next = Array.from(event.currentTarget.selectedOptions)
-                        .map((option) => Number(option.value))
-                        .filter((value) => Number.isFinite(value))
-                      setSelectedScorerIds(next)
-                    }}
-                  >
-                    {scorerUsers.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.full_name?.trim() || user.email} — {user.email}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
                 <div className="inline-edit__field">
-                  <span className="inline-edit__label">Actions</span>
-                  <button
-                    type="button"
-                    className="btn-ghost btn--with-icon"
-                    onClick={() => void saveScorerAssignments()}
-                    disabled={isSavingScorers || usersQ.isLoading}
-                  >
-                    <Save size={18} strokeWidth={2} aria-hidden />
-                    {isSavingScorers ? 'Saving…' : 'Save scorers'}
-                  </button>
-                  {scorerSaveError ? (
-                    <p className="login-error">{scorerSaveError}</p>
-                  ) : null}
+                  <span className="inline-edit__label">Assigned scorer accounts</span>
+
                   {usersQ.isLoading ? <p className="muted">Loading scorers…</p> : null}
+
                   {!usersQ.isLoading && scorerUsers.length === 0 ? (
                     <p className="muted">
                       No active scorer users yet. Create a user with the scorer
                       role first.
                     </p>
+                  ) : null}
+
+                  {!usersQ.isLoading && scorerUsers.length > 0 ? (
+                    <div className="inline-edit__stack">
+                      {scorerUsers.map((user) => {
+                        const checked = selectedScorerSet.has(user.id)
+                        const label = user.full_name?.trim() || user.email
+
+                        return (
+                          <label key={user.id} className="checkbox-row">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) =>
+                                setScorerSelected(user.id, event.currentTarget.checked)
+                              }
+                            />
+                            <span>
+                              {label}
+                              <span className="muted"> — {user.email}</span>
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="inline-edit__field">
+                  <span className="inline-edit__label">Actions</span>
+                  <div className="inline-edit__actions">
+                    <button
+                      type="button"
+                      className="btn-ghost btn--with-icon"
+                      onClick={() => void saveScorerAssignments()}
+                      disabled={isSavingScorers || usersQ.isLoading}
+                    >
+                      <Save size={18} strokeWidth={2} aria-hidden />
+                      {isSavingScorers ? 'Saving…' : 'Save scorer assignments'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={clearScorerAssignments}
+                      disabled={isSavingScorers || selectedScorerIds.length === 0}
+                    >
+                      Clear all scorers
+                    </button>
+                  </div>
+
+                  {(scorersQ.data ?? []).length > 0 ? (
+                    <div className="inline-edit__stack">
+                      <span className="inline-edit__label">Currently assigned</span>
+                      {(scorersQ.data ?? []).map((row) => (
+                        <div key={row.id} className="inline-edit__actions">
+                          <span>
+                            {row.user_full_name?.trim() || row.user_email}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn-ghost"
+                            onClick={() => setScorerSelected(row.user_id, false)}
+                            disabled={isSavingScorers}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <p className="muted">
+                    Tick the scorer accounts that should access this fixture. To
+                    unassign everyone, click Clear all scorers, then Save scorer
+                    assignments.
+                  </p>
+
+                  {scorerSaveError ? (
+                    <p className="login-error">{scorerSaveError}</p>
                   ) : null}
                 </div>
               </div>
