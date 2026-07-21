@@ -40,6 +40,60 @@ type BallSubmitPayload = {
 
 type WicketEnd = 'striker' | 'non_striker'
 
+type EditingBallDraft = {
+  eventId: number
+  body: LiveBallEventInput
+}
+
+const EXTRAS_OPTIONS = [
+  { value: '', label: 'None' },
+  { value: 'wide', label: 'Wide' },
+  { value: 'no_ball', label: 'No ball' },
+  { value: 'bye', label: 'Bye' },
+  { value: 'leg_bye', label: 'Leg bye' },
+  { value: 'no_ball_bye', label: 'No ball + byes' },
+  { value: 'no_ball_leg_bye', label: 'No ball + leg byes' },
+  { value: 'penalty', label: 'Penalty' },
+] as const
+
+const BOUNDARY_OPTIONS = [
+  { value: '', label: 'None' },
+  { value: 'four', label: 'Four' },
+  { value: 'six', label: 'Six' },
+  { value: 'overthrow_boundary', label: 'Overthrow boundary' },
+] as const
+
+function eventToLiveBallInput(event: LiveBallEventDto): LiveBallEventInput {
+  return {
+    innings: event.innings,
+    over_number: event.over_number,
+    ball_number: event.ball_number,
+    batting_team_id: event.batting_team_id,
+    bowling_team_id: event.bowling_team_id,
+    striker_player_id: event.striker_player_id,
+    non_striker_player_id: event.non_striker_player_id,
+    bowler_player_id: event.bowler_player_id,
+    runs_batter: event.runs_batter,
+    runs_extras: event.runs_extras,
+    extras_type: event.extras_type,
+    is_legal_delivery: event.is_legal_delivery,
+    completed_runs: event.completed_runs,
+    boundary_runs: event.boundary_runs,
+    boundary_type: event.boundary_type,
+    penalty_runs_batting: event.penalty_runs_batting,
+    penalty_runs_fielding: event.penalty_runs_fielding,
+    short_runs: event.short_runs,
+    is_dead_ball: event.is_dead_ball,
+    wicket_type: event.wicket_type,
+    wicket_player_id: event.wicket_player_id,
+    fielder_player_id: event.fielder_player_id,
+    wicket_end: event.wicket_end,
+    batters_crossed: event.batters_crossed,
+    dismissal_text: event.dismissal_text,
+    notes: event.notes,
+  }
+}
+
 type DismissalOption = {
   value: string
   label: string
@@ -113,47 +167,6 @@ function matchWhen(match: MatchDto): string {
   return '—'
 }
 
-function liveEventLabel(event: LiveBallEventDto): string {
-  if (event.is_dead_ball) {
-    if (event.penalty_runs_batting) return `Penalty +${event.penalty_runs_batting}`
-    if (event.penalty_runs_fielding) return `Penalty fielding +${event.penalty_runs_fielding}`
-    return 'Dead ball'
-  }
-
-  if (event.wicket_type) return 'W'
-
-  const extrasType = event.extras_type
-  let label = ''
-
-  if (!extrasType) {
-    label = String(event.runs_batter)
-  } else if (extrasType === 'wide') {
-    label = event.runs_extras === 1 ? 'Wide' : `Wide ${event.runs_extras}`
-  } else if (extrasType === 'no_ball') {
-    label = event.runs_batter > 0
-      ? `${event.runs_batter} + no ball`
-      : 'No ball'
-  } else if (extrasType === 'bye') {
-    label = `Bye ${event.runs_extras}`
-  } else if (extrasType === 'leg_bye') {
-    label = `Leg bye ${event.runs_extras}`
-  } else if (extrasType === 'no_ball_bye') {
-    label = `No ball + bye ${Math.max(0, event.runs_extras - 1)}`
-  } else if (extrasType === 'no_ball_leg_bye') {
-    label = `No ball + leg bye ${Math.max(0, event.runs_extras - 1)}`
-  } else if (extrasType === 'penalty') {
-    label = event.penalty_runs_batting
-      ? `Penalty +${event.penalty_runs_batting}`
-      : `Penalty fielding +${event.penalty_runs_fielding}`
-  } else {
-    label = `${event.runs_extras} ${extrasType.split('_').join(' ')}`
-  }
-
-  if (event.boundary_type) label += ' · boundary'
-  if (event.short_runs) label += ` · ${event.short_runs} short`
-  return label
-}
-
 function playerName(playerById: Map<number, PlayerDto>, playerId: number | null | undefined): string {
   if (!playerId) return '—'
   return playerById.get(playerId)?.full_name ?? `#${playerId}`
@@ -162,6 +175,260 @@ function playerName(playerById: Map<number, PlayerDto>, playerId: number | null 
 function dismissalLabel(value: string | null | undefined): string {
   if (!value) return ''
   return DISMISSAL_OPTIONS.find((item) => item.value === value)?.label ?? value.split('_').join(' ')
+}
+
+
+type CommentaryDelivery = {
+  event: LiveBallEventDto
+  ballLabel: string
+  token: string
+  header: string
+  detail: string
+}
+
+type OverCommentaryGroup = {
+  key: string
+  innings: number
+  overNumber: number
+  summaryLabel: string
+  runsText: string
+  scoreText: string
+  battersText: string
+  bowlerText: string
+  deliveries: CommentaryDelivery[]
+}
+
+type BatterMiniStat = {
+  runs: number
+  balls: number
+  fours: number
+  sixes: number
+}
+
+type BowlerMiniStat = {
+  runs: number
+  balls: number
+  wickets: number
+  maidens: number
+  currentOverRuns: Map<string, number>
+}
+
+const BOWLER_CREDIT_WICKETS = new Set([
+  'bowled',
+  'caught',
+  'caught_and_bowled',
+  'lbw',
+  'stumped',
+  'hit_wicket',
+])
+
+function eventTotalRuns(event: LiveBallEventDto): number {
+  return (
+    (event.runs_batter ?? 0) +
+    (event.runs_extras ?? 0) +
+    (event.penalty_runs_batting ?? 0)
+  )
+}
+
+function batterBallCounts(event: LiveBallEventDto): boolean {
+  if (event.is_dead_ball) return false
+  if (event.is_legal_delivery === false) return false
+  return event.extras_type !== 'wide'
+}
+
+function bowlerRunsConceded(event: LiveBallEventDto): number {
+  const extrasType = event.extras_type
+  if (event.is_dead_ball) return 0
+  if (extrasType === 'bye' || extrasType === 'leg_bye') return 0
+  if (extrasType === 'no_ball_bye' || extrasType === 'no_ball_leg_bye') return 1
+  if (extrasType === 'wide') return event.runs_extras ?? 0
+  return (event.runs_batter ?? 0) + (event.runs_extras ?? 0)
+}
+
+function oversLabelFromBalls(totalBalls: number): string {
+  return `${Math.floor(totalBalls / 6)}.${totalBalls % 6}`
+}
+
+function battingNameForCommentary(playerById: Map<number, PlayerDto>, playerId: number | null | undefined): string {
+  return playerName(playerById, playerId)
+}
+
+function deliveryResultText(event: LiveBallEventDto): string {
+  if (event.is_dead_ball) {
+    if (event.penalty_runs_batting) return `${event.penalty_runs_batting} penalty runs`
+    if (event.penalty_runs_fielding) return `${event.penalty_runs_fielding} penalty runs to fielding side`
+    return 'dead ball'
+  }
+
+  if (event.wicket_type) return 'OUT'
+
+  const extrasType = event.extras_type
+  const batterRuns = event.runs_batter ?? 0
+  const extrasRuns = event.runs_extras ?? 0
+
+  if (extrasType === 'wide') return extrasRuns === 1 ? 'wide' : `${extrasRuns} wides`
+  if (extrasType === 'no_ball') return batterRuns > 0 ? `${batterRuns} run${batterRuns === 1 ? '' : 's'} + no ball` : 'no ball'
+  if (extrasType === 'bye') return extrasRuns === 1 ? 'bye' : `${extrasRuns} byes`
+  if (extrasType === 'leg_bye') return extrasRuns === 1 ? 'leg bye' : `${extrasRuns} leg byes`
+  if (extrasType === 'no_ball_bye') return `no ball + ${Math.max(0, extrasRuns - 1)} bye${extrasRuns - 1 === 1 ? '' : 's'}`
+  if (extrasType === 'no_ball_leg_bye') return `no ball + ${Math.max(0, extrasRuns - 1)} leg bye${extrasRuns - 1 === 1 ? '' : 's'}`
+  if (extrasType === 'penalty') return `${event.penalty_runs_batting || event.penalty_runs_fielding || 0} penalty runs`
+
+  if (batterRuns === 0) return 'no run'
+  if (batterRuns === 1) return '1 run'
+  return `${batterRuns} runs`
+}
+
+function deliveryToken(event: LiveBallEventDto): string {
+  if (event.is_dead_ball) {
+    if (event.penalty_runs_batting) return `+${event.penalty_runs_batting}`
+    if (event.penalty_runs_fielding) return `P${event.penalty_runs_fielding}`
+    return '•'
+  }
+  if (event.wicket_type) return 'W'
+
+  const extrasType = event.extras_type
+  const batterRuns = event.runs_batter ?? 0
+  const extrasRuns = event.runs_extras ?? 0
+
+  if (extrasType === 'wide') return extrasRuns === 1 ? 'wd' : `${extrasRuns}wd`
+  if (extrasType === 'no_ball') return batterRuns > 0 ? `${batterRuns}+nb` : 'nb'
+  if (extrasType === 'bye') return `${extrasRuns}b`
+  if (extrasType === 'leg_bye') return `${extrasRuns}lb`
+  if (extrasType === 'no_ball_bye') return `nb+${Math.max(0, extrasRuns - 1)}b`
+  if (extrasType === 'no_ball_leg_bye') return `nb+${Math.max(0, extrasRuns - 1)}lb`
+  if (extrasType === 'penalty') return `P${event.penalty_runs_batting || event.penalty_runs_fielding || 0}`
+  if (batterRuns === 0) return '•'
+  return String(batterRuns)
+}
+
+function deliveryDetail(event: LiveBallEventDto, playerById: Map<number, PlayerDto>): string {
+  const note = event.notes?.trim()
+  if (note) return note
+
+  if (event.wicket_type) {
+    const outName = playerName(playerById, event.wicket_player_id)
+    const fielder = event.fielder_player_id ? playerName(playerById, event.fielder_player_id) : ''
+    const dismissal = dismissalLabel(event.wicket_type)
+    const fielderText = fielder ? `, fielder: ${fielder}` : ''
+    const endText = event.wicket_end ? `, ${event.wicket_end.replace('_', '-')} end` : ''
+    const crossedText = event.batters_crossed ? ', batters crossed' : ''
+    return event.dismissal_text?.trim() || `${outName} is out ${dismissal}${fielderText}${endText}${crossedText}.`
+  }
+
+  const result = deliveryResultText(event)
+  const boundaryText = event.boundary_type ? ` Boundary ${event.boundary_runs || event.runs_batter}.` : ''
+  const shortText = event.short_runs ? ` ${event.short_runs} short run${event.short_runs === 1 ? '' : 's'} called.` : ''
+  return `${result.charAt(0).toUpperCase()}${result.slice(1)}.${boundaryText}${shortText}`
+}
+
+function formatBatterMini(name: string, stat: BatterMiniStat | undefined): string {
+  const row = stat ?? { runs: 0, balls: 0, fours: 0, sixes: 0 }
+  const boundaries = [row.fours ? `${row.fours}x4` : '', row.sixes ? `${row.sixes}x6` : ''].filter(Boolean).join(' ')
+  return `${name} ${row.runs} (${row.balls}b${boundaries ? ` ${boundaries}` : ''})`
+}
+
+function formatBowlerMini(name: string, stat: BowlerMiniStat | undefined): string {
+  if (!stat) return name
+  return `${name} ${oversLabelFromBalls(stat.balls)}-${stat.maidens}-${stat.runs}-${stat.wickets}`
+}
+
+function buildOverCommentaryGroups(
+  events: LiveBallEventDto[],
+  playerById: Map<number, PlayerDto>,
+): OverCommentaryGroup[] {
+  const ordered = [...events].sort(
+    (a, b) =>
+      a.innings - b.innings ||
+      a.sequence_number - b.sequence_number ||
+      a.id - b.id,
+  )
+
+  const batterStats = new Map<number, BatterMiniStat>()
+  const bowlerStats = new Map<number, BowlerMiniStat>()
+  const groups = new Map<string, OverCommentaryGroup>()
+  const inningsScore = new Map<number, { runs: number; wickets: number }>()
+
+  for (const event of ordered) {
+    const innings = inningsScore.get(event.innings) ?? { runs: 0, wickets: 0 }
+    const overKey = `${event.innings}-${event.over_number}`
+    const group = groups.get(overKey) ?? {
+      key: overKey,
+      innings: event.innings,
+      overNumber: event.over_number,
+      summaryLabel: `Over ${event.over_number}`,
+      runsText: '0 runs',
+      scoreText: '0/0',
+      battersText: '—',
+      bowlerText: '—',
+      deliveries: [],
+    }
+
+    const batter = batterStats.get(event.striker_player_id) ?? { runs: 0, balls: 0, fours: 0, sixes: 0 }
+    batter.runs += event.runs_batter ?? 0
+    if (batterBallCounts(event)) batter.balls += 1
+    if ((event.boundary_runs ?? 0) === 4 || (event.runs_batter ?? 0) === 4) batter.fours += 1
+    if ((event.boundary_runs ?? 0) === 6 || (event.runs_batter ?? 0) === 6) batter.sixes += 1
+    batterStats.set(event.striker_player_id, batter)
+
+    const bowler = bowlerStats.get(event.bowler_player_id) ?? {
+      runs: 0,
+      balls: 0,
+      wickets: 0,
+      maidens: 0,
+      currentOverRuns: new Map<string, number>(),
+    }
+    const bowlerRuns = bowlerRunsConceded(event)
+    bowler.runs += bowlerRuns
+    bowler.currentOverRuns.set(overKey, (bowler.currentOverRuns.get(overKey) ?? 0) + bowlerRuns)
+    if (event.is_legal_delivery !== false && !event.is_dead_ball) {
+      bowler.balls += 1
+      const overBallCount = group.deliveries.filter((d) => d.event.is_legal_delivery !== false && !d.event.is_dead_ball).length + 1
+      if (overBallCount === 6 && (bowler.currentOverRuns.get(overKey) ?? 0) === 0) {
+        bowler.maidens += 1
+      }
+    }
+    if (event.wicket_type && BOWLER_CREDIT_WICKETS.has(event.wicket_type)) {
+      bowler.wickets += 1
+    }
+    bowlerStats.set(event.bowler_player_id, bowler)
+
+    innings.runs += eventTotalRuns(event)
+    if (event.wicket_type && event.wicket_type !== 'retired_hurt' && event.wicket_type !== 'retired_not_out') {
+      innings.wickets += 1
+    }
+    inningsScore.set(event.innings, innings)
+
+    const striker = battingNameForCommentary(playerById, event.striker_player_id)
+    const bowlerName = playerName(playerById, event.bowler_player_id)
+    group.deliveries.push({
+      event,
+      ballLabel: `${event.over_number}.${event.ball_number}`,
+      token: deliveryToken(event),
+      header: `${bowlerName} to ${striker}, ${deliveryResultText(event)}`,
+      detail: deliveryDetail(event, playerById),
+    })
+    const overRuns = group.deliveries.reduce((sum, row) => sum + eventTotalRuns(row.event), 0)
+    group.runsText = `${overRuns} run${overRuns === 1 ? '' : 's'}`
+    group.scoreText = `${innings.runs}/${innings.wickets}`
+    group.battersText = [
+      formatBatterMini(playerName(playerById, event.striker_player_id), batterStats.get(event.striker_player_id)),
+      event.non_striker_player_id
+        ? formatBatterMini(playerName(playerById, event.non_striker_player_id), batterStats.get(event.non_striker_player_id))
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' · ')
+    group.bowlerText = formatBowlerMini(bowlerName, bowlerStats.get(event.bowler_player_id))
+    groups.set(overKey, group)
+  }
+
+  return [...groups.values()]
+    .sort((a, b) => b.innings - a.innings || b.overNumber - a.overNumber)
+    .map((group) => ({
+      ...group,
+      deliveries: [...group.deliveries].sort((a, b) => b.event.sequence_number - a.event.sequence_number || b.event.id - a.event.id),
+    }))
 }
 
 function selectedRoleCount(players: PlayerDto[], roles: PlayerRoleMap, role: MatchSquadRole): number {
@@ -232,6 +499,12 @@ function LiveScoringPage() {
     [playersQ.data],
   )
 
+
+  const commentaryGroups = useMemo(
+    () => buildOverCommentaryGroups(liveQ.data?.events ?? [], playerById),
+    [liveQ.data?.events, playerById],
+  )
+
   const [innings, setInnings] = useState(1)
   const [battingTeamId, setBattingTeamId] = useState<number | ''>('')
   const [bowlingTeamId, setBowlingTeamId] = useState<number | ''>('')
@@ -256,6 +529,8 @@ function LiveScoringPage() {
   const [umpire2, setUmpire2] = useState('')
   const [reserveUmpire, setReserveUmpire] = useState('')
   const [matchOvers, setMatchOvers] = useState('40.0')
+  const [editingBall, setEditingBall] = useState<EditingBallDraft | null>(null)
+  const [editBallError, setEditBallError] = useState<string | null>(null)
 
   const matchTeams = useMemo<ScoringTeam[]>(() => {
     if (!match) return []
@@ -545,6 +820,35 @@ function LiveScoringPage() {
     onError: (error: Error) => setActionError(error.message),
   })
 
+  const editBallMutation = useMutation({
+    mutationFn: (payload: EditingBallDraft) =>
+      adminPutJson<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live/balls/${payload.eventId}`,
+        payload.body,
+      ),
+    onSuccess: async () => {
+      setActionError(null)
+      setEditBallError(null)
+      setEditingBall(null)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
+    },
+    onError: (error: Error) => setEditBallError(error.message),
+  })
+
+  const deleteBallMutation = useMutation({
+    mutationFn: (eventId: number) =>
+      adminDeleteJson<LiveScoreStateDto>(`/admin/matches/${mid}/live/balls/${eventId}`),
+    onSuccess: async () => {
+      setActionError(null)
+      setEditBallError(null)
+      setEditingBall(null)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
+    },
+    onError: (error: Error) => setEditBallError(error.message),
+  })
+
   const completeMutation = useMutation({
     mutationFn: (status: 'completed' | 'abandoned' | 'cancelled') =>
       adminPost<LiveScoreStateDto>(`/admin/matches/${mid}/live/complete`, {
@@ -558,6 +862,33 @@ function LiveScoringPage() {
     },
     onError: (error: Error) => setActionError(error.message),
   })
+
+  const updateEditingBall = <K extends keyof LiveBallEventInput>(
+    field: K,
+    value: LiveBallEventInput[K],
+  ) => {
+    setEditingBall((current) =>
+      current
+        ? {
+            ...current,
+            body: { ...current.body, [field]: value },
+          }
+        : current,
+    )
+  }
+
+  const saveEditingBall = () => {
+    if (!editingBall) return
+    void editBallMutation.mutate(editingBall)
+  }
+
+  const deleteRecordedBall = (event: LiveBallEventDto) => {
+    const ok = window.confirm(
+      `Delete recorded ball ${event.innings}.${event.over_number}.${event.ball_number}? This will recalculate live score and the official scorecard if already finalized.`,
+    )
+    if (!ok) return
+    void deleteBallMutation.mutate(event.id)
+  }
 
   const endCurrentInnings = () => {
     if (innings >= 2) {
@@ -1500,59 +1831,410 @@ function LiveScoringPage() {
         </div>
       </section>
 
+      {editingBall ? (
+        <section className="team-hub-section">
+          <div className="team-hub-section-head">
+            <div className="team-hub-section-head__lead">
+              <h2 className="team-hub-section__title">Correct recorded ball</h2>
+              <p className="muted">
+                Edit the saved ball event. The backend will recalculate live score labels, fielding stats, and the official scorecard if this match was already finalized.
+              </p>
+            </div>
+          </div>
+
+          {editBallError ? <p className="login-error">{editBallError}</p> : null}
+
+          <div className="inline-edit__grid">
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Innings</span>
+              <input
+                type="number"
+                className="inline-edit__control"
+                value={editingBall.body.innings}
+                onChange={(event) => updateEditingBall('innings', Number(event.target.value) || 1)}
+              />
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Striker</span>
+              <select
+                className="inline-edit__control"
+                value={editingBall.body.striker_player_id}
+                onChange={(event) => updateEditingBall('striker_player_id', Number(event.target.value))}
+              >
+                {playersForTeam(editingBall.body.batting_team_id).map((player) => (
+                  <option key={player.id} value={player.id}>
+                    {player.full_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Non-striker</span>
+              <select
+                className="inline-edit__control"
+                value={editingBall.body.non_striker_player_id ?? ''}
+                onChange={(event) =>
+                  updateEditingBall(
+                    'non_striker_player_id',
+                    event.target.value ? Number(event.target.value) : null,
+                  )
+                }
+              >
+                <option value="">— None —</option>
+                {playersForTeam(editingBall.body.batting_team_id).map((player) => (
+                  <option key={player.id} value={player.id}>
+                    {player.full_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Bowler</span>
+              <select
+                className="inline-edit__control"
+                value={editingBall.body.bowler_player_id}
+                onChange={(event) => updateEditingBall('bowler_player_id', Number(event.target.value))}
+              >
+                {playersForTeam(editingBall.body.bowling_team_id).map((player) => (
+                  <option key={player.id} value={player.id}>
+                    {player.full_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Batter runs</span>
+              <input
+                type="number"
+                min={0}
+                className="inline-edit__control"
+                value={editingBall.body.runs_batter ?? 0}
+                onChange={(event) => updateEditingBall('runs_batter', Number(event.target.value) || 0)}
+              />
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Extras type</span>
+              <select
+                className="inline-edit__control"
+                value={editingBall.body.extras_type ?? ''}
+                onChange={(event) => updateEditingBall('extras_type', event.target.value || null)}
+              >
+                {EXTRAS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Extras runs</span>
+              <input
+                type="number"
+                min={0}
+                className="inline-edit__control"
+                value={editingBall.body.runs_extras ?? 0}
+                onChange={(event) => updateEditingBall('runs_extras', Number(event.target.value) || 0)}
+              />
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Completed runs for strike</span>
+              <input
+                type="number"
+                min={0}
+                className="inline-edit__control"
+                value={editingBall.body.completed_runs ?? 0}
+                onChange={(event) => updateEditingBall('completed_runs', Number(event.target.value) || 0)}
+              />
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Boundary</span>
+              <select
+                className="inline-edit__control"
+                value={editingBall.body.boundary_type ?? ''}
+                onChange={(event) => updateEditingBall('boundary_type', event.target.value || null)}
+              >
+                {BOUNDARY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Boundary runs</span>
+              <input
+                type="number"
+                min={0}
+                className="inline-edit__control"
+                value={editingBall.body.boundary_runs ?? 0}
+                onChange={(event) => updateEditingBall('boundary_runs', Number(event.target.value) || 0)}
+              />
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Penalty to batting side</span>
+              <input
+                type="number"
+                min={0}
+                step={5}
+                className="inline-edit__control"
+                value={editingBall.body.penalty_runs_batting ?? 0}
+                onChange={(event) => updateEditingBall('penalty_runs_batting', Number(event.target.value) || 0)}
+              />
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Penalty to fielding side</span>
+              <input
+                type="number"
+                min={0}
+                step={5}
+                className="inline-edit__control"
+                value={editingBall.body.penalty_runs_fielding ?? 0}
+                onChange={(event) => updateEditingBall('penalty_runs_fielding', Number(event.target.value) || 0)}
+              />
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Short runs</span>
+              <input
+                type="number"
+                min={0}
+                className="inline-edit__control"
+                value={editingBall.body.short_runs ?? 0}
+                onChange={(event) => updateEditingBall('short_runs', Number(event.target.value) || 0)}
+              />
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Dismissal</span>
+              <select
+                className="inline-edit__control"
+                value={editingBall.body.wicket_type ?? ''}
+                onChange={(event) => updateEditingBall('wicket_type', event.target.value || null)}
+              >
+                <option value="">— No wicket —</option>
+                {DISMISSAL_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Player out</span>
+              <select
+                className="inline-edit__control"
+                value={editingBall.body.wicket_player_id ?? ''}
+                onChange={(event) =>
+                  updateEditingBall(
+                    'wicket_player_id',
+                    event.target.value ? Number(event.target.value) : null,
+                  )
+                }
+              >
+                <option value="">— None —</option>
+                {playersForTeam(editingBall.body.batting_team_id).map((player) => (
+                  <option key={player.id} value={player.id}>
+                    {player.full_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Fielder / catcher / wicketkeeper</span>
+              <select
+                className="inline-edit__control"
+                value={editingBall.body.fielder_player_id ?? ''}
+                onChange={(event) =>
+                  updateEditingBall(
+                    'fielder_player_id',
+                    event.target.value ? Number(event.target.value) : null,
+                  )
+                }
+              >
+                <option value="">— None —</option>
+                {playersForTeam(editingBall.body.bowling_team_id).map((player) => (
+                  <option key={player.id} value={player.id}>
+                    {player.full_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Run out wicket end</span>
+              <select
+                className="inline-edit__control"
+                value={editingBall.body.wicket_end ?? ''}
+                onChange={(event) => updateEditingBall('wicket_end', event.target.value ? (event.target.value as WicketEnd) : null)}
+              >
+                <option value="">— Not applicable —</option>
+                <option value="striker">Striker end</option>
+                <option value="non_striker">Non-striker end</option>
+              </select>
+            </label>
+
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Notes / correction reason</span>
+              <textarea
+                className="inline-edit__control"
+                rows={3}
+                value={editingBall.body.notes ?? ''}
+                onChange={(event) => updateEditingBall('notes', event.target.value || null)}
+              />
+            </label>
+          </div>
+
+          <div className="catalog-toolbar">
+            <label className="form-check">
+              <input
+                type="checkbox"
+                className="form-check-input"
+                checked={editingBall.body.is_legal_delivery !== false}
+                onChange={(event) => updateEditingBall('is_legal_delivery', event.target.checked)}
+              />
+              <span className="form-check-label">Legal delivery</span>
+            </label>
+            <label className="form-check">
+              <input
+                type="checkbox"
+                className="form-check-input"
+                checked={editingBall.body.is_dead_ball === true}
+                onChange={(event) => updateEditingBall('is_dead_ball', event.target.checked)}
+              />
+              <span className="form-check-label">Dead ball</span>
+            </label>
+            <label className="form-check">
+              <input
+                type="checkbox"
+                className="form-check-input"
+                checked={editingBall.body.batters_crossed === true}
+                onChange={(event) => updateEditingBall('batters_crossed', event.target.checked)}
+              />
+              <span className="form-check-label">Batters crossed</span>
+            </label>
+          </div>
+
+          <div className="catalog-toolbar">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={saveEditingBall}
+              disabled={editBallMutation.isPending}
+            >
+              Save correction
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setEditingBall(null)}
+              disabled={editBallMutation.isPending}
+            >
+              Cancel edit
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <section className="team-hub-section">
         <div className="team-hub-section-head">
           <div className="team-hub-section-head__lead">
-            <h2 className="team-hub-section__title">Ball-by-ball</h2>
-            <p className="muted">Latest scoring events for this match.</p>
+            <h2 className="team-hub-section__title">Ball-by-ball commentary</h2>
+            <p className="muted">
+              Latest deliveries grouped by over. Each ball shows bowler to batter, result, notes, and correction controls.
+            </p>
           </div>
         </div>
 
         {liveQ.isLoading ? <p className="muted">Loading live score…</p> : null}
 
-        {(liveQ.data?.events ?? []).length === 0 ? (
+        {commentaryGroups.length === 0 ? (
           <p className="muted">No balls recorded yet.</p>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Ball</th>
-                  <th>Batter</th>
-                  <th>Bowler</th>
-                  <th>Result</th>
-                  <th>Dismissal / fielder</th>
-                  <th>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...(liveQ.data?.events ?? [])].reverse().map((event) => (
-                  <tr key={event.id}>
-                    <td>
-                      {event.innings}.{event.over_number}.{event.ball_number}
-                    </td>
-                    <td>{playerName(playerById, event.striker_player_id)}</td>
-                    <td>{playerName(playerById, event.bowler_player_id)}</td>
-                    <td>{liveEventLabel(event)}</td>
-                    <td>
-                      {event.wicket_type
-                        ? `${dismissalLabel(event.wicket_type)} · out: ${playerName(
-                            playerById,
-                            event.wicket_player_id,
-                          )}${
-                            event.fielder_player_id
-                              ? ` · fielder: ${playerName(playerById, event.fielder_player_id)}`
-                              : ''
-                          }${event.wicket_end ? ` · end: ${event.wicket_end.replace('_', '-')}` : ''}${
-                            event.batters_crossed ? ' · crossed' : ''
-                          }`
-                        : '—'}
-                    </td>
-                    <td>{event.notes ?? event.dismissal_text ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="match-result-editor__sections">
+            {commentaryGroups.map((group) => (
+              <article key={group.key} className="team-hub-section">
+                <div className="team-hub-section-head">
+                  <div className="team-hub-section-head__lead">
+                    <p className="muted">{group.summaryLabel}</p>
+                    <h3 className="team-hub-section__title">{group.runsText}</h3>
+                  </div>
+                  <div className="match-centre-scoreline">
+                    {group.scoreText}
+                  </div>
+                </div>
+
+                <div className="team-page__snapshot-grid">
+                  <article>
+                    <span>Batters</span>
+                    <strong>{group.battersText}</strong>
+                  </article>
+                  <article>
+                    <span>Bowler</span>
+                    <strong>{group.bowlerText}</strong>
+                  </article>
+                </div>
+
+                <div className="match-result-editor__sections">
+                  {group.deliveries.map((row) => (
+                    <article key={row.event.id} className="scorecard-card">
+                      <div className="team-hub-section-head">
+                        <div className="team-hub-section-head__lead">
+                          <p className="muted">{row.ballLabel}</p>
+                          <h3 className="team-hub-section__title">{row.header.toUpperCase()}</h3>
+                        </div>
+                        <span className="status-badge">{row.token}</span>
+                      </div>
+                      <p>{row.detail}</p>
+                      {row.event.wicket_type ? (
+                        <p className="muted">
+                          {dismissalLabel(row.event.wicket_type)} · out: {playerName(playerById, row.event.wicket_player_id)}
+                          {row.event.fielder_player_id ? ` · fielder: ${playerName(playerById, row.event.fielder_player_id)}` : ''}
+                          {row.event.wicket_end ? ` · end: ${row.event.wicket_end.replace('_', '-')}` : ''}
+                          {row.event.batters_crossed ? ' · batters crossed' : ''}
+                        </p>
+                      ) : null}
+                      <div className="catalog-toolbar">
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          onClick={() => {
+                            setEditBallError(null)
+                            setEditingBall({
+                              eventId: row.event.id,
+                              body: eventToLiveBallInput(row.event),
+                            })
+                          }}
+                          disabled={editBallMutation.isPending || deleteBallMutation.isPending}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          onClick={() => deleteRecordedBall(row.event)}
+                          disabled={editBallMutation.isPending || deleteBallMutation.isPending}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </article>
+            ))}
           </div>
         )}
       </section>
