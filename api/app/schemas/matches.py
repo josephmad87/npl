@@ -192,13 +192,22 @@ class LiveBallEventIn(BaseModel):
     striker_player_id: int = Field(ge=1)
     non_striker_player_id: int | None = Field(default=None, ge=1)
     bowler_player_id: int = Field(ge=1)
-    runs_batter: int = Field(default=0, ge=0, le=6)
-    runs_extras: int = Field(default=0, ge=0, le=12)
+    runs_batter: int = Field(default=0, ge=0, le=12)
+    runs_extras: int = Field(default=0, ge=0, le=20)
     extras_type: str | None = Field(default=None, max_length=32)
     is_legal_delivery: bool = True
+    completed_runs: int = Field(default=0, ge=0, le=12)
+    boundary_runs: int = Field(default=0, ge=0, le=6)
+    boundary_type: str | None = Field(default=None, max_length=32)
+    penalty_runs_batting: int = Field(default=0, ge=0, le=10)
+    penalty_runs_fielding: int = Field(default=0, ge=0, le=10)
+    short_runs: int = Field(default=0, ge=0, le=6)
+    is_dead_ball: bool = False
     wicket_type: str | None = Field(default=None, max_length=64)
     wicket_player_id: int | None = Field(default=None, ge=1)
     fielder_player_id: int | None = Field(default=None, ge=1)
+    wicket_end: str | None = Field(default=None, pattern="^(striker|non_striker)$")
+    batters_crossed: bool = False
     dismissal_text: str | None = Field(default=None, max_length=255)
     notes: str | None = None
 
@@ -218,9 +227,18 @@ class LiveBallEventOut(ORMModel):
     runs_extras: int
     extras_type: str | None
     is_legal_delivery: bool
+    completed_runs: int = 0
+    boundary_runs: int = 0
+    boundary_type: str | None = None
+    penalty_runs_batting: int = 0
+    penalty_runs_fielding: int = 0
+    short_runs: int = 0
+    is_dead_ball: bool = False
     wicket_type: str | None
     wicket_player_id: int | None
     fielder_player_id: int | None
+    wicket_end: str | None = None
+    batters_crossed: bool = False
     dismissal_text: str | None
     notes: str | None
     sequence_number: int
