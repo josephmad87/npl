@@ -32,7 +32,8 @@ export default function LiveScoresPage() {
       fetchAllPaginatedList<LiveFixture>((page) =>
         `/public/fixtures?page=${page}&page_size=100`,
       ),
-    refetchInterval: 15_000,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
     retry: 1,
   })
 
