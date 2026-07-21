@@ -615,7 +615,6 @@ export function LiveScorePanel({
   const activeScore = activeSummary ? `${activeSummary.runs}/${activeSummary.wickets}` : '0/0'
   const inactiveTeamId = activeSummary?.batting_team_id === homeTeamId ? awayTeamId : homeTeamId
   const inactiveTeam = teamName(inactiveTeamId, teamNames)
-  const lastEvent = dashboard.events[dashboard.events.length - 1] ?? null
   const wormPath = renderWormPath(dashboard.wormPoints)
 
   return (
