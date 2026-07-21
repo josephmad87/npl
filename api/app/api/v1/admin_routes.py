@@ -2459,6 +2459,78 @@ def _assert_bowler_can_bowl_current_over(db: Session, match_id: int, body: LiveB
             detail={"code": "validation", "message": "The same bowler cannot bowl consecutive overs."},
         )
 
+
+def _assert_live_ball_payload(
+    db: Session,
+    match: Match,
+    body: LiveBallEventIn,
+) -> None:
+    _assert_live_team_ids(match, body.batting_team_id, body.bowling_team_id)
+    _validate_live_ball_event(body)
+
+    batting_squad_ids = _match_day_squad_ids(db, match.id, body.batting_team_id)
+    bowling_squad_ids = _match_day_squad_ids(db, match.id, body.bowling_team_id)
+    batting_allowed = batting_squad_ids or None
+    bowling_allowed = bowling_squad_ids or None
+
+    _assert_live_player(
+        db,
+        body.striker_player_id,
+        {body.batting_team_id},
+        batting_allowed,
+        "Striker",
+    )
+    _assert_live_player(
+        db,
+        body.non_striker_player_id,
+        {body.batting_team_id},
+        batting_allowed,
+        "Non-striker",
+    )
+    _assert_live_player(
+        db,
+        body.bowler_player_id,
+        {body.bowling_team_id},
+        bowling_allowed,
+        "Bowler",
+    )
+    _assert_live_player(
+        db,
+        body.wicket_player_id,
+        {body.batting_team_id},
+        batting_allowed,
+        "Player out",
+    )
+    _assert_live_player(
+        db,
+        body.fielder_player_id,
+        {body.bowling_team_id},
+        bowling_allowed,
+        "Fielder",
+    )
+    _assert_bowler_can_bowl_current_over(db, match.id, body)
+
+
+def _renumber_live_events(db: Session, match_id: int) -> None:
+    """Keep sequence and over.ball labels stable after scorer corrections."""
+    events = list(
+        db.scalars(
+            select(MatchBallEvent)
+            .where(MatchBallEvent.match_id == match_id)
+            .order_by(MatchBallEvent.sequence_number, MatchBallEvent.id),
+        ).all(),
+    )
+    legal_balls_by_innings: dict[int, int] = {}
+    for sequence, event in enumerate(events, start=1):
+        legal_balls = legal_balls_by_innings.get(event.innings, 0)
+        event.sequence_number = sequence
+        event.over_number = legal_balls // 6
+        event.ball_number = (legal_balls % 6) + 1
+        if event.is_legal_delivery:
+            legal_balls += 1
+        legal_balls_by_innings[event.innings] = legal_balls
+
+
 def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
     events = list(
         db.scalars(
@@ -2845,50 +2917,7 @@ def admin_create_live_ball(
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
     _assert_can_score_match(db, match_id, actor)
-    _assert_live_team_ids(match, body.batting_team_id, body.bowling_team_id)
-    _validate_live_ball_event(body)
-
-    batting_squad_ids = _match_day_squad_ids(db, match_id, body.batting_team_id)
-    bowling_squad_ids = _match_day_squad_ids(db, match_id, body.bowling_team_id)
-    batting_allowed = batting_squad_ids or None
-    bowling_allowed = bowling_squad_ids or None
-
-    _assert_live_player(
-        db,
-        body.striker_player_id,
-        {body.batting_team_id},
-        batting_allowed,
-        "Striker",
-    )
-    _assert_live_player(
-        db,
-        body.non_striker_player_id,
-        {body.batting_team_id},
-        batting_allowed,
-        "Non-striker",
-    )
-    _assert_live_player(
-        db,
-        body.bowler_player_id,
-        {body.bowling_team_id},
-        bowling_allowed,
-        "Bowler",
-    )
-    _assert_live_player(
-        db,
-        body.wicket_player_id,
-        {body.batting_team_id},
-        batting_allowed,
-        "Player out",
-    )
-    _assert_live_player(
-        db,
-        body.fielder_player_id,
-        {body.bowling_team_id},
-        bowling_allowed,
-        "Fielder",
-    )
-    _assert_bowler_can_bowl_current_over(db, match_id, body)
+    _assert_live_ball_payload(db, match, body)
 
     latest_sequence = db.scalar(
         select(func.max(MatchBallEvent.sequence_number)).where(MatchBallEvent.match_id == match_id),
@@ -2925,9 +2954,104 @@ def admin_delete_last_live_ball(
         .order_by(MatchBallEvent.sequence_number.desc(), MatchBallEvent.id.desc()),
     )
     if event is not None:
+        event_id = event.id
         db.delete(event)
+        db.flush()
+        _renumber_live_events(db, match_id)
+        write_audit(
+            db,
+            actor_user_id=actor.id,
+            action="undo_live_ball",
+            entity_type="match_ball_event",
+            entity_id=event_id,
+            summary=f"Undid last live ball for match {match_id}",
+        )
         db.commit()
 
+    return _live_score_state(db, match)
+
+
+@router.put("/matches/{match_id}/live/balls/{event_id}", response_model=LiveScoreStateOut)
+def admin_update_live_ball(
+    match_id: int,
+    event_id: int,
+    body: LiveBallEventIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> LiveScoreStateOut:
+    match = db.scalar(
+        select(Match)
+        .options(joinedload(Match.result), selectinload(Match.player_stats))
+        .where(Match.id == match_id),
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+
+    event = db.get(MatchBallEvent, event_id)
+    if event is None or event.match_id != match_id:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Ball event not found"})
+
+    _assert_live_ball_payload(db, match, body)
+
+    for field, value in body.model_dump().items():
+        setattr(event, field, value)
+
+    _renumber_live_events(db, match_id)
+
+    if match.status == "completed" and match.result is not None:
+        _finalize_live_match_result(db, match, actor, match.match_overs)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="correct_live_ball",
+        entity_type="match_ball_event",
+        entity_id=event_id,
+        summary=f"Corrected live ball {event_id} for match {match_id}",
+    )
+    db.commit()
+    db.refresh(match)
+    return _live_score_state(db, match)
+
+
+@router.delete("/matches/{match_id}/live/balls/{event_id}", response_model=LiveScoreStateOut)
+def admin_delete_live_ball(
+    match_id: int,
+    event_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> LiveScoreStateOut:
+    match = db.scalar(
+        select(Match)
+        .options(joinedload(Match.result), selectinload(Match.player_stats))
+        .where(Match.id == match_id),
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+
+    event = db.get(MatchBallEvent, event_id)
+    if event is None or event.match_id != match_id:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Ball event not found"})
+
+    db.delete(event)
+    db.flush()
+    _renumber_live_events(db, match_id)
+
+    if match.status == "completed" and match.result is not None:
+        _finalize_live_match_result(db, match, actor, match.match_overs)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="delete_live_ball",
+        entity_type="match_ball_event",
+        entity_id=event_id,
+        summary=f"Deleted live ball {event_id} for match {match_id}",
+    )
+    db.commit()
+    db.refresh(match)
     return _live_score_state(db, match)
 
 OUT_DISMISSALS = {
