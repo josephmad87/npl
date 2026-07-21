@@ -210,6 +210,35 @@ function liveEventLabel(event: LiveBallEventDto): string {
   return label
 }
 
+
+function eventRunsTotal(event: LiveBallEventDto): number {
+  return (
+    event.runs_batter +
+    event.runs_extras +
+    event.penalty_runs_batting +
+    event.penalty_runs_fielding
+  )
+}
+
+function liveEventChipLabel(event: LiveBallEventDto): string {
+  if (event.is_dead_ball) {
+    if (event.penalty_runs_batting || event.penalty_runs_fielding) return '+5'
+    return 'DB'
+  }
+  if (event.wicket_type) return 'W'
+  if (event.extras_type === 'wide') {
+    return event.runs_extras === 1 ? 'Wd' : `${event.runs_extras}Wd`
+  }
+  if (event.extras_type === 'no_ball') {
+    return event.runs_batter > 0 ? `${event.runs_batter}Nb` : 'Nb'
+  }
+  if (event.extras_type === 'bye') return `${event.runs_extras}b`
+  if (event.extras_type === 'leg_bye') return `${event.runs_extras}lb`
+  if (event.extras_type === 'no_ball_bye') return `Nb+${Math.max(0, event.runs_extras - 1)}b`
+  if (event.extras_type === 'no_ball_leg_bye') return `Nb+${Math.max(0, event.runs_extras - 1)}lb`
+  return event.runs_batter === 0 ? '•' : String(event.runs_batter)
+}
+
 function playerName(playerById: Map<number, PlayerDto>, playerId: number | null | undefined): string {
   if (!playerId) return '—'
   return playerById.get(playerId)?.full_name ?? `#${playerId}`
@@ -317,6 +346,7 @@ function LiveScoringPage() {
   const [editingBall, setEditingBall] = useState<EditingBallDraft | null>(null)
   const [editBallError, setEditBallError] = useState<string | null>(null)
   const [activeScorerPanel, setActiveScorerPanel] = useState<ScorerPanel>('score')
+  const [extrasOpen, setExtrasOpen] = useState(false)
 
   const matchTeams = useMemo<ScoringTeam[]>(() => {
     if (!match) return []
@@ -884,6 +914,30 @@ function LiveScoringPage() {
     { id: 'corrections', label: 'Fix', hint: editingBall ? 'Editing' : 'Correct ball' },
   ]
 
+  const overStripOverNumber =
+    legalBalls > 0 && legalBalls % 6 === 0 ? Math.max(0, nextOverNumber - 1) : nextOverNumber
+  const overStripEvents = [...(liveQ.data?.events ?? [])]
+    .filter((event) => event.innings === innings && event.over_number === overStripOverNumber)
+    .sort((a, b) => a.sequence_number - b.sequence_number)
+  const overStripRuns = overStripEvents.reduce((total, event) => total + eventRunsTotal(event), 0)
+  const scorerWarnings = [
+    battingTeamId && bowlingTeamId && battingTeamId === bowlingTeamId
+      ? 'Batting and bowling teams cannot be the same.'
+      : null,
+    strikerPlayerId && nonStrikerPlayerId && strikerPlayerId === nonStrikerPlayerId
+      ? 'Striker and non-striker are the same player.'
+      : null,
+    !strikerPlayerId || !bowlerPlayerId ? 'Choose striker and bowler before scoring.' : null,
+    wicketOpen && wicketType !== 'retired_hurt' && wicketType !== 'retired_not_out' && !newBatterPlayerId
+      ? 'Select the new batter before saving a wicket.'
+      : null,
+  ].filter((warning): warning is string => Boolean(warning))
+
+  const swapStrike = () => {
+    setStrikerPlayerId(nonStrikerPlayerId || '')
+    setNonStrikerPlayerId(strikerPlayerId || '')
+  }
+
   return (
     <div className="live-scorer-page">
       <style>{`
@@ -982,6 +1036,94 @@ function LiveScoringPage() {
           gap: 1rem;
           align-items: start;
         }
+        .live-scorer-cockpit {
+          display: grid;
+          grid-template-columns: minmax(0, 1.1fr) minmax(240px, 0.9fr);
+          gap: 0.75rem;
+          align-items: stretch;
+          margin: 0.75rem 0 1rem;
+        }
+        .live-scorer-cockpit__card {
+          border: 1px solid rgba(100, 116, 139, 0.25);
+          border-radius: 1rem;
+          background: #ffffff;
+          color: #111827;
+          padding: 0.85rem;
+        }
+        .live-scorer-cockpit__label {
+          display: block;
+          color: #64748b;
+          font-size: 0.74rem;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .live-scorer-cockpit__main {
+          display: block;
+          margin-top: 0.2rem;
+          font-size: clamp(1.15rem, 4vw, 1.8rem);
+          font-weight: 900;
+          line-height: 1.1;
+        }
+        .live-scorer-cockpit__sub {
+          margin: 0.35rem 0 0;
+          color: #475569;
+        }
+        .live-scorer-over-strip {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.4rem;
+          align-items: center;
+          margin-top: 0.65rem;
+        }
+        .live-scorer-ball-chip {
+          display: inline-flex;
+          min-width: 2.35rem;
+          min-height: 2.15rem;
+          align-items: center;
+          justify-content: center;
+          border-radius: 0.65rem;
+          background: #f1f5f9;
+          color: #111827;
+          font-weight: 900;
+        }
+        .live-scorer-ball-chip--boundary {
+          background: #dcfce7;
+          color: #166534;
+        }
+        .live-scorer-ball-chip--wicket {
+          background: #fee2e2;
+          color: #991b1b;
+        }
+        .live-scorer-score-buttons {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 0.5rem;
+        }
+        .live-scorer-score-buttons .btn-primary {
+          min-height: 4rem !important;
+          font-size: 1.25rem;
+          font-weight: 900;
+        }
+        .live-scorer-quick-actions {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+          gap: 0.5rem;
+          margin-top: 0.75rem;
+        }
+        .live-scorer-warning-list {
+          margin: 0.75rem 0;
+          display: grid;
+          gap: 0.4rem;
+        }
+        .live-scorer-warning {
+          border: 1px solid rgba(234, 88, 12, 0.35);
+          border-radius: 0.85rem;
+          background: #fff7ed;
+          color: #9a3412;
+          padding: 0.55rem 0.7rem;
+          font-weight: 700;
+        }
         .live-scorer-page .inline-edit__grid {
           grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         }
@@ -990,7 +1132,8 @@ function LiveScoringPage() {
           color: #b91c1c !important;
         }
         @media (max-width: 900px) {
-          .live-scorer-primary-grid {
+          .live-scorer-primary-grid,
+          .live-scorer-cockpit {
             grid-template-columns: 1fr;
           }
           .live-scorer-sticky {
@@ -1018,7 +1161,8 @@ function LiveScoringPage() {
           .live-scorer-tab span {
             display: none;
           }
-          .live-scorer-page .catalog-card-grid {
+          .live-scorer-page .catalog-card-grid,
+          .live-scorer-score-buttons {
             grid-template-columns: repeat(3, minmax(0, 1fr));
           }
           .live-scorer-page .catalog-toolbar {
@@ -1407,14 +1551,47 @@ function LiveScoringPage() {
           </label>
         </div>
 
-        <div className="team-hub-section-head">
-          <div className="team-hub-section-head__lead">
-            <h3 className="team-hub-section__title">Next ball</h3>
-            <p className="muted">
-              {bowlingTeamName} bowling · over {nextOverNumber}.{nextBallNumber}
+        <div className="live-scorer-cockpit" aria-label="Scoring cockpit">
+          <div className="live-scorer-cockpit__card">
+            <span className="live-scorer-cockpit__label">Next ball</span>
+            <span className="live-scorer-cockpit__main">
+              {nextOverNumber}.{nextBallNumber}: {bowlerName} to {strikerName}
+            </span>
+            <p className="live-scorer-cockpit__sub">
+              {bowlingTeamName} bowling · {battingTeamName} batting
             </p>
           </div>
+          <div className="live-scorer-cockpit__card">
+            <span className="live-scorer-cockpit__label">
+              Over {overStripOverNumber + 1} · {overStripRuns} runs
+            </span>
+            <div className="live-scorer-over-strip" aria-label="Current over balls">
+              {overStripEvents.length > 0 ? (
+                overStripEvents.map((event) => (
+                  <span
+                    key={event.id}
+                    className={`live-scorer-ball-chip${event.wicket_type ? ' live-scorer-ball-chip--wicket' : event.boundary_runs >= 4 ? ' live-scorer-ball-chip--boundary' : ''}`}
+                    title={`${event.over_number}.${event.ball_number} ${liveEventLabel(event)}`}
+                  >
+                    {liveEventChipLabel(event)}
+                  </span>
+                ))
+              ) : (
+                <span className="muted">No balls in this over yet.</span>
+              )}
+            </div>
+          </div>
         </div>
+
+        {scorerWarnings.length > 0 ? (
+          <div className="live-scorer-warning-list" role="alert">
+            {scorerWarnings.map((warning) => (
+              <div key={warning} className="live-scorer-warning">
+                {warning}
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <div className="team-hub-section" style={{ marginTop: '1rem' }}>
           <div className="team-hub-section-head">
@@ -1423,7 +1600,7 @@ function LiveScoringPage() {
               <p className="muted">Legal delivery unless you use a no-ball option below.</p>
             </div>
           </div>
-          <div className="catalog-card-grid">
+          <div className="live-scorer-score-buttons">
             {[0, 1, 2, 3, 4, 6].map((runs) => (
               <button
                 key={runs}
@@ -1444,8 +1621,44 @@ function LiveScoringPage() {
               </button>
             ))}
           </div>
+          <div className="live-scorer-quick-actions">
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={swapStrike}
+              disabled={!strikerPlayerId || !nonStrikerPlayerId || ballMutation.isPending}
+            >
+              Swap strike
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setExtrasOpen((open) => !open)}
+            >
+              {extrasOpen ? 'Hide extras' : 'Extras / MCC'}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setWicketOpen((open) => !open)}
+              disabled={ballMutation.isPending}
+            >
+              Out / wicket
+            </button>
+            <button
+              type="button"
+              className="btn-ghost btn--with-icon"
+              onClick={() => void undoMutation.mutate()}
+              disabled={undoMutation.isPending}
+            >
+              <Undo2 size={18} strokeWidth={2} aria-hidden />
+              Undo last
+            </button>
+          </div>
         </div>
 
+        {extrasOpen ? (
+          <>
         <div className="team-hub-section" style={{ marginTop: '1rem' }}>
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
@@ -1671,25 +1884,10 @@ function LiveScoringPage() {
             >
               Short run: ran 2, score 1
             </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => setWicketOpen((open) => !open)}
-              disabled={ballMutation.isPending}
-            >
-              Out / wicket
-            </button>
-            <button
-              type="button"
-              className="btn-ghost btn--with-icon"
-              onClick={() => void undoMutation.mutate()}
-              disabled={undoMutation.isPending}
-            >
-              <Undo2 size={18} strokeWidth={2} aria-hidden />
-              Undo last ball
-            </button>
           </div>
         </div>
+          </>
+        ) : null}
 
         {wicketOpen ? (
           <div className="team-hub-section" style={{ marginTop: '1rem' }}>
@@ -1704,7 +1902,7 @@ function LiveScoringPage() {
 
             <div className="inline-edit__grid">
               <label className="inline-edit__field">
-                <span className="inline-edit__label">Player out</span>
+                <span className="inline-edit__label">1. Player out</span>
                 <select
                   className="inline-edit__control"
                   value={wicketPlayerId || strikerPlayerId}
@@ -1719,7 +1917,7 @@ function LiveScoringPage() {
               </label>
 
               <label className="inline-edit__field">
-                <span className="inline-edit__label">Mode of dismissal</span>
+                <span className="inline-edit__label">2. Mode of dismissal</span>
                 <select
                   className="inline-edit__control"
                   value={wicketType}
@@ -1782,7 +1980,7 @@ function LiveScoringPage() {
               </label>
 
               <label className="inline-edit__field">
-                <span className="inline-edit__label">New batter</span>
+                <span className="inline-edit__label">4. New batter</span>
                 <select
                   className="inline-edit__control"
                   value={newBatterPlayerId}
@@ -2061,7 +2259,7 @@ function LiveScoringPage() {
             </label>
 
             <label className="inline-edit__field">
-              <span className="inline-edit__label">Player out</span>
+              <span className="inline-edit__label">1. Player out</span>
               <select
                 className="inline-edit__control"
                 value={editingBall.body.wicket_player_id ?? ''}
