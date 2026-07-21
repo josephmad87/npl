@@ -897,7 +897,8 @@ function LiveScoringPage() {
           z-index: 10;
           border: 1px solid color-mix(in srgb, var(--color-primary, #111827) 18%, transparent);
           border-radius: 1.25rem;
-          background: color-mix(in srgb, var(--color-surface, #fff) 94%, transparent);
+          background: #f8fafc;
+          color: #111827;
           box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
           padding: 0.85rem;
           backdrop-filter: blur(12px);
@@ -909,6 +910,7 @@ function LiveScoringPage() {
           align-items: center;
         }
         .live-scorer-score {
+          color: #111827;
           font-size: clamp(1.55rem, 6vw, 2.45rem);
           font-weight: 900;
           letter-spacing: -0.04em;
@@ -921,11 +923,12 @@ function LiveScoringPage() {
           margin-top: 0.55rem;
         }
         .live-scorer-chip {
-          border: 1px solid rgba(148, 163, 184, 0.45);
+          border: 1px solid rgba(100, 116, 139, 0.45);
           border-radius: 999px;
+          color: #1f2937;
           padding: 0.3rem 0.55rem;
           font-size: 0.84rem;
-          background: rgba(148, 163, 184, 0.08);
+          background: #ffffff;
         }
         .live-scorer-tabs {
           display: grid;
@@ -936,9 +939,9 @@ function LiveScoringPage() {
         .live-scorer-tab {
           min-height: 3rem;
           border-radius: 1rem;
-          border: 1px solid rgba(148, 163, 184, 0.42);
-          background: rgba(148, 163, 184, 0.08);
-          color: inherit;
+          border: 1px solid rgba(100, 116, 139, 0.42);
+          background: #ffffff;
+          color: #111827;
           cursor: pointer;
           padding: 0.45rem;
           text-align: center;
@@ -949,13 +952,17 @@ function LiveScoringPage() {
         }
         .live-scorer-tab span {
           margin-top: 0.15rem;
+          color: #475569;
           font-size: 0.72rem;
-          opacity: 0.78;
+          opacity: 1;
         }
         .live-scorer-tab.is-active {
-          background: var(--color-primary, #111827);
-          border-color: var(--color-primary, #111827);
-          color: #fff;
+          background: #111827;
+          border-color: #111827;
+          color: #ffffff;
+        }
+        .live-scorer-tab.is-active span {
+          color: #e5e7eb;
         }
         .live-scorer-page .catalog-card-grid {
           display: grid;
