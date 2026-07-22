@@ -81,6 +81,7 @@ type PublicTeam = {
 
 type PublicMatchDetail = MatchLite & {
   season_id: number | null
+  match_overs?: string | number | null
   season?: {
     id: number
     name: string
@@ -280,6 +281,23 @@ function oversLabelFromBalls(totalBalls: number): string {
 
 function cricketOverDecimal(totalBalls: number): number {
   return Number(`${Math.floor(totalBalls / 6)}.${totalBalls % 6}`)
+}
+
+function parseCricketOversToBalls(value: string | number | null | undefined): number | null {
+  if (value == null) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+
+  const [oversRaw, ballsRaw = '0'] = raw.split('.')
+  const overs = Number.parseInt(oversRaw, 10)
+  const balls = Number.parseInt(ballsRaw || '0', 10)
+
+  if (!Number.isFinite(overs) || !Number.isFinite(balls)) return null
+  return Math.max(0, overs * 6 + Math.max(0, balls))
+}
+
+function plural(value: number, singular: string, pluralLabel = `${singular}s`): string {
+  return `${value} ${value === 1 ? singular : pluralLabel}`
 }
 
 function rateLabel(runs: number, balls: number): string {
@@ -773,13 +791,30 @@ export function LiveScorePanel({
   }, [resultsQ.data, seasonDetailQ.data?.team_ids])
 
   const activeSummary = dashboard.summary
+  const summaries = liveQ.data?.summaries ?? []
+  const firstInningsSummary = summaries.find((summary) => summary.innings === 1) ?? null
+  const secondInningsSummary = summaries.find((summary) => summary.innings === 2) ?? null
   const battingTeam = teamName(activeSummary?.batting_team_id, teamNames)
   const bowlingTeam = teamName(activeSummary?.bowling_team_id, teamNames)
-  const activeOvers = activeSummary?.overs_label ?? '0.0'
-  const activeScore = activeSummary ? `${activeSummary.runs}/${activeSummary.wickets}` : '0/0'
-  const otherTeamId = activeSummary?.batting_team_id === homeTeamId ? awayTeamId : homeTeamId
-  const otherTeam = teamName(otherTeamId, teamNames)
-  const otherSummary = (liveQ.data?.summaries ?? []).find((summary) => summary.batting_team_id === otherTeamId) ?? null
+  const firstDisplayTeamId = firstInningsSummary?.batting_team_id ?? activeSummary?.batting_team_id ?? homeTeamId
+  const secondDisplayTeamId = firstInningsSummary?.bowling_team_id ?? (firstDisplayTeamId === homeTeamId ? awayTeamId : homeTeamId)
+  const firstDisplayTeam = teamName(firstDisplayTeamId, teamNames)
+  const secondDisplayTeam = teamName(secondDisplayTeamId, teamNames)
+  const targetRuns = firstInningsSummary ? firstInningsSummary.runs + 1 : null
+  const allottedBalls = parseCricketOversToBalls(matchQ.data?.match_overs) ?? firstInningsSummary?.legal_balls ?? null
+  const chaseRequiredRuns = secondInningsSummary && targetRuns != null
+    ? Math.max(targetRuns - secondInningsSummary.runs, 0)
+    : null
+  const chaseRemainingBalls = secondInningsSummary && allottedBalls != null
+    ? Math.max(allottedBalls - secondInningsSummary.legal_balls, 0)
+    : null
+  const chaseNote = secondInningsSummary && chaseRequiredRuns != null
+    ? chaseRequiredRuns <= 0
+      ? `${secondDisplayTeam} have reached the target.`
+      : `${secondDisplayTeam} require ${plural(chaseRequiredRuns, 'run')} in ${chaseRemainingBalls != null ? plural(chaseRemainingBalls, 'ball') : 'the remaining balls'}.`
+    : firstInningsSummary && targetRuns != null
+      ? `${secondDisplayTeam} need ${plural(targetRuns, 'run')} to win.`
+      : null
   const { maxOver: wormMaxOver, maxRuns: wormMaxRuns } = wormScale(dashboard.wormPoints)
   const wormPath = renderWormPath(dashboard.wormPoints, wormMaxOver, wormMaxRuns)
   const runTicks = [0, 0.25, 0.5, 0.75, 1].map((pct) => Math.round(wormMaxRuns * pct))
@@ -806,6 +841,26 @@ export function LiveScorePanel({
         <span>{name}</span>
       </span>
     )
+  }
+
+  const renderHeaderScore = (summary: LiveInningsSummary | null, fallbackScore = false) => {
+    if (summary) {
+      return (
+        <span className="live-score-panel__score-block">
+          <small>({summary.overs_label} ov)</small> {summary.runs}/{summary.wickets}
+        </span>
+      )
+    }
+
+    if (fallbackScore) {
+      return (
+        <span className="live-score-panel__score-block">
+          <small>(0.0 ov)</small> 0/0
+        </span>
+      )
+    }
+
+    return <span className="live-score-panel__yet-to-bat">Yet to bat</span>
   }
 
   const squadPlayersForTeam = (teamId: number): MatchSquadPlayer[] => {
@@ -1273,6 +1328,16 @@ export function LiveScorePanel({
           color: var(--live-ink);
           font-weight: 750;
         }
+        .live-score-panel__match-note.is-chase {
+          display: inline-flex;
+          align-items: center;
+          background: #fff7ed;
+          border: 1px solid #fed7aa;
+          border-radius: 999px;
+          color: #9a3412;
+          padding: 0.4rem 0.75rem;
+          font-weight: 900;
+        }
         .live-score-panel__subnote {
           margin: 0.35rem 0 0;
           color: var(--live-muted);
@@ -1485,26 +1550,20 @@ export function LiveScorePanel({
 
         <div className="live-score-panel__teams">
           <div className="live-score-panel__team-line">
-            {renderTeamBadge(activeSummary?.batting_team_id ?? homeTeamId, battingTeam)}
-            <span className="live-score-panel__score-block">
-              <small>({activeOvers} ov)</small> {activeScore}
-            </span>
+            {renderTeamBadge(firstDisplayTeamId, firstDisplayTeam)}
+            {renderHeaderScore(firstInningsSummary, activeSummary?.batting_team_id === firstDisplayTeamId)}
           </div>
           <div className="live-score-panel__team-line is-muted">
-            {renderTeamBadge(otherTeamId, otherTeam)}
-            {otherSummary ? (
-              <span className="live-score-panel__score-block">
-                <small>({otherSummary.overs_label} ov)</small> {otherSummary.runs}/{otherSummary.wickets}
-              </span>
-            ) : (
-              <span className="live-score-panel__yet-to-bat">Yet to bat</span>
-            )}
+            {renderTeamBadge(secondDisplayTeamId, secondDisplayTeam)}
+            {renderHeaderScore(secondInningsSummary, activeSummary?.batting_team_id === secondDisplayTeamId && !firstInningsSummary)}
           </div>
         </div>
 
         {activeSummary ? (
           <>
-            <p className="live-score-panel__match-note">{bowlingTeam} fielding.</p>
+            <p className={`live-score-panel__match-note${chaseNote ? ' is-chase' : ''}`}>
+              {chaseNote ?? `${bowlingTeam} fielding.`}
+            </p>
             <p className="live-score-panel__subnote">
               Current RR: {dashboard.currentRate}
               {dashboard.lastFiveText ? ` · Last 5 ov (RR): ${dashboard.lastFiveText}` : ''}
