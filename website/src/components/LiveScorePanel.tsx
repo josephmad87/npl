@@ -335,11 +335,27 @@ function deliveryResultText(event: LiveBallEvent): string {
     return 'dead ball'
   }
 
-  if (event.wicket_type) return 'OUT'
-
   const extrasType = event.extras_type
   const batterRuns = event.runs_batter ?? 0
   const extrasRuns = event.runs_extras ?? 0
+
+  if (event.wicket_type) {
+    if (extrasType === 'wide') return extrasRuns === 1 ? 'OUT + wide' : `OUT + ${extrasRuns} wides`
+    if (extrasType === 'no_ball') {
+      return batterRuns > 0
+        ? `OUT + no ball + ${batterRuns} batter run${batterRuns === 1 ? '' : 's'}`
+        : 'OUT + no ball'
+    }
+    if (extrasType === 'no_ball_bye') {
+      const byes = Math.max(0, extrasRuns - 1)
+      return `OUT + no ball + ${byes} bye${byes === 1 ? '' : 's'}`
+    }
+    if (extrasType === 'no_ball_leg_bye') {
+      const legByes = Math.max(0, extrasRuns - 1)
+      return `OUT + no ball + ${legByes} leg bye${legByes === 1 ? '' : 's'}`
+    }
+    return 'OUT'
+  }
 
   if (extrasType === 'wide') return extrasRuns === 1 ? 'wide' : `${extrasRuns} wides`
   if (extrasType === 'no_ball') return batterRuns > 0 ? `${batterRuns} run${batterRuns === 1 ? '' : 's'} + no ball` : 'no ball'
@@ -362,11 +378,17 @@ function deliveryToken(event: LiveBallEvent): string {
     if (event.penalty_runs_fielding) return `P${event.penalty_runs_fielding}`
     return '•'
   }
-  if (event.wicket_type) return 'W'
-
   const extrasType = event.extras_type
   const batterRuns = event.runs_batter ?? 0
   const extrasRuns = event.runs_extras ?? 0
+
+  if (event.wicket_type) {
+    if (extrasType === 'wide') return extrasRuns === 1 ? 'W+wd' : `W+${extrasRuns}wd`
+    if (extrasType === 'no_ball') return batterRuns > 0 ? `W+${batterRuns}nb` : 'W+nb'
+    if (extrasType === 'no_ball_bye') return `W+nb+${Math.max(0, extrasRuns - 1)}b`
+    if (extrasType === 'no_ball_leg_bye') return `W+nb+${Math.max(0, extrasRuns - 1)}lb`
+    return 'W'
+  }
 
   if (extrasType === 'wide') return extrasRuns === 1 ? 'wd' : `${extrasRuns}wd`
   if (extrasType === 'no_ball') return batterRuns > 0 ? `${batterRuns}nb` : 'nb'
@@ -380,7 +402,7 @@ function deliveryToken(event: LiveBallEvent): string {
 }
 
 function tokenClass(token: string): string {
-  if (token === 'W') return ' is-wicket'
+  if (token.startsWith('W')) return ' is-wicket'
   if (token === '4') return ' is-four'
   if (token === '6') return ' is-six'
   if (token === '•') return ''
@@ -1497,7 +1519,7 @@ export function LiveScorePanel({
           font-weight: 900;
           text-transform: lowercase;
         }
-        .live-score-panel__ball-token { width: 2.5rem; height: 2.5rem; font-size: 0.93rem; }
+        .live-score-panel__ball-token { min-width: 2.5rem; width: auto; height: 2.5rem; padding: 0 0.35rem; font-size: 0.93rem; }
         .live-score-panel__strip-token { min-width: 2rem; height: 2rem; padding: 0 0.45rem; font-size: 0.86rem; }
         .live-score-panel__ball-token.is-four, .live-score-panel__strip-token.is-four { background: #22c55e; color: #fff; }
         .live-score-panel__ball-token.is-six, .live-score-panel__strip-token.is-six { background: #8b5cf6; color: #fff; }
@@ -1513,7 +1535,7 @@ export function LiveScorePanel({
         .live-score-panel__over-score { text-align: right; font-size: 1.3rem; font-weight: 950; }
         .live-score-panel__over-score small { display: block; color: #334155; font-size: 0.85rem; font-weight: 850; }
         .live-score-panel__over-meta { flex-wrap: wrap; padding: 0.55rem 1rem; background: rgba(224, 242, 254, 0.72); color: #475569; font-size: 0.83rem; font-weight: 700; }
-        .live-score-panel__ball-row { display: grid; grid-template-columns: 3rem 2.8rem minmax(0, 1fr); gap: 0.85rem; padding: 1.05rem 1rem; border-top: 1px solid var(--live-line); }
+        .live-score-panel__ball-row { display: grid; grid-template-columns: 3rem minmax(2.8rem, max-content) minmax(0, 1fr); gap: 0.85rem; padding: 1.05rem 1rem; border-top: 1px solid var(--live-line); }
         .live-score-panel__ball-number { color: #4f5871; font-weight: 850; padding-top: 0.55rem; text-align: right; }
         .live-score-panel__ball-title { margin: 0 0 0.25rem; color: #4f5871; font-size: 0.78rem; font-weight: 950; letter-spacing: 0.09em; text-transform: uppercase; }
         .live-score-panel__ball-detail { margin: 0; color: var(--live-ink); font-size: 1rem; line-height: 1.55; }
@@ -1557,7 +1579,7 @@ export function LiveScorePanel({
           .live-score-panel__over-head { grid-template-columns: 4.4rem minmax(0, 1fr) auto; padding: 0.72rem 0.85rem; }
           .live-score-panel__over-score { font-size: 1.18rem; }
           .live-score-panel__over-meta { padding: 0.5rem 0.85rem; font-size: 0.8rem; }
-          .live-score-panel__ball-row { grid-template-columns: 2.5rem 2.5rem minmax(0, 1fr); gap: 0.65rem; padding: 0.95rem 0.85rem; }
+          .live-score-panel__ball-row { grid-template-columns: 2.5rem minmax(2.5rem, max-content) minmax(0, 1fr); gap: 0.65rem; padding: 0.95rem 0.85rem; }
           .live-score-panel__ball-number { text-align: left; }
           .live-score-panel__ball-detail { font-size: 0.98rem; }
           .live-score-panel__teams-tab { grid-template-columns: 1fr; padding: 0.85rem; }
