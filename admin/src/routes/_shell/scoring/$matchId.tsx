@@ -1773,32 +1773,67 @@ function LiveScoringPage() {
         <div className="team-hub-section" style={{ marginTop: '1rem' }}>
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
-              <h4 className="team-hub-section__title">Batter runs</h4>
-              <p className="muted">Legal delivery unless you use a no-ball option below.</p>
+              <h4 className="team-hub-section__title">Record ball</h4>
+              <p className="muted">Add the ball comment first, then tap the run button. Normal run buttons are legal deliveries.</p>
             </div>
           </div>
-          <div className="live-scorer-score-buttons">
-            {[0, 1, 2, 3, 4, 6].map((runs) => (
-              <button
-                key={runs}
-                type="button"
-                className="btn-primary"
-                onClick={() =>
-                  submitBall({
-                    runsBatter: runs,
-                    strikeRuns: runs,
-                    completedRuns: runs,
-                    boundaryRuns: runs === 4 || runs === 6 ? runs : 0,
-                    boundaryType: runs === 4 ? 'four' : runs === 6 ? 'six' : null,
-                  })
-                }
-                disabled={ballMutation.isPending}
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: '1rem',
+              alignItems: 'stretch',
+            }}
+          >
+            <div>
+              <div
+                className="live-scorer-score-buttons"
+                style={{ gridTemplateColumns: 'repeat(3, minmax(74px, 1fr))' }}
               >
-                {runs}
-              </button>
-            ))}
+                {[0, 1, 2, 3, 4, 6].map((runs) => (
+                  <button
+                    key={runs}
+                    type="button"
+                    className="btn-primary"
+                    style={{ minHeight: '4.5rem', fontSize: '1.45rem', fontWeight: 800 }}
+                    onClick={() =>
+                      submitBall({
+                        runsBatter: runs,
+                        strikeRuns: runs,
+                        completedRuns: runs,
+                        boundaryRuns: runs === 4 || runs === 6 ? runs : 0,
+                        boundaryType: runs === 4 ? 'four' : runs === 6 ? 'six' : null,
+                      })
+                    }
+                    disabled={ballMutation.isPending}
+                  >
+                    {runs}
+                  </button>
+                ))}
+              </div>
+              <p className="muted" style={{ marginTop: '0.6rem' }}>
+                Layout: 0 · 1 · 2 on top, 3 · 4 · 6 underneath.
+              </p>
+            </div>
+
+            <label className="inline-edit__field" style={{ margin: 0 }}>
+              <span className="inline-edit__label">Ball comment / commentary</span>
+              <textarea
+                className="inline-edit__control"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Optional comment, for example: edged past slip, excellent yorker, overthrow, dropped catch…"
+                rows={6}
+                style={{ minHeight: '11rem', resize: 'vertical', lineHeight: 1.5 }}
+              />
+              <span className="muted" style={{ marginTop: '0.4rem' }}>
+                This comment is saved with the next ball or wicket you record.
+              </span>
+            </label>
           </div>
-          <div className="live-scorer-quick-actions">
+
+          <div className="live-scorer-quick-actions" style={{ marginTop: '1rem' }}>
             <button
               type="button"
               className="btn-ghost"
@@ -2218,16 +2253,6 @@ function LiveScoringPage() {
             </button>
           </div>
         ) : null}
-
-        <label className="inline-edit__field">
-          <span className="inline-edit__label">Ball note</span>
-          <input
-            className="inline-edit__control"
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder="Optional scorer note"
-          />
-        </label>
 
         <div className="catalog-toolbar">
           <button
