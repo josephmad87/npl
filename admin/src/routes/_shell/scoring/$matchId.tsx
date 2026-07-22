@@ -1497,60 +1497,70 @@ function LiveScoringPage() {
           </button>
         </div>
 
-        {matchTeams.map((team) => {
-          const teamPlayers = playersForTeam(team.id)
-          const playingCount = selectedRoleCount(teamPlayers, playerRoles, 'playing_xi')
-          const substituteCount = selectedRoleCount(teamPlayers, playerRoles, 'substitute')
+        <div
+          style={{
+            display: 'grid',
+            gap: '1rem',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            alignItems: 'start',
+            marginTop: '1rem',
+          }}
+        >
+          {matchTeams.map((team) => {
+            const teamPlayers = playersForTeam(team.id)
+            const playingCount = selectedRoleCount(teamPlayers, playerRoles, 'playing_xi')
+            const substituteCount = selectedRoleCount(teamPlayers, playerRoles, 'substitute')
 
-          return (
-            <div key={team.id} className="team-hub-section" style={{ marginTop: '1rem' }}>
-              <div className="team-hub-section-head">
-                <div className="team-hub-section-head__lead">
-                  <h3 className="team-hub-section__title">{team.name}</h3>
-                  <p className="muted">
-                    Playing XI: {playingCount}/11 · Subs: {substituteCount}/4
-                  </p>
+            return (
+              <div key={team.id} className="team-hub-section" style={{ marginTop: 0 }}>
+                <div className="team-hub-section-head">
+                  <div className="team-hub-section-head__lead">
+                    <h3 className="team-hub-section__title">{team.name}</h3>
+                    <p className="muted">
+                      Playing XI: {playingCount}/11 · Subs: {substituteCount}/4
+                    </p>
+                  </div>
+                </div>
+
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Player</th>
+                        <th>Match day role</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teamPlayers.map((player) => (
+                        <tr key={player.id}>
+                          <td>{player.full_name}</td>
+                          <td>
+                            <select
+                              className="inline-edit__control"
+                              value={playerRoles[player.id] ?? ''}
+                              onChange={(event) => {
+                                const value = event.target.value as MatchSquadRole | ''
+                                setPlayerRoles((current) => ({
+                                  ...current,
+                                  [player.id]: value,
+                                }))
+                                setSquadDirty(true)
+                              }}
+                            >
+                              <option value="">Not in match day squad</option>
+                              <option value="playing_xi">Playing XI</option>
+                              <option value="substitute">Substitute</option>
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Player</th>
-                      <th>Match day role</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teamPlayers.map((player) => (
-                      <tr key={player.id}>
-                        <td>{player.full_name}</td>
-                        <td>
-                          <select
-                            className="inline-edit__control"
-                            value={playerRoles[player.id] ?? ''}
-                            onChange={(event) => {
-                              const value = event.target.value as MatchSquadRole | ''
-                              setPlayerRoles((current) => ({
-                                ...current,
-                                [player.id]: value,
-                              }))
-                              setSquadDirty(true)
-                            }}
-                          >
-                            <option value="">Not in match day squad</option>
-                            <option value="playing_xi">Playing XI</option>
-                            <option value="substitute">Substitute</option>
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </section>
       ) : null}
 
