@@ -15,7 +15,6 @@ class MatchBase(BaseModel):
     venue: str | None = None
     match_date: date | None = None
     start_time: datetime | None = None
-    match_overs: float = Field(default=40.0, ge=1, le=300)
     toss_info: str | None = None
     umpires: str | None = None
     status: str = "scheduled"
@@ -36,7 +35,6 @@ class MatchUpdate(BaseModel):
     venue: str | None = None
     match_date: date | None = None
     start_time: datetime | None = None
-    match_overs: float | None = Field(default=None, ge=1, le=300)
     toss_info: str | None = None
     umpires: str | None = None
     status: str | None = None
@@ -172,7 +170,6 @@ class MatchLiveSetupIn(BaseModel):
     toss_winner_team_id: int = Field(ge=1)
     toss_decision: str = Field(pattern="^(bat|bowl)$")
     batting_first_team_id: int = Field(ge=1)
-    match_overs: float = Field(default=40.0, ge=1, le=300)
     umpire_1: str | None = Field(default=None, max_length=128)
     umpire_2: str | None = Field(default=None, max_length=128)
     reserve_umpire: str | None = Field(default=None, max_length=128)
@@ -184,7 +181,6 @@ class LiveScoreStartIn(BaseModel):
 
 class LiveScoreCompleteIn(BaseModel):
     status: str = Field(default="completed", pattern="^(completed|abandoned|cancelled)$")
-    match_overs: float | None = Field(default=None, ge=1, le=300)
 
 
 class LiveBallEventIn(BaseModel):
@@ -210,6 +206,7 @@ class LiveBallEventIn(BaseModel):
     wicket_type: str | None = Field(default=None, max_length=64)
     wicket_player_id: int | None = Field(default=None, ge=1)
     fielder_player_id: int | None = Field(default=None, ge=1)
+    replacement_player_id: int | None = Field(default=None, ge=1)
     wicket_end: str | None = Field(default=None, pattern="^(striker|non_striker)$")
     batters_crossed: bool = False
     dismissal_text: str | None = Field(default=None, max_length=255)
@@ -241,6 +238,7 @@ class LiveBallEventOut(ORMModel):
     wicket_type: str | None
     wicket_player_id: int | None
     fielder_player_id: int | None
+    replacement_player_id: int | None = None
     wicket_end: str | None = None
     batters_crossed: bool = False
     dismissal_text: str | None
@@ -348,7 +346,6 @@ class MatchDetailOut(ORMModel):
     venue: str | None
     match_date: date | None
     start_time: datetime | None
-    match_overs: Decimal = Decimal("40.0")
     toss_info: str | None
     umpires: str | None
     status: str
