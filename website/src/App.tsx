@@ -4,7 +4,6 @@ import { Link } from '@tanstack/react-router'
 import './App.css'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
 import { MatchCarousel } from './components/MatchCarousel'
-import { LiveMatchCard } from './components/LiveMatchCard'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
 import { NplTvSection } from './components/NplTvSection'
@@ -16,6 +15,7 @@ import {
   useUpcomingFixtures,
 } from './lib/hooks'
 import { formatCategoryLabel } from './lib/formatters'
+import { matchSeoPath } from './lib/matchUrls'
 import {
   extractList,
   fetchAllPaginatedList,
@@ -46,6 +46,9 @@ type HomeHubMatch = {
   venue?: string | null
   home_team_id: number
   away_team_id: number
+  live_score_summary?: string | null
+  live_status_line?: string | null
+  live_match_cta?: string | null
 }
 
 type HomeSpotlightTeam = {
@@ -93,6 +96,49 @@ type HomeSpotlightMatch = HomeHubMatch & {
 }
 
 type TeamFormCode = 'W' | 'L' | 'T' | 'NR'
+
+
+type HomeLiveBallEvent = {
+  id: number
+  innings: number
+  over_number: number
+  ball_number: number
+  batting_team_id: number
+  bowling_team_id: number
+  runs_batter: number
+  runs_extras: number
+  extras_type: string | null
+  is_legal_delivery: boolean
+  wicket_type: string | null
+  penalty_runs_batting?: number
+  is_dead_ball?: boolean
+  sequence_number: number
+}
+
+type HomeLiveInningsSummary = {
+  innings: number
+  batting_team_id: number
+  bowling_team_id: number
+  runs: number
+  wickets: number
+  legal_balls: number
+  overs_label: string
+  last_six: string[]
+  last_event: HomeLiveBallEvent | null
+}
+
+type HomeLiveScoreState = {
+  match_id: number
+  status: string
+  current_innings: number | null
+  summaries: HomeLiveInningsSummary[]
+  events: HomeLiveBallEvent[]
+}
+
+type HomeLiveCardText = {
+  score: string
+  status: string
+}
 
 const SPOTLIGHT_ROTATION_MS = 15 * 60 * 1000
 
@@ -278,6 +324,91 @@ function teamInitials(name: string): string {
     .toUpperCase()
 }
 
+
+function teamShortName(
+  teamId: number | null | undefined,
+  teamsMap: Record<number, { name?: string | null; short_name?: string | null } | undefined>,
+): string {
+  if (teamId == null) return 'Team'
+  const team = teamsMap[teamId]
+  const short = team?.short_name?.trim()
+  if (short) return short
+  const name = team?.name?.trim() || `Team ${teamId}`
+  const words = name.split(/\s+/).filter(Boolean)
+  if (words.length <= 2) return name
+  return words.map((word) => word[0]).join('').toUpperCase()
+}
+
+function teamFullName(
+  teamId: number | null | undefined,
+  teamsMap: Record<number, { name?: string | null } | undefined>,
+): string {
+  if (teamId == null) return 'Team'
+  return teamsMap[teamId]?.name ?? `Team ${teamId}`
+}
+
+function ballsFromOversValue(value: number | string | null | undefined): number | null {
+  if (value == null) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  const [oversPart, ballsPart = '0'] = raw.split('.')
+  const overs = Number(oversPart)
+  const balls = Number(ballsPart)
+  if (!Number.isFinite(overs) || !Number.isFinite(balls)) return null
+  return overs * 6 + Math.min(Math.max(0, Math.trunc(balls)), 5)
+}
+
+function homeMatchCentreHref(
+  match: HomeHubMatch,
+  homeName: string,
+  awayName: string,
+): string {
+  return matchSeoPath({
+    ...match,
+    home_name: homeName,
+    away_name: awayName,
+  })
+}
+
+function liveCardText(
+  match: HomeHubMatch,
+  liveState: HomeLiveScoreState | undefined,
+  teamsMap: Record<number, { name?: string | null; short_name?: string | null } | undefined>,
+): HomeLiveCardText | null {
+  if (!liveState || liveState.summaries.length === 0) return null
+
+  const summaries = [...liveState.summaries].sort((a, b) => a.innings - b.innings)
+  const score = summaries
+    .map((summary) => {
+      const name = teamShortName(summary.batting_team_id, teamsMap)
+      return `${name} ${summary.runs}/${summary.wickets} (${summary.overs_label} ov)`
+    })
+    .join(' · ')
+
+  const current =
+    summaries.find((summary) => summary.innings === liveState.current_innings) ??
+    summaries[summaries.length - 1]!
+
+  let status = current
+    ? `${teamFullName(current.batting_team_id, teamsMap)} batting`
+    : 'Live scoring in progress'
+
+  if (summaries.length >= 2) {
+    const first = summaries[0]!
+    const second = summaries[1]!
+    const target = first.runs + 1
+    const required = Math.max(0, target - second.runs)
+    const allottedBalls = ballsFromOversValue((match as { match_overs?: string | number | null }).match_overs) ?? 240
+    const remainingBalls = Math.max(0, allottedBalls - second.legal_balls)
+
+    status = required > 0
+      ? `${teamFullName(second.batting_team_id, teamsMap)} require ${required} runs in ${remainingBalls} balls`
+      : `${teamFullName(second.batting_team_id, teamsMap)} have reached the target`
+  }
+
+  return { score, status }
+}
+
 function teamHasMatch(teamId: number, match: HomeHubMatch): boolean {
   return match.home_team_id === teamId || match.away_team_id === teamId
 }
@@ -443,6 +574,39 @@ function App() {
   const { data: latestResults = [] } = useLatestResults(undefined, 80)
   const { map: teamsMap } = useTeamsMap()
 
+  const liveFixtureIds = useMemo(
+    () =>
+      upcomingFixtures
+        .filter((match) => isLiveMatch(match))
+        .map((match) => match.id)
+        .filter((id): id is number => Number.isFinite(id)),
+    [upcomingFixtures],
+  )
+
+  const { data: liveScoresByMatchId = {} } = useQuery({
+    queryKey: ['home-live-fixture-scores', liveFixtureIds.join(',')],
+    queryFn: async () => {
+      const pairs = await Promise.all(
+        liveFixtureIds.map(async (id) => {
+          try {
+            const state = await fetchJson<HomeLiveScoreState>(`/public/matches/${id}/live`)
+            return [id, state] as const
+          } catch {
+            return [id, undefined] as const
+          }
+        }),
+      )
+
+      return Object.fromEntries(
+        pairs.filter((pair): pair is readonly [number, HomeLiveScoreState] => Boolean(pair[1])),
+      ) as Record<number, HomeLiveScoreState>
+    },
+    enabled: liveFixtureIds.length > 0,
+    refetchInterval: 10000,
+    refetchIntervalInBackground: false,
+    retry: 1,
+  })
+
   const { data: spotlightTeams = [] } = useQuery({
     queryKey: ['home-team-spotlight-teams'],
     queryFn: async () =>
@@ -571,17 +735,37 @@ const selectedSpotlightTeam = useMemo(() => {
       .filter((match) => tabMatches(fixtureTab, match))
       .filter((match) => categoryMatches(match.category, fixtureCategory))
       .slice(0, 12)
-  }, [fixtureCategory, fixtureTab, latestResults, upcomingFixtures])
+      .map((match) => {
+        if (!isLiveMatch(match)) return match
+
+        const liveText = liveCardText(
+          match as HomeHubMatch,
+          liveScoresByMatchId[match.id],
+          teamsMap,
+        )
+
+        if (!liveText) return match
+
+        return {
+          ...match,
+          live_score_summary: liveText.score,
+          live_status_line: liveText.status,
+          live_match_cta: 'Live scorecard',
+        }
+      })
+  }, [
+    fixtureCategory,
+    fixtureTab,
+    latestResults,
+    liveScoresByMatchId,
+    teamsMap,
+    upcomingFixtures,
+  ])
 
   const featuredHubMatch = fixtureHubMatches[0] as HomeHubMatch | undefined
   const fixtureHubMode = fixtureTab === 'results' ? 'result' : 'fixture'
   const fixtureHubTitle =
     fixtureTabs.find((tab) => tab.id === fixtureTab)?.label ?? 'Fixtures'
-
-  const liveHomepageMatches = useMemo(
-    () => upcomingFixtures.filter(isLiveMatch).slice(0, 4),
-    [upcomingFixtures],
-  )
 
   const featuredHomeName =
     featuredHubMatch != null
@@ -594,6 +778,15 @@ const selectedSpotlightTeam = useMemo(() => {
       ? teamsMap[featuredHubMatch.away_team_id]?.name ??
         `Team ${featuredHubMatch.away_team_id}`
       : ''
+
+  const featuredLiveText =
+    featuredHubMatch != null && isLiveMatch(featuredHubMatch)
+      ? liveCardText(featuredHubMatch, liveScoresByMatchId[featuredHubMatch.id], teamsMap)
+      : null
+
+  const featuredMatchCentreHref = featuredHubMatch
+    ? homeMatchCentreHref(featuredHubMatch, featuredHomeName, featuredAwayName)
+    : '/fixtures'
 
   const spotlightNextFixture = useMemo(() => {
     if (!selectedSpotlightTeam) return undefined
@@ -888,12 +1081,30 @@ useEffect(() => {
                   <span>{featuredHubMatch.venue || 'Venue TBC'}</span>
                 </div>
 
-                <Link
-                  to={fixtureTab === 'results' ? '/results' : '/fixtures'}
+                {featuredLiveText ? (
+                  <div className="home-fixture-hub__live-score">
+                    <span>Live score</span>
+                    <strong>{featuredLiveText.score}</strong>
+                    <p>{featuredLiveText.status}</p>
+                  </div>
+                ) : null}
+
+                <a
+                  href={
+                    featuredLiveText
+                      ? featuredMatchCentreHref
+                      : fixtureTab === 'results'
+                        ? '/results'
+                        : '/fixtures'
+                  }
                   className="home-fixture-hub__feature-link"
                 >
-                  {fixtureTab === 'results' ? 'View results' : 'View fixtures'}
-                </Link>
+                  {featuredLiveText
+                    ? 'Open live scorecard'
+                    : fixtureTab === 'results'
+                      ? 'View results'
+                      : 'View fixtures'}
+                </a>
               </>
             ) : (
               <>
@@ -968,33 +1179,6 @@ useEffect(() => {
           </div>
         ) : null}
       </section>
-
-
-      {liveHomepageMatches.length > 0 ? (
-        <section className="home-section home-live-scores">
-          <div className="home-live-scores__head">
-            <div>
-              <p className="home-live-scores__eyebrow">Live now</p>
-              <h2>Ball-by-ball scores</h2>
-              <p>Follow every match that is currently being scored live.</p>
-            </div>
-            <Link to="/live" className="home-live-scores__link">
-              Open live centre
-            </Link>
-          </div>
-
-          <div className="home-live-scores__grid">
-            {liveHomepageMatches.map((match) => (
-              <LiveMatchCard
-                key={match.id}
-                match={match}
-                teamsMap={teamsMap}
-                compact
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       <HomeNewsCarousel articles={newsArticles} />
 
