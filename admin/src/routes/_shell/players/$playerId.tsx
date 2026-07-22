@@ -865,9 +865,14 @@ function PlayerDetailPage() {
                             <td>{when}</td>
                             <td>{row.season_name ?? '—'}</td>
                             <td>
-                              <span className="muted" style={{ fontSize: '0.82rem' }}>
+                              <Link
+                                to="/matches/$matchId"
+                                params={{ matchId: String(row.match_id) }}
+                                className="entity-detail-hero-row__link"
+                                style={{ fontSize: '0.82rem' }}
+                              >
                                 {row.home_team_name} vs {row.away_team_name}
-                              </span>
+                              </Link>
                             </td>
                             <td>{row.runs}</td>
                             <td>{row.balls_faced}</td>

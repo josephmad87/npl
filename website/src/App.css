@@ -3281,15 +3281,15 @@ table.player-public-table--match-log {
   line-height: 1.3;
 }
 
-.player-public-match-link {
-  font-size: 0.78rem;
+.player-public-fixture-link {
+  color: var(--color-primary);
   font-weight: 700;
-  color: var(--color-highlight);
   text-decoration: none;
-  white-space: nowrap;
 }
 
-.player-public-match-link:hover {
+.player-public-fixture-link:hover,
+.player-public-fixture-link:focus-visible {
+  color: var(--color-highlight);
   text-decoration: underline;
 }
 

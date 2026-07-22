@@ -669,20 +669,29 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                         <th>St</th>
                         <th>RO</th>
                         <th>Notes</th>
-                        <th />
                       </tr>
                     </thead>
                     <tbody>
                       {appearances.map((row) => {
                         const when = row.match_date?.slice(0, 10) ?? '—'
+                        const matchHref = matchSeoPath({
+                          id: row.match_id,
+                          home_name: row.home_team_name,
+                          away_name: row.away_team_name,
+                          league_name: row.league_name,
+                          season_name: row.season_name,
+                        })
                         return (
                           <tr key={row.stat_id}>
                             <td>{when}</td>
                             <td>{row.season_name ?? '—'}</td>
                             <td>
-                              <span className="player-public-fixture-mini">
+                              <a
+                                href={matchHref}
+                                className="player-public-fixture-mini player-public-fixture-link"
+                              >
                                 {row.home_team_name} vs {row.away_team_name}
-                              </span>
+                              </a>
                             </td>
                             <td>{row.runs}</td>
                             <td>{row.balls_faced}</td>
@@ -701,20 +710,6 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                             <td>{row.stumpings}</td>
                             <td>{row.run_outs}</td>
                             <td>{row.notes ?? '—'}</td>
-                            <td>
-                              <a
-  href={matchSeoPath({
-    id: row.match_id,
-    home_name: row.home_team_name,
-    away_name: row.away_team_name,
-    league_name: row.league_name,
-    season_name: row.season_name,
-  })}
-  className="player-public-match-link"
->
-                                Match
-                              </a>
-                            </td>
                           </tr>
                         )
                       })}
