@@ -2980,6 +2980,7 @@ def admin_delete_last_live_ball(
         .where(MatchBallEvent.match_id == match_id)
         .order_by(MatchBallEvent.sequence_number.desc(), MatchBallEvent.id.desc()),
     )
+    undone_event = _live_event_out(event) if event is not None else None
     if event is not None:
         event_id = event.id
         db.delete(event)
@@ -2995,7 +2996,9 @@ def admin_delete_last_live_ball(
         )
         db.commit()
 
-    return _live_score_state(db, match)
+    state = _live_score_state(db, match)
+    state.undone_event = undone_event
+    return state
 
 
 @router.put("/matches/{match_id}/live/balls/{event_id}", response_model=LiveScoreStateOut)

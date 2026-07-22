@@ -47,6 +47,11 @@ type EditingBallDraft = {
   body: LiveBallEventInput
 }
 
+type UndoLastBallResult = {
+  state: LiveScoreStateDto
+  undoneEvent: LiveBallEventDto | null
+}
+
 type ScorerPanel = 'score' | 'setup' | 'squads' | 'balls' | 'corrections' | 'review' | 'help'
 
 const EXTRAS_OPTIONS = [
@@ -91,6 +96,7 @@ function eventToLiveBallInput(event: LiveBallEventDto): LiveBallEventInput {
     wicket_type: event.wicket_type,
     wicket_player_id: event.wicket_player_id,
     fielder_player_id: event.fielder_player_id,
+    replacement_player_id: event.replacement_player_id,
     wicket_end: event.wicket_end,
     batters_crossed: event.batters_crossed,
     dismissal_text: event.dismissal_text,
@@ -392,6 +398,7 @@ function LiveScoringPage() {
   const [editingBall, setEditingBall] = useState<EditingBallDraft | null>(null)
   const [editBallError, setEditBallError] = useState<string | null>(null)
   const [activeScorerPanel, setActiveScorerPanel] = useState<ScorerPanel>('score')
+  const [correctionSearch, setCorrectionSearch] = useState('')
   const [extrasOpen, setExtrasOpen] = useState(false)
   const [finalReviewConfirmed, setFinalReviewConfirmed] = useState(false)
 
@@ -659,6 +666,20 @@ function LiveScoringPage() {
     setNonStrikerPlayerId(nextNonStriker)
   }
 
+  const restorePreBallState = (event: LiveBallEventDto) => {
+    setBattingTeamId(event.batting_team_id)
+    setBowlingTeamId(event.bowling_team_id)
+    setStrikerPlayerId(event.striker_player_id)
+    setNonStrikerPlayerId(event.non_striker_player_id ?? '')
+    setBowlerPlayerId(event.bowler_player_id)
+    setWicketPlayerId(event.striker_player_id)
+
+    const savedNotes = (event.notes ?? '').split('\n')
+    const savedOverNote = savedNotes.find((line) => line.startsWith('Over note: '))
+    setNotes(savedNotes.filter((line) => !line.startsWith('Over note: ')).join('\n'))
+    setOverNote(savedOverNote?.slice('Over note: '.length) ?? '')
+  }
+
   const ballMutation = useMutation({
     mutationFn: (payload: BallSubmitPayload) =>
       adminPost<LiveBallEventDto>(`/admin/matches/${mid}/live/balls`, payload.body),
@@ -683,10 +704,36 @@ function LiveScoringPage() {
   })
 
   const undoMutation = useMutation({
-    mutationFn: () =>
-      adminDeleteJson<LiveScoreStateDto>(`/admin/matches/${mid}/live/balls/last`),
-    onSuccess: async () => {
+    mutationFn: async (): Promise<UndoLastBallResult> => {
+      const undoneEvent = [...(liveQ.data?.events ?? [])].sort(
+        (a, b) => b.sequence_number - a.sequence_number || b.id - a.id,
+      )[0] ?? null
+      const state = await adminDeleteJson<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live/balls/last`,
+      )
+      return { state, undoneEvent: state.undone_event ?? undoneEvent }
+    },
+    onSuccess: async ({ state, undoneEvent }) => {
       setActionError(null)
+      queryClient.setQueryData(['admin', 'matches', mid, 'live'], state)
+
+      if (undoneEvent) {
+        if (innings === undoneEvent.innings) {
+          restorePreBallState(undoneEvent)
+        } else {
+          setInnings(undoneEvent.innings)
+          globalThis.setTimeout(() => restorePreBallState(undoneEvent), 0)
+        }
+      }
+
+      setWicketOpen(false)
+      setWicketDeliveryType('legal')
+      setFielderPlayerId('')
+      setNewBatterPlayerId('')
+      setWicketEnd('striker')
+      setWicketRunsCompleted(0)
+      setWicketRunCredit('bat')
+      setBattersCrossed(false)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
     },
     onError: (error: Error) => setActionError(error.message),
@@ -785,6 +832,15 @@ function LiveScoringPage() {
     )
     if (!ok) return
     void deleteBallMutation.mutate(event.id)
+  }
+
+  const beginEditingBall = (event: LiveBallEventDto) => {
+    setEditBallError(null)
+    setEditingBall({
+      eventId: event.id,
+      body: eventToLiveBallInput(event),
+    })
+    setActiveScorerPanel('corrections')
   }
 
   const endCurrentInnings = () => {
@@ -1092,6 +1148,25 @@ function LiveScoringPage() {
   const allLiveEvents = [...(liveQ.data?.events ?? [])].sort(
     (a, b) => a.sequence_number - b.sequence_number || a.id - b.id,
   )
+  const correctionSearchText = correctionSearch.trim().toLowerCase()
+  const displayedLiveEvents = [...allLiveEvents].reverse().filter((event) => {
+    if (activeScorerPanel !== 'corrections' || !correctionSearchText) return true
+
+    return [
+      `${event.innings}.${event.over_number}.${event.ball_number}`,
+      `${event.over_number}.${event.ball_number}`,
+      `event ${event.sequence_number}`,
+      playerName(playerById, event.striker_player_id),
+      playerName(playerById, event.non_striker_player_id),
+      playerName(playerById, event.bowler_player_id),
+      liveEventLabel(event),
+      dismissalLabel(event.wicket_type),
+      event.notes,
+      event.dismissal_text,
+    ]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(correctionSearchText))
+  })
   const reviewSummaries = [...(liveQ.data?.summaries ?? [])].sort(
     (a, b) => a.innings - b.innings,
   )
@@ -1971,10 +2046,14 @@ function LiveScoringPage() {
               type="button"
               className="btn-ghost btn--with-icon"
               onClick={() => void undoMutation.mutate()}
-              disabled={undoMutation.isPending}
+              disabled={
+                ballMutation.isPending ||
+                undoMutation.isPending ||
+                (liveQ.data?.events.length ?? 0) === 0
+              }
             >
               <Undo2 size={18} strokeWidth={2} aria-hidden />
-              Undo last
+              {undoMutation.isPending ? 'Undoing…' : 'Undo last'}
             </button>
           </div>
         </div>
@@ -2576,7 +2655,7 @@ function LiveScoringPage() {
             </div>
             <div className="live-scorer-review-card">
               <strong>Correction</strong>
-              <p className="muted">Use Undo last for the latest mistake. Use Balls → Edit/Delete for an earlier ball. The score and scorecard are recalculated after correction.</p>
+              <p className="muted">Use Undo last to remove the latest delivery and restore its striker, non-striker and bowler. Use Fix to find and edit or delete any individual delivery. The score and scorecard are recalculated after correction.</p>
             </div>
             <div className="live-scorer-review-card">
               <strong>End innings</strong>
@@ -2812,6 +2891,27 @@ function LiveScoringPage() {
             </label>
 
             <label className="inline-edit__field">
+              <span className="inline-edit__label">Replacement batter</span>
+              <select
+                className="inline-edit__control"
+                value={editingBall.body.replacement_player_id ?? ''}
+                onChange={(event) =>
+                  updateEditingBall(
+                    'replacement_player_id',
+                    event.target.value ? Number(event.target.value) : null,
+                  )
+                }
+              >
+                <option value="">— None —</option>
+                {playersForTeam(editingBall.body.batting_team_id).map((player) => (
+                  <option key={player.id} value={player.id}>
+                    {player.full_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="inline-edit__field">
               <span className="inline-edit__label">Fielder / catcher / wicketkeeper</span>
               <select
                 className="inline-edit__control"
@@ -2907,40 +3007,64 @@ function LiveScoringPage() {
         </section>
       ) : null}
 
-      {activeScorerPanel === 'balls' ? (
+      {activeScorerPanel === 'balls' || activeScorerPanel === 'corrections' ? (
       <section className="team-hub-section">
         <div className="team-hub-section-head">
           <div className="team-hub-section-head__lead">
-            <h2 className="team-hub-section__title">Ball-by-ball</h2>
-            <p className="muted">Latest scoring events for this match.</p>
+            <h2 className="team-hub-section__title">
+              {activeScorerPanel === 'corrections' ? 'Choose a delivery to correct' : 'Ball-by-ball'}
+            </h2>
+            <p className="muted">
+              {activeScorerPanel === 'corrections'
+                ? 'Every recorded delivery is shown below. Select Edit on the exact ball you want to correct, including wides and no-balls that may share the same over.ball number.'
+                : 'Latest scoring events for this match.'}
+            </p>
           </div>
         </div>
 
         {liveQ.isLoading ? <p className="muted">Loading live score…</p> : null}
 
-        {(liveQ.data?.events ?? []).length === 0 ? (
+        {activeScorerPanel === 'corrections' && allLiveEvents.length > 0 ? (
+          <label className="inline-edit__field" style={{ maxWidth: '34rem' }}>
+            <span className="inline-edit__label">Find a delivery</span>
+            <input
+              type="search"
+              className="inline-edit__control"
+              value={correctionSearch}
+              onChange={(event) => setCorrectionSearch(event.target.value)}
+              placeholder="Search 9.1, event number, player, bowler or result…"
+            />
+          </label>
+        ) : null}
+
+        {allLiveEvents.length === 0 ? (
           <p className="muted">No balls recorded yet.</p>
+        ) : displayedLiveEvents.length === 0 ? (
+          <p className="muted">No recorded deliveries match that search.</p>
         ) : (
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Ball</th>
-                  <th>Batter</th>
+                  <th>Delivery</th>
+                  <th>Striker</th>
+                  <th>Non-striker</th>
                   <th>Bowler</th>
                   <th>Result</th>
                   <th>Dismissal / fielder</th>
                   <th>Notes</th>
-                  <th>Actions</th>
+                  {activeScorerPanel === 'corrections' ? <th>Actions</th> : null}
                 </tr>
               </thead>
               <tbody>
-                {[...(liveQ.data?.events ?? [])].reverse().map((event) => (
+                {displayedLiveEvents.map((event) => (
                   <tr key={event.id}>
                     <td>
-                      {event.innings}.{event.over_number}.{event.ball_number}
+                      <strong>{event.innings}.{event.over_number}.{event.ball_number}</strong>
+                      <div className="muted">Event #{event.sequence_number}</div>
                     </td>
                     <td>{playerName(playerById, event.striker_player_id)}</td>
+                    <td>{playerName(playerById, event.non_striker_player_id)}</td>
                     <td>{playerName(playerById, event.bowler_player_id)}</td>
                     <td>{liveEventLabel(event)}</td>
                     <td>
@@ -2958,33 +3082,28 @@ function LiveScoringPage() {
                         : '—'}
                     </td>
                     <td>{event.notes ?? event.dismissal_text ?? '—'}</td>
-                    <td>
-                      <div className="catalog-toolbar">
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          onClick={() => {
-                            setEditBallError(null)
-                            setEditingBall({
-                              eventId: event.id,
-                              body: eventToLiveBallInput(event),
-                            })
-                            setActiveScorerPanel('corrections')
-                          }}
-                          disabled={editBallMutation.isPending || deleteBallMutation.isPending}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          onClick={() => deleteRecordedBall(event)}
-                          disabled={editBallMutation.isPending || deleteBallMutation.isPending}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+                    {activeScorerPanel === 'corrections' ? (
+                      <td>
+                        <div className="catalog-toolbar">
+                          <button
+                            type="button"
+                            className="btn-ghost"
+                            onClick={() => beginEditingBall(event)}
+                            disabled={editBallMutation.isPending || deleteBallMutation.isPending}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost"
+                            onClick={() => deleteRecordedBall(event)}
+                            disabled={editBallMutation.isPending || deleteBallMutation.isPending}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

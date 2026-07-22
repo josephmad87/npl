@@ -6,7 +6,12 @@ from app.api.v1.admin_routes import (
     _live_ball_label,
     _validate_live_ball_event,
 )
-from app.schemas.matches import LiveBallEventIn, LiveScoreCompleteIn, MatchLiveSetupIn
+from app.schemas.matches import (
+    LiveBallEventIn,
+    LiveScoreCompleteIn,
+    LiveScoreStateOut,
+    MatchLiveSetupIn,
+)
 
 
 def test_live_match_setup_preserves_match_overs() -> None:
@@ -24,6 +29,12 @@ def test_live_score_complete_preserves_match_overs() -> None:
     body = LiveScoreCompleteIn(status="completed", match_overs="20.0")
 
     assert body.match_overs == Decimal("20.0")
+
+
+def test_live_score_state_defaults_to_no_undone_event() -> None:
+    state = LiveScoreStateOut(match_id=1, status="live")
+
+    assert state.undone_event is None
 
 
 def _wicket_ball(**overrides: object) -> LiveBallEventIn:
