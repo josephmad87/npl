@@ -2508,6 +2508,23 @@ def _assert_live_ball_payload(
         bowling_allowed,
         "Fielder",
     )
+    _assert_live_player(
+        db,
+        body.replacement_player_id,
+        {body.batting_team_id},
+        batting_allowed,
+        "Replacement batter",
+    )
+    if body.replacement_player_id and not body.wicket_type:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Replacement batter can only be set on a wicket ball."},
+        )
+    if body.replacement_player_id and body.replacement_player_id in {body.striker_player_id, body.non_striker_player_id}:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Replacement batter must be different from the current batters."},
+        )
     _assert_bowler_can_bowl_current_over(db, match.id, body)
 
 

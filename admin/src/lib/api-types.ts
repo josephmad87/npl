@@ -468,6 +468,7 @@ export type LiveBallEventDto = {
   wicket_type: string | null
   wicket_player_id: number | null
   fielder_player_id: number | null
+  replacement_player_id: number | null
   wicket_end: 'striker' | 'non_striker' | null
   batters_crossed: boolean
   dismissal_text: string | null
@@ -521,6 +522,7 @@ export type LiveBallEventInput = {
   wicket_type?: string | null
   wicket_player_id?: number | null
   fielder_player_id?: number | null
+  replacement_player_id?: number | null
   wicket_end?: 'striker' | 'non_striker' | null
   batters_crossed?: boolean
   dismissal_text?: string | null

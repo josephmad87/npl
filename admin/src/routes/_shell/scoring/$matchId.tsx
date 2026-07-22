@@ -837,6 +837,7 @@ function LiveScoringPage() {
         ? input.wicketPlayerId ?? (wicketPlayerId || strikerPlayerId)
         : null,
       fielder_player_id: input.fielderPlayerId ?? null,
+      replacement_player_id: input.wicketType ? newBatterId ?? null : null,
       wicket_end: input.wicketEnd ?? null,
       batters_crossed: input.battersCrossed ?? false,
       dismissal_text: input.dismissalText ?? null,
@@ -851,6 +852,18 @@ function LiveScoringPage() {
   }
 
   const submitWicket = () => {
+    setActionError(null)
+
+    if (!battingTeamId || !bowlingTeamId || !strikerPlayerId || !bowlerPlayerId) {
+      setActionError('Choose batting team, bowling team, striker and bowler before saving the wicket ball.')
+      return
+    }
+
+    if (!nonStrikerPlayerId && wicketType === 'run_out') {
+      setActionError('Choose the non-striker before saving a run out.')
+      return
+    }
+
     const option = DISMISSAL_OPTIONS.find((item) => item.value === wicketType)
     if (!option) {
       setActionError('Choose a dismissal mode.')
@@ -868,7 +881,7 @@ function LiveScoringPage() {
       fielderId = bowlerPlayerId || null
     } else if (option.needsFielder) {
       if (!fielderPlayerId) {
-        setActionError(`Choose the ${option.fielderLabel ?? 'fielder'}.`)
+        setActionError(`Choose the ${option.fielderLabel ?? 'fielder'} before saving this wicket.`)
         return
       }
       fielderId = fielderPlayerId
@@ -876,13 +889,23 @@ function LiveScoringPage() {
 
     const wicketRuns = Math.max(0, Number(wicketRunsCompleted) || 0)
     if (wicketRuns > 0 && wicketType !== 'run_out') {
-      setActionError('Runs on the wicket ball should only be used for run outs. For bowled, caught, LBW or stumped, keep runs as 0.')
+      setActionError('Runs completed before wicket is only for run outs. For bowled, caught, LBW or stumped, keep runs as 0.')
       return
     }
 
     const newBatter = newBatterPlayerId || null
+    const needsNewBatter =
+      !['retired_hurt', 'retired_not_out'].includes(wicketType) && availableNewBatters.length > 0
+    if (needsNewBatter && !newBatter) {
+      setActionError('Choose the new batter before saving this wicket ball.')
+      return
+    }
+
     const parts = [option.label]
-    if (wicketRuns > 0) parts.push(`${wicketRuns} completed run${wicketRuns === 1 ? '' : 's'}`)
+    if (wicketType === 'run_out') {
+      parts.push(`${wicketRuns} completed run${wicketRuns === 1 ? '' : 's'}`)
+      parts.push(`end: ${wicketEnd.replace('_', '-')}`)
+    }
     if (fielderId) parts.push(`fielder: ${playerName(playerById, fielderId)}`)
 
     submitBall(
@@ -2183,13 +2206,15 @@ function LiveScoringPage() {
               </label>
             </div>
 
+            {actionError ? <p className="login-error">{actionError}</p> : null}
+
             <button
               type="button"
               className="btn-primary"
               onClick={submitWicket}
               disabled={ballMutation.isPending}
             >
-              Save wicket
+              {ballMutation.isPending ? 'Saving wicket…' : 'Save wicket'}
             </button>
           </div>
         ) : null}
