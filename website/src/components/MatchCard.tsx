@@ -373,12 +373,12 @@ export function MatchCard({
   const displayStatus = publicDisplayMatchStatus(match.status, match.match_date)
   const winner = matchWinnerSide(match)
   const scoreline = matchResultSummaryLine(match)
+  const competitionLine = matchCompetitionLine(match)
+  const matchWithExtras = match as MatchWithTeamExtras
   const liveScoreSummary = matchWithExtras.live_score_summary?.trim() ?? ''
   const liveStatusLine = matchWithExtras.live_status_line?.trim() ?? ''
   const showLiveScore = displayStatus === 'live' && liveScoreSummary.length > 0
   const showScore = !showLiveScore && scoreline != null && scoreline.length > 0
-  const competitionLine = matchCompetitionLine(match)
-  const matchWithExtras = match as MatchWithTeamExtras
 
   const seasonLine =
     matchWithExtras.season?.name ??
