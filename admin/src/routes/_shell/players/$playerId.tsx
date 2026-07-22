@@ -201,6 +201,7 @@ function PlayerDetailPage() {
       bowlingBalls: number
       catches: number
       stumpings: number
+      runOuts: number
       potm: number
       bestWickets: number
       bestRunsConceded: number | null
@@ -223,6 +224,7 @@ function PlayerDetailPage() {
           bowlingBalls: 0,
           catches: 0,
           stumpings: 0,
+          runOuts: 0,
           potm: 0,
           bestWickets: 0,
           bestRunsConceded: null,
@@ -240,6 +242,7 @@ function PlayerDetailPage() {
       next.bowlingBalls += oversFieldToBalls(row.overs)
       next.catches += row.catches ?? 0
       next.stumpings += row.stumpings ?? 0
+      next.runOuts += row.run_outs ?? 0
       if (row.player_of_match) next.potm += 1
 
       const wkts = row.wickets ?? 0
@@ -284,6 +287,7 @@ function PlayerDetailPage() {
           best,
           catches: s.catches,
           stumpings: s.stumpings,
+          runOuts: s.runOuts,
           potm: s.potm,
         }
       })
@@ -770,13 +774,14 @@ function PlayerDetailPage() {
                       <th>Best</th>
                       <th>Ct</th>
                       <th>St</th>
+                      <th>RO</th>
                       <th>POTM</th>
                     </tr>
                   </thead>
                   <tbody>
                     {careerByLeague.length === 0 ? (
                       <tr>
-                        <td colSpan={13} className="muted">
+                        <td colSpan={14} className="muted">
                           No scorecard rows yet.
                         </td>
                       </tr>
@@ -795,6 +800,7 @@ function PlayerDetailPage() {
                           <td>{row.best}</td>
                           <td>{row.catches}</td>
                           <td>{row.stumpings}</td>
+                          <td>{row.runOuts}</td>
                           <td>{row.potm}</td>
                         </tr>
                       ))

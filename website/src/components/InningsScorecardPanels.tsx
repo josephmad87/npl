@@ -4,6 +4,7 @@ import {
   getInningsSides,
   hasBattingLine,
   hasBowlingLine,
+  isDidNotBat,
   oversFieldToBalls,
   type InningsNumber,
 } from '../lib/cricket'
@@ -87,8 +88,10 @@ function compareRecordedOrder(
   b: ScorecardStat,
   field: 'batting_order' | 'bowling_order',
 ): number {
-  const aOrder = a[field]
-  const bOrder = b[field]
+  const aOrder =
+    field === 'batting_order' && isDidNotBat(a.dismissal) ? null : a[field]
+  const bOrder =
+    field === 'batting_order' && isDidNotBat(b.dismissal) ? null : b[field]
 
   if (aOrder != null && bOrder == null) return -1
   if (aOrder == null && bOrder != null) return 1

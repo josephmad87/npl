@@ -65,6 +65,7 @@ export type PlayerDto = {
   best_bowling?: string | null
   catches?: number
   stumpings?: number
+  run_outs?: number
   player_of_match_awards?: number
 }
 
