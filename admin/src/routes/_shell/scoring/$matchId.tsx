@@ -40,6 +40,7 @@ type BallSubmitPayload = {
 
 type WicketEnd = 'striker' | 'non_striker'
 type WicketRunCredit = 'bat' | 'bye' | 'leg_bye'
+type WicketDeliveryType = 'legal' | 'wide' | 'no_ball'
 
 type EditingBallDraft = {
   eventId: number
@@ -120,6 +121,19 @@ const DISMISSAL_OPTIONS: DismissalOption[] = [
   { value: 'timed_out', label: 'Timed out', needsFielder: false },
 ]
 
+const WIDE_DISMISSALS = new Set(['run_out', 'stumped', 'hit_wicket', 'obstructing_field'])
+const NO_BALL_DISMISSALS = new Set(['run_out', 'hit_wicket', 'obstructing_field'])
+
+function dismissalOptionsForDelivery(delivery: WicketDeliveryType): DismissalOption[] {
+  if (delivery === 'wide') {
+    return DISMISSAL_OPTIONS.filter((option) => WIDE_DISMISSALS.has(option.value))
+  }
+  if (delivery === 'no_ball') {
+    return DISMISSAL_OPTIONS.filter((option) => NO_BALL_DISMISSALS.has(option.value))
+  }
+  return DISMISSAL_OPTIONS
+}
+
 function adminAccessToken(): string | undefined {
   const session = getSession() as
     | { accessToken?: string; access_token?: string; token?: string }
@@ -170,6 +184,33 @@ function matchWhen(match: MatchDto): string {
   return '—'
 }
 
+function wicketEventLabel(event: LiveBallEventDto, compact = false): string {
+  if (!event.wicket_type) return ''
+
+  if (event.extras_type === 'wide') {
+    if (compact) return event.runs_extras === 1 ? 'W+Wd' : `W+${event.runs_extras}Wd`
+    return event.runs_extras === 1 ? 'W + Wide' : `W + ${event.runs_extras} wides`
+  }
+  if (event.extras_type === 'no_ball') {
+    if (compact) return event.runs_batter > 0 ? `W+${event.runs_batter}Nb` : 'W+Nb'
+    return event.runs_batter > 0
+      ? `W + No ball + ${event.runs_batter} batter run${event.runs_batter === 1 ? '' : 's'}`
+      : 'W + No ball'
+  }
+  if (event.extras_type === 'no_ball_bye') {
+    const byes = Math.max(0, event.runs_extras - 1)
+    return compact ? `W+Nb+${byes}b` : `W + No ball + ${byes} bye${byes === 1 ? '' : 's'}`
+  }
+  if (event.extras_type === 'no_ball_leg_bye') {
+    const legByes = Math.max(0, event.runs_extras - 1)
+    return compact
+      ? `W+Nb+${legByes}lb`
+      : `W + No ball + ${legByes} leg bye${legByes === 1 ? '' : 's'}`
+  }
+
+  return 'W'
+}
+
 function liveEventLabel(event: LiveBallEventDto): string {
   if (event.is_dead_ball) {
     if (event.penalty_runs_batting) return `Penalty +${event.penalty_runs_batting}`
@@ -177,7 +218,7 @@ function liveEventLabel(event: LiveBallEventDto): string {
     return 'Dead ball'
   }
 
-  if (event.wicket_type) return 'W'
+  if (event.wicket_type) return wicketEventLabel(event)
 
   const extrasType = event.extras_type
   let label = ''
@@ -226,7 +267,7 @@ function liveEventChipLabel(event: LiveBallEventDto): string {
     if (event.penalty_runs_batting || event.penalty_runs_fielding) return '+5'
     return 'DB'
   }
-  if (event.wicket_type) return 'W'
+  if (event.wicket_type) return wicketEventLabel(event, true)
   if (event.extras_type === 'wide') {
     return event.runs_extras === 1 ? 'Wd' : `${event.runs_extras}Wd`
   }
@@ -332,6 +373,7 @@ function LiveScoringPage() {
   const [playerRoles, setPlayerRoles] = useState<PlayerRoleMap>({})
   const [squadDirty, setSquadDirty] = useState(false)
   const [wicketOpen, setWicketOpen] = useState(false)
+  const [wicketDeliveryType, setWicketDeliveryType] = useState<WicketDeliveryType>('legal')
   const [wicketType, setWicketType] = useState('caught')
   const [wicketPlayerId, setWicketPlayerId] = useState<number | ''>('')
   const [fielderPlayerId, setFielderPlayerId] = useState<number | ''>('')
@@ -627,6 +669,7 @@ function LiveScoringPage() {
         setOverNote('')
       }
       setWicketOpen(false)
+      setWicketDeliveryType('legal')
       setFielderPlayerId('')
       setNewBatterPlayerId('')
       setWicketEnd('striker')
@@ -703,6 +746,7 @@ function LiveScoringPage() {
       setNotes('')
       setOverNote('')
       setWicketOpen(false)
+      setWicketDeliveryType('legal')
       setFielderPlayerId('')
       setNewBatterPlayerId('')
       setWicketRunsCompleted(0)
@@ -761,6 +805,7 @@ function LiveScoringPage() {
     setNotes('')
     setOverNote('')
     setWicketOpen(false)
+    setWicketDeliveryType('legal')
     setFielderPlayerId('')
     setNewBatterPlayerId('')
     setWicketRunsCompleted(0)
@@ -881,9 +926,11 @@ function LiveScoringPage() {
       return
     }
 
-    const option = DISMISSAL_OPTIONS.find((item) => item.value === wicketType)
+    const option = dismissalOptionsForDelivery(wicketDeliveryType).find(
+      (item) => item.value === wicketType,
+    )
     if (!option) {
-      setActionError('Choose a dismissal mode.')
+      setActionError('Choose a dismissal mode that is valid for this delivery.')
       return
     }
 
@@ -906,7 +953,7 @@ function LiveScoringPage() {
 
     const wicketRuns = Math.max(0, Number(wicketRunsCompleted) || 0)
     if (wicketRuns > 0 && wicketType !== 'run_out') {
-      setActionError('Runs completed before wicket is only for run outs. For bowled, caught, LBW or stumped, keep runs as 0.')
+      setActionError('Runs completed before the wicket can only be recorded for a run out.')
       return
     }
 
@@ -918,7 +965,42 @@ function LiveScoringPage() {
       return
     }
 
+    let runsBatter = 0
+    let runsExtras = 0
+    let extrasType: string | null = null
+    let isLegalDelivery = true
+
+    if (wicketDeliveryType === 'wide') {
+      runsExtras = wicketRuns + 1
+      extrasType = 'wide'
+      isLegalDelivery = false
+    } else if (wicketDeliveryType === 'no_ball') {
+      runsBatter = wicketRunCredit === 'bat' ? wicketRuns : 0
+      runsExtras = 1 + (wicketRunCredit === 'bat' ? 0 : wicketRuns)
+      extrasType =
+        wicketRuns === 0 || wicketRunCredit === 'bat'
+          ? 'no_ball'
+          : `no_ball_${wicketRunCredit}`
+      isLegalDelivery = false
+    } else {
+      runsBatter = wicketRunCredit === 'bat' ? wicketRuns : 0
+      runsExtras = wicketRunCredit === 'bat' ? 0 : wicketRuns
+      extrasType = wicketRunCredit === 'bat' || wicketRuns === 0 ? null : wicketRunCredit
+    }
+
     const parts = [option.label]
+    if (wicketDeliveryType === 'wide') {
+      parts.push(runsExtras === 1 ? 'wide' : `${runsExtras} wides`)
+    } else if (wicketDeliveryType === 'no_ball') {
+      if (wicketRuns === 0) {
+        parts.push('no-ball')
+      } else if (wicketRunCredit === 'bat') {
+        parts.push(`no-ball + ${wicketRuns} batter run${wicketRuns === 1 ? '' : 's'}`)
+      } else {
+        const creditLabel = wicketRunCredit === 'bye' ? 'bye' : 'leg-bye'
+        parts.push(`no-ball + ${wicketRuns} ${creditLabel}${wicketRuns === 1 ? '' : 's'}`)
+      }
+    }
     if (wicketType === 'run_out') {
       parts.push(`${wicketRuns} completed run${wicketRuns === 1 ? '' : 's'}`)
       parts.push(`end: ${wicketEnd.replace('_', '-')}`)
@@ -932,9 +1014,10 @@ function LiveScoringPage() {
         fielderPlayerId: fielderId,
         wicketEnd: wicketType === 'run_out' ? wicketEnd : null,
         battersCrossed,
-        runsBatter: wicketRunCredit === 'bat' ? wicketRuns : 0,
-        runsExtras: wicketRunCredit === 'bat' ? 0 : wicketRuns,
-        extrasType: wicketRunCredit === 'bat' || wicketRuns === 0 ? null : wicketRunCredit,
+        runsBatter,
+        runsExtras,
+        extrasType,
+        isLegalDelivery,
         completedRuns: wicketRuns,
         strikeRuns: wicketRuns,
         dismissalText: parts.join(' · '),
@@ -966,7 +1049,8 @@ function LiveScoringPage() {
     ? `${currentSummary.runs}/${currentSummary.wickets} (${currentSummary.overs_label})`
     : '0/0 (0.0)'
 
-  const currentWicketOption = DISMISSAL_OPTIONS.find((item) => item.value === wicketType)
+  const wicketDismissalOptions = dismissalOptionsForDelivery(wicketDeliveryType)
+  const currentWicketOption = wicketDismissalOptions.find((item) => item.value === wicketType)
   const availableNewBatters = battingPlayers.filter(
     (player) => player.id !== strikerPlayerId && player.id !== nonStrikerPlayerId,
   )
@@ -2133,14 +2217,34 @@ function LiveScoringPage() {
               <div className="team-hub-section-head__lead">
                 <h3 className="team-hub-section__title">Wicket details</h3>
                 <p className="muted">
-                  Pick the player out, mode of dismissal, fielder if needed, runs completed before a run out, and new batter.
+                  Choose whether this was a legal ball, wide, or no-ball, then record the dismissal and any completed runs on the same delivery.
                 </p>
               </div>
             </div>
 
             <div className="inline-edit__grid">
               <label className="inline-edit__field">
-                <span className="inline-edit__label">1. Player out</span>
+                <span className="inline-edit__label">1. Delivery</span>
+                <select
+                  className="inline-edit__control"
+                  value={wicketDeliveryType}
+                  onChange={(event) => {
+                    const nextDelivery = event.target.value as WicketDeliveryType
+                    const nextOptions = dismissalOptionsForDelivery(nextDelivery)
+                    setWicketDeliveryType(nextDelivery)
+                    if (!nextOptions.some((option) => option.value === wicketType)) {
+                      setWicketType(nextOptions[0]?.value ?? 'run_out')
+                    }
+                  }}
+                >
+                  <option value="legal">Legal ball</option>
+                  <option value="wide">Wide + wicket</option>
+                  <option value="no_ball">No-ball + wicket</option>
+                </select>
+              </label>
+
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">2. Player out</span>
                 <select
                   className="inline-edit__control"
                   value={wicketPlayerId || strikerPlayerId}
@@ -2155,13 +2259,17 @@ function LiveScoringPage() {
               </label>
 
               <label className="inline-edit__field">
-                <span className="inline-edit__label">2. Mode of dismissal</span>
+                <span className="inline-edit__label">3. Mode of dismissal</span>
                 <select
                   className="inline-edit__control"
                   value={wicketType}
-                  onChange={(event) => setWicketType(event.target.value)}
+                  onChange={(event) => {
+                    const nextWicketType = event.target.value
+                    setWicketType(nextWicketType)
+                    if (nextWicketType !== 'run_out') setWicketRunsCompleted(0)
+                  }}
                 >
-                  {DISMISSAL_OPTIONS.map((item) => (
+                  {wicketDismissalOptions.map((item) => (
                     <option key={item.value} value={item.value}>
                       {item.label}
                     </option>
@@ -2207,23 +2315,40 @@ function LiveScoringPage() {
 
               {wicketType === 'run_out' ? (
                 <label className="inline-edit__field">
-                  <span className="inline-edit__label">Runs completed before wicket</span>
+                  <span className="inline-edit__label">
+                    {wicketDeliveryType === 'wide'
+                      ? 'Completed runs (wide penalty added automatically)'
+                      : wicketDeliveryType === 'no_ball'
+                        ? 'Completed runs (no-ball penalty added automatically)'
+                        : 'Runs completed before wicket'}
+                  </span>
                   <select
                     className="inline-edit__control"
                     value={wicketRunsCompleted}
                     onChange={(event) => setWicketRunsCompleted(Number(event.target.value))}
                   >
-                    <option value={0}>0 runs</option>
-                    <option value={1}>1 run</option>
-                    <option value={2}>2 runs</option>
-                    <option value={3}>3 runs</option>
+                    {[0, 1, 2, 3, 4, 5, 6].map((runs) => (
+                      <option key={runs} value={runs}>
+                        {wicketDeliveryType === 'wide'
+                          ? `${runs + 1} wide${runs === 0 ? '' : 's'} total (${runs} completed)`
+                          : wicketDeliveryType === 'no_ball'
+                            ? `${runs} completed + no-ball`
+                            : `${runs} run${runs === 1 ? '' : 's'}`}
+                      </option>
+                    ))}
                   </select>
                 </label>
               ) : null}
 
-              {wicketType === 'run_out' && wicketRunsCompleted > 0 ? (
+              {wicketType === 'run_out' &&
+              wicketRunsCompleted > 0 &&
+              wicketDeliveryType !== 'wide' ? (
                 <label className="inline-edit__field">
-                  <span className="inline-edit__label">Credit those runs as</span>
+                  <span className="inline-edit__label">
+                    {wicketDeliveryType === 'no_ball'
+                      ? 'Credit completed runs as (plus one no-ball)'
+                      : 'Credit those runs as'}
+                  </span>
                   <select
                     className="inline-edit__control"
                     value={wicketRunCredit}
@@ -2447,7 +2572,7 @@ function LiveScoringPage() {
             </div>
             <div className="live-scorer-review-card">
               <strong>Wicket</strong>
-              <p className="muted">Tap Out / wicket, choose the player out, dismissal type, fielder if required, wicket end for run outs, any completed runs before the wicket, and the new batter.</p>
+              <p className="muted">Tap Out / wicket, choose legal ball, wide, or no-ball, then select the player out, dismissal type, fielder if required, wicket end, completed runs and their credit, and the new batter.</p>
             </div>
             <div className="live-scorer-review-card">
               <strong>Correction</strong>

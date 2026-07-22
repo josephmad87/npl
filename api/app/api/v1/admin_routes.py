@@ -2215,10 +2215,18 @@ def _live_ball_label(event: MatchBallEvent) -> str:
             return f"P-fielding {event.penalty_runs_fielding}"
         return "Dead"
 
+    extras_type = (event.extras_type or "").strip().lower()
     if event.wicket_type:
+        if extras_type == "wide":
+            return "W+wd" if event.runs_extras == 1 else f"W+{event.runs_extras}wd"
+        if extras_type == "no_ball":
+            return "W+nb" if event.runs_batter == 0 else f"W+{event.runs_batter}nb"
+        if extras_type == "no_ball_bye":
+            return f"W+nb+{max(0, event.runs_extras - 1)}b"
+        if extras_type == "no_ball_leg_bye":
+            return f"W+nb+{max(0, event.runs_extras - 1)}lb"
         return "W"
 
-    extras_type = (event.extras_type or "").strip().lower()
     if not extras_type:
         label = str(event.runs_batter)
     elif extras_type == "wide":
