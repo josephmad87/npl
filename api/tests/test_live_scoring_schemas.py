@@ -1,7 +1,11 @@
 from decimal import Decimal
 from types import SimpleNamespace
 
-from app.api.v1.admin_routes import _live_ball_label, _validate_live_ball_event
+from app.api.v1.admin_routes import (
+    _dismissal_text_for_live_event,
+    _live_ball_label,
+    _validate_live_ball_event,
+)
 from app.schemas.matches import LiveBallEventIn, LiveScoreCompleteIn, MatchLiveSetupIn
 
 
@@ -90,3 +94,37 @@ def test_live_ball_label_keeps_wicket_and_wide_visible() -> None:
     )
 
     assert _live_ball_label(event) == "W+3wd"
+
+
+def test_final_scorecard_dismissal_prefers_scorer_ball_commentary() -> None:
+    event = SimpleNamespace(
+        notes="Caught at deep midwicket by T. Ncube.\nOver note: Excellent over",
+        dismissal_text="Caught · fielder: T. Ncube",
+        wicket_type="caught",
+        bowler_player_id=20,
+        fielder_player_id=21,
+    )
+
+    dismissal = _dismissal_text_for_live_event(
+        event,
+        {20: "P. Moyo", 21: "T. Ncube"},
+    )
+
+    assert dismissal == "Caught at deep midwicket by T. Ncube."
+
+
+def test_final_scorecard_dismissal_ignores_over_note_without_ball_commentary() -> None:
+    event = SimpleNamespace(
+        notes="Over note: Excellent over",
+        dismissal_text="Caught · fielder: T. Ncube",
+        wicket_type="caught",
+        bowler_player_id=20,
+        fielder_player_id=21,
+    )
+
+    dismissal = _dismissal_text_for_live_event(
+        event,
+        {20: "P. Moyo", 21: "T. Ncube"},
+    )
+
+    assert dismissal == "Caught · fielder: T. Ncube"

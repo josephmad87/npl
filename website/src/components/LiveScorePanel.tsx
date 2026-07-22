@@ -605,7 +605,10 @@ function computeMiniDashboard(
       const outStat = event.wicket_player_id ? batterStats.get(event.wicket_player_id) : null
       if (outStat) {
         outStat.isOut = true
-        outStat.dismissal = event.dismissal_text?.trim() || dismissalLabel(event.wicket_type)
+        outStat.dismissal =
+          splitOverNote(event.notes).ballNote ||
+          event.dismissal_text?.trim() ||
+          dismissalLabel(event.wicket_type)
       }
       lastBatText = `${outName} ${outRuns} (${outBalls}b)`
       fowText = `${inningsRuns}/${inningsWickets} (${oversLabelFromBalls(legalBalls)} ov)`

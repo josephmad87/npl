@@ -3140,6 +3140,14 @@ def _dismissal_text_for_live_event(
     event: MatchBallEvent,
     player_names: dict[int, str],
 ) -> str:
+    ball_comment = " ".join(
+        line
+        for raw_line in (event.notes or "").splitlines()
+        if (line := raw_line.strip()) and not line.lower().startswith("over note:")
+    )
+    if ball_comment:
+        return ball_comment
+
     if event.dismissal_text and event.dismissal_text.strip():
         return event.dismissal_text.strip()
 
