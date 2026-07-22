@@ -158,6 +158,7 @@ type OverCommentaryGroup = {
   overNumber: number
   runs: number
   wickets: number
+  overNote: string | null
   scoreText: string
   battersText: string
   bowlerText: string
@@ -242,6 +243,28 @@ function dismissalLabel(value: string | null | undefined): string {
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ')
+}
+
+function splitOverNote(notes: string | null | undefined): { ballNote: string | null; overNote: string | null } {
+  const raw = notes?.trim()
+  if (!raw) return { ballNote: null, overNote: null }
+
+  const ballLines: string[] = []
+  let overNote: string | null = null
+
+  for (const line of raw.split(/\r?\n/)) {
+    const match = line.match(/^over note:\s*(.+)$/i)
+    if (match) {
+      overNote = match[1]?.trim() || null
+    } else if (line.trim()) {
+      ballLines.push(line.trim())
+    }
+  }
+
+  return {
+    ballNote: ballLines.length > 0 ? ballLines.join(' ') : null,
+    overNote,
+  }
 }
 
 function eventTotalRuns(event: LiveBallEvent): number {
@@ -368,8 +391,8 @@ function tokenClass(token: string): string {
 }
 
 function deliveryDetail(event: LiveBallEvent, playerById: Map<number, PublicPlayer>): string {
-  const note = event.notes?.trim()
-  if (note) return note
+  const { ballNote } = splitOverNote(event.notes)
+  if (ballNote) return ballNote
 
   if (event.wicket_type) {
     const outName = playerName(playerById, event.wicket_player_id)
@@ -488,6 +511,7 @@ function computeMiniDashboard(
       overNumber: event.over_number,
       runs: 0,
       wickets: 0,
+      overNote: null,
       scoreText: '0/0',
       battersText: '—',
       bowlerText: '—',
@@ -541,6 +565,8 @@ function computeMiniDashboard(
     const isLegalBall = event.is_legal_delivery !== false && !event.is_dead_ball
     inningsRuns += runs
     group.runs += runs
+    const parsedOverNote = splitOverNote(event.notes).overNote
+    if (parsedOverNote) group.overNote = parsedOverNote
     partnershipRuns += runs
     if (isLegalBall) {
       legalBalls += 1
@@ -956,7 +982,7 @@ export function LiveScorePanel({
                 ))}
                 <span className="live-score-panel__strip-over">
                   {ordinal(group.overNumber)}
-                  <strong>{group.runs} RUN{group.runs === 1 ? '' : 'S'}</strong>
+                  <strong>{group.overNote ?? `${group.runs} RUN${group.runs === 1 ? '' : 'S'}`}</strong>
                 </span>
               </div>
             ))}
@@ -985,7 +1011,7 @@ export function LiveScorePanel({
                     <strong>{group.overNumber}</strong>
                   </div>
                   <div className="live-score-panel__over-runs">
-                    {group.runs} run{group.runs === 1 ? '' : 's'}
+                    {group.overNote ?? `${group.runs} run${group.runs === 1 ? '' : 's'}`}
                   </div>
                   <div className="live-score-panel__over-score">
                     {shortTeamName(battingTeam)} {group.scoreText}

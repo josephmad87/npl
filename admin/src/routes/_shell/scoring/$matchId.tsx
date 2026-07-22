@@ -327,6 +327,7 @@ function LiveScoringPage() {
   const [nonStrikerPlayerId, setNonStrikerPlayerId] = useState<number | ''>('')
   const [bowlerPlayerId, setBowlerPlayerId] = useState<number | ''>('')
   const [notes, setNotes] = useState('')
+  const [overNote, setOverNote] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
   const [playerRoles, setPlayerRoles] = useState<PlayerRoleMap>({})
   const [squadDirty, setSquadDirty] = useState(false)
@@ -622,6 +623,9 @@ function LiveScoringPage() {
     onSuccess: async (_created, payload) => {
       setActionError(null)
       setNotes('')
+      if (payload.body.is_legal_delivery !== false && !payload.body.is_dead_ball && payload.body.ball_number === 6) {
+        setOverNote('')
+      }
       setWicketOpen(false)
       setFielderPlayerId('')
       setNewBatterPlayerId('')
@@ -697,6 +701,7 @@ function LiveScoringPage() {
       setEditingBall(null)
       setEditBallError(null)
       setNotes('')
+      setOverNote('')
       setWicketOpen(false)
       setFielderPlayerId('')
       setNewBatterPlayerId('')
@@ -754,6 +759,7 @@ function LiveScoringPage() {
 
     setActionError(null)
     setNotes('')
+    setOverNote('')
     setWicketOpen(false)
     setFielderPlayerId('')
     setNewBatterPlayerId('')
@@ -811,6 +817,17 @@ function LiveScoringPage() {
       return
     }
 
+    const willCompleteOver =
+      (input.isLegalDelivery ?? true) !== false && !(input.isDeadBall ?? false) && nextBallNumber === 6
+    const ballComment = notes.trim()
+    const pendingOverNote = overNote.trim()
+    const combinedNotes = [
+      ballComment,
+      willCompleteOver && pendingOverNote ? `Over note: ${pendingOverNote}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+
     const body: LiveBallEventInput = {
       innings,
       over_number: nextOverNumber,
@@ -841,7 +858,7 @@ function LiveScoringPage() {
       wicket_end: input.wicketEnd ?? null,
       batters_crossed: input.battersCrossed ?? false,
       dismissal_text: input.dismissalText ?? null,
-      notes: notes.trim() || null,
+      notes: combinedNotes || null,
     }
 
     void ballMutation.mutate({
@@ -1741,6 +1758,7 @@ function LiveScoringPage() {
           <div className="live-scorer-cockpit__card">
             <span className="live-scorer-cockpit__label">
               Over {overStripOverNumber + 1} · {overStripRuns} runs
+              {overNote.trim() ? ` · note pending: ${overNote.trim()}` : ''}
             </span>
             <div className="live-scorer-over-strip" aria-label="Current over balls">
               {overStripEvents.length > 0 ? (
@@ -1817,20 +1835,46 @@ function LiveScoringPage() {
               </p>
             </div>
 
-            <label className="inline-edit__field" style={{ margin: 0 }}>
-              <span className="inline-edit__label">Ball comment / commentary</span>
-              <textarea
-                className="inline-edit__control"
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                placeholder="Optional comment, for example: edged past slip, excellent yorker, overthrow, dropped catch…"
-                rows={6}
-                style={{ minHeight: '11rem', resize: 'vertical', lineHeight: 1.5 }}
-              />
-              <span className="muted" style={{ marginTop: '0.4rem' }}>
-                This comment is saved with the next ball or wicket you record.
-              </span>
-            </label>
+            <div style={{ display: 'grid', gap: '0.75rem' }}>
+              <label className="inline-edit__field" style={{ margin: 0 }}>
+                <span className="inline-edit__label">Ball comment / commentary</span>
+                <textarea
+                  className="inline-edit__control"
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  placeholder="Optional comment, for example: edged past slip, excellent yorker, overthrow, dropped catch…"
+                  rows={5}
+                  style={{ minHeight: '9rem', resize: 'vertical', lineHeight: 1.5 }}
+                />
+                <span className="muted" style={{ marginTop: '0.4rem' }}>
+                  This comment is saved with the next ball or wicket you record.
+                </span>
+              </label>
+
+              <div className="inline-edit__field" style={{ margin: 0 }}>
+                <span className="inline-edit__label">Over note</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.5rem' }}>
+                  <button type="button" className="btn-ghost" onClick={() => setOverNote('MAIDEN')}>
+                    MAIDEN
+                  </button>
+                  <button type="button" className="btn-ghost" onClick={() => setOverNote('WICKET MAIDEN')}>
+                    WICKET MAIDEN
+                  </button>
+                  <button type="button" className="btn-ghost" onClick={() => setOverNote('')}>
+                    Clear
+                  </button>
+                </div>
+                <input
+                  className="inline-edit__control"
+                  value={overNote}
+                  onChange={(event) => setOverNote(event.target.value)}
+                  placeholder="Optional over note, for example: MAIDEN or WICKET MAIDEN"
+                />
+                <span className="muted" style={{ marginTop: '0.4rem' }}>
+                  This note is saved on the 6th legal ball of the over. Wides and no-balls do not close the over.
+                </span>
+              </div>
+            </div>
           </div>
 
           <div className="live-scorer-quick-actions" style={{ marginTop: '1rem' }}>
