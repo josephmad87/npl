@@ -47,6 +47,9 @@ type MatchWithTeamExtras = MatchLite & {
     player_of_match_player_name?: string | null
     player_of_match?: string | null
   } | null
+  live_score_summary?: string | null
+  live_status_line?: string | null
+  live_match_cta?: string | null
 }
 
 function matchTeamName(
@@ -370,7 +373,10 @@ export function MatchCard({
   const displayStatus = publicDisplayMatchStatus(match.status, match.match_date)
   const winner = matchWinnerSide(match)
   const scoreline = matchResultSummaryLine(match)
-  const showScore = scoreline != null && scoreline.length > 0
+  const liveScoreSummary = matchWithExtras.live_score_summary?.trim() ?? ''
+  const liveStatusLine = matchWithExtras.live_status_line?.trim() ?? ''
+  const showLiveScore = displayStatus === 'live' && liveScoreSummary.length > 0
+  const showScore = !showLiveScore && scoreline != null && scoreline.length > 0
   const competitionLine = matchCompetitionLine(match)
   const matchWithExtras = match as MatchWithTeamExtras
 
@@ -410,16 +416,28 @@ export function MatchCard({
           {(seasonLine || 'NPL fixture').toUpperCase()}
         </p>
 
-        <h3 className="ui-match-card__title">
-          {homeName} vs {awayName}
+        <h3 className="ui-match-card__title ui-match-card__title--stacked">
+          <span className="ui-match-card__team-line">{homeName}</span>
+          <span className="ui-match-card__versus">vs</span>
+          <span className="ui-match-card__team-line">{awayName}</span>
         </h3>
 
         <p className="ui-match-card__meta">
-          {formatMatchDate(match.match_date)}
-          {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
-          <br />
-          {match.venue ?? 'Venue TBC'}
+          <span className="ui-match-card__meta-date">
+            {formatMatchDate(match.match_date)}
+            {match.start_time ? ` • ${toTimeShort(match.start_time)}` : ''}
+          </span>
+          <span className="ui-match-card__venue ui-match-card__venue--wrap">
+            {match.venue ?? 'Venue TBC'}
+          </span>
         </p>
+
+        {showLiveScore ? (
+          <div className="ui-match-card__live-summary">
+            <strong>{liveScoreSummary}</strong>
+            {liveStatusLine ? <span>{liveStatusLine}</span> : null}
+          </div>
+        ) : null}
 
         {showScore && scoreline ? (
           <p className="ui-match-card__scoreline">{scoreline}</p>
@@ -434,6 +452,11 @@ export function MatchCard({
         >
           {formatStatusLabel(displayStatus)}
         </span>
+        {showLiveScore ? (
+          <span className="ui-match-card__live-cta">
+            {matchWithExtras.live_match_cta?.trim() || 'Live scorecard'}
+          </span>
+        ) : null}
       </div>
     </a>
   )
