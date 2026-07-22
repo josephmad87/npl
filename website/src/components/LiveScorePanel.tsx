@@ -527,11 +527,11 @@ function computeMiniDashboard(
     batterStats.set(event.striker_player_id, batter)
 
     if (event.non_striker_player_id && !batterStats.has(event.non_striker_player_id)) {
-      batterStats.set(event.non_striker_player_id, emptyBatter(event.non_striker_player_id, event.sequence_number))
+      batterStats.set(event.non_striker_player_id, emptyBatter(event.non_striker_player_id, event.sequence_number + 0.1))
     }
 
     if (event.replacement_player_id && !batterStats.has(event.replacement_player_id)) {
-      batterStats.set(event.replacement_player_id, emptyBatter(event.replacement_player_id, event.sequence_number + 0.1))
+      batterStats.set(event.replacement_player_id, emptyBatter(event.replacement_player_id, event.sequence_number + 0.2))
     }
 
     const bowler = bowlerStats.get(event.bowler_player_id) ?? {

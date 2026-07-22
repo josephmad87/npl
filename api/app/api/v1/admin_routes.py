@@ -3200,6 +3200,7 @@ def _finalize_live_match_result(
     player_ids.update(event.bowler_player_id for event in events)
     player_ids.update(event.wicket_player_id for event in events if event.wicket_player_id)
     player_ids.update(event.fielder_player_id for event in events if event.fielder_player_id)
+    player_ids.update(event.replacement_player_id for event in events if event.replacement_player_id)
     player_rows = db.scalars(select(Player).where(Player.id.in_(player_ids))).all() if player_ids else []
     player_by_id = {player.id: player for player in player_rows}
     player_names = {player.id: player.full_name for player in player_rows}
@@ -3334,6 +3335,11 @@ def _finalize_live_match_result(
             non_striker = ensure_row(event.non_striker_player_id, event.batting_team_id)
             if non_striker is not None and non_striker["batting_order"] is None:
                 non_striker["batting_order"] = batting_order[event.batting_team_id]
+                batting_order[event.batting_team_id] += 1
+
+            replacement = ensure_row(event.replacement_player_id, event.batting_team_id)
+            if replacement is not None and replacement["batting_order"] is None:
+                replacement["batting_order"] = batting_order[event.batting_team_id]
                 batting_order[event.batting_team_id] += 1
 
             bowler = ensure_row(event.bowler_player_id, event.bowling_team_id)

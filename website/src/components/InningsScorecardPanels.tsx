@@ -82,28 +82,36 @@ function formatStrikeRate(
   return (((runs ?? 0) * 100) / balls).toFixed(2)
 }
 
-function compareBattingOrder(a: ScorecardStat, b: ScorecardStat): number {
-  const orderDelta =
-    (a.batting_order ?? a.lineup_order ?? 0) -
-    (b.batting_order ?? b.lineup_order ?? 0)
+function compareRecordedOrder(
+  a: ScorecardStat,
+  b: ScorecardStat,
+  field: 'batting_order' | 'bowling_order',
+): number {
+  const aOrder = a[field]
+  const bOrder = b[field]
+
+  if (aOrder != null && bOrder == null) return -1
+  if (aOrder == null && bOrder != null) return 1
+
+  const orderDelta = (aOrder ?? 0) - (bOrder ?? 0)
 
   if (orderDelta !== 0) {
     return orderDelta
   }
 
-  return a.id - b.id
+  const lineupDelta =
+    (a.lineup_order ?? Number.MAX_SAFE_INTEGER) -
+    (b.lineup_order ?? Number.MAX_SAFE_INTEGER)
+
+  return lineupDelta || a.id - b.id
+}
+
+function compareBattingOrder(a: ScorecardStat, b: ScorecardStat): number {
+  return compareRecordedOrder(a, b, 'batting_order')
 }
 
 function compareBowlingOrder(a: ScorecardStat, b: ScorecardStat): number {
-  const orderDelta =
-    (a.bowling_order ?? a.lineup_order ?? 0) -
-    (b.bowling_order ?? b.lineup_order ?? 0)
-
-  if (orderDelta !== 0) {
-    return orderDelta
-  }
-
-  return a.id - b.id
+  return compareRecordedOrder(a, b, 'bowling_order')
 }
 
 function ballsToOversLabel(balls: number): string {
