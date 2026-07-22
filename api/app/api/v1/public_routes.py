@@ -12,7 +12,7 @@ from app.models.contact_message import ContactMessage
 from app.models.article import Article
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season, SeasonTeam
-from app.models.match import FanPlayerMatchVote, Match, MatchBallEvent, MatchPlayerStat
+from app.models.match import FanPlayerMatchVote, Match, MatchBallEvent, MatchDaySquadPlayer, MatchPlayerStat
 from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
 from app.models.player import Player
 from app.models.sponsor import Sponsor
@@ -30,6 +30,9 @@ from app.schemas.matches import (
     LiveScoreInningsSummaryOut,
     LiveScoreStateOut,
     MatchDetailOut,
+    MatchSquadOut,
+    MatchSquadPlayerOut,
+    MatchSquadTeamOut,
 )
 from app.schemas.merchandise import (
     MerchandiseOrderCreate,
@@ -700,6 +703,38 @@ def submit_fan_player_vote(
 
     return _fan_player_vote_summary(match_id, db, voter_key)
 
+
+
+@router.get("/matches/{match_id}/squads", response_model=MatchSquadOut)
+def public_match_squads(match_id: int, db: Session = Depends(get_db)) -> MatchSquadOut:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+
+    rows = list(
+        db.scalars(
+            select(MatchDaySquadPlayer)
+            .where(MatchDaySquadPlayer.match_id == match_id)
+            .order_by(
+                MatchDaySquadPlayer.team_id,
+                MatchDaySquadPlayer.role,
+                MatchDaySquadPlayer.lineup_order,
+                MatchDaySquadPlayer.player_id,
+            )
+        ).all(),
+    )
+    team_ids = [match.home_team_id, match.away_team_id]
+    teams: list[MatchSquadTeamOut] = []
+    for team_id in team_ids:
+        team_rows = [row for row in rows if row.team_id == team_id]
+        teams.append(
+            MatchSquadTeamOut(
+                team_id=team_id,
+                players=[MatchSquadPlayerOut.model_validate(row) for row in team_rows],
+            ),
+        )
+    return MatchSquadOut(match_id=match_id, teams=teams)
+
 @router.get("/news", response_model=dict)
 def list_news(
     db: Session = Depends(get_db),
@@ -928,8 +963,8 @@ def _public_live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
     summaries: list[LiveScoreInningsSummaryOut] = []
     for innings in sorted({event.innings for event in events}):
         rows = [event for event in events if event.innings == innings]
-        runs = sum(event.runs_batter + event.runs_extras for event in rows)
-        wickets = sum(1 for event in rows if event.wicket_type)
+        runs = sum(event.runs_batter + event.runs_extras + event.penalty_runs_batting for event in rows)
+        wickets = sum(1 for event in rows if event.wicket_type and event.wicket_type not in ("retired_hurt", "retired_not_out"))
         legal_balls = sum(1 for event in rows if event.is_legal_delivery)
         last_rows = rows[-6:]
         summaries.append(
