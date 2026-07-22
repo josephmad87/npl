@@ -39,6 +39,7 @@ type BallSubmitPayload = {
 }
 
 type WicketEnd = 'striker' | 'non_striker'
+type WicketRunCredit = 'bat' | 'bye' | 'leg_bye'
 
 type EditingBallDraft = {
   eventId: number
@@ -335,6 +336,8 @@ function LiveScoringPage() {
   const [fielderPlayerId, setFielderPlayerId] = useState<number | ''>('')
   const [newBatterPlayerId, setNewBatterPlayerId] = useState<number | ''>('')
   const [wicketEnd, setWicketEnd] = useState<WicketEnd>('striker')
+  const [wicketRunsCompleted, setWicketRunsCompleted] = useState(0)
+  const [wicketRunCredit, setWicketRunCredit] = useState<WicketRunCredit>('bat')
   const [battersCrossed, setBattersCrossed] = useState(false)
   const [tossWinnerTeamId, setTossWinnerTeamId] = useState<number | ''>('')
   const [tossDecision, setTossDecision] = useState<'bat' | 'bowl'>('bat')
@@ -623,6 +626,8 @@ function LiveScoringPage() {
       setFielderPlayerId('')
       setNewBatterPlayerId('')
       setWicketEnd('striker')
+      setWicketRunsCompleted(0)
+      setWicketRunCredit('bat')
       setBattersCrossed(false)
       applyPostBallState(payload.body, payload.newBatterId ?? null, payload.strikeRuns ?? 0)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
@@ -695,6 +700,8 @@ function LiveScoringPage() {
       setWicketOpen(false)
       setFielderPlayerId('')
       setNewBatterPlayerId('')
+      setWicketRunsCompleted(0)
+      setWicketRunCredit('bat')
       setInnings(1)
       setActiveScorerPanel('setup')
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
@@ -750,6 +757,8 @@ function LiveScoringPage() {
     setWicketOpen(false)
     setFielderPlayerId('')
     setNewBatterPlayerId('')
+    setWicketRunsCompleted(0)
+    setWicketRunCredit('bat')
     setInnings(innings + 1)
   }
 
@@ -865,8 +874,15 @@ function LiveScoringPage() {
       fielderId = fielderPlayerId
     }
 
+    const wicketRuns = Math.max(0, Number(wicketRunsCompleted) || 0)
+    if (wicketRuns > 0 && wicketType !== 'run_out') {
+      setActionError('Runs on the wicket ball should only be used for run outs. For bowled, caught, LBW or stumped, keep runs as 0.')
+      return
+    }
+
     const newBatter = newBatterPlayerId || null
     const parts = [option.label]
+    if (wicketRuns > 0) parts.push(`${wicketRuns} completed run${wicketRuns === 1 ? '' : 's'}`)
     if (fielderId) parts.push(`fielder: ${playerName(playerById, fielderId)}`)
 
     submitBall(
@@ -876,6 +892,11 @@ function LiveScoringPage() {
         fielderPlayerId: fielderId,
         wicketEnd: wicketType === 'run_out' ? wicketEnd : null,
         battersCrossed,
+        runsBatter: wicketRunCredit === 'bat' ? wicketRuns : 0,
+        runsExtras: wicketRunCredit === 'bat' ? 0 : wicketRuns,
+        extrasType: wicketRunCredit === 'bat' || wicketRuns === 0 ? null : wicketRunCredit,
+        completedRuns: wicketRuns,
+        strikeRuns: wicketRuns,
         dismissalText: parts.join(' · '),
       },
       newBatter,
@@ -2028,7 +2049,7 @@ function LiveScoringPage() {
               <div className="team-hub-section-head__lead">
                 <h3 className="team-hub-section__title">Wicket details</h3>
                 <p className="muted">
-                  Pick the player out, mode of dismissal, fielder if needed, and new batter.
+                  Pick the player out, mode of dismissal, fielder if needed, runs completed before a run out, and new batter.
                 </p>
               </div>
             </div>
@@ -2096,6 +2117,37 @@ function LiveScoringPage() {
                   >
                     <option value="striker">Striker end</option>
                     <option value="non_striker">Non-striker end</option>
+                  </select>
+                </label>
+              ) : null}
+
+              {wicketType === 'run_out' ? (
+                <label className="inline-edit__field">
+                  <span className="inline-edit__label">Runs completed before wicket</span>
+                  <select
+                    className="inline-edit__control"
+                    value={wicketRunsCompleted}
+                    onChange={(event) => setWicketRunsCompleted(Number(event.target.value))}
+                  >
+                    <option value={0}>0 runs</option>
+                    <option value={1}>1 run</option>
+                    <option value={2}>2 runs</option>
+                    <option value={3}>3 runs</option>
+                  </select>
+                </label>
+              ) : null}
+
+              {wicketType === 'run_out' && wicketRunsCompleted > 0 ? (
+                <label className="inline-edit__field">
+                  <span className="inline-edit__label">Credit those runs as</span>
+                  <select
+                    className="inline-edit__control"
+                    value={wicketRunCredit}
+                    onChange={(event) => setWicketRunCredit(event.target.value as WicketRunCredit)}
+                  >
+                    <option value="bat">Batter runs</option>
+                    <option value="bye">Byes</option>
+                    <option value="leg_bye">Leg byes</option>
                   </select>
                 </label>
               ) : null}
@@ -2319,7 +2371,7 @@ function LiveScoringPage() {
             </div>
             <div className="live-scorer-review-card">
               <strong>Wicket</strong>
-              <p className="muted">Tap Out / wicket, choose the player out, dismissal type, fielder if required, wicket end for run outs, and the new batter.</p>
+              <p className="muted">Tap Out / wicket, choose the player out, dismissal type, fielder if required, wicket end for run outs, any completed runs before the wicket, and the new batter.</p>
             </div>
             <div className="live-scorer-review-card">
               <strong>Correction</strong>
