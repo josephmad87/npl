@@ -981,7 +981,7 @@ export function LiveScorePanel({
                   </span>
                 ))}
                 <span className="live-score-panel__strip-over">
-                  {ordinal(group.overNumber)}
+                  {ordinal(group.overNumber + 1)}
                   <strong>{group.overNote ?? `${group.runs} RUN${group.runs === 1 ? '' : 'S'}`}</strong>
                 </span>
               </div>
@@ -1008,7 +1008,7 @@ export function LiveScorePanel({
                 <div className="live-score-panel__over-head">
                   <div className="live-score-panel__over-label">
                     Over
-                    <strong>{group.overNumber}</strong>
+                    <strong>{group.overNumber + 1}</strong>
                   </div>
                   <div className="live-score-panel__over-runs">
                     {group.overNote ?? `${group.runs} run${group.runs === 1 ? '' : 's'}`}
