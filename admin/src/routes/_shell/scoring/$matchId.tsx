@@ -1241,13 +1241,19 @@ function LiveScoringPage() {
         }
         .live-scorer-score-buttons {
           display: grid;
-          grid-template-columns: repeat(6, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 0.5rem;
         }
         .live-scorer-score-buttons .btn-primary {
           min-height: 4rem !important;
           font-size: 1.25rem;
           font-weight: 900;
+        }
+        .live-scorer-record-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 1rem;
+          align-items: stretch;
         }
         .live-scorer-quick-actions {
           display: grid;
@@ -1317,7 +1323,8 @@ function LiveScoringPage() {
         }
         @media (max-width: 900px) {
           .live-scorer-primary-grid,
-          .live-scorer-cockpit {
+          .live-scorer-cockpit,
+          .live-scorer-record-grid {
             grid-template-columns: 1fr;
           }
           .live-scorer-sticky {
@@ -1345,8 +1352,7 @@ function LiveScoringPage() {
           .live-scorer-tab span {
             display: none;
           }
-          .live-scorer-page .catalog-card-grid,
-          .live-scorer-score-buttons {
+          .live-scorer-page .catalog-card-grid {
             grid-template-columns: repeat(3, minmax(0, 1fr));
           }
           .live-scorer-page .catalog-toolbar {
@@ -1796,20 +1802,10 @@ function LiveScoringPage() {
             </div>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: '1rem',
-              alignItems: 'stretch',
-            }}
-          >
+          <div className="live-scorer-record-grid">
             <div>
-              <div
-                className="live-scorer-score-buttons"
-                style={{ gridTemplateColumns: 'repeat(3, minmax(74px, 1fr))' }}
-              >
-                {[0, 1, 2, 3, 4, 6].map((runs) => (
+              <div className="live-scorer-score-buttons">
+                {[0, 1, 2, 3, 4, 5, 6, 7].map((runs) => (
                   <button
                     key={runs}
                     type="button"
@@ -1830,9 +1826,6 @@ function LiveScoringPage() {
                   </button>
                 ))}
               </div>
-              <p className="muted" style={{ marginTop: '0.6rem' }}>
-                Layout: 0 · 1 · 2 on top, 3 · 4 · 6 underneath.
-              </p>
             </div>
 
             <div style={{ display: 'grid', gap: '0.75rem' }}>
@@ -1853,17 +1846,6 @@ function LiveScoringPage() {
 
               <div className="inline-edit__field" style={{ margin: 0 }}>
                 <span className="inline-edit__label">Over note</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginBottom: '0.5rem' }}>
-                  <button type="button" className="btn-ghost" onClick={() => setOverNote('MAIDEN')}>
-                    MAIDEN
-                  </button>
-                  <button type="button" className="btn-ghost" onClick={() => setOverNote('WICKET MAIDEN')}>
-                    WICKET MAIDEN
-                  </button>
-                  <button type="button" className="btn-ghost" onClick={() => setOverNote('')}>
-                    Clear
-                  </button>
-                </div>
                 <input
                   className="inline-edit__control"
                   value={overNote}
@@ -2457,7 +2439,7 @@ function LiveScoringPage() {
           <div className="live-scorer-help-grid">
             <div className="live-scorer-review-card">
               <strong>Normal ball</strong>
-              <p className="muted">Choose striker, non-striker, bowler, then tap 0, 1, 2, 3, 4 or 6. Strike rotates automatically on odd runs and at the end of an over.</p>
+              <p className="muted">Choose striker, non-striker, bowler, then tap a run button from 0 to 7. Strike rotates automatically on odd runs and at the end of an over.</p>
             </div>
             <div className="live-scorer-review-card">
               <strong>Extras</strong>
