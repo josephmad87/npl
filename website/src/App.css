@@ -3226,6 +3226,53 @@ table.player-public-table {
   font-size: 0.72rem;
 }
 
+table.player-public-table--match-log {
+  min-width: 88rem;
+  table-layout: fixed;
+}
+
+.player-public-table--match-log td {
+  overflow-wrap: anywhere;
+}
+
+.player-public-table--match-log td:first-child,
+.player-public-table--match-log td:nth-child(n + 4):nth-child(-n + 7),
+.player-public-table--match-log td:nth-child(n + 9):nth-child(-n + 15) {
+  white-space: nowrap;
+}
+
+.player-public-table--match-log .player-public-fixture-mini {
+  max-width: none;
+}
+
+.player-public-match-log__date {
+  width: 7rem;
+}
+
+.player-public-match-log__season {
+  width: 10rem;
+}
+
+.player-public-match-log__fixture {
+  width: 15rem;
+}
+
+.player-public-match-log__stat {
+  width: 3rem;
+}
+
+.player-public-match-log__dismissal {
+  width: 12rem;
+}
+
+.player-public-match-log__notes {
+  width: 8rem;
+}
+
+.player-public-match-log__action {
+  width: 4.5rem;
+}
+
 .player-public-fixture-mini {
   display: block;
   max-width: 12rem;
