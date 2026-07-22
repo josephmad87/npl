@@ -170,6 +170,7 @@ class MatchLiveSetupIn(BaseModel):
     toss_winner_team_id: int = Field(ge=1)
     toss_decision: str = Field(pattern="^(bat|bowl)$")
     batting_first_team_id: int = Field(ge=1)
+    match_overs: Decimal | None = None
     umpire_1: str | None = Field(default=None, max_length=128)
     umpire_2: str | None = Field(default=None, max_length=128)
     reserve_umpire: str | None = Field(default=None, max_length=128)
@@ -181,6 +182,7 @@ class LiveScoreStartIn(BaseModel):
 
 class LiveScoreCompleteIn(BaseModel):
     status: str = Field(default="completed", pattern="^(completed|abandoned|cancelled)$")
+    match_overs: Decimal | None = None
 
 
 class LiveBallEventIn(BaseModel):
