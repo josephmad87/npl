@@ -498,6 +498,7 @@ export type LiveScoreStateDto = {
   current_innings: number | null
   summaries: LiveScoreInningsSummaryDto[]
   events: LiveBallEventDto[]
+  undone_event: LiveBallEventDto | null
 }
 
 export type LiveBallEventInput = {

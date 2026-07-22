@@ -269,6 +269,7 @@ class LiveScoreStateOut(BaseModel):
     current_innings: int | None = None
     summaries: list[LiveScoreInningsSummaryOut] = Field(default_factory=list)
     events: list[LiveBallEventOut] = Field(default_factory=list)
+    undone_event: LiveBallEventOut | None = None
 
 
 class MatchResultIn(BaseModel):
