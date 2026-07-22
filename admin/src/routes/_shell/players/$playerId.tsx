@@ -839,14 +839,13 @@ function PlayerDetailPage() {
                     <thead>
                       <tr>
                         <th>Date</th>
-                        <th>Competition</th>
+                        <th>Season</th>
                         <th>Fixture</th>
-                        <th>Side</th>
                         <th>R</th>
                         <th>BF</th>
                         <th>4s</th>
                         <th>6s</th>
-                        <th>Out</th>
+                        <th>How out</th>
                         <th>Ov</th>
                         <th>M</th>
                         <th>Conc</th>
@@ -860,26 +859,15 @@ function PlayerDetailPage() {
                     </thead>
                     <tbody>
                       {appearances.map((row) => {
-                        const home = row.side_team_id === row.home_team_id
-                        const opp = home
-                          ? row.away_team_name
-                          : row.home_team_name
-                        const comp =
-                          row.league_name && row.season_name
-                            ? `${row.league_name} · ${row.season_name}`
-                            : row.season_name ?? row.league_name ?? '—'
                         const when = row.match_date ?? '—'
                         return (
                           <tr key={row.stat_id}>
                             <td>{when}</td>
-                            <td>{comp}</td>
+                            <td>{row.season_name ?? '—'}</td>
                             <td>
                               <span className="muted" style={{ fontSize: '0.82rem' }}>
                                 {row.home_team_name} vs {row.away_team_name}
                               </span>
-                            </td>
-                            <td>
-                              {home ? 'Home' : 'Away'} ({opp})
                             </td>
                             <td>{row.runs}</td>
                             <td>{row.balls_faced}</td>

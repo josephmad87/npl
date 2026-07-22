@@ -640,18 +640,27 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                 <p className="muted">No scorecard rows yet.</p>
               ) : appearances.length > 0 ? (
                 <div className="player-public-table-wrap player-public-table-wrap--wide">
-                  <table className="player-public-table player-public-table--compact">
+                  <table className="player-public-table player-public-table--compact player-public-table--match-log">
+                    <colgroup>
+                      <col className="player-public-match-log__date" />
+                      <col className="player-public-match-log__season" />
+                      <col className="player-public-match-log__fixture" />
+                      <col className="player-public-match-log__stat" span={4} />
+                      <col className="player-public-match-log__dismissal" />
+                      <col className="player-public-match-log__stat" span={7} />
+                      <col className="player-public-match-log__notes" />
+                      <col className="player-public-match-log__action" />
+                    </colgroup>
                     <thead>
                       <tr>
                         <th>Date</th>
-                        <th>Competition</th>
+                        <th>Season</th>
                         <th>Fixture</th>
-                        <th>Side</th>
                         <th>R</th>
                         <th>BF</th>
                         <th>4s</th>
                         <th>6s</th>
-                        <th>Out</th>
+                        <th>How out</th>
                         <th>Ov</th>
                         <th>M</th>
                         <th>Conc</th>
@@ -665,24 +674,15 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                     </thead>
                     <tbody>
                       {appearances.map((row) => {
-                        const home = row.side_team_id === row.home_team_id
-                        const opp = home ? row.away_team_name : row.home_team_name
-                        const comp =
-                          row.league_name && row.season_name
-                            ? `${row.league_name} · ${row.season_name}`
-                            : row.season_name ?? row.league_name ?? '—'
                         const when = row.match_date?.slice(0, 10) ?? '—'
                         return (
                           <tr key={row.stat_id}>
                             <td>{when}</td>
-                            <td>{comp}</td>
+                            <td>{row.season_name ?? '—'}</td>
                             <td>
                               <span className="player-public-fixture-mini">
                                 {row.home_team_name} vs {row.away_team_name}
                               </span>
-                            </td>
-                            <td>
-                              {home ? 'Home' : 'Away'} ({opp})
                             </td>
                             <td>{row.runs}</td>
                             <td>{row.balls_faced}</td>

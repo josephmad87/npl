@@ -27,7 +27,7 @@ class _Session:
         return 0
 
 
-def test_recompute_player_career_stats_includes_all_fielding_credits() -> None:
+def test_recompute_player_career_stats_counts_every_appearance_and_fielding_credit() -> None:
     player = SimpleNamespace()
     stats = [
         SimpleNamespace(
@@ -61,3 +61,4 @@ def test_recompute_player_career_stats_includes_all_fielding_credits() -> None:
     assert player.catches == 3
     assert player.stumpings == 3
     assert player.run_outs == 4
+    assert player.matches_played == 2
