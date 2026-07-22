@@ -9179,13 +9179,15 @@ table.league-standings-table .league-standings-table__form {
 /* Player profile: recent form badges */
 .player-public-form__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
   gap: 0.75rem;
 }
 
 .player-public-form__badge {
   display: grid;
+  align-content: start;
   gap: 0.25rem;
+  min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: 0.9rem;
   background: #fff;
@@ -9221,6 +9223,7 @@ table.league-standings-table .league-standings-table__form {
   color: var(--color-primary);
   font-weight: 900;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .player-public-form__badge em {
@@ -9228,6 +9231,7 @@ table.league-standings-table .league-standings-table__form {
   font-style: normal;
   font-size: 0.78rem;
   font-weight: 750;
+  overflow-wrap: anywhere;
 }
 
 .player-public-form__badge--potm strong {

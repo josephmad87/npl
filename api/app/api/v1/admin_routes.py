@@ -91,6 +91,7 @@ from app.services.audit import write_audit
 from app.services.cricket_overs import normalize_cricket_overs
 from app.services.player_stats import (
     affected_player_ids_for_match,
+    is_did_not_bat,
     recompute_all_player_career_stats,
     recompute_player_career_stats,
 )
@@ -1578,7 +1579,7 @@ def admin_set_match_result(
                 player_id=row.player_id,
                 team_id=row.team_id,
                 lineup_order=row.lineup_order,
-                batting_order=row.batting_order,
+                batting_order=None if is_did_not_bat(row.dismissal) else row.batting_order,
                 bowling_order=row.bowling_order,
                 runs=row.runs,
                 balls_faced=row.balls_faced,
@@ -1596,6 +1597,7 @@ def admin_set_match_result(
             )
         )
 
+    db.flush()
     recompute_player_career_stats(db, affected_player_ids)
 
     db.commit()
@@ -3505,6 +3507,7 @@ def _finalize_live_match_result(
         )
 
     match.status = "completed"
+    db.flush()
     recompute_player_career_stats(db, affected_player_ids)
 
 

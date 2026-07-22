@@ -44,6 +44,7 @@ type PlayerDetail = {
   best_bowling: string | null
   catches: number
   stumpings: number
+  run_outs: number
   player_of_match_awards: number
 }
 
@@ -204,6 +205,7 @@ export default function PlayerDetailPage() {
       bowlingBalls: number
       catches: number
       stumpings: number
+      runOuts: number
       potm: number
       bestWickets: number
       bestRunsConceded: number | null
@@ -227,6 +229,7 @@ export default function PlayerDetailPage() {
           bowlingBalls: 0,
           catches: 0,
           stumpings: 0,
+          runOuts: 0,
           potm: 0,
           bestWickets: 0,
           bestRunsConceded: null,
@@ -244,6 +247,7 @@ export default function PlayerDetailPage() {
       next.bowlingBalls += oversFieldToBalls(row.overs)
       next.catches += row.catches ?? 0
       next.stumpings += row.stumpings ?? 0
+      next.runOuts += row.run_outs ?? 0
       if (row.player_of_match) next.potm += 1
 
       const wkts = row.wickets ?? 0
@@ -288,6 +292,7 @@ export default function PlayerDetailPage() {
           best,
           catches: s.catches,
           stumpings: s.stumpings,
+          runOuts: s.runOuts,
           potm: s.potm,
         }
       })
@@ -552,6 +557,10 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                   <span className="player-public-stat-card__value">{data.stumpings}</span>
                 </div>
                 <div className="player-public-stat-card">
+                  <span className="player-public-stat-card__label">Run outs</span>
+                  <span className="player-public-stat-card__value">{data.run_outs}</span>
+                </div>
+                <div className="player-public-stat-card">
                   <span className="player-public-stat-card__label">Player of match</span>
                   <span className="player-public-stat-card__value">
                     {data.player_of_match_awards}
@@ -584,13 +593,14 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                         <th>Best</th>
                         <th>Ct</th>
                         <th>St</th>
+                        <th>RO</th>
                         <th>POTM</th>
                       </tr>
                     </thead>
                     <tbody>
                       {careerByLeague.length === 0 ? (
                         <tr>
-                          <td colSpan={13} className="muted">
+                          <td colSpan={14} className="muted">
                             No scorecard rows yet.
                           </td>
                         </tr>
@@ -609,6 +619,7 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                             <td>{row.best}</td>
                             <td>{row.catches}</td>
                             <td>{row.stumpings}</td>
+                            <td>{row.runOuts}</td>
                             <td>{row.potm}</td>
                           </tr>
                         ))

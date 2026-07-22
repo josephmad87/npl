@@ -162,6 +162,10 @@ function nextOrder(
   return Math.max(...existingOrders) + 1
 }
 function hasServerBattingData(s: MatchPlayerStatDto): boolean {
+  if (isDidNotBat(s.dismissal)) {
+    return false
+  }
+
   return (
     s.runs > 0 ||
     s.balls_faced > 0 ||
@@ -527,7 +531,7 @@ const fillRosterForTeam = useCallback(
           player_id: r.player_id,
           team_id: r.team_id,
           lineup_order: idx,
-          batting_order: r.batting_order,
+          batting_order: isDidNotBat(dismissal) ? null : r.batting_order,
           bowling_order: r.bowling_order,
           runs: isDidNotBat(dismissal) ? 0 : r.runs,
           balls_faced: isDidNotBat(dismissal) ? 0 : r.balls_faced,
