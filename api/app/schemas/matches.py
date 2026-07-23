@@ -115,7 +115,7 @@ class MatchScorerAssignmentIn(BaseModel):
 
 class MatchSquadPlayerIn(BaseModel):
     player_id: int = Field(ge=1)
-    role: str = Field(pattern="^(playing_xi|substitute)$")
+    role: str = Field(pattern="^(playing_xi|substitute|concussion_substitute)$")
     lineup_order: int = Field(default=0, ge=0)
     is_captain: bool = False
     is_wicketkeeper: bool = False

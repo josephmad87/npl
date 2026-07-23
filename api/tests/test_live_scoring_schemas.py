@@ -1,9 +1,13 @@
 from decimal import Decimal
 from types import SimpleNamespace
 
+import pytest
+from fastapi import HTTPException
+
 from app.api.v1.admin_routes import (
     _dismissal_text_for_live_event,
     _live_ball_label,
+    _assert_live_players_not_dismissed,
     _validate_live_ball_event,
 )
 from app.models.match import Match
@@ -14,6 +18,7 @@ from app.schemas.matches import (
     LiveScoreStateOut,
     MatchDetailOut,
     MatchLiveSetupIn,
+    MatchSquadPlayerIn,
 )
 from app.services.dls import (
     cricket_overs_to_balls,
@@ -78,6 +83,15 @@ def test_live_conditions_preserve_revised_overs_and_innings() -> None:
 
     assert body.match_overs == Decimal("35.0")
     assert body.innings == 2
+
+
+def test_match_squad_accepts_concussion_substitute() -> None:
+    player = MatchSquadPlayerIn(
+        player_id=12,
+        role="concussion_substitute",
+    )
+
+    assert player.role == "concussion_substitute"
 
 
 def test_dls_revised_target_matches_icc_standard_examples() -> None:
@@ -229,6 +243,16 @@ def test_wicket_ball_does_not_require_a_replacement_batter() -> None:
 
     _validate_live_ball_event(body)
     assert body.replacement_player_id is None
+
+
+def test_live_ball_rejects_already_dismissed_replacement_batter() -> None:
+    body = _wicket_ball(replacement_player_id=12)
+
+    with pytest.raises(HTTPException) as error:
+        _assert_live_players_not_dismissed(body, {12})
+
+    assert error.value.status_code == 400
+    assert "Replacement batter has already been dismissed" in error.value.detail["message"]
 
 
 def test_no_ball_can_include_batter_run_and_run_out() -> None:
