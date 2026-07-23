@@ -43,6 +43,7 @@ from app.schemas.players import PlayerMatchAppearanceOut, PlayerOut
 from app.schemas.seasons import SeasonPublicOut, SeasonSummaryOut
 from app.schemas.sponsor import SponsorOut
 from app.schemas.teams import TeamOut, TeamSeasonRecordOut
+from app.services.dls import dls_par_score
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -981,9 +982,24 @@ def _public_live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
             ),
         )
 
+    second_innings = next((summary for summary in summaries if summary.innings == 2), None)
+
     return LiveScoreStateOut(
         match_id=match.id,
         status=match.status,
+        match_overs=match.match_overs,
+        revised_target_runs=match.revised_target_runs,
+        dls_par_score=(
+            dls_par_score(
+                revised_target_runs=match.revised_target_runs,
+                allotted_overs=match.match_overs,
+                legal_balls=second_innings.legal_balls,
+                wickets_lost=second_innings.wickets,
+                effective_resource_percentage=match.dls_team2_resource_percentage,
+            )
+            if second_innings is not None
+            else None
+        ),
         current_innings=summaries[-1].innings if summaries else None,
         summaries=summaries,
         events=[_public_live_event_out(event) for event in events],

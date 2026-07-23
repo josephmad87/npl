@@ -9,11 +9,13 @@ from app.api.v1.admin_routes import (
 from app.models.match import Match
 from app.schemas.matches import (
     LiveBallEventIn,
+    LiveMatchConditionsIn,
     LiveScoreCompleteIn,
     LiveScoreStateOut,
     MatchDetailOut,
     MatchLiveSetupIn,
 )
+from app.services.dls import cricket_overs_to_balls, dls_par_score, dls_resource_percentage
 
 
 def test_live_match_setup_preserves_match_overs() -> None:
@@ -59,6 +61,61 @@ def test_public_match_detail_exposes_match_overs() -> None:
 def test_match_model_maps_match_overs_column() -> None:
     assert "match_overs" in Match.__table__.columns
     assert Match.__table__.c.match_overs.nullable is False
+    assert "revised_target_runs" in Match.__table__.columns
+    assert "dls_team2_resource_percentage" in Match.__table__.columns
+
+
+def test_live_conditions_preserve_revised_overs_and_target() -> None:
+    body = LiveMatchConditionsIn(match_overs="35.0", revised_target_runs=186)
+
+    assert body.match_overs == Decimal("35.0")
+    assert body.revised_target_runs == 186
+
+
+def test_dls_par_score_advances_with_balls_and_wickets() -> None:
+    start = dls_par_score(
+        revised_target_runs=186,
+        allotted_overs="35.0",
+        legal_balls=0,
+        wickets_lost=0,
+    )
+    after_ten_overs = dls_par_score(
+        revised_target_runs=186,
+        allotted_overs="35.0",
+        legal_balls=60,
+        wickets_lost=1,
+    )
+    after_wicket = dls_par_score(
+        revised_target_runs=186,
+        allotted_overs="35.0",
+        legal_balls=60,
+        wickets_lost=2,
+    )
+
+    assert start == 0
+    assert after_ten_overs is not None and after_ten_overs > start
+    assert after_wicket is not None and after_wicket > after_ten_overs
+
+
+def test_dls_standard_resource_curve_matches_icc_example() -> None:
+    assert cricket_overs_to_balls("28.0") == 168
+    assert round(dls_resource_percentage(168, 1), 1) == 68.8
+    assert dls_par_score(
+        revised_target_runs=209,
+        allotted_overs="38.0",
+        legal_balls=182,
+        wickets_lost=6,
+        effective_resource_percentage=Decimal("83.2"),
+    ) == 159
+
+
+def test_cricket_overs_rejects_non_ball_decimal() -> None:
+    try:
+        cricket_overs_to_balls("19.46")
+    except ValueError as error:
+        assert "cricket notation" in str(error)
+    else:
+        raise AssertionError("Expected invalid cricket overs notation to be rejected")
 
 
 def test_live_score_state_defaults_to_no_undone_event() -> None:

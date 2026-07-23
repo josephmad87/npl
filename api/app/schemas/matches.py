@@ -175,6 +175,12 @@ class MatchLiveSetupIn(BaseModel):
     umpire_2: str | None = Field(default=None, max_length=128)
     reserve_umpire: str | None = Field(default=None, max_length=128)
 
+
+class LiveMatchConditionsIn(BaseModel):
+    match_overs: Decimal = Field(gt=0, le=50)
+    revised_target_runs: int | None = Field(default=None, ge=1, le=9999)
+
+
 class LiveScoreStartIn(BaseModel):
     batting_team_id: int = Field(ge=1)
     bowling_team_id: int = Field(ge=1)
@@ -266,6 +272,9 @@ class LiveScoreInningsSummaryOut(BaseModel):
 class LiveScoreStateOut(BaseModel):
     match_id: int
     status: str
+    match_overs: Decimal | None = None
+    revised_target_runs: int | None = None
+    dls_par_score: int | None = None
     current_innings: int | None = None
     summaries: list[LiveScoreInningsSummaryOut] = Field(default_factory=list)
     events: list[LiveBallEventOut] = Field(default_factory=list)
@@ -343,6 +352,7 @@ class MatchDetailOut(ORMModel):
     id: int
     season_id: int | None
     match_overs: Decimal | None = None
+    revised_target_runs: int | None = None
     category: str
     home_team_id: int
     away_team_id: int

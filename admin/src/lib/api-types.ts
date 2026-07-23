@@ -195,6 +195,7 @@ export type MatchDto = {
   match_date: string | null
   start_time: string | null
   match_overs: string | number
+  revised_target_runs?: number | null
   toss_info: string | null
   umpires: string | null
   status: string
@@ -439,6 +440,11 @@ export type MatchLiveSetupInput = {
   reserve_umpire?: string | null
 }
 
+export type LiveMatchConditionsInput = {
+  match_overs: string | number
+  revised_target_runs: number | null
+}
+
 export type LiveScoreCompleteInput = {
   status: 'completed' | 'abandoned' | 'cancelled'
   match_overs?: string | number | null
@@ -495,6 +501,9 @@ export type LiveScoreInningsSummaryDto = {
 export type LiveScoreStateDto = {
   match_id: number
   status: string
+  match_overs: string | number | null
+  revised_target_runs: number | null
+  dls_par_score: number | null
   current_innings: number | null
   summaries: LiveScoreInningsSummaryDto[]
   events: LiveBallEventDto[]
