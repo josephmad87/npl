@@ -9732,6 +9732,23 @@ table.league-standings-table .league-standings-table__form {
   font-weight: 720;
 }
 
+.managed-rich-text > :first-child {
+  margin-top: 0;
+}
+
+.managed-rich-text > :last-child {
+  margin-bottom: 0;
+}
+
+.managed-rich-text ul,
+.managed-rich-text ol {
+  padding-left: 1.3rem;
+}
+
+.managed-rich-text li + li {
+  margin-top: 0.35rem;
+}
+
 .legal-page__contents {
   position: sticky;
   top: 6.4rem;
@@ -9900,6 +9917,13 @@ table.league-standings-table .league-standings-table__form {
   margin: 0 0 0.75rem;
   color: var(--color-muted);
   line-height: 1.58;
+}
+
+.support-page__topic .managed-rich-text ul,
+.support-page__topic .managed-rich-text ol {
+  margin: 0.55rem 0;
+  color: var(--color-muted);
+  line-height: 1.55;
 }
 
 .support-page__topic-links {

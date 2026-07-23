@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { PageHero } from './components/PageHero'
 import { fetchJson, postJson } from './lib/publicApi'
+import { sanitizeHtml } from './lib/sanitizeHtml'
 
 const EFFECTIVE_DATE = '23 July 2026'
 
@@ -14,6 +15,38 @@ type PublicContactDetails = {
   physical_address?: string
 }
 
+type ManagedPageSlug =
+  | 'privacy'
+  | 'terms'
+  | 'support'
+  | 'account-deletion'
+
+type ManagedPageSection = {
+  id: string
+  heading: string
+  body_html: string
+}
+
+type ManagedPage = {
+  slug: ManagedPageSlug
+  title: string
+  subtitle: string
+  effective_date: string
+  intro_html: string
+  sections: ManagedPageSection[]
+  updated_at: string
+}
+
+function useManagedPage(slug: ManagedPageSlug) {
+  return useQuery({
+    queryKey: ['public-site-page', slug],
+    queryFn: () =>
+      fetchJson<ManagedPage>(`/public/site-pages/${encodeURIComponent(slug)}`),
+    retry: 1,
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
 function usePublicContactDetails() {
   return useQuery({
     queryKey: ['public-about-legal-support'],
@@ -21,6 +54,21 @@ function usePublicContactDetails() {
     retry: 1,
     staleTime: 1000 * 60 * 10,
   })
+}
+
+function ManagedHtml({
+  html,
+  className,
+}: {
+  html: string
+  className?: string
+}) {
+  return (
+    <div
+      className={className}
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
+    />
+  )
 }
 
 function LegalPageShell({
@@ -97,6 +145,95 @@ function PolicyNavigation({ items }: { items: Array<{ href: string; label: strin
   )
 }
 
+function ManagedPolicyPage({ page }: { page: ManagedPage }) {
+  return (
+    <LegalPageShell title={page.title} subtitle={page.subtitle}>
+      {page.effective_date ? (
+        <div className="legal-page__meta">
+          <span>Effective {page.effective_date}</span>
+          <span>NPL Zimbabwe digital services</span>
+        </div>
+      ) : null}
+
+      <div className="legal-page__layout">
+        <article className="legal-document">
+          {page.intro_html ? (
+            <ManagedHtml
+              html={page.intro_html}
+              className="legal-document__lead managed-rich-text"
+            />
+          ) : null}
+          {page.sections.map((section) => (
+            <section key={section.id} id={section.id}>
+              <h2>{section.heading}</h2>
+              <ManagedHtml
+                html={section.body_html}
+                className="managed-rich-text"
+              />
+            </section>
+          ))}
+        </article>
+
+        <PolicyNavigation
+          items={page.sections.map((section) => ({
+            href: `#${section.id}`,
+            label: section.heading,
+          }))}
+        />
+      </div>
+    </LegalPageShell>
+  )
+}
+
+function ManagedSupportPage({ page }: { page: ManagedPage }) {
+  const contactQ = usePublicContactDetails()
+  const emails = (contactQ.data?.contacts?.emails ?? [])
+    .map((email) => email.trim())
+    .filter(Boolean)
+  const phone = contactQ.data?.contacts?.phone?.trim() ?? ''
+
+  return (
+    <LegalPageShell title={page.title} subtitle={page.subtitle}>
+      <section className="support-page__intro">
+        <div>
+          <p className="support-page__eyebrow">NPL help centre</p>
+          <h2>How can we help?</h2>
+          <ManagedHtml
+            html={page.intro_html}
+            className="managed-rich-text"
+          />
+        </div>
+        <div className="support-page__contact-card">
+          <strong>Contact NPL support</strong>
+          <Link className="support-page__primary-link" to="/contact-us">
+            Send a support message
+          </Link>
+          {emails[0] ? <a href={`mailto:${emails[0]}`}>{emails[0]}</a> : null}
+          {phone ? (
+            <a href={`tel:${phone.replace(/\s+/g, '')}`}>{phone}</a>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="support-page__grid" aria-label="Support topics">
+        {page.sections.map((section) => (
+          <article
+            className="support-page__topic"
+            id={section.id}
+            key={section.id}
+          >
+            <h2>{section.heading}</h2>
+            <ManagedHtml
+              html={section.body_html}
+              className="managed-rich-text"
+            />
+          </article>
+        ))}
+      </section>
+    </LegalPageShell>
+  )
+}
+
 const privacySections = [
   { href: '#who-we-are', label: 'Who we are' },
   { href: '#information-we-collect', label: 'Information we collect' },
@@ -109,6 +246,11 @@ const privacySections = [
 ]
 
 export function PrivacyPage() {
+  const managedPage = useManagedPage('privacy')
+  if (managedPage.data) {
+    return <ManagedPolicyPage page={managedPage.data} />
+  }
+
   return (
     <LegalPageShell
       title="Privacy Policy"
@@ -326,6 +468,11 @@ const termsSections = [
 ]
 
 export function TermsPage() {
+  const managedPage = useManagedPage('terms')
+  if (managedPage.data) {
+    return <ManagedPolicyPage page={managedPage.data} />
+  }
+
   return (
     <LegalPageShell
       title="Terms of Use"
@@ -480,7 +627,12 @@ export function TermsPage() {
 }
 
 export function SupportPage() {
+  const managedPage = useManagedPage('support')
   const contactQ = usePublicContactDetails()
+  if (managedPage.data) {
+    return <ManagedSupportPage page={managedPage.data} />
+  }
+
   const emails = (contactQ.data?.contacts?.emails ?? [])
     .map((email) => email.trim())
     .filter(Boolean)
@@ -601,6 +753,7 @@ export function SupportPage() {
 }
 
 export function AccountDeletionPage() {
+  const managedPage = useManagedPage('account-deletion')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [details, setDetails] = useState('')
@@ -642,66 +795,89 @@ export function AccountDeletionPage() {
 
   return (
     <LegalPageShell
-      title="Account Deletion"
-      subtitle="Request deletion of an NPL - Zimbabwe fan account and associated personal information."
+      title={managedPage.data?.title ?? 'Account Deletion'}
+      subtitle={
+        managedPage.data?.subtitle ??
+        'Request deletion of an NPL - Zimbabwe fan account and associated personal information.'
+      }
     >
       <div className="account-deletion__layout">
         <article className="legal-document account-deletion__explanation">
-          <p className="legal-document__lead">
-            You can ask NPL Zimbabwe to delete your fan account. This page provides an
-            external request method for website and mobile-app users.
-          </p>
+          {managedPage.data ? (
+            <>
+              <ManagedHtml
+                html={managedPage.data.intro_html}
+                className="legal-document__lead managed-rich-text"
+              />
+              {managedPage.data.sections.map((section) => (
+                <section key={section.id} id={section.id}>
+                  <h2>{section.heading}</h2>
+                  <ManagedHtml
+                    html={section.body_html}
+                    className="managed-rich-text"
+                  />
+                </section>
+              ))}
+            </>
+          ) : (
+            <>
+              <p className="legal-document__lead">
+                You can ask NPL Zimbabwe to delete your fan account. This page provides an
+                external request method for website and mobile-app users.
+              </p>
 
-          <section>
-            <h2>Delete an account in the app</h2>
-            <ol>
-              <li>Sign in to NPL - Zimbabwe.</li>
-              <li>Open your profile and choose Privacy and account.</li>
-              <li>Select Delete account and review the information shown.</li>
-              <li>Confirm the request using the account verification step.</li>
-            </ol>
-            <p>
-              If you cannot sign in, the app is not yet available, or the in-app
-              option does not work, submit the form on this page.
-            </p>
-          </section>
+              <section>
+                <h2>Delete an account in the app</h2>
+                <ol>
+                  <li>Sign in to NPL - Zimbabwe.</li>
+                  <li>Open your profile and choose Privacy and account.</li>
+                  <li>Select Delete account and review the information shown.</li>
+                  <li>Confirm the request using the account verification step.</li>
+                </ol>
+                <p>
+                  If you cannot sign in, the app is not yet available, or the in-app
+                  option does not work, submit the form on this page.
+                </p>
+              </section>
 
-          <section>
-            <h2>What will be deleted</h2>
-            <p>
-              After verification, deletion covers the fan account, profile details,
-              supported and followed teams, favourite players, stored push tokens,
-              and optional notification preferences associated with the account.
-            </p>
-          </section>
+              <section>
+                <h2>What will be deleted</h2>
+                <p>
+                  After verification, deletion covers the fan account, profile details,
+                  supported and followed teams, favourite players, stored push tokens,
+                  and optional notification preferences associated with the account.
+                </p>
+              </section>
 
-          <section>
-            <h2>Information we may retain</h2>
-            <p>
-              Limited information may be retained where reasonably necessary for
-              legal compliance, fraud and security prevention, dispute resolution, or
-              official competition records. Match actions performed by a scorer or
-              administrator may remain in audit and scorecard records.
-            </p>
-          </section>
+              <section>
+                <h2>Information we may retain</h2>
+                <p>
+                  Limited information may be retained where reasonably necessary for
+                  legal compliance, fraud and security prevention, dispute resolution, or
+                  official competition records. Match actions performed by a scorer or
+                  administrator may remain in audit and scorecard records.
+                </p>
+              </section>
 
-          <section>
-            <h2>Verification and timing</h2>
-            <p>
-              We may contact the account email to confirm identity and prevent an
-              unauthorised deletion. We aim to complete a verified request within
-              30 days unless legal or operational requirements reasonably require
-              more time.
-            </p>
-          </section>
+              <section>
+                <h2>Verification and timing</h2>
+                <p>
+                  We may contact the account email to confirm identity and prevent an
+                  unauthorised deletion. We aim to complete a verified request within
+                  30 days unless legal or operational requirements reasonably require
+                  more time.
+                </p>
+              </section>
 
-          <section>
-            <h2>Before submitting</h2>
-            <p>
-              Account deletion is permanent. If you only want to stop match alerts,
-              turn off notifications in the app or your device settings instead.
-            </p>
-          </section>
+              <section>
+                <h2>Before submitting</h2>
+                <p>
+                  Account deletion is permanent. If you only want to stop match alerts,
+                  turn off notifications in the app or your device settings instead.
+                </p>
+              </section>
+            </>
+          )}
         </article>
 
         <section className="account-deletion__form-card" aria-labelledby="deletion-form-title">

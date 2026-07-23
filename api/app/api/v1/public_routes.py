@@ -15,6 +15,7 @@ from app.models.league import League, Season, SeasonTeam
 from app.models.match import FanPlayerMatchVote, Match, MatchBallEvent, MatchDaySquadPlayer, MatchPlayerStat
 from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
 from app.models.player import Player
+from app.models.site_page_content import SitePageContent
 from app.models.sponsor import Sponsor
 from app.models.team import Team
 from app.schemas.about_content import AboutContentBody, AboutContentOut
@@ -41,9 +42,11 @@ from app.schemas.merchandise import (
 )
 from app.schemas.players import PlayerMatchAppearanceOut, PlayerOut
 from app.schemas.seasons import SeasonPublicOut, SeasonSummaryOut
+from app.schemas.site_page_content import SitePageBody, SitePageOut, SitePageSlug
 from app.schemas.sponsor import SponsorOut
 from app.schemas.teams import TeamOut, TeamSeasonRecordOut
 from app.services.dls import dls_g50_for_category, dls_par_score
+from app.services.site_pages import default_site_page_body
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -63,6 +66,39 @@ def _coerce_public_about_body(raw: object) -> AboutContentBody:
 def _public_about_out(row: AboutContent) -> AboutContentOut:
     body = _coerce_public_about_body(row.body)
     return AboutContentOut(**body.model_dump(), updated_at=row.updated_at)
+
+
+def _coerce_public_site_page_body(
+    slug: SitePageSlug,
+    raw: object,
+) -> SitePageBody:
+    if raw and isinstance(raw, dict):
+        try:
+            return SitePageBody.model_validate(raw)
+        except Exception:
+            pass
+    return default_site_page_body(slug)
+
+
+@router.get("/site-pages/{slug}", response_model=SitePageOut)
+def get_public_site_page(
+    slug: SitePageSlug,
+    db: Session = Depends(get_db),
+) -> SitePageOut:
+    row = db.get(SitePageContent, slug)
+    if row is None:
+        body = default_site_page_body(slug)
+        return SitePageOut(
+            slug=slug,
+            **body.model_dump(),
+            updated_at=datetime.now(timezone.utc),
+        )
+    body = _coerce_public_site_page_body(slug, row.body)
+    return SitePageOut(
+        slug=slug,
+        **body.model_dump(),
+        updated_at=row.updated_at,
+    )
 
 
 def _published_article_filter(stmt: Select) -> Select:

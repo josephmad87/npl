@@ -284,6 +284,31 @@ export type AboutContentDto = AboutContentBodyDto & {
   updated_at: string
 }
 
+export type SitePageSlug =
+  | 'privacy'
+  | 'terms'
+  | 'support'
+  | 'account-deletion'
+
+export type SitePageSectionDto = {
+  id: string
+  heading: string
+  body_html: string
+}
+
+export type SitePageBodyDto = {
+  title: string
+  subtitle: string
+  effective_date: string
+  intro_html: string
+  sections: SitePageSectionDto[]
+}
+
+export type SitePageDto = SitePageBodyDto & {
+  slug: SitePageSlug
+  updated_at: string
+}
+
 export type SponsorDto = {
   id: number
   name: string
