@@ -1504,9 +1504,44 @@ function LiveScoringPage() {
           border-color: #c62828 !important;
           color: #ffffff !important;
         }
+        .live-scorer-extras-panel .live-scorer-no-ball-only,
+        .live-scorer-extras-panel .live-scorer-no-ball-only:hover {
+          background: #c62828 !important;
+          border-color: #c62828 !important;
+          color: #ffffff !important;
+        }
+        .live-scorer-extras-panel .live-scorer-no-ball-bat,
+        .live-scorer-extras-panel .live-scorer-no-ball-bat:hover {
+          background: #6d28d9 !important;
+          border-color: #6d28d9 !important;
+          color: #ffffff !important;
+        }
+        .live-scorer-extras-panel .live-scorer-no-ball-extras,
+        .live-scorer-extras-panel .live-scorer-no-ball-extras:hover {
+          background: #1d4ed8 !important;
+          border-color: #1d4ed8 !important;
+          color: #ffffff !important;
+        }
         .live-scorer-quick-actions .btn-ghost:disabled,
         .live-scorer-extras-panel .btn-ghost:disabled {
           opacity: 0.48;
+        }
+        .live-scorer-match-actions {
+          margin-top: 2rem;
+          padding-top: 1rem;
+          border-top: 1px solid rgba(252, 252, 252, 0.12);
+        }
+        .live-scorer-match-actions .live-scorer-refresh-action,
+        .live-scorer-match-actions .live-scorer-refresh-action:hover {
+          background: #15803d !important;
+          border-color: #15803d !important;
+          color: #ffffff !important;
+        }
+        .live-scorer-match-actions .live-scorer-abandon-action,
+        .live-scorer-match-actions .live-scorer-abandon-action:hover {
+          background: #c62828 !important;
+          border-color: #c62828 !important;
+          color: #ffffff !important;
         }
         .live-scorer-innings-complete {
           background: #ecfdf5;
@@ -2197,7 +2232,7 @@ function LiveScoringPage() {
           <div className="catalog-card-grid">
             <button
               type="button"
-              className="btn-ghost"
+              className="btn-ghost live-scorer-no-ball-only"
               onClick={() =>
                 submitBall({
                   runsExtras: 1,
@@ -2214,7 +2249,7 @@ function LiveScoringPage() {
               <button
                 key={`no-ball-bat-${runs}`}
                 type="button"
-                className="btn-ghost"
+                className="btn-ghost live-scorer-no-ball-bat"
                 onClick={() =>
                   submitBall({
                     runsBatter: runs,
@@ -2233,7 +2268,7 @@ function LiveScoringPage() {
               <button
                 key={`no-ball-bye-${runs}`}
                 type="button"
-                className="btn-ghost"
+                className="btn-ghost live-scorer-no-ball-extras"
                 onClick={() =>
                   submitBall({
                     runsExtras: runs + 1,
@@ -2251,7 +2286,7 @@ function LiveScoringPage() {
               <button
                 key={`no-ball-leg-bye-${runs}`}
                 type="button"
-                className="btn-ghost"
+                className="btn-ghost live-scorer-no-ball-extras"
                 onClick={() =>
                   submitBall({
                     runsExtras: runs + 1,
@@ -2587,10 +2622,10 @@ function LiveScoringPage() {
           </div>
         ) : null}
 
-        <div className="catalog-toolbar">
+        <div className="catalog-toolbar live-scorer-match-actions">
           <button
             type="button"
-            className="btn-ghost btn--with-icon"
+            className="btn-ghost btn--with-icon live-scorer-refresh-action"
             onClick={() => void liveQ.refetch()}
           >
             <RotateCcw size={18} strokeWidth={2} aria-hidden />
@@ -2619,7 +2654,7 @@ function LiveScoringPage() {
           </button>
           <button
             type="button"
-            className="btn-ghost"
+            className="btn-ghost live-scorer-abandon-action"
             onClick={() => void completeMutation.mutate('abandoned')}
             disabled={completeMutation.isPending}
           >
