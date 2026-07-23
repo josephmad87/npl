@@ -1148,14 +1148,35 @@ function LiveScoringPage() {
     availableNewBatters.length > 0
   const inningsTarget =
     innings === 1 && currentSummary ? currentSummary.runs + 1 : null
-  const hasMatchDaySquads = matchTeams.length > 0 && matchTeams.every((team) => teamHasSavedSquad.get(team.id))
+  const hasSavedSetup = Boolean(match.toss_info?.trim())
+  const hasMatchDaySquads =
+    !squadDirty &&
+    matchTeams.length > 0 &&
+    matchTeams.every((team) =>
+      Boolean(squadQ.data?.teams.find((savedTeam) => savedTeam.team_id === team.id)?.players.length),
+    )
   const strikerName = playerName(playerById, strikerPlayerId || null)
   const nonStrikerName = playerName(playerById, nonStrikerPlayerId || null)
   const bowlerName = playerName(playerById, bowlerPlayerId || null)
-  const scoringPanels: Array<{ id: ScorerPanel; label: string; hint: string }> = [
+  const scoringPanels: Array<{
+    id: ScorerPanel
+    label: string
+    hint: string
+    isComplete?: boolean
+  }> = [
     { id: 'score', label: 'Score', hint: 'Ball controls' },
-    { id: 'setup', label: 'Setup', hint: 'Toss & overs' },
-    { id: 'squads', label: 'Squads', hint: hasMatchDaySquads ? 'Saved' : 'Pick XI' },
+    {
+      id: 'setup',
+      label: 'Setup',
+      hint: hasSavedSetup ? 'Saved' : 'Toss & overs',
+      isComplete: hasSavedSetup,
+    },
+    {
+      id: 'squads',
+      label: 'Squads',
+      hint: hasMatchDaySquads ? 'Saved' : 'Pick XI',
+      isComplete: hasMatchDaySquads,
+    },
     { id: 'balls', label: 'Balls', hint: `${liveQ.data?.events.length ?? 0} recorded` },
     { id: 'corrections', label: 'Fix', hint: editingBall ? 'Editing' : 'Correct ball' },
     { id: 'review', label: 'Review', hint: 'Finalize' },
@@ -1334,7 +1355,7 @@ function LiveScoringPage() {
           border-radius: 1rem;
           border: 1px solid rgba(100, 116, 139, 0.42);
           background: #ffffff;
-          color: #111827;
+          color: var(--color-deep-maroon);
           cursor: pointer;
           padding: 0.45rem;
           text-align: center;
@@ -1356,6 +1377,15 @@ function LiveScoringPage() {
         }
         .live-scorer-tab.is-active span {
           color: #e5e7eb;
+        }
+        .live-scorer-tab.is-complete,
+        .live-scorer-tab.is-complete:hover {
+          background: #15803d;
+          border-color: #15803d;
+          color: #ffffff;
+        }
+        .live-scorer-tab.is-complete span {
+          color: #ffffff;
         }
         .live-scorer-page .catalog-card-grid {
           display: grid;
@@ -1455,6 +1485,34 @@ function LiveScoringPage() {
           grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
           gap: 0.5rem;
           margin-top: 0.75rem;
+        }
+        .live-scorer-quick-actions .btn-ghost,
+        .live-scorer-extras-panel .btn-ghost {
+          background: var(--color-white) !important;
+          border-color: rgba(32, 0, 1, 0.28) !important;
+          color: var(--color-deep-maroon) !important;
+        }
+        .live-scorer-quick-actions .btn-ghost:hover,
+        .live-scorer-extras-panel .btn-ghost:hover {
+          background: #ffffff !important;
+          border-color: var(--color-rust-orange) !important;
+          color: var(--color-rust-orange) !important;
+        }
+        .live-scorer-quick-actions .live-scorer-wicket-action,
+        .live-scorer-quick-actions .live-scorer-wicket-action:hover {
+          background: #c62828 !important;
+          border-color: #c62828 !important;
+          color: #ffffff !important;
+        }
+        .live-scorer-quick-actions .btn-ghost:disabled,
+        .live-scorer-extras-panel .btn-ghost:disabled {
+          opacity: 0.48;
+        }
+        .live-scorer-innings-complete {
+          background: #ecfdf5;
+          border-color: rgba(21, 128, 61, 0.35);
+          color: #166534;
+          font-weight: 800;
         }
         .live-scorer-warning-list {
           margin: 0.75rem 0;
@@ -1634,7 +1692,7 @@ function LiveScoringPage() {
             <button
               key={panel.id}
               type="button"
-              className={`live-scorer-tab${activeScorerPanel === panel.id ? ' is-active' : ''}`}
+              className={`live-scorer-tab${activeScorerPanel === panel.id ? ' is-active' : ''}${panel.isComplete ? ' is-complete' : ''}`}
               onClick={() => setActiveScorerPanel(panel.id)}
               aria-pressed={activeScorerPanel === panel.id}
             >
@@ -2068,11 +2126,11 @@ function LiveScoringPage() {
               className="btn-ghost"
               onClick={() => setExtrasOpen((open) => !open)}
             >
-              {extrasOpen ? 'Hide extras' : 'Extras / MCC'}
+              {extrasOpen ? 'Hide extras' : 'Extras'}
             </button>
             <button
               type="button"
-              className="btn-ghost"
+              className="btn-ghost live-scorer-wicket-action"
               onClick={() => setWicketOpen((open) => !open)}
               disabled={ballMutation.isPending}
             >
@@ -2095,7 +2153,7 @@ function LiveScoringPage() {
         </div>
 
         {extrasOpen ? (
-          <>
+          <div className="live-scorer-extras-panel">
         <div className="team-hub-section" style={{ marginTop: '1rem' }}>
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
@@ -2323,7 +2381,7 @@ function LiveScoringPage() {
             </button>
           </div>
         </div>
-          </>
+          </div>
         ) : null}
 
         {wicketOpen ? (
@@ -2489,11 +2547,11 @@ function LiveScoringPage() {
               </label>
 
               {wicketWillEndInnings ? (
-                <div className="live-scorer-review-card">
-                  <strong>10th wicket — innings complete</strong>
-                  <p className="muted">
-                    No new batter is required. Save this wicket to end the innings.
-                  </p>
+                <div className="inline-edit__field">
+                  <span className="inline-edit__label">10th wicket</span>
+                  <div className="inline-edit__control live-scorer-innings-complete" role="status">
+                    Innings complete
+                  </div>
                 </div>
               ) : (
                 <label className="inline-edit__field">
@@ -2692,7 +2750,7 @@ function LiveScoringPage() {
             </div>
             <div className="live-scorer-review-card">
               <strong>Extras</strong>
-              <p className="muted">Tap Extras / MCC for wides, no-balls, byes, leg-byes, penalties, dead ball, and short-run adjustments.</p>
+              <p className="muted">Tap Extras for wides, no-balls, byes, leg-byes, penalties, dead ball, and short-run adjustments.</p>
             </div>
             <div className="live-scorer-review-card">
               <strong>Wicket</strong>
