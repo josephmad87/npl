@@ -50,6 +50,7 @@ from app.schemas.seasons import SeasonCreate, SeasonOut, SeasonPublicOut, Season
 from app.schemas.matches import (
     LiveBallEventIn,
     LiveBallEventOut,
+    LiveMatchConditionsIn,
     LiveScoreCompleteIn,
     LiveScoreStartIn,
     LiveScoreStateOut,
@@ -89,6 +90,7 @@ from app.schemas.players import (
 from app.schemas.teams import TeamBulkArchiveIn, TeamCreate, TeamOut, TeamUpdate
 from app.services.audit import write_audit
 from app.services.cricket_overs import normalize_cricket_overs
+from app.services.dls import cricket_overs_to_balls, dls_par_score, dls_resource_percentage
 from app.services.player_stats import (
     affected_player_ids_for_match,
     is_did_not_bat,
@@ -2595,10 +2597,24 @@ def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
         )
 
     current_innings = summaries[-1].innings if summaries else None
+    second_innings = next((summary for summary in summaries if summary.innings == 2), None)
 
     return LiveScoreStateOut(
         match_id=match.id,
         status=match.status,
+        match_overs=match.match_overs,
+        revised_target_runs=match.revised_target_runs,
+        dls_par_score=(
+            dls_par_score(
+                revised_target_runs=match.revised_target_runs,
+                allotted_overs=match.match_overs,
+                legal_balls=second_innings.legal_balls,
+                wickets_lost=second_innings.wickets,
+                effective_resource_percentage=match.dls_team2_resource_percentage,
+            )
+            if second_innings is not None
+            else None
+        ),
         current_innings=current_innings,
         summaries=summaries,
         events=[_live_event_out(event) for event in events],
@@ -2912,6 +2928,84 @@ def admin_save_live_match_setup(
     )
     db.commit()
     return match
+
+
+@router.put("/matches/{match_id}/live/conditions", response_model=LiveScoreStateOut)
+def admin_save_live_match_conditions(
+    match_id: int,
+    body: LiveMatchConditionsIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> LiveScoreStateOut:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+
+    try:
+        previous_allotted_balls = cricket_overs_to_balls(match.match_overs)
+        revised_allotted_balls = cricket_overs_to_balls(body.match_overs)
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": str(error)},
+        ) from error
+
+    state_before_change = _live_score_state(db, match)
+    second_innings = next(
+        (summary for summary in state_before_change.summaries if summary.innings == 2),
+        None,
+    )
+    if second_innings is not None:
+        if revised_allotted_balls < second_innings.legal_balls:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "validation",
+                    "message": "Revised overs cannot be less than the legal balls already bowled.",
+                },
+            )
+
+        if revised_allotted_balls != previous_allotted_balls:
+            effective_resource = (
+                float(match.dls_team2_resource_percentage)
+                if match.dls_team2_resource_percentage is not None
+                else dls_resource_percentage(previous_allotted_balls, 0)
+            )
+            previous_remaining = dls_resource_percentage(
+                max(0, previous_allotted_balls - second_innings.legal_balls),
+                second_innings.wickets,
+            )
+            revised_remaining = dls_resource_percentage(
+                max(0, revised_allotted_balls - second_innings.legal_balls),
+                second_innings.wickets,
+            )
+            revised_resource = effective_resource - (previous_remaining - revised_remaining)
+            match.dls_team2_resource_percentage = Decimal(
+                str(round(max(revised_remaining, revised_resource), 3)),
+            )
+    else:
+        match.dls_team2_resource_percentage = None
+
+    match.match_overs = body.match_overs
+    match.revised_target_runs = body.revised_target_runs
+    db.commit()
+    db.refresh(match)
+
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="save_live_match_conditions",
+        entity_type="match",
+        entity_id=match_id,
+        summary=(
+            f"Updated live match conditions for match {match_id}: "
+            f"{body.match_overs} overs, revised target "
+            f"{body.revised_target_runs if body.revised_target_runs is not None else 'cleared'}"
+        ),
+    )
+    db.commit()
+    return _live_score_state(db, match)
 
 
 @router.post("/matches/{match_id}/live/start", response_model=LiveScoreStateOut)
@@ -3443,17 +3537,20 @@ def _finalize_live_match_result(
         first_runs = int(first["runs"])
         second_runs = int(second["runs"])
         second_wickets = int(second["wickets"])
-        if second_runs > first_runs:
+        target_runs = match.revised_target_runs or (first_runs + 1)
+        tie_score = target_runs - 1
+        dls_suffix = " (DLS)" if match.revised_target_runs is not None else ""
+        if second_runs >= target_runs:
             outcome = "win"
             winning_team_id = second_team_id
-            margin_text = f"Won by {max(0, 10 - second_wickets)} wickets"
-        elif first_runs > second_runs:
+            margin_text = f"Won by {max(0, 10 - second_wickets)} wickets{dls_suffix}"
+        elif second_runs < tie_score:
             outcome = "win"
             winning_team_id = first_team_id
-            margin_text = f"Won by {first_runs - second_runs} runs"
+            margin_text = f"Won by {tie_score - second_runs} runs{dls_suffix}"
         else:
             outcome = "tie"
-            margin_text = "Match tied"
+            margin_text = f"Match tied{dls_suffix}"
     elif innings_by_number:
         only = innings_meta[innings_by_number[0]]
         outcome = "no_result"
@@ -3591,6 +3688,8 @@ def admin_reset_live_test_match(
     match.toss_info = None
     match.umpires = None
     match.match_overs = Decimal("40.0")
+    match.revised_target_runs = None
+    match.dls_team2_resource_percentage = None
 
     if affected_player_ids:
         recompute_player_career_stats(db, affected_player_ids)

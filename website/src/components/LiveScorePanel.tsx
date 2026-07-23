@@ -59,6 +59,9 @@ export type LiveInningsSummary = {
 export type LiveScoreState = {
   match_id: number
   status: string
+  match_overs?: string | number | null
+  revised_target_runs?: number | null
+  dls_par_score?: number | null
   current_innings: number | null
   summaries: LiveInningsSummary[]
   events: LiveBallEvent[]
@@ -82,6 +85,7 @@ type PublicTeam = {
 type PublicMatchDetail = MatchLite & {
   season_id: number | null
   match_overs?: string | number | null
+  revised_target_runs?: number | null
   season?: {
     id: number
     name: string
@@ -942,8 +946,13 @@ export function LiveScorePanel({
   const secondDisplayTeamId = firstInningsSummary?.bowling_team_id ?? (firstDisplayTeamId === homeTeamId ? awayTeamId : homeTeamId)
   const firstDisplayTeam = teamName(firstDisplayTeamId, teamNames)
   const secondDisplayTeam = teamName(secondDisplayTeamId, teamNames)
-  const targetRuns = firstInningsSummary ? firstInningsSummary.runs + 1 : null
-  const allottedBalls = parseCricketOversToBalls(matchQ.data?.match_overs)
+  const targetRuns =
+    liveQ.data?.revised_target_runs ??
+    matchQ.data?.revised_target_runs ??
+    (firstInningsSummary ? firstInningsSummary.runs + 1 : null)
+  const allottedBalls = parseCricketOversToBalls(
+    liveQ.data?.match_overs ?? matchQ.data?.match_overs,
+  )
   const chaseRequiredRuns = secondInningsSummary && targetRuns != null
     ? Math.max(targetRuns - secondInningsSummary.runs, 0)
     : null
@@ -1630,6 +1639,23 @@ export function LiveScorePanel({
           color: var(--live-ink);
           font-weight: 750;
         }
+        .live-score-panel__dls {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.35rem 1rem;
+          margin: 0.85rem 0 0;
+          padding: 0.65rem 0.8rem;
+          border: 1px solid #bfdbfe;
+          border-radius: 0.8rem;
+          background: #eff6ff;
+          color: #1e3a8a;
+          font-size: 0.88rem;
+          font-weight: 800;
+        }
+        .live-score-panel__dls strong {
+          font-size: 1rem;
+        }
         .live-score-panel__match-note.is-chase {
           display: inline-flex;
           align-items: center;
@@ -1900,6 +1926,15 @@ export function LiveScorePanel({
             {renderHeaderScore(secondInningsSummary, activeSummary?.batting_team_id === secondDisplayTeamId && !firstInningsSummary)}
           </div>
         </div>
+
+        {secondInningsSummary && targetRuns != null && liveQ.data?.revised_target_runs != null ? (
+          <div className="live-score-panel__dls" aria-live="polite">
+            <span>DLS revised target: {targetRuns}</span>
+            <strong>
+              Duckworth-Lewis-Stern (DLS) par score: {liveQ.data.dls_par_score ?? '—'}
+            </strong>
+          </div>
+        ) : null}
 
         {activeSummary ? (
           <>

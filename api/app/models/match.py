@@ -35,6 +35,8 @@ class Match(Base):
         default=Decimal("40.0"),
         nullable=False,
     )
+    revised_target_runs: Mapped[int | None] = mapped_column(Integer)
+    dls_team2_resource_percentage: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
 
     season: Mapped["Season | None"] = relationship(back_populates="matches")
     home_team: Mapped["Team"] = relationship(foreign_keys=[home_team_id], back_populates="home_matches")
