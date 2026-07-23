@@ -129,6 +129,23 @@ const DISMISSAL_OPTIONS: DismissalOption[] = [
 
 const WIDE_DISMISSALS = new Set(['run_out', 'stumped', 'hit_wicket', 'obstructing_field'])
 const NO_BALL_DISMISSALS = new Set(['run_out', 'hit_wicket', 'obstructing_field'])
+const COUNTED_WICKET_DISMISSALS = new Set([
+  'bowled',
+  'caught',
+  'caught_and_bowled',
+  'lbw',
+  'run_out',
+  'stumped',
+  'hit_wicket',
+  'retired_out',
+  'hit_ball_twice',
+  'obstructing_field',
+  'timed_out',
+])
+
+function dismissalCountsAsWicket(value: string | null | undefined): boolean {
+  return Boolean(value && COUNTED_WICKET_DISMISSALS.has(value))
+}
 
 function dismissalOptionsForDelivery(delivery: WicketDeliveryType): DismissalOption[] {
   if (delivery === 'wide') {
@@ -684,6 +701,10 @@ function LiveScoringPage() {
     mutationFn: (payload: BallSubmitPayload) =>
       adminPost<LiveBallEventDto>(`/admin/matches/${mid}/live/balls`, payload.body),
     onSuccess: async (_created, payload) => {
+      const inningsEnded =
+        dismissalCountsAsWicket(payload.body.wicket_type) &&
+        (currentSummary?.wickets ?? 0) >= 9
+
       setActionError(null)
       setNotes('')
       if (payload.body.is_legal_delivery !== false && !payload.body.is_dead_ball && payload.body.ball_number === 6) {
@@ -697,8 +718,19 @@ function LiveScoringPage() {
       setWicketRunsCompleted(0)
       setWicketRunCredit('bat')
       setBattersCrossed(false)
-      applyPostBallState(payload.body, payload.newBatterId ?? null, payload.strikeRuns ?? 0)
+      if (!inningsEnded) {
+        applyPostBallState(payload.body, payload.newBatterId ?? null, payload.strikeRuns ?? 0)
+      }
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
+
+      if (inningsEnded) {
+        if (payload.body.innings === 1) {
+          setInnings(2)
+          setActiveScorerPanel('score')
+        } else {
+          setActiveScorerPanel('review')
+        }
+      }
     },
     onError: (error: Error) => setActionError(error.message),
   })
@@ -1014,9 +1046,7 @@ function LiveScoringPage() {
     }
 
     const newBatter = newBatterPlayerId || null
-    const needsNewBatter =
-      !['retired_hurt', 'retired_not_out'].includes(wicketType) && availableNewBatters.length > 0
-    if (needsNewBatter && !newBatter) {
+    if (replacementBatterRequired && !newBatter) {
       setActionError('Choose the new batter before saving this wicket ball.')
       return
     }
@@ -1110,6 +1140,12 @@ function LiveScoringPage() {
   const availableNewBatters = battingPlayers.filter(
     (player) => player.id !== strikerPlayerId && player.id !== nonStrikerPlayerId,
   )
+  const wicketWillEndInnings =
+    dismissalCountsAsWicket(wicketType) && (currentSummary?.wickets ?? 0) >= 9
+  const replacementBatterRequired =
+    !wicketWillEndInnings &&
+    !['retired_hurt', 'retired_not_out'].includes(wicketType) &&
+    availableNewBatters.length > 0
   const inningsTarget =
     innings === 1 && currentSummary ? currentSummary.runs + 1 : null
   const hasMatchDaySquads = matchTeams.length > 0 && matchTeams.every((team) => teamHasSavedSquad.get(team.id))
@@ -1140,7 +1176,7 @@ function LiveScoringPage() {
       ? 'Striker and non-striker are the same player.'
       : null,
     !strikerPlayerId || !bowlerPlayerId ? 'Choose striker and bowler before scoring.' : null,
-    wicketOpen && wicketType !== 'retired_hurt' && wicketType !== 'retired_not_out' && !newBatterPlayerId
+    wicketOpen && replacementBatterRequired && !newBatterPlayerId
       ? 'Select the new batter before saving a wicket.'
       : null,
   ].filter((warning): warning is string => Boolean(warning))
@@ -2452,23 +2488,32 @@ function LiveScoringPage() {
                 </select>
               </label>
 
-              <label className="inline-edit__field">
-                <span className="inline-edit__label">4. New batter</span>
-                <select
-                  className="inline-edit__control"
-                  value={newBatterPlayerId}
-                  onChange={(event) =>
-                    setNewBatterPlayerId(event.target.value ? Number(event.target.value) : '')
-                  }
-                >
-                  <option value="">Choose new batter</option>
-                  {availableNewBatters.map((player) => (
-                    <option key={player.id} value={player.id}>
-                      {player.full_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {wicketWillEndInnings ? (
+                <div className="live-scorer-review-card">
+                  <strong>10th wicket — innings complete</strong>
+                  <p className="muted">
+                    No new batter is required. Save this wicket to end the innings.
+                  </p>
+                </div>
+              ) : (
+                <label className="inline-edit__field">
+                  <span className="inline-edit__label">4. New batter</span>
+                  <select
+                    className="inline-edit__control"
+                    value={newBatterPlayerId}
+                    onChange={(event) =>
+                      setNewBatterPlayerId(event.target.value ? Number(event.target.value) : '')
+                    }
+                  >
+                    <option value="">Choose new batter</option>
+                    {availableNewBatters.map((player) => (
+                      <option key={player.id} value={player.id}>
+                        {player.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
 
             {actionError ? <p className="login-error">{actionError}</p> : null}

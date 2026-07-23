@@ -72,6 +72,13 @@ def test_wide_can_include_multiple_extras_and_run_out() -> None:
     _validate_live_ball_event(body)
 
 
+def test_wicket_ball_does_not_require_a_replacement_batter() -> None:
+    body = _wicket_ball(replacement_player_id=None)
+
+    _validate_live_ball_event(body)
+    assert body.replacement_player_id is None
+
+
 def test_no_ball_can_include_batter_run_and_run_out() -> None:
     body = _wicket_ball(
         extras_type="no_ball",
