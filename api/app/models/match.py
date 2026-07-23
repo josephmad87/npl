@@ -36,6 +36,7 @@ class Match(Base):
         nullable=False,
     )
     revised_target_runs: Mapped[int | None] = mapped_column(Integer)
+    dls_team1_resource_percentage: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
     dls_team2_resource_percentage: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
 
     season: Mapped["Season | None"] = relationship(back_populates="matches")

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { RotateCcw, Save, Undo2 } from 'lucide-react'
+import { Pencil, RotateCcw, Save, Undo2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type {
   LiveBallEventDto,
@@ -414,8 +414,8 @@ function LiveScoringPage() {
   const [reserveUmpire, setReserveUmpire] = useState('')
   const [matchOvers, setMatchOvers] = useState('40.0')
   const [revisedMatchOvers, setRevisedMatchOvers] = useState('40.0')
-  const [revisedTargetRuns, setRevisedTargetRuns] = useState('')
   const [conditionsDirty, setConditionsDirty] = useState(false)
+  const [conditionsOpen, setConditionsOpen] = useState(true)
   const [editingBall, setEditingBall] = useState<EditingBallDraft | null>(null)
   const [editBallError, setEditBallError] = useState<string | null>(null)
   const [activeScorerPanel, setActiveScorerPanel] = useState<ScorerPanel>('score')
@@ -447,17 +447,11 @@ function LiveScoringPage() {
     if (!conditionsDirty) {
       const currentOvers = liveQ.data?.match_overs ?? match.match_overs
       if (currentOvers != null) setRevisedMatchOvers(String(currentOvers))
-      setRevisedTargetRuns(
-        liveQ.data?.revised_target_runs != null
-          ? String(liveQ.data.revised_target_runs)
-          : '',
-      )
     }
   }, [
     battingFirstTeamId,
     conditionsDirty,
     liveQ.data?.match_overs,
-    liveQ.data?.revised_target_runs,
     match,
     matchTeams.length,
     tossWinnerTeamId,
@@ -630,14 +624,9 @@ function LiveScoringPage() {
       if (!Number.isFinite(overs) || overs <= 0) {
         throw new Error('Enter valid revised overs, for example 35.0 or 19.4.')
       }
-      const targetText = revisedTargetRuns.trim()
-      const target = targetText ? Number(targetText) : null
-      if (target != null && (!Number.isInteger(target) || target < 1)) {
-        throw new Error('Enter the official revised target as a whole number.')
-      }
       const body: LiveMatchConditionsInput = {
         match_overs: revisedMatchOvers,
-        revised_target_runs: target,
+        innings,
       }
       return adminPutJson<LiveScoreStateDto>(
         `/admin/matches/${mid}/live/conditions`,
@@ -647,6 +636,7 @@ function LiveScoringPage() {
     onSuccess: async (state) => {
       setActionError(null)
       setConditionsDirty(false)
+      setConditionsOpen(false)
       setMatchOvers(String(state.match_overs ?? revisedMatchOvers))
       queryClient.setQueryData(['admin', 'matches', mid, 'live'], state)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
@@ -884,8 +874,8 @@ function LiveScoringPage() {
       setWicketRunsCompleted(0)
       setWicketRunCredit('bat')
       setRevisedMatchOvers('40.0')
-      setRevisedTargetRuns('')
       setConditionsDirty(false)
+      setConditionsOpen(true)
       setInnings(1)
       setActiveScorerPanel('setup')
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
@@ -1639,6 +1629,16 @@ function LiveScoringPage() {
           gap: 0.75rem 1rem;
           margin-bottom: 0.85rem;
         }
+        .live-scorer-conditions.is-collapsed .live-scorer-conditions__head {
+          margin-bottom: 0;
+        }
+        .live-scorer-conditions__summary {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.35rem 0.85rem;
+          margin-top: 0.25rem;
+          font-weight: 750;
+        }
         .live-scorer-conditions__head h3,
         .live-scorer-conditions__head p {
           margin: 0;
@@ -2034,57 +2034,89 @@ function LiveScoringPage() {
           </button>
         </div>
 
-        <aside className="live-scorer-conditions" aria-label="Rain and revised match conditions">
+        <aside
+          className={`live-scorer-conditions${conditionsOpen ? '' : ' is-collapsed'}`}
+          aria-label="Rain and revised match conditions"
+        >
           <div className="live-scorer-conditions__head">
             <div>
               <h3>Rain / revised match conditions</h3>
-              <p className="muted">
-                Save reduced overs and the official DLS target without leaving the scoring screen.
-              </p>
+              {conditionsOpen ? (
+                <p className="muted">
+                  Save the revised overs. The ICC DLS Standard Edition target is calculated automatically.
+                </p>
+              ) : (
+                <div className="live-scorer-conditions__summary" aria-live="polite">
+                  <span>{liveQ.data?.match_overs ?? revisedMatchOvers} overs</span>
+                  <span>
+                    {liveQ.data?.revised_target_runs != null
+                      ? `ICC DLS Standard target: ${liveQ.data.revised_target_runs}`
+                      : 'Target calculated when second-innings conditions are saved'}
+                  </span>
+                  {liveQ.data?.dls_par_score != null ? (
+                    <span>Par now: {liveQ.data.dls_par_score}</span>
+                  ) : null}
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              className="btn-primary btn--with-icon"
-              onClick={() => void saveConditionsMutation.mutate()}
-              disabled={saveConditionsMutation.isPending || !conditionsDirty}
-            >
-              <Save size={18} strokeWidth={2} aria-hidden />
-              {saveConditionsMutation.isPending ? 'Saving…' : 'Save conditions'}
-            </button>
+            {conditionsOpen ? (
+              <button
+                type="button"
+                className="btn-primary btn--with-icon"
+                onClick={() => void saveConditionsMutation.mutate()}
+                disabled={saveConditionsMutation.isPending}
+              >
+                <Save size={18} strokeWidth={2} aria-hidden />
+                {saveConditionsMutation.isPending ? 'Saving…' : 'Save conditions'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-ghost btn--with-icon"
+                onClick={() => {
+                  const currentOvers = liveQ.data?.match_overs ?? revisedMatchOvers
+                  setRevisedMatchOvers(String(currentOvers))
+                  setConditionsDirty(false)
+                  setConditionsOpen(true)
+                }}
+              >
+                <Pencil size={18} strokeWidth={2} aria-hidden />
+                Edit conditions
+              </button>
+            )}
           </div>
-          <div className="inline-edit__grid">
-            <label className="inline-edit__field">
-              <span className="inline-edit__label">Revised overs per side</span>
-              <input
-                className="inline-edit__control"
-                inputMode="decimal"
-                value={revisedMatchOvers}
-                onChange={(event) => {
-                  setRevisedMatchOvers(event.target.value)
-                  setConditionsDirty(true)
-                }}
-                placeholder="35.0"
-              />
-              <span className="muted">Use cricket notation, for example 19.4 means 19 overs and 4 balls.</span>
-            </label>
-            <label className="inline-edit__field">
-              <span className="inline-edit__label">Official revised target</span>
-              <input
-                className="inline-edit__control"
-                inputMode="numeric"
-                value={revisedTargetRuns}
-                onChange={(event) => {
-                  setRevisedTargetRuns(event.target.value)
-                  setConditionsDirty(true)
-                }}
-                placeholder="Leave blank if unchanged"
-              />
-              <span className="muted">Enter the winning target from the official DLS calculator.</span>
-            </label>
-            <div className="live-scorer-conditions__par">
-              DLS par now: {liveQ.data?.dls_par_score ?? '—'}
+          {conditionsOpen ? (
+            <div className="inline-edit__grid">
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">
+                  Revised overs for the {innings === 1 ? 'first' : 'second'} innings
+                </span>
+                <input
+                  className="inline-edit__control"
+                  inputMode="decimal"
+                  value={revisedMatchOvers}
+                  onChange={(event) => {
+                    setRevisedMatchOvers(event.target.value)
+                    setConditionsDirty(true)
+                  }}
+                  placeholder="35.0"
+                />
+                <span className="muted">
+                  Use cricket notation, for example 19.4 means 19 overs and 4 balls.
+                </span>
+              </label>
+              <div className="live-scorer-conditions__par">
+                {innings === 1
+                  ? 'The first-innings resource is saved now; the target is calculated for the chase.'
+                  : liveQ.data?.revised_target_runs != null
+                    ? `Current ICC DLS Standard target: ${liveQ.data.revised_target_runs}`
+                    : 'The revised target will be calculated from the first-innings score and both teams’ resources.'}
+              </div>
+              <div className="live-scorer-conditions__par">
+                DLS par now: {liveQ.data?.dls_par_score ?? '—'}
+              </div>
             </div>
-          </div>
+          ) : null}
         </aside>
 
         <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Innings">

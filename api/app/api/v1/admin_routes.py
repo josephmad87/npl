@@ -90,7 +90,14 @@ from app.schemas.players import (
 from app.schemas.teams import TeamBulkArchiveIn, TeamCreate, TeamOut, TeamUpdate
 from app.services.audit import write_audit
 from app.services.cricket_overs import normalize_cricket_overs
-from app.services.dls import cricket_overs_to_balls, dls_par_score, dls_resource_percentage
+from app.services.dls import (
+    cricket_overs_to_balls,
+    dls_g50_for_category,
+    dls_par_score,
+    dls_resource_percentage,
+    dls_revised_target,
+    revised_resource_percentage,
+)
 from app.services.player_stats import (
     affected_player_ids_for_match,
     is_did_not_bat,
@@ -2597,6 +2604,7 @@ def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
         )
 
     current_innings = summaries[-1].innings if summaries else None
+    first_innings = next((summary for summary in summaries if summary.innings == 1), None)
     second_innings = next((summary for summary in summaries if summary.innings == 2), None)
 
     return LiveScoreStateOut(
@@ -2611,6 +2619,9 @@ def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
                 legal_balls=second_innings.legal_balls,
                 wickets_lost=second_innings.wickets,
                 effective_resource_percentage=match.dls_team2_resource_percentage,
+                first_innings_runs=first_innings.runs if first_innings is not None else None,
+                team1_resource_percentage=match.dls_team1_resource_percentage,
+                g50=dls_g50_for_category(match.category),
             )
             if second_innings is not None
             else None
@@ -2952,43 +2963,79 @@ def admin_save_live_match_conditions(
         ) from error
 
     state_before_change = _live_score_state(db, match)
+    first_innings = next(
+        (summary for summary in state_before_change.summaries if summary.innings == 1),
+        None,
+    )
     second_innings = next(
         (summary for summary in state_before_change.summaries if summary.innings == 2),
         None,
     )
-    if second_innings is not None:
-        if revised_allotted_balls < second_innings.legal_balls:
+
+    selected_innings = first_innings if body.innings == 1 else second_innings
+    if selected_innings is not None and revised_allotted_balls < selected_innings.legal_balls:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "validation",
+                "message": "Revised overs cannot be less than the legal balls already bowled.",
+            },
+        )
+
+    if body.innings == 1:
+        if second_innings is not None or match.dls_team2_resource_percentage is not None:
             raise HTTPException(
                 status_code=400,
                 detail={
                     "code": "validation",
-                    "message": "Revised overs cannot be less than the legal balls already bowled.",
+                    "message": "First-innings conditions cannot be changed after the second innings has started.",
+                },
+            )
+        match.dls_team1_resource_percentage = Decimal(
+            str(
+                revised_resource_percentage(
+                    effective_resource_percentage=match.dls_team1_resource_percentage,
+                    previous_allotted_balls=previous_allotted_balls,
+                    revised_allotted_balls=revised_allotted_balls,
+                    legal_balls=first_innings.legal_balls if first_innings is not None else 0,
+                    wickets_lost=first_innings.wickets if first_innings is not None else 0,
+                ),
+            ),
+        )
+        match.dls_team2_resource_percentage = None
+        match.revised_target_runs = None
+    else:
+        if first_innings is None:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "validation",
+                    "message": "Record the first innings before calculating a revised target.",
                 },
             )
 
-        if revised_allotted_balls != previous_allotted_balls:
-            effective_resource = (
-                float(match.dls_team2_resource_percentage)
-                if match.dls_team2_resource_percentage is not None
-                else dls_resource_percentage(previous_allotted_balls, 0)
-            )
-            previous_remaining = dls_resource_percentage(
-                max(0, previous_allotted_balls - second_innings.legal_balls),
-                second_innings.wickets,
-            )
-            revised_remaining = dls_resource_percentage(
-                max(0, revised_allotted_balls - second_innings.legal_balls),
-                second_innings.wickets,
-            )
-            revised_resource = effective_resource - (previous_remaining - revised_remaining)
-            match.dls_team2_resource_percentage = Decimal(
-                str(round(max(revised_remaining, revised_resource), 3)),
-            )
-    else:
-        match.dls_team2_resource_percentage = None
+        resource_1 = (
+            float(match.dls_team1_resource_percentage)
+            if match.dls_team1_resource_percentage is not None
+            else dls_resource_percentage(previous_allotted_balls, 0)
+        )
+        resource_2 = revised_resource_percentage(
+            effective_resource_percentage=match.dls_team2_resource_percentage,
+            previous_allotted_balls=previous_allotted_balls,
+            revised_allotted_balls=revised_allotted_balls,
+            legal_balls=second_innings.legal_balls if second_innings is not None else 0,
+            wickets_lost=second_innings.wickets if second_innings is not None else 0,
+        )
+        match.dls_team1_resource_percentage = Decimal(str(round(resource_1, 3)))
+        match.dls_team2_resource_percentage = Decimal(str(resource_2))
+        match.revised_target_runs = dls_revised_target(
+            first_innings_runs=first_innings.runs,
+            team1_resource_percentage=resource_1,
+            team2_resource_percentage=resource_2,
+            g50=dls_g50_for_category(match.category),
+        )
 
     match.match_overs = body.match_overs
-    match.revised_target_runs = body.revised_target_runs
     db.commit()
     db.refresh(match)
 
@@ -3000,8 +3047,8 @@ def admin_save_live_match_conditions(
         entity_id=match_id,
         summary=(
             f"Updated live match conditions for match {match_id}: "
-            f"{body.match_overs} overs, revised target "
-            f"{body.revised_target_runs if body.revised_target_runs is not None else 'cleared'}"
+            f"innings {body.innings}, {body.match_overs} overs, ICC DLS Standard target "
+            f"{match.revised_target_runs if match.revised_target_runs is not None else 'pending'}"
         ),
     )
     db.commit()
@@ -3689,6 +3736,7 @@ def admin_reset_live_test_match(
     match.umpires = None
     match.match_overs = Decimal("40.0")
     match.revised_target_runs = None
+    match.dls_team1_resource_percentage = None
     match.dls_team2_resource_percentage = None
 
     if affected_player_ids:

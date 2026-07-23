@@ -15,7 +15,14 @@ from app.schemas.matches import (
     MatchDetailOut,
     MatchLiveSetupIn,
 )
-from app.services.dls import cricket_overs_to_balls, dls_par_score, dls_resource_percentage
+from app.services.dls import (
+    cricket_overs_to_balls,
+    dls_g50_for_category,
+    dls_par_score,
+    dls_resource_percentage,
+    dls_revised_target,
+    revised_resource_percentage,
+)
 
 
 def test_live_match_setup_preserves_match_overs() -> None:
@@ -62,14 +69,67 @@ def test_match_model_maps_match_overs_column() -> None:
     assert "match_overs" in Match.__table__.columns
     assert Match.__table__.c.match_overs.nullable is False
     assert "revised_target_runs" in Match.__table__.columns
+    assert "dls_team1_resource_percentage" in Match.__table__.columns
     assert "dls_team2_resource_percentage" in Match.__table__.columns
 
 
-def test_live_conditions_preserve_revised_overs_and_target() -> None:
-    body = LiveMatchConditionsIn(match_overs="35.0", revised_target_runs=186)
+def test_live_conditions_preserve_revised_overs_and_innings() -> None:
+    body = LiveMatchConditionsIn(match_overs="35.0", innings=2)
 
     assert body.match_overs == Decimal("35.0")
-    assert body.revised_target_runs == 186
+    assert body.innings == 2
+
+
+def test_dls_revised_target_matches_icc_standard_examples() -> None:
+    assert dls_revised_target(
+        first_innings_runs=180,
+        team1_resource_percentage=87.5,
+        team2_resource_percentage=89.3,
+        g50=245,
+    ) == 185
+    assert dls_revised_target(
+        first_innings_runs=212,
+        team1_resource_percentage=95.0,
+        team2_resource_percentage=82.7,
+        g50=245,
+    ) == 185
+    assert dls_revised_target(
+        first_innings_runs=250,
+        team1_resource_percentage=100.0,
+        team2_resource_percentage=86.8,
+        g50=245,
+    ) == 218
+    assert dls_revised_target(
+        first_innings_runs=250,
+        team1_resource_percentage=100.0,
+        team2_resource_percentage=83.2,
+        g50=245,
+    ) == 209
+
+
+def test_dls_g50_uses_published_category_values() -> None:
+    assert dls_g50_for_category("mens") == 245
+    assert dls_g50_for_category("women") == 200
+    assert dls_g50_for_category("youth") == 200
+
+
+def test_dls_resource_revision_accumulates_multiple_interruptions() -> None:
+    first_revision = revised_resource_percentage(
+        effective_resource_percentage=None,
+        previous_allotted_balls=300,
+        revised_allotted_balls=240,
+        legal_balls=60,
+        wickets_lost=0,
+    )
+    second_revision = revised_resource_percentage(
+        effective_resource_percentage=first_revision,
+        previous_allotted_balls=240,
+        revised_allotted_balls=228,
+        legal_balls=150,
+        wickets_lost=5,
+    )
+
+    assert 0 < second_revision < first_revision < 100
 
 
 def test_dls_par_score_advances_with_balls_and_wickets() -> None:
@@ -99,13 +159,18 @@ def test_dls_par_score_advances_with_balls_and_wickets() -> None:
 
 def test_dls_standard_resource_curve_matches_icc_example() -> None:
     assert cricket_overs_to_balls("28.0") == 168
-    assert round(dls_resource_percentage(168, 1), 1) == 68.8
+    assert dls_resource_percentage(300, 0) == 100.0
+    assert dls_resource_percentage(240, 0) == 89.3
+    assert dls_resource_percentage(168, 1) == 68.8
     assert dls_par_score(
         revised_target_runs=209,
         allotted_overs="38.0",
         legal_balls=182,
         wickets_lost=6,
         effective_resource_percentage=Decimal("83.2"),
+        first_innings_runs=250,
+        team1_resource_percentage=Decimal("100.0"),
+        g50=245,
     ) == 159
 
 

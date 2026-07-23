@@ -43,7 +43,7 @@ from app.schemas.players import PlayerMatchAppearanceOut, PlayerOut
 from app.schemas.seasons import SeasonPublicOut, SeasonSummaryOut
 from app.schemas.sponsor import SponsorOut
 from app.schemas.teams import TeamOut, TeamSeasonRecordOut
-from app.services.dls import dls_par_score
+from app.services.dls import dls_g50_for_category, dls_par_score
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -982,6 +982,7 @@ def _public_live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
             ),
         )
 
+    first_innings = next((summary for summary in summaries if summary.innings == 1), None)
     second_innings = next((summary for summary in summaries if summary.innings == 2), None)
 
     return LiveScoreStateOut(
@@ -996,6 +997,9 @@ def _public_live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
                 legal_balls=second_innings.legal_balls,
                 wickets_lost=second_innings.wickets,
                 effective_resource_percentage=match.dls_team2_resource_percentage,
+                first_innings_runs=first_innings.runs if first_innings is not None else None,
+                team1_resource_percentage=match.dls_team1_resource_percentage,
+                g50=dls_g50_for_category(match.category),
             )
             if second_innings is not None
             else None
