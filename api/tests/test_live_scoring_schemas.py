@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
+from app.api.v1 import admin_routes
 from app.api.v1.admin_routes import (
     _dismissal_text_for_live_event,
     _live_ball_label,
@@ -83,6 +84,71 @@ def test_live_conditions_preserve_revised_overs_and_innings() -> None:
 
     assert body.match_overs == Decimal("35.0")
     assert body.innings == 2
+    assert body.clear_dls is False
+
+
+def test_live_conditions_accept_blank_or_zero_to_clear_dls() -> None:
+    blank = LiveMatchConditionsIn(match_overs=None, innings=2, clear_dls=True)
+    zero = LiveMatchConditionsIn(match_overs="0", innings=2)
+
+    assert blank.match_overs is None
+    assert blank.clear_dls is True
+    assert zero.match_overs == Decimal("0")
+
+
+def test_clear_live_conditions_resets_dls_and_preserves_match_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    match = SimpleNamespace(
+        id=1,
+        match_overs=Decimal("35.0"),
+        dls_team1_resource_percentage=Decimal("89.300"),
+        dls_team2_resource_percentage=Decimal("83.200"),
+        revised_target_runs=209,
+    )
+    commits: list[bool] = []
+    audit_actions: list[str] = []
+
+    class _Db:
+        def get(self, _model: object, _match_id: int) -> SimpleNamespace:
+            return match
+
+        def commit(self) -> None:
+            commits.append(True)
+
+        def refresh(self, _match: object) -> None:
+            return None
+
+    monkeypatch.setattr(admin_routes, "_assert_can_score_match", lambda *_args: None)
+    monkeypatch.setattr(
+        admin_routes,
+        "write_audit",
+        lambda _db, **kwargs: audit_actions.append(str(kwargs["action"])),
+    )
+    monkeypatch.setattr(
+        admin_routes,
+        "_live_score_state",
+        lambda _db, _match: LiveScoreStateOut(
+            match_id=1,
+            status="live",
+            match_overs=match.match_overs,
+        ),
+    )
+
+    state = admin_routes.admin_save_live_match_conditions(
+        match_id=1,
+        body=LiveMatchConditionsIn(match_overs=0, innings=2),
+        db=_Db(),  # type: ignore[arg-type]
+        actor=SimpleNamespace(id=7),  # type: ignore[arg-type]
+    )
+
+    assert match.match_overs == Decimal("35.0")
+    assert match.dls_team1_resource_percentage is None
+    assert match.dls_team2_resource_percentage is None
+    assert match.revised_target_runs is None
+    assert state.revised_target_runs is None
+    assert audit_actions == ["clear_live_match_conditions"]
+    assert len(commits) == 2
 
 
 def test_match_squad_accepts_concussion_substitute() -> None:

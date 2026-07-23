@@ -177,8 +177,9 @@ class MatchLiveSetupIn(BaseModel):
 
 
 class LiveMatchConditionsIn(BaseModel):
-    match_overs: Decimal = Field(gt=0, le=50)
+    match_overs: Decimal | None = Field(default=None, ge=0, le=50)
     innings: int = Field(ge=1, le=2)
+    clear_dls: bool = False
 
 
 class LiveScoreStartIn(BaseModel):
