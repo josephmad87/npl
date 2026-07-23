@@ -2999,6 +2999,26 @@ def admin_save_live_match_conditions(
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
     _assert_can_score_match(db, match_id, actor)
 
+    clear_dls = body.clear_dls or body.match_overs is None or body.match_overs == 0
+    if clear_dls:
+        match.dls_team1_resource_percentage = None
+        match.dls_team2_resource_percentage = None
+        match.revised_target_runs = None
+        db.commit()
+        db.refresh(match)
+
+        write_audit(
+            db,
+            actor_user_id=actor.id,
+            action="clear_live_match_conditions",
+            entity_type="match",
+            entity_id=match_id,
+            summary=f"Cleared ICC DLS Standard conditions for match {match_id}",
+        )
+        db.commit()
+        return _live_score_state(db, match)
+
+    assert body.match_overs is not None
     try:
         previous_allotted_balls = cricket_overs_to_balls(match.match_overs)
         revised_allotted_balls = cricket_overs_to_balls(body.match_overs)

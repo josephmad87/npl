@@ -653,13 +653,16 @@ function LiveScoringPage() {
 
   const saveConditionsMutation = useMutation({
     mutationFn: () => {
-      const overs = Number(revisedMatchOvers)
-      if (!Number.isFinite(overs) || overs <= 0) {
+      const revisedOvers = revisedMatchOvers.trim()
+      const overs = Number(revisedOvers)
+      const clearDls = revisedOvers === '' || overs === 0
+      if (!clearDls && (!Number.isFinite(overs) || overs < 0)) {
         throw new Error('Enter valid revised overs, for example 35.0 or 19.4.')
       }
       const body: LiveMatchConditionsInput = {
-        match_overs: revisedMatchOvers,
+        match_overs: clearDls ? null : revisedOvers,
         innings,
+        clear_dls: clearDls,
       }
       return adminPutJson<LiveScoreStateDto>(
         `/admin/matches/${mid}/live/conditions`,
@@ -1689,6 +1692,12 @@ function LiveScoringPage() {
         .live-scorer-conditions__head p {
           margin-top: 0.2rem;
         }
+        .live-scorer-conditions__actions {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          gap: 0.55rem;
+        }
         .live-scorer-conditions .inline-edit__control {
           background: #ffffff;
           color: #111827;
@@ -2102,7 +2111,7 @@ function LiveScoringPage() {
                   <span>
                     {liveQ.data?.revised_target_runs != null
                       ? `ICC DLS Standard target: ${liveQ.data.revised_target_runs}`
-                      : 'Target calculated when second-innings conditions are saved'}
+                      : 'No revised DLS target applied'}
                   </span>
                   {liveQ.data?.dls_par_score != null ? (
                     <span>Par now: {liveQ.data.dls_par_score}</span>
@@ -2111,15 +2120,29 @@ function LiveScoringPage() {
               )}
             </div>
             {conditionsOpen ? (
-              <button
-                type="button"
-                className="btn-primary btn--with-icon"
-                onClick={() => void saveConditionsMutation.mutate()}
-                disabled={saveConditionsMutation.isPending}
-              >
-                <Save size={18} strokeWidth={2} aria-hidden />
-                {saveConditionsMutation.isPending ? 'Saving…' : 'Save conditions'}
-              </button>
+              <div className="live-scorer-conditions__actions">
+                <button
+                  type="button"
+                  className="btn-ghost btn--with-icon live-scorer-reset"
+                  onClick={() => {
+                    setRevisedMatchOvers('')
+                    setConditionsDirty(true)
+                  }}
+                  disabled={saveConditionsMutation.isPending}
+                >
+                  <RotateCcw size={18} strokeWidth={2} aria-hidden />
+                  Clear DLS
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary btn--with-icon"
+                  onClick={() => void saveConditionsMutation.mutate()}
+                  disabled={saveConditionsMutation.isPending}
+                >
+                  <Save size={18} strokeWidth={2} aria-hidden />
+                  {saveConditionsMutation.isPending ? 'Saving…' : 'Save conditions'}
+                </button>
+              </div>
             ) : (
               <button
                 type="button"
@@ -2154,6 +2177,7 @@ function LiveScoringPage() {
                 />
                 <span className="muted">
                   Use cricket notation, for example 19.4 means 19 overs and 4 balls.
+                  Leave blank or enter 0, then save, to clear DLS and keep the current match length.
                 </span>
               </label>
               <div className="live-scorer-conditions__par">
