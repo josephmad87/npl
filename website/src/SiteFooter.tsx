@@ -98,13 +98,10 @@ export function SiteFooter() {
             <h3>About &amp; support</h3>
             <Link to="/about-us">About us</Link>
             <Link to="/contact-us">Contact us</Link>
-            <Link to="/">Homepage</Link>
-            <Link to="/news" search={{ q: 'press' }}>
-              Press updates
-            </Link>
-            <Link to="/news" search={{ q: 'announcement' }}>
-              Announcements
-            </Link>
+            <Link to="/support">Support</Link>
+            <Link to="/account-deletion">Delete account</Link>
+            <Link to="/privacy">Privacy policy</Link>
+            <Link to="/terms">Terms of use</Link>
           </nav>
 
           <nav className="site-footer-col" aria-label="Social">
