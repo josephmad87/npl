@@ -14,6 +14,7 @@ from app.models.match import (
 )
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
+from app.models.site_page_content import SitePageContent
 from app.models.sponsor import Sponsor
 from app.models.team import Team
 from app.models.user import User
@@ -33,6 +34,7 @@ __all__ = [
     "MatchScorerAssignment",
     "PlatformSettings",
     "Player",
+    "SitePageContent",
     "Season",
     "Sponsor",
     "SeasonTeam",

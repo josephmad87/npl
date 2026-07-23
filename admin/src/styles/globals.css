@@ -2831,6 +2831,210 @@ table.data-table button.sort {
   opacity: 0.55;
 }
 
+/* Super-admin managed privacy, terms, support, and account-deletion pages. */
+.site-page-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0 0 1rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+}
+
+.site-page-tabs button {
+  min-height: 2.7rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font: 600 0.82rem/1.2 var(--font-display);
+  cursor: pointer;
+}
+
+.site-page-tabs button:hover,
+.site-page-tabs button:focus-visible {
+  color: var(--text);
+  border-color: var(--border);
+  outline: none;
+}
+
+.site-page-tabs button.is-active {
+  color: #fff;
+  border-color: rgba(229, 139, 27, 0.65);
+  background: linear-gradient(135deg, var(--accent), var(--accent-mid));
+  box-shadow: 0 7px 18px rgba(191, 73, 39, 0.2);
+}
+
+.site-page-editor {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 5rem;
+}
+
+.site-page-editor__settings {
+  display: grid;
+  gap: 1.1rem;
+  max-width: none;
+}
+
+.site-page-editor input,
+.site-page-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  padding: 0.68rem 0.75rem;
+}
+
+.site-page-editor input:focus,
+.site-page-editor textarea:focus {
+  border-color: var(--accent-mid);
+  outline: 2px solid rgba(191, 73, 39, 0.18);
+}
+
+.site-page-editor textarea {
+  resize: vertical;
+}
+
+.site-page-editor .rich-text-editor__content .tiptap,
+.site-page-editor .rich-text-editor__content .ProseMirror {
+  min-height: 9rem;
+}
+
+.site-page-editor__sections {
+  display: grid;
+  gap: 1rem;
+}
+
+.site-page-editor__sections-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.site-page-editor__sections-heading h2,
+.site-page-editor__sections-heading p {
+  margin: 0;
+}
+
+.site-page-editor__sections-heading h2 {
+  font: 600 1.15rem/1.25 var(--font-display);
+}
+
+.site-page-editor__sections-heading p {
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.site-page-editor__section {
+  display: grid;
+  gap: 1rem;
+  padding: 1.15rem 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(
+    155deg,
+    var(--bg-elevated) 0%,
+    var(--bg-panel) 100%
+  );
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+}
+
+.site-page-editor__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.site-page-editor__section-header p,
+.site-page-editor__section-header span {
+  margin: 0;
+}
+
+.site-page-editor__section-header p {
+  font: 700 0.8rem/1.2 var(--font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.site-page-editor__section-header span {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.site-page-editor__section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.site-page-editor__remove {
+  color: var(--danger);
+}
+
+.site-page-editor__footer {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(19, 4, 2, 0.96);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+}
+
+.site-page-editor__footer p {
+  margin: 0;
+}
+
+.site-page-editor__loading {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: none;
+}
+
+@media (max-width: 760px) {
+  .site-page-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .site-page-editor__sections-heading,
+  .site-page-editor__section-header,
+  .site-page-editor__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .site-page-editor__section-actions {
+    justify-content: flex-start;
+  }
+
+  .site-page-editor__footer .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .article-view__hero {
   max-width: 720px;
   margin-bottom: 1.25rem;

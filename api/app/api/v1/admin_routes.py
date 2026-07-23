@@ -38,6 +38,7 @@ from app.models.match import (
 from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
+from app.models.site_page_content import SitePageContent
 from app.models.team import Team
 from app.models.user import User
 from app.schemas.about_content import AboutContentBody, AboutContentOut
@@ -81,6 +82,7 @@ from app.schemas.merchandise import (
 )
 from app.schemas.media_upload import MediaUploadOut
 from app.schemas.platform_settings import PlatformSettingsOut, PlatformSettingsPatch
+from app.schemas.site_page_content import SitePageBody, SitePageOut, SitePageSlug
 from app.schemas.sponsor import SponsorCreate, SponsorOut, SponsorUpdate
 from app.schemas.players import (
     PlayerBulkStatusIn,
@@ -108,6 +110,7 @@ from app.services.player_stats import (
     recompute_all_player_career_stats,
     recompute_player_career_stats,
 )
+from app.services.site_pages import default_site_page_body
 from app.services.uploads import build_media_public_url, save_upload_file
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -1868,6 +1871,68 @@ def admin_patch_platform_settings(
     )
     db.commit()
     return PlatformSettingsOut.model_validate(row)
+
+
+def _get_or_create_site_page_row(db: Session, slug: SitePageSlug) -> SitePageContent:
+    row = db.get(SitePageContent, slug)
+    if row is None:
+        row = SitePageContent(slug=slug, body={})
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return row
+
+
+def _coerce_site_page_body(slug: SitePageSlug, raw: object) -> SitePageBody:
+    if raw and isinstance(raw, dict):
+        try:
+            return SitePageBody.model_validate(raw)
+        except Exception:
+            pass
+    return default_site_page_body(slug)
+
+
+def _site_page_row_to_out(row: SitePageContent, slug: SitePageSlug) -> SitePageOut:
+    body = _coerce_site_page_body(slug, row.body)
+    return SitePageOut(
+        slug=slug,
+        **body.model_dump(),
+        updated_at=row.updated_at,
+    )
+
+
+@router.get("/site-pages/{slug}", response_model=SitePageOut)
+def admin_get_site_page(
+    slug: SitePageSlug,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+) -> SitePageOut:
+    row = _get_or_create_site_page_row(db, slug)
+    return _site_page_row_to_out(row, slug)
+
+
+@router.patch("/site-pages/{slug}", response_model=SitePageOut)
+def admin_patch_site_page(
+    slug: SitePageSlug,
+    body: SitePageBody,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super_admin),
+) -> SitePageOut:
+    row = _get_or_create_site_page_row(db, slug)
+    row.body = body.model_dump(mode="json")
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(row)
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="update",
+        entity_type="site_page_content",
+        entity_id=slug,
+        summary=body.title,
+    )
+    db.commit()
+    return _site_page_row_to_out(row, slug)
 
 
 def _get_or_create_about_row(db: Session) -> AboutContent:

@@ -55,6 +55,11 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    to: '/site-pages',
+    label: 'Policy & support pages',
+    roles: ['super_admin'],
+  },
+  {
     to: '/contact-messages',
     label: 'Contact messages',
     roles: [

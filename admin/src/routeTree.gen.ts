@@ -42,6 +42,7 @@ import { Route as ShellScoringIndexRouteImport } from './routes/_shell/scoring/i
 import { Route as ShellScoringMatchIdRouteImport } from './routes/_shell/scoring/$matchId'
 import { Route as ShellSettingsIndexRouteImport } from './routes/_shell/settings/index'
 import { Route as ShellSettingsProfileRouteImport } from './routes/_shell/settings/profile'
+import { Route as ShellSitePagesIndexRouteImport } from './routes/_shell/site-pages/index'
 import { Route as ShellSponsorsIndexRouteImport } from './routes/_shell/sponsors/index'
 import { Route as ShellSponsorsSponsorIdRouteImport } from './routes/_shell/sponsors/$sponsorId'
 import { Route as ShellSponsorsNewRouteImport } from './routes/_shell/sponsors/new'
@@ -222,6 +223,11 @@ const ShellSettingsProfileRoute = ShellSettingsProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => ShellSettingsRouteRoute,
 } as any)
+const ShellSitePagesIndexRoute = ShellSitePagesIndexRouteImport.update({
+  id: '/site-pages/',
+  path: '/site-pages/',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellSponsorsIndexRoute = ShellSponsorsIndexRouteImport.update({
   id: '/sponsors/',
   path: '/sponsors/',
@@ -325,6 +331,7 @@ export interface FileRoutesByFullPath {
   '/players/': typeof ShellPlayersIndexRoute
   '/scoring/': typeof ShellScoringIndexRoute
   '/settings/': typeof ShellSettingsIndexRoute
+  '/site-pages/': typeof ShellSitePagesIndexRoute
   '/sponsors/': typeof ShellSponsorsIndexRoute
   '/teams/': typeof ShellTeamsIndexRoute
   '/users/': typeof ShellUsersIndexRoute
@@ -370,6 +377,7 @@ export interface FileRoutesByTo {
   '/players': typeof ShellPlayersIndexRoute
   '/scoring': typeof ShellScoringIndexRoute
   '/settings': typeof ShellSettingsIndexRoute
+  '/site-pages': typeof ShellSitePagesIndexRoute
   '/sponsors': typeof ShellSponsorsIndexRoute
   '/teams': typeof ShellTeamsIndexRoute
   '/users': typeof ShellUsersIndexRoute
@@ -418,6 +426,7 @@ export interface FileRoutesById {
   '/_shell/players/': typeof ShellPlayersIndexRoute
   '/_shell/scoring/': typeof ShellScoringIndexRoute
   '/_shell/settings/': typeof ShellSettingsIndexRoute
+  '/_shell/site-pages/': typeof ShellSitePagesIndexRoute
   '/_shell/sponsors/': typeof ShellSponsorsIndexRoute
   '/_shell/teams/': typeof ShellTeamsIndexRoute
   '/_shell/users/': typeof ShellUsersIndexRoute
@@ -466,6 +475,7 @@ export interface FileRouteTypes {
     | '/players/'
     | '/scoring/'
     | '/settings/'
+    | '/site-pages/'
     | '/sponsors/'
     | '/teams/'
     | '/users/'
@@ -511,6 +521,7 @@ export interface FileRouteTypes {
     | '/players'
     | '/scoring'
     | '/settings'
+    | '/site-pages'
     | '/sponsors'
     | '/teams'
     | '/users'
@@ -558,6 +569,7 @@ export interface FileRouteTypes {
     | '/_shell/players/'
     | '/_shell/scoring/'
     | '/_shell/settings/'
+    | '/_shell/site-pages/'
     | '/_shell/sponsors/'
     | '/_shell/teams/'
     | '/_shell/users/'
@@ -804,6 +816,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsProfileRouteImport
       parentRoute: typeof ShellSettingsRouteRoute
     }
+    '/_shell/site-pages/': {
+      id: '/_shell/site-pages/'
+      path: '/site-pages'
+      fullPath: '/site-pages/'
+      preLoaderRoute: typeof ShellSitePagesIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/sponsors/': {
       id: '/_shell/sponsors/'
       path: '/sponsors'
@@ -956,6 +975,7 @@ interface ShellRouteChildren {
   ShellNewsIndexRoute: typeof ShellNewsIndexRoute
   ShellPlayersIndexRoute: typeof ShellPlayersIndexRoute
   ShellScoringIndexRoute: typeof ShellScoringIndexRoute
+  ShellSitePagesIndexRoute: typeof ShellSitePagesIndexRoute
   ShellSponsorsIndexRoute: typeof ShellSponsorsIndexRoute
   ShellTeamsIndexRoute: typeof ShellTeamsIndexRoute
   ShellUsersIndexRoute: typeof ShellUsersIndexRoute
@@ -997,6 +1017,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellNewsIndexRoute: ShellNewsIndexRoute,
   ShellPlayersIndexRoute: ShellPlayersIndexRoute,
   ShellScoringIndexRoute: ShellScoringIndexRoute,
+  ShellSitePagesIndexRoute: ShellSitePagesIndexRoute,
   ShellSponsorsIndexRoute: ShellSponsorsIndexRoute,
   ShellTeamsIndexRoute: ShellTeamsIndexRoute,
   ShellUsersIndexRoute: ShellUsersIndexRoute,
