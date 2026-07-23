@@ -390,7 +390,7 @@ export type ScorerAssignmentDto = {
   created_at: string
 }
 
-export type MatchSquadRole = 'playing_xi' | 'substitute'
+export type MatchSquadRole = 'playing_xi' | 'substitute' | 'concussion_substitute'
 
 export type MatchSquadPlayerDto = {
   id: number

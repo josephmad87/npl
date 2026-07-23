@@ -216,7 +216,7 @@ class MatchScorerAssignment(Base):
 
 
 class MatchDaySquadPlayer(Base):
-    """Match-day selection: playing XI and substitutes per team."""
+    """Match-day selection: playing XI and ordinary/concussion substitutes."""
 
     __tablename__ = "match_squad_players"
     __table_args__ = (

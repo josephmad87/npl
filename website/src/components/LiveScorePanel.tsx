@@ -107,7 +107,7 @@ type MatchSquadPlayer = {
   id: number
   team_id: number
   player_id: number
-  role: 'playing_xi' | 'substitute'
+  role: 'playing_xi' | 'substitute' | 'concussion_substitute'
   lineup_order: number
   is_captain: boolean
   is_wicketkeeper: boolean

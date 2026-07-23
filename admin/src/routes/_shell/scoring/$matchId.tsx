@@ -554,6 +554,33 @@ function LiveScoringPage() {
     [bowlingTeamId, playersQ.data, playerRoles, teamHasSavedSquad],
   )
 
+  const dismissedBatterIds = useMemo(() => {
+    const dismissed = new Set<number>()
+    for (const event of liveQ.data?.events ?? []) {
+      if (
+        event.innings === innings &&
+        event.wicket_player_id &&
+        dismissalCountsAsWicket(event.wicket_type)
+      ) {
+        dismissed.add(event.wicket_player_id)
+      }
+    }
+    return dismissed
+  }, [innings, liveQ.data?.events])
+
+  const eligibleWicketPlayers = useMemo(
+    () => battingPlayers.filter((player) => !dismissedBatterIds.has(player.id)),
+    [battingPlayers, dismissedBatterIds],
+  )
+
+  const availableNewBatters = useMemo(
+    () =>
+      eligibleWicketPlayers.filter(
+        (player) => player.id !== strikerPlayerId && player.id !== nonStrikerPlayerId,
+      ),
+    [eligibleWicketPlayers, nonStrikerPlayerId, strikerPlayerId],
+  )
+
   useEffect(() => {
     if (!strikerPlayerId && battingPlayers[0]) {
       setStrikerPlayerId(battingPlayers[0].id)
@@ -561,10 +588,16 @@ function LiveScoringPage() {
     if (!nonStrikerPlayerId && battingPlayers[1]) {
       setNonStrikerPlayerId(battingPlayers[1].id)
     }
-    if (!wicketPlayerId && battingPlayers[0]) {
-      setWicketPlayerId(battingPlayers[0].id)
+    if (!wicketPlayerId && eligibleWicketPlayers[0]) {
+      setWicketPlayerId(eligibleWicketPlayers[0].id)
     }
-  }, [battingPlayers, nonStrikerPlayerId, strikerPlayerId, wicketPlayerId])
+  }, [
+    battingPlayers,
+    eligibleWicketPlayers,
+    nonStrikerPlayerId,
+    strikerPlayerId,
+    wicketPlayerId,
+  ])
 
   useEffect(() => {
     if (!bowlerPlayerId && bowlingPlayers[0]) {
@@ -724,6 +757,7 @@ function LiveScoringPage() {
 
     setStrikerPlayerId(nextStriker)
     setNonStrikerPlayerId(nextNonStriker)
+    setWicketPlayerId(nextStriker || nextNonStriker || '')
   }
 
   const restorePreBallState = (event: LiveBallEventDto) => {
@@ -1183,9 +1217,6 @@ function LiveScoringPage() {
 
   const wicketDismissalOptions = dismissalOptionsForDelivery(wicketDeliveryType)
   const currentWicketOption = wicketDismissalOptions.find((item) => item.value === wicketType)
-  const availableNewBatters = battingPlayers.filter(
-    (player) => player.id !== strikerPlayerId && player.id !== nonStrikerPlayerId,
-  )
   const wicketWillEndInnings =
     dismissalCountsAsWicket(wicketType) && (currentSummary?.wickets ?? 0) >= 9
   const replacementBatterRequired =
@@ -1249,6 +1280,18 @@ function LiveScoringPage() {
       ? 'Select the new batter before saving a wicket.'
       : null,
   ].filter((warning): warning is string => Boolean(warning))
+
+  const toggleWicketDetails = () => {
+    const nextOpen = !wicketOpen
+    if (nextOpen) {
+      const currentEligiblePlayer = [strikerPlayerId, nonStrikerPlayerId].find(
+        (playerId) => Boolean(playerId) && !dismissedBatterIds.has(Number(playerId)),
+      )
+      setWicketPlayerId(currentEligiblePlayer || eligibleWicketPlayers[0]?.id || '')
+      setNewBatterPlayerId('')
+    }
+    setWicketOpen(nextOpen)
+  }
 
   const allLiveEvents = [...(liveQ.data?.events ?? [])].sort(
     (a, b) => a.sequence_number - b.sequence_number || a.id - b.id,
@@ -1927,8 +1970,9 @@ function LiveScoringPage() {
           <div className="team-hub-section-head__lead">
             <h2 className="team-hub-section__title">Match day squad</h2>
             <p className="muted">
-              Select up to 11 playing XI and up to 4 substitutes per team. Once saved,
-              the scoring controls use only these players.
+              Select up to 11 playing XI and up to 4 ordinary substitutes per team.
+              Concussion substitutes can be added during a live match and are eligible to
+              bat, bowl and field as soon as the squad is saved.
             </p>
           </div>
           <button
@@ -1955,6 +1999,11 @@ function LiveScoringPage() {
             const teamPlayers = playersForTeam(team.id)
             const playingCount = selectedRoleCount(teamPlayers, playerRoles, 'playing_xi')
             const substituteCount = selectedRoleCount(teamPlayers, playerRoles, 'substitute')
+            const concussionSubstituteCount = selectedRoleCount(
+              teamPlayers,
+              playerRoles,
+              'concussion_substitute',
+            )
 
             return (
               <div key={team.id} className="team-hub-section" style={{ marginTop: 0 }}>
@@ -1962,7 +2011,8 @@ function LiveScoringPage() {
                   <div className="team-hub-section-head__lead">
                     <h3 className="team-hub-section__title">{team.name}</h3>
                     <p className="muted">
-                      Playing XI: {playingCount}/11 · Subs: {substituteCount}/4
+                      Playing XI: {playingCount}/11 · Subs: {substituteCount}/4 ·
+                      Concussion subs: {concussionSubstituteCount}
                     </p>
                   </div>
                 </div>
@@ -1995,6 +2045,7 @@ function LiveScoringPage() {
                               <option value="">Not in match day squad</option>
                               <option value="playing_xi">Playing XI</option>
                               <option value="substitute">Substitute</option>
+                              <option value="concussion_substitute">Concussion substitute</option>
                             </select>
                           </td>
                         </tr>
@@ -2345,7 +2396,7 @@ function LiveScoringPage() {
             <button
               type="button"
               className="btn-ghost live-scorer-wicket-action"
-              onClick={() => setWicketOpen((open) => !open)}
+              onClick={toggleWicketDetails}
               disabled={ballMutation.isPending}
             >
               Out / wicket
@@ -2634,10 +2685,10 @@ function LiveScoringPage() {
                 <span className="inline-edit__label">2. Player out</span>
                 <select
                   className="inline-edit__control"
-                  value={wicketPlayerId || strikerPlayerId}
+                  value={wicketPlayerId || eligibleWicketPlayers[0]?.id || ''}
                   onChange={(event) => setWicketPlayerId(Number(event.target.value))}
                 >
-                  {battingPlayers.map((player) => (
+                  {eligibleWicketPlayers.map((player) => (
                     <option key={player.id} value={player.id}>
                       {player.full_name}
                     </option>

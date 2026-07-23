@@ -2479,10 +2479,31 @@ def _assert_bowler_can_bowl_current_over(db: Session, match_id: int, body: LiveB
         )
 
 
+def _assert_live_players_not_dismissed(
+    body: LiveBallEventIn,
+    dismissed_player_ids: set[int],
+) -> None:
+    for player_id, label in (
+        (body.striker_player_id, "Striker"),
+        (body.non_striker_player_id, "Non-striker"),
+        (body.wicket_player_id, "Player out"),
+        (body.replacement_player_id, "Replacement batter"),
+    ):
+        if player_id is not None and player_id in dismissed_player_ids:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "validation",
+                    "message": f"{label} has already been dismissed in this innings.",
+                },
+            )
+
+
 def _assert_live_ball_payload(
     db: Session,
     match: Match,
     body: LiveBallEventIn,
+    before_sequence_number: int | None = None,
 ) -> None:
     _assert_live_team_ids(match, body.batting_team_id, body.bowling_team_id)
     _validate_live_ball_event(body)
@@ -2544,6 +2565,23 @@ def _assert_live_ball_payload(
             status_code=400,
             detail={"code": "validation", "message": "Replacement batter must be different from the current batters."},
         )
+
+    dismissed_stmt = select(MatchBallEvent.wicket_player_id).where(
+        MatchBallEvent.match_id == match.id,
+        MatchBallEvent.innings == body.innings,
+        MatchBallEvent.wicket_type.in_(OUT_DISMISSALS),
+        MatchBallEvent.wicket_player_id.is_not(None),
+    )
+    if before_sequence_number is not None:
+        dismissed_stmt = dismissed_stmt.where(
+            MatchBallEvent.sequence_number < before_sequence_number,
+        )
+    dismissed_player_ids = {
+        player_id
+        for player_id in db.scalars(dismissed_stmt).all()
+        if player_id is not None
+    }
+    _assert_live_players_not_dismissed(body, dismissed_player_ids)
     _assert_bowler_can_bowl_current_over(db, match.id, body)
 
 
@@ -2814,10 +2852,18 @@ def admin_save_match_day_squad(
                 playing_count += 1
             elif item.role == "substitute":
                 substitute_count += 1
+            elif item.role == "concussion_substitute":
+                pass
             else:
                 raise HTTPException(
                     status_code=400,
-                    detail={"code": "validation", "message": "Squad role must be playing_xi or substitute."},
+                    detail={
+                        "code": "validation",
+                        "message": (
+                            "Squad role must be playing_xi, substitute, "
+                            "or concussion_substitute."
+                        ),
+                    },
                 )
 
             normalized.append(
@@ -3163,7 +3209,12 @@ def admin_update_live_ball(
     if event is None or event.match_id != match_id:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Ball event not found"})
 
-    _assert_live_ball_payload(db, match, body)
+    _assert_live_ball_payload(
+        db,
+        match,
+        body,
+        before_sequence_number=event.sequence_number,
+    )
 
     for field, value in body.model_dump().items():
         setattr(event, field, value)
