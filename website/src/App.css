@@ -9639,3 +9639,439 @@ table.league-standings-table .league-standings-table__form {
     min-height: 21.5rem !important;
   }
 }
+
+/* Public privacy, terms, support, and account-deletion pages */
+.legal-page {
+  padding-top: 0.35rem;
+}
+
+.legal-page__meta {
+  width: min(1120px, 100%);
+  margin: 0 auto 1rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  flex-wrap: wrap;
+  border: 1px solid var(--color-border);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-primary) 8%);
+  padding: 0.8rem 1rem;
+  color: var(--color-muted);
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.legal-page__layout {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 270px);
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  align-items: start;
+}
+
+.legal-document {
+  min-width: 0;
+  color: var(--color-text);
+  font-size: 0.98rem;
+  line-height: 1.72;
+}
+
+.legal-document__lead {
+  margin: 0 0 1.45rem;
+  padding: clamp(1rem, 2.4vw, 1.4rem);
+  border-left: 4px solid var(--color-highlight);
+  border-radius: 0 0.85rem 0.85rem 0;
+  background: color-mix(in srgb, var(--color-highlight) 8%, #fff);
+  font-size: clamp(1.02rem, 1.5vw, 1.14rem);
+  line-height: 1.65;
+}
+
+.legal-document section {
+  scroll-margin-top: 7rem;
+  padding: 0.2rem 0 1.35rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.legal-document section + section {
+  padding-top: 1.35rem;
+}
+
+.legal-document section:last-child {
+  border-bottom: 0;
+}
+
+.legal-document h2 {
+  margin: 0 0 0.65rem;
+  color: var(--color-primary);
+  font-size: clamp(1.18rem, 2vw, 1.48rem);
+  line-height: 1.28;
+}
+
+.legal-document h3 {
+  color: var(--color-primary);
+}
+
+.legal-document p {
+  margin: 0.6rem 0;
+}
+
+.legal-document ul,
+.legal-document ol {
+  margin: 0.6rem 0;
+  padding-left: 1.35rem;
+}
+
+.legal-document li + li {
+  margin-top: 0.45rem;
+}
+
+.legal-document a,
+.legal-contact a {
+  color: var(--color-accent);
+  font-weight: 720;
+}
+
+.legal-page__contents {
+  position: sticky;
+  top: 6.4rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.9rem;
+  background: #fff;
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--color-primary) 9%, transparent);
+  padding: 1rem;
+}
+
+.legal-page__contents strong {
+  display: block;
+  margin-bottom: 0.65rem;
+  color: var(--color-primary);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.legal-page__contents ol {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+}
+
+.legal-page__contents a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.legal-page__contents a:hover,
+.legal-page__contents a:focus-visible {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.legal-contact {
+  margin: 0.8rem 0 0;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--color-primary) 5%, #fff);
+  padding: 0.8rem 0.95rem;
+}
+
+.legal-contact p {
+  margin: 0;
+}
+
+.legal-contact p + p {
+  margin-top: 0.35rem;
+}
+
+.legal-contact__address {
+  white-space: pre-line;
+}
+
+.support-page__intro,
+.support-page__grid,
+.support-page__response,
+.account-deletion__layout {
+  width: min(1120px, 100%);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.support-page__intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 1rem;
+  align-items: stretch;
+  margin-bottom: 1rem;
+}
+
+.support-page__intro > div:first-child,
+.support-page__contact-card,
+.support-page__topic,
+.support-page__response,
+.account-deletion__form-card {
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 14px 36px color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.support-page__intro > div:first-child {
+  padding: clamp(1rem, 3vw, 1.65rem);
+}
+
+.support-page__intro h2,
+.support-page__contact-card strong,
+.support-page__response h2,
+.account-deletion__form-card h2 {
+  color: var(--color-primary);
+}
+
+.support-page__intro h2 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+}
+
+.support-page__intro p {
+  max-width: 48rem;
+  margin: 0.55rem 0 0;
+  color: var(--color-muted);
+}
+
+.support-page__eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--color-accent);
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.support-page__contact-card {
+  display: grid;
+  align-content: center;
+  gap: 0.55rem;
+  padding: 1rem 1.15rem;
+}
+
+.support-page__contact-card a,
+.support-page__topic a {
+  color: var(--color-accent);
+  font-weight: 750;
+}
+
+.support-page__primary-link {
+  width: fit-content;
+  border-radius: 999px;
+  background: var(--color-primary);
+  padding: 0.65rem 1rem;
+  color: #fff !important;
+  text-decoration: none;
+}
+
+.support-page__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.support-page__topic {
+  padding: 1rem;
+}
+
+.support-page__topic > span {
+  color: var(--color-accent);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.support-page__topic h2 {
+  margin: 0.35rem 0 0.55rem;
+  color: var(--color-primary);
+  font-size: 1.13rem;
+  line-height: 1.28;
+}
+
+.support-page__topic p {
+  margin: 0 0 0.75rem;
+  color: var(--color-muted);
+  line-height: 1.58;
+}
+
+.support-page__topic-links {
+  display: flex;
+  gap: 0.5rem 1rem;
+  flex-wrap: wrap;
+}
+
+.support-page__response {
+  margin-top: 1rem;
+  padding: clamp(1rem, 2.5vw, 1.4rem);
+  color: var(--color-text);
+}
+
+.support-page__response h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.support-page__response ul {
+  margin: 0.7rem 0;
+  padding-left: 1.25rem;
+}
+
+.support-page__response p {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.account-deletion__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+  align-items: start;
+}
+
+.account-deletion__form-card {
+  position: sticky;
+  top: 6.4rem;
+  padding: clamp(1rem, 2.6vw, 1.4rem);
+  color: var(--color-text);
+}
+
+.account-deletion__form-card h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.account-deletion__form-card > p:not(.support-page__eyebrow) {
+  color: var(--color-muted);
+  line-height: 1.55;
+}
+
+.account-deletion__form {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.account-deletion__form label {
+  color: var(--color-text);
+  font-size: 0.84rem;
+  font-weight: 760;
+}
+
+.account-deletion__form label span {
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.account-deletion__form input,
+.account-deletion__form textarea {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0.7rem;
+  background: #fff;
+  padding: 0.72rem 0.8rem;
+  color: var(--color-text);
+  font: inherit;
+}
+
+.account-deletion__form textarea {
+  resize: vertical;
+}
+
+.account-deletion__form input:focus-visible,
+.account-deletion__form textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  outline-offset: 2px;
+  border-color: var(--color-accent);
+}
+
+.account-deletion__form button,
+.account-deletion__success button {
+  margin-top: 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-primary);
+  padding: 0.78rem 1rem;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.account-deletion__form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.account-deletion__error {
+  margin: 0.3rem 0 0;
+  color: #9b2515;
+  font-size: 0.88rem;
+}
+
+.account-deletion__error a {
+  color: inherit;
+  font-weight: 750;
+}
+
+.account-deletion__success {
+  margin-top: 1rem;
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, #14804a 10%, #fff);
+  padding: 1rem;
+}
+
+.account-deletion__success h3 {
+  margin: 0;
+  color: #0b6337;
+}
+
+.account-deletion__success p {
+  color: var(--color-text);
+}
+
+@media (max-width: 900px) {
+  .legal-page__layout,
+  .account-deletion__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .legal-page__contents,
+  .account-deletion__form-card {
+    position: static;
+  }
+
+  .legal-page__contents {
+    grid-row: 1;
+  }
+
+  .support-page__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .legal-page__meta,
+  .support-page__intro {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .support-page__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .legal-document {
+    font-size: 0.94rem;
+  }
+
+  .legal-page__contents {
+    padding: 0.9rem;
+  }
+}

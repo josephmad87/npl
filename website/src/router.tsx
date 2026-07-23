@@ -34,6 +34,12 @@ import { LeagueDetailPage, SeasonDetailPage, TeamDetailPage } from './EntityDeta
 import NewsArticlePage from './NewsArticlePage'
 import { RootLayout } from './RootLayout'
 import MerchandisePage from './MerchandisePage'
+import {
+  AccountDeletionPage,
+  PrivacyPage,
+  SupportPage,
+  TermsPage,
+} from './LegalSupportPages'
 
 const rootRoute = createRootRoute({
   component: RootLayout,
@@ -222,6 +228,26 @@ const contactUsRoute = createRoute({
   path: '/contact-us',
   component: ContactUsPage,
 })
+const privacyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/privacy',
+  component: PrivacyPage,
+})
+const termsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/terms',
+  component: TermsPage,
+})
+const supportRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/support',
+  component: SupportPage,
+})
+const accountDeletionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account-deletion',
+  component: AccountDeletionPage,
+})
 const teamDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/teams/$slug',
@@ -305,6 +331,10 @@ const routeTree = rootRoute.addChildren([
   galleryVideoRoute,
   aboutUsRoute,
   contactUsRoute,
+  privacyRoute,
+  termsRoute,
+  supportRoute,
+  accountDeletionRoute,
   teamDetailRoute,
   leagueDetailRoute,
   seasonDetailRoute,
