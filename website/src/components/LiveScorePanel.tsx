@@ -1376,7 +1376,16 @@ export function LiveScorePanel({
                 <strong>{summary.runs}/{summary.wickets} ({summary.overs_label} ov)</strong>
               </div>
               <div className="live-score-panel__table-wrap">
-                <table className="live-score-panel__detail-table">
+                <table className="live-score-panel__detail-table live-score-panel__detail-table--batting">
+                  <colgroup>
+                    <col className="live-score-panel__batter-column" />
+                    <col className="live-score-panel__dismissal-column" />
+                    <col className="live-score-panel__batting-stat-column" />
+                    <col className="live-score-panel__batting-stat-column" />
+                    <col className="live-score-panel__batting-stat-column" />
+                    <col className="live-score-panel__batting-stat-column" />
+                    <col className="live-score-panel__strike-rate-column" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Batter</th>
@@ -1404,7 +1413,15 @@ export function LiveScorePanel({
                 </table>
               </div>
               <div className="live-score-panel__table-wrap">
-                <table className="live-score-panel__detail-table">
+                <table className="live-score-panel__detail-table live-score-panel__detail-table--bowling">
+                  <colgroup>
+                    <col className="live-score-panel__bowler-column" />
+                    <col className="live-score-panel__bowling-stat-column" />
+                    <col className="live-score-panel__bowling-stat-column" />
+                    <col className="live-score-panel__bowling-stat-column" />
+                    <col className="live-score-panel__bowling-stat-column" />
+                    <col className="live-score-panel__economy-column" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Bowler</th>
@@ -1870,8 +1887,38 @@ export function LiveScorePanel({
         .live-score-panel__section-head h3 { margin: 0; font-size: 1rem; font-weight: 950; }
         .live-score-panel__table-wrap { overflow-x: auto; }
         .live-score-panel__detail-table th:nth-child(n + 2), .live-score-panel__detail-table td:nth-child(n + 2) { text-align: center; }
-        .live-score-panel__detail-table th:first-child, .live-score-panel__detail-table td:first-child { min-width: 12rem; }
-        .live-score-panel__detail-table th:nth-child(2), .live-score-panel__detail-table td:nth-child(2) { text-align: left; min-width: 12rem; }
+        .live-score-panel__detail-table--batting { min-width: 48rem; }
+        .live-score-panel__detail-table--batting .live-score-panel__batter-column { width: 28%; }
+        .live-score-panel__detail-table--batting .live-score-panel__dismissal-column { width: 38%; }
+        .live-score-panel__detail-table--batting .live-score-panel__batting-stat-column { width: 6%; }
+        .live-score-panel__detail-table--batting .live-score-panel__strike-rate-column { width: 10%; }
+        .live-score-panel__detail-table--batting th:nth-child(2),
+        .live-score-panel__detail-table--batting td:nth-child(2) { text-align: left; }
+        .live-score-panel__detail-table--batting th:nth-child(n + 3),
+        .live-score-panel__detail-table--batting td:nth-child(n + 3) {
+          padding-left: 0.35rem;
+          padding-right: 0.35rem;
+          white-space: nowrap;
+        }
+        .live-score-panel__detail-table--bowling { min-width: 48rem; }
+        .live-score-panel__detail-table--bowling .live-score-panel__bowler-column { width: 66%; }
+        .live-score-panel__detail-table--bowling .live-score-panel__bowling-stat-column { width: 6%; }
+        .live-score-panel__detail-table--bowling .live-score-panel__economy-column { width: 10%; }
+        .live-score-panel__detail-table--bowling th:nth-child(n + 2),
+        .live-score-panel__detail-table--bowling td:nth-child(n + 2) {
+          padding-left: 0.4rem;
+          padding-right: 0.4rem;
+          white-space: nowrap;
+        }
+        .live-score-panel__detail-table--batting th:first-child,
+        .live-score-panel__detail-table--batting td:first-child,
+        .live-score-panel__detail-table--batting th:nth-child(2),
+        .live-score-panel__detail-table--batting td:nth-child(2),
+        .live-score-panel__detail-table--bowling th:first-child,
+        .live-score-panel__detail-table--bowling td:first-child {
+          overflow-wrap: normal;
+          word-break: normal;
+        }
         .live-score-panel__teams-tab { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
         .live-score-panel__squad-card h3 { margin: 0; padding: 0.85rem 1rem; background: #f8fafc; border-bottom: 1px solid var(--live-line); }
         .live-score-panel__squad-list { list-style: decimal; margin: 0; padding: 0.5rem 1rem 0.75rem 2.4rem; }
