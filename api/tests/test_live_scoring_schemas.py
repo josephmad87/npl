@@ -6,10 +6,12 @@ from app.api.v1.admin_routes import (
     _live_ball_label,
     _validate_live_ball_event,
 )
+from app.models.match import Match
 from app.schemas.matches import (
     LiveBallEventIn,
     LiveScoreCompleteIn,
     LiveScoreStateOut,
+    MatchDetailOut,
     MatchLiveSetupIn,
 )
 
@@ -29,6 +31,34 @@ def test_live_score_complete_preserves_match_overs() -> None:
     body = LiveScoreCompleteIn(status="completed", match_overs="20.0")
 
     assert body.match_overs == Decimal("20.0")
+
+
+def test_public_match_detail_exposes_match_overs() -> None:
+    detail = MatchDetailOut(
+        id=1,
+        season_id=2,
+        match_overs="40.0",
+        category="mens",
+        home_team_id=10,
+        away_team_id=11,
+        title=None,
+        venue=None,
+        match_date=None,
+        start_time=None,
+        toss_info=None,
+        umpires=None,
+        status="live",
+        description=None,
+        cover_image_url=None,
+        result=None,
+    )
+
+    assert detail.match_overs == Decimal("40.0")
+
+
+def test_match_model_maps_match_overs_column() -> None:
+    assert "match_overs" in Match.__table__.columns
+    assert Match.__table__.c.match_overs.nullable is False
 
 
 def test_live_score_state_defaults_to_no_undone_event() -> None:

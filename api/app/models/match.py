@@ -30,6 +30,11 @@ class Match(Base):
     status: Mapped[str] = mapped_column(String(32), default="scheduled", nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text)
     cover_image_url: Mapped[str | None] = mapped_column(String(512))
+    match_overs: Mapped[Decimal] = mapped_column(
+        Numeric(6, 2),
+        default=Decimal("40.0"),
+        nullable=False,
+    )
 
     season: Mapped["Season | None"] = relationship(back_populates="matches")
     home_team: Mapped["Team"] = relationship(foreign_keys=[home_team_id], back_populates="home_matches")
