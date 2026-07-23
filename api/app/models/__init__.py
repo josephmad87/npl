@@ -4,7 +4,14 @@ from app.models.article import Article
 from app.models.audit import AuditLog
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season, SeasonTeam
-from app.models.match import Match, MatchBallEvent, MatchPlayerStat, MatchResult, MatchScorerAssignment
+from app.models.match import (
+    Match,
+    MatchBallEvent,
+    MatchPlayerStat,
+    MatchResult,
+    MatchScorecardEditRequest,
+    MatchScorerAssignment,
+)
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
 from app.models.sponsor import Sponsor
@@ -22,6 +29,7 @@ __all__ = [
     "MatchBallEvent",
     "MatchPlayerStat",
     "MatchResult",
+    "MatchScorecardEditRequest",
     "MatchScorerAssignment",
     "PlatformSettings",
     "Player",

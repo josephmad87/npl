@@ -201,6 +201,12 @@ export type MatchDto = {
   status: string
   description: string | null
   cover_image_url: string | null
+  scorecard_finalized_at?: string | null
+  scorecard_locks_at?: string | null
+  scorecard_locked?: boolean
+  can_edit_scorecard?: boolean
+  edit_request_status?: 'pending' | 'approved' | 'denied' | null
+  edit_access_until?: string | null
   season: SeasonBriefDto | null
   result: MatchResultDto | null
   /** Present on API responses after scorecard support; treat as [] if missing. */
@@ -390,6 +396,22 @@ export type ScorerAssignmentDto = {
   created_at: string
 }
 
+export type ScorecardEditRequestDto = {
+  id: number
+  match_id: number
+  requested_by_user_id: number
+  requester_email: string
+  requester_full_name: string | null
+  status: 'pending' | 'approved' | 'denied'
+  reason: string | null
+  requested_at: string
+  reviewed_by_user_id: number | null
+  reviewed_at: string | null
+  access_until: string | null
+  home_team_id: number
+  away_team_id: number
+}
+
 export type MatchSquadRole = 'playing_xi' | 'substitute' | 'concussion_substitute'
 
 export type MatchSquadPlayerDto = {
@@ -509,6 +531,12 @@ export type LiveScoreStateDto = {
   summaries: LiveScoreInningsSummaryDto[]
   events: LiveBallEventDto[]
   undone_event: LiveBallEventDto | null
+  scorecard_finalized_at: string | null
+  scorecard_locks_at: string | null
+  scorecard_locked: boolean
+  can_edit_scorecard: boolean
+  edit_request_status: 'pending' | 'approved' | 'denied' | null
+  edit_access_until: string | null
 }
 
 export type LiveBallEventInput = {

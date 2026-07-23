@@ -13,7 +13,7 @@
 
 .app-layout-content {
   background: var(--color-surface);
-  min-height: calc(100vh - 181px);
+  min-height: calc(100vh - 76px);
 }
 
 .site-header {
@@ -192,9 +192,10 @@
   width: 100%;
 }
 
-/* Desktop header: wrapper is layout-transparent so flex/grid children behave as today */
+/* Desktop header: compact single-row logo, navigation, and search. */
 .site-header-desktop {
-  display: contents;
+  display: block;
+  background: var(--color-surface);
 }
 
 /* Mobile header + drawer: hidden on ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¥721px */
@@ -219,18 +220,16 @@
 }
 
 .site-brand--inline {
-  width: 207px;
-  height: 144px;
-  position: absolute;
-  left: var(--logo-left);
-  bottom: 0;
-  transform: none;
-  border-radius: 0.15rem;
-  padding: 0.15rem 0.25rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  z-index: 25;
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  width: 142px;
+  height: 68px;
+  flex: 0 0 142px;
+  position: static;
+  border-radius: 0;
+  padding: 0.25rem 0;
+  background: transparent;
+  border: 0;
+  z-index: auto;
+  box-shadow: none;
 }
 
 .utility-row {
@@ -294,26 +293,25 @@
 }
 
 .nav-row {
-  --logo-left: 0.85rem;
   position: relative;
   display: flex;
-  align-items: stretch;
-  width: min(1200px, 100%);
+  align-items: center;
+  width: min(1440px, 100%);
   margin: 0 auto;
-  padding: 0 7.2rem;
-  height: 117px;
+  padding: 0 1rem;
+  height: 76px;
   background: var(--color-surface);
 }
 
 .main-nav {
   display: flex;
   flex: 1;
-  align-items: stretch;
+  align-items: center;
   flex-wrap: nowrap;
   justify-content: flex-start;
-  gap: clamp(0.75rem, 1.5vw, 1.1rem);
-  height: 100%;
-  padding-left: calc(var(--logo-left) + 19.6rem);
+  gap: clamp(0.45rem, 1vw, 0.9rem);
+  height: 76px;
+  padding-left: 0;
 }
 
 .main-nav > a:not(.site-brand),
@@ -331,7 +329,7 @@
   border: 0;
   background: transparent;
   cursor: pointer;
-  padding: 1.15rem 0;
+  padding: 0.75rem 0;
   line-height: 1.2;
   white-space: nowrap;
   height: 100%;
@@ -354,6 +352,27 @@
 .menu-item > a {
   width: 100%;
   gap: 0.25rem;
+}
+
+.site-header-desktop__search {
+  flex: 0 1 190px;
+  margin-left: auto;
+  min-width: 130px;
+}
+
+.site-header-desktop__search input {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 32%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 92%, var(--color-surface));
+  color: var(--color-surface);
+  padding: 0.48rem 0.8rem;
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.site-header-desktop__search input::placeholder {
+  color: color-mix(in srgb, var(--color-surface) 76%, transparent);
 }
 
 .menu-item > button::after,
@@ -7707,6 +7726,28 @@ table.league-standings-table .league-standings-table__form {
   .menu-item > a {
     font-size: 0.84rem;
     letter-spacing: 0.035em;
+  }
+}
+@media (min-width: 721px) and (max-width: 1100px) {
+  .site-brand--inline {
+    width: 112px;
+    flex-basis: 112px;
+  }
+
+  .main-nav {
+    gap: 0.42rem;
+    padding-inline: 0.65rem;
+  }
+
+  .main-nav > a:not(.site-brand),
+  .menu-item > button,
+  .menu-item > a {
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
+  }
+
+  .site-header-desktop__search {
+    flex-basis: 135px;
   }
 }
 /* Match centre: Fan Player of the Match vote */

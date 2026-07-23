@@ -38,6 +38,7 @@ class Match(Base):
     revised_target_runs: Mapped[int | None] = mapped_column(Integer)
     dls_team1_resource_percentage: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
     dls_team2_resource_percentage: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
+    scorecard_finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
     season: Mapped["Season | None"] = relationship(back_populates="matches")
     home_team: Mapped["Team"] = relationship(foreign_keys=[home_team_id], back_populates="home_matches")
@@ -62,6 +63,11 @@ class Match(Base):
 
     scorer_assignments: Mapped[list["MatchScorerAssignment"]] = relationship(
         "MatchScorerAssignment",
+        back_populates="match",
+        cascade="all, delete-orphan",
+    )
+    scorecard_edit_requests: Mapped[list["MatchScorecardEditRequest"]] = relationship(
+        "MatchScorecardEditRequest",
         back_populates="match",
         cascade="all, delete-orphan",
     )
@@ -213,6 +219,39 @@ class MatchScorerAssignment(Base):
     match: Mapped["Match"] = relationship("Match", back_populates="scorer_assignments")
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
     assigned_by: Mapped["User | None"] = relationship("User", foreign_keys=[assigned_by_user_id])
+
+
+class MatchScorecardEditRequest(Base):
+    __tablename__ = "match_scorecard_edit_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(
+        ForeignKey("matches.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    requested_by_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False, index=True)
+    reason: Mapped[str | None] = mapped_column(String(512))
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    reviewed_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    access_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+    match: Mapped["Match"] = relationship("Match", back_populates="scorecard_edit_requests")
+    requested_by: Mapped["User"] = relationship("User", foreign_keys=[requested_by_user_id])
+    reviewed_by: Mapped["User | None"] = relationship("User", foreign_keys=[reviewed_by_user_id])
 
 
 class MatchDaySquadPlayer(Base):
