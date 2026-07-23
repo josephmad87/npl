@@ -1397,6 +1397,23 @@ export function LiveScorePanel({
         {inningsDashboards.map((inningsDashboard) => {
           const summary = inningsDashboard.summary
           if (!summary) return null
+          const recordedBatterIds = new Set(
+            inningsDashboard.batters.map((stat) => stat.playerId),
+          )
+          const didNotBatPlayers = [...(
+            squadQ.data?.teams.find((team) => team.team_id === summary.batting_team_id)?.players ??
+            []
+          )]
+            .filter(
+              (row) =>
+                (row.role === 'playing_xi' || row.role === 'concussion_substitute') &&
+                !recordedBatterIds.has(row.player_id),
+            )
+            .sort(
+              (a, b) =>
+                a.lineup_order - b.lineup_order ||
+                a.player_id - b.player_id,
+            )
           return (
             <section key={summary.innings} className="live-score-panel__innings-card">
               <div className="live-score-panel__section-head">
@@ -1437,10 +1454,21 @@ export function LiveScorePanel({
                         <td>{batterStrikeRate(stat)}</td>
                       </tr>
                     ))}
+                    {didNotBatPlayers.map((row) => (
+                      <tr key={`did-not-bat-${row.player_id}`}>
+                        <td>{playerName(playerById, row.player_id)}</td>
+                        <td>did not bat</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>—</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
-              <div className="live-score-panel__table-wrap">
+              <div className="live-score-panel__table-wrap live-score-panel__bowling-table-wrap">
                 <table className="live-score-panel__detail-table live-score-panel__detail-table--bowling">
                   <colgroup>
                     <col className="live-score-panel__bowler-column" />
@@ -1953,6 +1981,7 @@ export function LiveScorePanel({
           white-space: nowrap;
         }
         .live-score-panel__detail-table--bowling { min-width: 48rem; }
+        .live-score-panel__bowling-table-wrap { margin-top: 1rem; }
         .live-score-panel__detail-table--bowling .live-score-panel__bowler-column { width: 66%; }
         .live-score-panel__detail-table--bowling .live-score-panel__bowling-stat-column { width: 6%; }
         .live-score-panel__detail-table--bowling .live-score-panel__economy-column { width: 10%; }
