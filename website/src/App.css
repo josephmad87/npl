@@ -223,6 +223,8 @@
   width: 142px;
   height: 68px;
   flex: 0 0 142px;
+  grid-column: 1;
+  justify-self: end;
   position: static;
   border-radius: 0;
   padding: 0.25rem 0;
@@ -294,9 +296,7 @@
 
 .nav-row {
   position: relative;
-  display: flex;
-  align-items: center;
-  width: min(1440px, 100%);
+  width: min(1560px, calc(100% - 2rem));
   margin: 0 auto;
   padding: 0 1rem;
   height: 76px;
@@ -304,17 +304,24 @@
 }
 
 .main-nav {
-  display: flex;
-  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(142px, 1fr) auto minmax(190px, 1fr);
   align-items: center;
-  flex-wrap: nowrap;
-  justify-content: flex-start;
-  gap: clamp(0.45rem, 1vw, 0.9rem);
   height: 76px;
-  padding-left: 0;
 }
 
-.main-nav > a:not(.site-brand),
+.main-nav__menu {
+  grid-column: 2;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: clamp(0.45rem, 1vw, 0.85rem);
+  height: 100%;
+  min-width: 0;
+}
+
+.main-nav__menu > a,
 .menu-item > button,
 .menu-item > a {
   display: inline-flex;
@@ -335,12 +342,12 @@
   height: 100%;
 }
 
-.main-nav > a:not(.site-brand) {
+.main-nav__menu > a {
   align-self: stretch;
 }
 
-.main-nav > a:not(.site-brand):hover,
-.main-nav > a:not(.site-brand):focus-visible,
+.main-nav__menu > a:hover,
+.main-nav__menu > a:focus-visible,
 .menu-item:hover > button,
 .menu-item:focus-within > button,
 .menu-item:hover > a,
@@ -355,9 +362,10 @@
 }
 
 .site-header-desktop__search {
-  flex: 0 1 190px;
-  margin-left: auto;
-  min-width: 130px;
+  grid-column: 3;
+  justify-self: end;
+  width: min(190px, 100%);
+  min-width: 0;
 }
 
 .site-header-desktop__search input {
@@ -7717,29 +7725,32 @@ table.league-standings-table .league-standings-table__form {
 }
 /* Desktop nav: keep extra menu items from overlapping */
 @media (min-width: 721px) {
-  .main-nav {
+  .main-nav__menu {
     gap: clamp(0.45rem, 1vw, 0.85rem);
   }
 
-  .main-nav > a:not(.site-brand),
+  .main-nav__menu > a,
   .menu-item > button,
   .menu-item > a {
     font-size: 0.84rem;
     letter-spacing: 0.035em;
   }
 }
-@media (min-width: 721px) and (max-width: 1100px) {
+@media (min-width: 901px) and (max-width: 1100px) {
   .site-brand--inline {
     width: 112px;
     flex-basis: 112px;
   }
 
   .main-nav {
-    gap: 0.42rem;
-    padding-inline: 0.65rem;
+    grid-template-columns: minmax(112px, 1fr) auto minmax(135px, 1fr);
   }
 
-  .main-nav > a:not(.site-brand),
+  .main-nav__menu {
+    gap: 0.42rem;
+  }
+
+  .main-nav__menu > a,
   .menu-item > button,
   .menu-item > a {
     font-size: 0.7rem;
@@ -7747,7 +7758,37 @@ table.league-standings-table .league-standings-table__form {
   }
 
   .site-header-desktop__search {
-    flex-basis: 135px;
+    width: 135px;
+  }
+}
+@media (min-width: 721px) and (max-width: 900px) {
+  .site-brand--inline {
+    width: 80px;
+    flex-basis: 80px;
+  }
+
+  .main-nav {
+    grid-template-columns: minmax(80px, 1fr) auto minmax(110px, 1fr);
+  }
+
+  .main-nav__menu {
+    gap: 0.25rem;
+  }
+
+  .main-nav__menu > a,
+  .menu-item > button,
+  .menu-item > a {
+    font-size: 0.6rem;
+    letter-spacing: 0;
+  }
+
+  .site-header-desktop__search {
+    width: 110px;
+  }
+
+  .site-header-desktop__search input {
+    padding-inline: 0.6rem;
+    font-size: 0.7rem;
   }
 }
 /* Match centre: Fan Player of the Match vote */
