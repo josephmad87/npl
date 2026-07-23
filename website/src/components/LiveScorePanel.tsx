@@ -959,10 +959,36 @@ export function LiveScorePanel({
   const chaseRemainingBalls = secondInningsSummary && allottedBalls != null
     ? Math.max(allottedBalls - secondInningsSummary.legal_balls, 0)
     : null
+  const liveMatchStatus = String(
+    liveQ.data?.status ?? matchQ.data?.status ?? matchStatus ?? '',
+  ).toLowerCase()
+  const chaseHasEnded = secondInningsSummary != null && (
+    secondInningsSummary.runs >= (targetRuns ?? Number.POSITIVE_INFINITY) ||
+    secondInningsSummary.wickets >= 10 ||
+    (allottedBalls != null && secondInningsSummary.legal_balls >= allottedBalls) ||
+    liveMatchStatus === 'completed'
+  )
+  const liveResultNote = secondInningsSummary && targetRuns != null && chaseHasEnded
+    ? (() => {
+        const dlsSuffix = liveQ.data?.revised_target_runs != null || matchQ.data?.revised_target_runs != null
+          ? ' (DLS)'
+          : ''
+        if (secondInningsSummary.runs >= targetRuns) {
+          const wicketsRemaining = Math.max(0, 10 - secondInningsSummary.wickets)
+          return `MATCH OVER: ${secondDisplayTeam} won by ${plural(wicketsRemaining, 'wicket')}${dlsSuffix}.`
+        }
+
+        const tieScore = targetRuns - 1
+        if (secondInningsSummary.runs === tieScore) {
+          return `MATCH OVER: Match tied${dlsSuffix}.`
+        }
+
+        return `MATCH OVER: ${firstDisplayTeam} won by ${plural(tieScore - secondInningsSummary.runs, 'run')}${dlsSuffix}.`
+      })()
+    : null
   const chaseNote = secondInningsSummary && chaseRequiredRuns != null
-    ? chaseRequiredRuns <= 0
-      ? `${secondDisplayTeam} have reached the target.`
-      : `${secondDisplayTeam} require ${plural(chaseRequiredRuns, 'run')} in ${chaseRemainingBalls != null ? plural(chaseRemainingBalls, 'ball') : 'the remaining balls'}.`
+    ? liveResultNote ??
+      `${secondDisplayTeam} require ${plural(chaseRequiredRuns, 'run')} in ${chaseRemainingBalls != null ? plural(chaseRemainingBalls, 'ball') : 'the remaining balls'}.`
     : null
   const projectedScore =
     activeSummary?.innings === 1 &&
