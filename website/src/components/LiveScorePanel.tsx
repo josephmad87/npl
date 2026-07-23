@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { fetchAllPaginatedList, fetchJson } from '../lib/publicApi'
 import {
   computeSeasonStandings,
@@ -78,6 +79,7 @@ type PublicPlayer = {
 type PublicTeam = {
   id: number
   name: string
+  slug: string
   short_name?: string | null
   logo_url?: string | null
 }
@@ -1518,6 +1520,17 @@ export function LiveScorePanel({
       ) : (
         <div className="live-score-panel__table-wrap">
           <table className="live-score-panel__detail-table live-score-panel__standings-table">
+            <colgroup>
+              <col className="live-score-panel__standings-position-column" />
+              <col className="live-score-panel__standings-team-column" />
+              <col className="live-score-panel__standings-stat-column" />
+              <col className="live-score-panel__standings-stat-column" />
+              <col className="live-score-panel__standings-stat-column" />
+              <col className="live-score-panel__standings-stat-column" />
+              <col className="live-score-panel__standings-stat-column" />
+              <col className="live-score-panel__standings-points-column" />
+              <col className="live-score-panel__standings-nrr-column" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Pos</th>
@@ -1533,11 +1546,24 @@ export function LiveScorePanel({
             </thead>
             <tbody>
               {standingsRows.map((row, index) => {
-                const name = teamName(row.teamId, teamNames)
+                const team = teamById.get(row.teamId)
+                const name = team?.name ?? `Team ${row.teamId}`
                 return (
                   <tr key={row.teamId}>
                     <td>{index + 1}</td>
-                    <td>{renderTeamBadge(row.teamId, name)}</td>
+                    <td>
+                      {team ? (
+                        <Link
+                          to="/teams/$slug"
+                          params={{ slug: team.slug }}
+                          className="live-score-panel__standings-team-link"
+                        >
+                          {renderTeamBadge(row.teamId, name)}
+                        </Link>
+                      ) : (
+                        renderTeamBadge(row.teamId, name)
+                      )}
+                    </td>
                     <td>{row.played}</td>
                     <td>{row.won}</td>
                     <td>{row.lost}</td>
@@ -1951,8 +1977,39 @@ export function LiveScorePanel({
         .live-score-panel__squad-list li { padding: 0.45rem 0; border-bottom: 1px solid rgba(15,23,42,0.05); }
         .live-score-panel__squad-list li:last-child { border-bottom: 0; }
         .live-score-panel__squad-list small { color: var(--live-muted); font-weight: 900; }
-        .live-score-panel__standings-table td:first-child, .live-score-panel__standings-table th:first-child { min-width: 3rem; text-align: center; }
-        .live-score-panel__standings-table td:nth-child(2), .live-score-panel__standings-table th:nth-child(2) { min-width: 14rem; text-align: left; }
+        .live-score-panel__standings-table { min-width: 50rem; }
+        .live-score-panel__standings-table .live-score-panel__standings-position-column { width: 5%; }
+        .live-score-panel__standings-table .live-score-panel__standings-team-column { width: 43%; }
+        .live-score-panel__standings-table .live-score-panel__standings-stat-column { width: 6%; }
+        .live-score-panel__standings-table .live-score-panel__standings-points-column { width: 8%; }
+        .live-score-panel__standings-table .live-score-panel__standings-nrr-column { width: 14%; }
+        .live-score-panel__standings-table td:first-child,
+        .live-score-panel__standings-table th:first-child { text-align: center; }
+        .live-score-panel__standings-table td:nth-child(2),
+        .live-score-panel__standings-table th:nth-child(2) { text-align: left; }
+        .live-score-panel__standings-table th:nth-child(n + 3),
+        .live-score-panel__standings-table td:nth-child(n + 3) {
+          padding-left: 0.3rem;
+          padding-right: 0.3rem;
+          white-space: nowrap;
+        }
+        .live-score-panel__standings-team-link {
+          display: inline-flex;
+          max-width: 100%;
+          color: var(--live-ink);
+          text-decoration: none;
+        }
+        .live-score-panel__standings-team-link:hover,
+        .live-score-panel__standings-team-link:focus-visible {
+          color: var(--live-blue);
+          text-decoration: underline;
+          text-underline-offset: 0.18em;
+        }
+        .live-score-panel__standings-table .live-score-panel__team-name > span:last-child {
+          overflow: visible;
+          text-overflow: clip;
+          white-space: normal;
+        }
         @media (max-width: 760px) {
           .live-score-panel--cricinfo { border-radius: 0.85rem; }
           .live-score-panel--cricinfo .live-score-panel__top { padding: 0.9rem 0.85rem; }
