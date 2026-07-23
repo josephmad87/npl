@@ -165,6 +165,21 @@ type OverCommentaryGroup = {
   deliveries: CommentaryDelivery[]
 }
 
+type PartnershipBatterStat = {
+  playerId: number
+  runs: number
+  balls: number
+}
+
+type PartnershipStat = {
+  key: string
+  runs: number
+  balls: number
+  batterOne: PartnershipBatterStat
+  batterTwo: PartnershipBatterStat | null
+  isCurrent: boolean
+}
+
 type InningsDashboard = {
   summary: LiveInningsSummary | null
   events: LiveBallEvent[]
@@ -182,6 +197,7 @@ type InningsDashboard = {
   overGroups: OverCommentaryGroup[]
   overStripGroups: OverCommentaryGroup[]
   wormPoints: Array<{ over: number; runs: number }>
+  partnerships: PartnershipStat[]
 }
 
 type LiveTab = 'live' | 'scorecard' | 'commentary' | 'teams' | 'standings'
@@ -231,10 +247,12 @@ function playerName(playerById: Map<number, PublicPlayer>, playerId: number | nu
   return playerById.get(playerId)?.full_name ?? `#${playerId}`
 }
 
-function playerStyle(playerById: Map<number, PublicPlayer>, playerId: number): string {
-  const player = playerById.get(playerId)
-  const style = player?.batting_style || player?.bowling_style || ''
-  return style ? style.split(',')[0]!.trim() : ''
+function playerBattingStyle(playerById: Map<number, PublicPlayer>, playerId: number): string {
+  return playerById.get(playerId)?.batting_style?.trim() ?? ''
+}
+
+function playerBowlingStyle(playerById: Map<number, PublicPlayer>, playerId: number): string {
+  return playerById.get(playerId)?.bowling_style?.trim() ?? ''
 }
 
 function dismissalLabel(value: string | null | undefined): string {
@@ -302,8 +320,8 @@ function oversLabelFromBalls(totalBalls: number): string {
   return `${Math.floor(totalBalls / 6)}.${totalBalls % 6}`
 }
 
-function cricketOverDecimal(totalBalls: number): number {
-  return Number(`${Math.floor(totalBalls / 6)}.${totalBalls % 6}`)
+function wormOverFromBalls(totalBalls: number): number {
+  return totalBalls / 6
 }
 
 function parseCricketOversToBalls(value: string | number | null | undefined): number | null {
@@ -516,14 +534,23 @@ function computeMiniDashboard(
   const bowlerStats = new Map<number, BowlerMiniStat>()
   const groups = new Map<string, OverCommentaryGroup>()
   const wormPoints: Array<{ over: number; runs: number }> = [{ over: 0, runs: 0 }]
+  const partnerships: PartnershipStat[] = []
   let inningsRuns = 0
   let inningsWickets = 0
   let legalBalls = 0
   let partnershipRuns = 0
   let partnershipBalls = 0
   let partnershipWickets = 0
+  let currentPartnership: PartnershipStat | null = null
   let lastBatText: string | null = null
   let fowText: string | null = null
+
+  const closePartnership = () => {
+    if (!currentPartnership) return
+    currentPartnership.isCurrent = false
+    partnerships.push(currentPartnership)
+    currentPartnership = null
+  }
 
   for (const event of events) {
     const overKey = `${event.innings}-${event.over_number}`
@@ -585,6 +612,65 @@ function computeMiniDashboard(
 
     const runs = eventTotalRuns(event)
     const isLegalBall = event.is_legal_delivery !== false && !event.is_dead_ball
+
+    if (
+      currentPartnership &&
+      !currentPartnership.batterTwo &&
+      event.non_striker_player_id &&
+      event.non_striker_player_id !== currentPartnership.batterOne.playerId
+    ) {
+      currentPartnership.batterTwo = {
+        playerId: event.non_striker_player_id,
+        runs: 0,
+        balls: 0,
+      }
+    }
+
+    if (currentPartnership) {
+      const partnershipPlayerIds = new Set([
+        currentPartnership.batterOne.playerId,
+        currentPartnership.batterTwo?.playerId,
+      ])
+      const eventPairMatches =
+        partnershipPlayerIds.has(event.striker_player_id) &&
+        (!event.non_striker_player_id || partnershipPlayerIds.has(event.non_striker_player_id))
+      if (!eventPairMatches) closePartnership()
+    }
+
+    if (!currentPartnership) {
+      currentPartnership = {
+        key: `${event.innings}-${partnerships.length + 1}-${event.sequence_number}`,
+        runs: 0,
+        balls: 0,
+        batterOne: {
+          playerId: event.striker_player_id,
+          runs: 0,
+          balls: 0,
+        },
+        batterTwo: event.non_striker_player_id
+          ? {
+              playerId: event.non_striker_player_id,
+              runs: 0,
+              balls: 0,
+            }
+          : null,
+        isCurrent: true,
+      }
+    }
+
+    currentPartnership.runs += runs
+    if (isLegalBall) currentPartnership.balls += 1
+    const strikerContribution =
+      currentPartnership.batterOne.playerId === event.striker_player_id
+        ? currentPartnership.batterOne
+        : currentPartnership.batterTwo?.playerId === event.striker_player_id
+          ? currentPartnership.batterTwo
+          : null
+    if (strikerContribution) {
+      strikerContribution.runs += event.runs_batter ?? 0
+      if (batterBallCounts(event)) strikerContribution.balls += 1
+    }
+
     inningsRuns += runs
     group.runs += runs
     const parsedOverNote = splitOverNote(event.notes).overNote
@@ -615,11 +701,10 @@ function computeMiniDashboard(
       partnershipRuns = 0
       partnershipBalls = 0
       partnershipWickets = 0
+      closePartnership()
     }
 
-    if (isLegalBall || wormPoints.length === 1) {
-      wormPoints.push({ over: cricketOverDecimal(legalBalls), runs: inningsRuns })
-    }
+    wormPoints.push({ over: wormOverFromBalls(legalBalls), runs: inningsRuns })
 
     const striker = playerName(playerById, event.striker_player_id)
     const nonStriker = event.non_striker_player_id ? playerName(playerById, event.non_striker_player_id) : ''
@@ -644,6 +729,11 @@ function computeMiniDashboard(
       .join('   ')
     group.bowlerText = formatBowlerLine(bowlerName, bowlerStats.get(event.bowler_player_id))
     groups.set(overKey, group)
+  }
+
+  if (currentPartnership) {
+    currentPartnership.isCurrent = summary?.innings === state?.current_innings
+    partnerships.push(currentPartnership)
   }
 
   const batters = [...batterStats.values()].sort((a, b) => a.firstSequence - b.firstSequence || a.playerId - b.playerId)
@@ -705,6 +795,7 @@ function computeMiniDashboard(
     overGroups,
     overStripGroups,
     wormPoints,
+    partnerships,
   }
 }
 
@@ -852,7 +943,7 @@ export function LiveScorePanel({
   const firstDisplayTeam = teamName(firstDisplayTeamId, teamNames)
   const secondDisplayTeam = teamName(secondDisplayTeamId, teamNames)
   const targetRuns = firstInningsSummary ? firstInningsSummary.runs + 1 : null
-  const allottedBalls = parseCricketOversToBalls(matchQ.data?.match_overs) ?? firstInningsSummary?.legal_balls ?? null
+  const allottedBalls = parseCricketOversToBalls(matchQ.data?.match_overs)
   const chaseRequiredRuns = secondInningsSummary && targetRuns != null
     ? Math.max(targetRuns - secondInningsSummary.runs, 0)
     : null
@@ -863,11 +954,37 @@ export function LiveScorePanel({
     ? chaseRequiredRuns <= 0
       ? `${secondDisplayTeam} have reached the target.`
       : `${secondDisplayTeam} require ${plural(chaseRequiredRuns, 'run')} in ${chaseRemainingBalls != null ? plural(chaseRemainingBalls, 'ball') : 'the remaining balls'}.`
-    : firstInningsSummary && targetRuns != null
-      ? `${secondDisplayTeam} need ${plural(targetRuns, 'run')} to win.`
+    : null
+  const projectedScore =
+    activeSummary?.innings === 1 &&
+    activeSummary.legal_balls > 0 &&
+    allottedBalls != null
+      ? Math.max(
+          activeSummary.runs,
+          Math.round((activeSummary.runs / activeSummary.legal_balls) * allottedBalls),
+        )
       : null
-  const { maxOver: wormMaxOver, maxRuns: wormMaxRuns } = wormScale(dashboard.wormPoints)
-  const wormPath = renderWormPath(dashboard.wormPoints, wormMaxOver, wormMaxRuns)
+  const matchSituationNote =
+    projectedScore != null
+      ? `${battingTeam} projected score: ${projectedScore}.`
+      : chaseNote
+  const wormDashboards = inningsDashboards
+    .filter((inningsDashboard) => {
+      const innings = inningsDashboard.summary?.innings
+      return innings != null && innings <= (activeSummary?.innings ?? innings)
+    })
+    .sort((a, b) => (a.summary?.innings ?? 0) - (b.summary?.innings ?? 0))
+    .slice(0, activeSummary?.innings === 1 ? 1 : 2)
+  const wormSeries = wormDashboards.map((inningsDashboard, index) => ({
+    innings: inningsDashboard.summary?.innings ?? index + 1,
+    team: teamName(inningsDashboard.summary?.batting_team_id, teamNames),
+    color: index === 0 ? '#0969c8' : '#f97316',
+    points: inningsDashboard.wormPoints,
+  }))
+  const allWormPoints = wormSeries.flatMap((series) => series.points)
+  const { maxOver: wormMaxOver, maxRuns: wormMaxRuns } = wormScale(
+    allWormPoints.length > 0 ? allWormPoints : dashboard.wormPoints,
+  )
   const runTicks = [0, 0.25, 0.5, 0.75, 1].map((pct) => Math.round(wormMaxRuns * pct))
   const overTicks = Array.from({ length: Math.min(5, wormMaxOver + 1) }, (_, index) => {
     if (wormMaxOver <= 4) return index
@@ -946,7 +1063,9 @@ export function LiveScorePanel({
               <tr key={stat.playerId}>
                 <td>
                   {playerName(playerById, stat.playerId)}{index === 0 ? '*' : ''}
-                  {playerStyle(playerById, stat.playerId) ? <small>{playerStyle(playerById, stat.playerId)}</small> : null}
+                  {playerBattingStyle(playerById, stat.playerId) ? (
+                    <small>{playerBattingStyle(playerById, stat.playerId)}</small>
+                  ) : null}
                 </td>
                 <td>{stat.runs}</td>
                 <td>{stat.balls}</td>
@@ -978,7 +1097,9 @@ export function LiveScorePanel({
               <tr key={stat.playerId}>
                 <td>
                   {playerName(playerById, stat.playerId)}
-                  {playerStyle(playerById, stat.playerId) ? <small>{playerStyle(playerById, stat.playerId)}</small> : null}
+                  {playerBowlingStyle(playerById, stat.playerId) ? (
+                    <small>{playerBowlingStyle(playerById, stat.playerId)}</small>
+                  ) : null}
                 </td>
                 <td>{oversLabelFromBalls(stat.balls)}</td>
                 <td>{stat.maidens}</td>
@@ -1014,6 +1135,99 @@ export function LiveScorePanel({
           </div>
         ) : null}
       </div>
+    )
+  }
+
+  const renderPartnerships = () => {
+    const partnershipInnings = wormDashboards.filter(
+      (inningsDashboard) => inningsDashboard.summary && inningsDashboard.partnerships.length > 0,
+    )
+    if (partnershipInnings.length === 0) return null
+
+    return (
+      <section className="live-score-panel__partnerships" aria-label="Partnerships">
+        <h3>Partnerships</h3>
+        {partnershipInnings.map((inningsDashboard, inningsIndex) => {
+          const summary = inningsDashboard.summary
+          if (!summary) return null
+          const inningsTeam = teamName(summary.batting_team_id, teamNames)
+          const maxPartnershipRuns = Math.max(
+            ...inningsDashboard.partnerships.map((partnership) => partnership.runs),
+            1,
+          )
+
+          return (
+            <div
+              key={summary.innings}
+              className={`live-score-panel__partnership-innings${inningsIndex > 0 ? ' is-secondary' : ''}`}
+            >
+              <h4>{renderTeamBadge(summary.batting_team_id, inningsTeam)}</h4>
+              <div className="live-score-panel__partnership-list">
+                {inningsDashboard.partnerships.map((partnership) => {
+                  const batterTwo = partnership.batterTwo
+                  const contributionTotal =
+                    partnership.batterOne.runs + (batterTwo?.runs ?? 0)
+                  const contributionBalls =
+                    partnership.batterOne.balls + (batterTwo?.balls ?? 0)
+                  const firstContribution =
+                    contributionTotal > 0
+                      ? partnership.batterOne.runs
+                      : partnership.batterOne.balls
+                  const secondContribution =
+                    contributionTotal > 0
+                      ? batterTwo?.runs ?? 0
+                      : batterTwo?.balls ?? 0
+                  const contributionDenominator = Math.max(
+                    firstContribution + secondContribution,
+                    contributionBalls > 0 ? contributionBalls : 1,
+                  )
+                  const firstShare = (firstContribution / contributionDenominator) * 100
+                  const barWidth = Math.max(
+                    partnership.runs > 0 ? 12 : 4,
+                    (partnership.runs / maxPartnershipRuns) * 100,
+                  )
+
+                  return (
+                    <div key={partnership.key} className="live-score-panel__partnership-row">
+                      <div className="live-score-panel__partnership-batter">
+                        <strong>{playerName(playerById, partnership.batterOne.playerId)}</strong>
+                        <small>
+                          {partnership.batterOne.runs} ({partnership.batterOne.balls})
+                        </small>
+                      </div>
+                      <div className="live-score-panel__partnership-total">
+                        <strong>
+                          {partnership.runs} ({partnership.balls})
+                          {partnership.isCurrent ? <em> Current</em> : null}
+                        </strong>
+                        <span
+                          className="live-score-panel__partnership-bar"
+                          style={{ width: `${barWidth}%` }}
+                          aria-hidden
+                        >
+                          <span
+                            className="is-first"
+                            style={{ width: `${firstShare}%` }}
+                          />
+                          <span className="is-second" />
+                        </span>
+                      </div>
+                      <div className="live-score-panel__partnership-batter is-right">
+                        <strong>
+                          {batterTwo ? playerName(playerById, batterTwo.playerId) : '—'}
+                        </strong>
+                        <small>
+                          {batterTwo ? `${batterTwo.runs} (${batterTwo.balls})` : '—'}
+                        </small>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </section>
     )
   }
 
@@ -1063,39 +1277,76 @@ export function LiveScorePanel({
             ))}
           </div>
 
-          <aside className="live-score-panel__worm" aria-label="Runs worm">
-            <h3>Worm</h3>
-            <span className="live-score-panel__worm-legend">{battingTeam}</span>
-            <svg viewBox="0 0 230 160" role="img" aria-label={`Runs progression for ${battingTeam}`}>
-              <line x1="34" y1="126" x2="210" y2="126" stroke="rgba(15,23,42,0.25)" />
-              <line x1="34" y1="24" x2="34" y2="126" stroke="rgba(15,23,42,0.25)" />
-              {runTicks.map((tick) => {
-                const y = 126 - (tick / wormMaxRuns) * 102
-                return (
-                  <g key={`run-${tick}`}>
-                    <line x1="34" y1={y} x2="210" y2={y} stroke="rgba(15,23,42,0.1)" />
-                    <text x="28" y={y + 3} textAnchor="end" fill="#4b5563" fontSize="8">{tick}</text>
-                  </g>
-                )
-              })}
-              {overTicks.map((tick) => {
-                const x = 34 + (tick / wormMaxOver) * 176
-                return (
-                  <g key={`over-${tick}`}>
-                    <line x1={x} y1="126" x2={x} y2="130" stroke="rgba(15,23,42,0.25)" />
-                    <text x={x} y="142" textAnchor="middle" fill="#4b5563" fontSize="8">{tick}</text>
-                  </g>
-                )
-              })}
-              {wormPath ? <path d={wormPath} fill="none" stroke="#0969c8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /> : null}
-              {dashboard.wormPoints.slice(-1).map((point) => {
-                const cx = 34 + (point.over / wormMaxOver) * 176
-                const cy = 126 - (point.runs / wormMaxRuns) * 102
-                return <circle key={`${point.over}-${point.runs}`} cx={cx} cy={cy} r="3.5" fill="#0969c8" />
-              })}
-              <text x="122" y="156" textAnchor="middle" fill="#4b5563" fontSize="9">OVERS</text>
-              <text x="4" y="20" fill="#4b5563" fontSize="9">RUNS</text>
-            </svg>
+          <aside className="live-score-panel__insights">
+            <section className="live-score-panel__worm" aria-label="Runs worm">
+              <h3>Worm</h3>
+              <div className="live-score-panel__worm-legends">
+                {wormSeries.map((series) => (
+                  <span key={series.innings} className="live-score-panel__worm-legend">
+                    <i style={{ backgroundColor: series.color }} aria-hidden />
+                    {series.team}
+                  </span>
+                ))}
+              </div>
+              <svg
+                viewBox="0 0 230 160"
+                role="img"
+                aria-label={`Runs progression for ${wormSeries.map((series) => series.team).join(' and ')}`}
+              >
+                <line x1="34" y1="126" x2="210" y2="126" stroke="rgba(15,23,42,0.25)" />
+                <line x1="34" y1="24" x2="34" y2="126" stroke="rgba(15,23,42,0.25)" />
+                {runTicks.map((tick) => {
+                  const y = 126 - (tick / wormMaxRuns) * 102
+                  return (
+                    <g key={`run-${tick}`}>
+                      <line x1="34" y1={y} x2="210" y2={y} stroke="rgba(15,23,42,0.1)" />
+                      <text x="28" y={y + 3} textAnchor="end" fill="#4b5563" fontSize="8">{tick}</text>
+                    </g>
+                  )
+                })}
+                {overTicks.map((tick) => {
+                  const x = 34 + (tick / wormMaxOver) * 176
+                  return (
+                    <g key={`over-${tick}`}>
+                      <line x1={x} y1="126" x2={x} y2="130" stroke="rgba(15,23,42,0.25)" />
+                      <text x={x} y="142" textAnchor="middle" fill="#4b5563" fontSize="8">{tick}</text>
+                    </g>
+                  )
+                })}
+                {wormSeries.map((series) => {
+                  const path = renderWormPath(series.points, wormMaxOver, wormMaxRuns)
+                  return path ? (
+                    <path
+                      key={`path-${series.innings}`}
+                      d={path}
+                      fill="none"
+                      stroke={series.color}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ) : null
+                })}
+                {wormSeries.flatMap((series) =>
+                  series.points.slice(-1).map((point) => {
+                    const cx = 34 + (point.over / wormMaxOver) * 176
+                    const cy = 126 - (point.runs / wormMaxRuns) * 102
+                    return (
+                      <circle
+                        key={`${series.innings}-${point.over}-${point.runs}`}
+                        cx={cx}
+                        cy={cy}
+                        r="3.5"
+                        fill={series.color}
+                      />
+                    )
+                  }),
+                )}
+                <text x="122" y="156" textAnchor="middle" fill="#4b5563" fontSize="9">OVERS</text>
+                <text x="4" y="20" fill="#4b5563" fontSize="9">RUNS</text>
+              </svg>
+            </section>
+            {renderPartnerships()}
           </aside>
         </div>
       </>
@@ -1487,30 +1738,37 @@ export function LiveScorePanel({
         .live-score-panel__over-strip {
           display: flex;
           align-items: center;
-          gap: 0.45rem;
+          gap: 0;
           overflow-x: auto;
-          padding: 0.7rem 1rem;
+          padding: 0.8rem 1rem;
+          background: #fff;
           border-bottom: 1px solid var(--live-line);
           scrollbar-width: thin;
         }
         .live-score-panel__over-strip-group {
           display: flex;
           align-items: center;
-          gap: 0.35rem;
-          padding-right: 0.55rem;
+          gap: 0.45rem;
+          padding: 0.4rem 0.8rem;
           border-right: 1px solid var(--live-line);
+          flex: 0 0 auto;
         }
+        .live-score-panel__over-strip-group:first-child { padding-left: 0; }
         .live-score-panel__over-strip-group:last-child { border-right: 0; }
         .live-score-panel__strip-over {
           color: #5d657e;
-          font-size: 0.78rem;
+          font-size: 0.72rem;
           font-weight: 900;
           text-align: center;
-          min-width: 2.8rem;
+          min-width: 3.3rem;
+          line-height: 1.05;
         }
         .live-score-panel__strip-over strong {
           display: block;
           color: var(--live-ink);
+          font-size: 0.72rem;
+          margin-top: 0.2rem;
+          white-space: nowrap;
         }
         .live-score-panel__ball-token,
         .live-score-panel__strip-token {
@@ -1523,7 +1781,14 @@ export function LiveScorePanel({
           text-transform: lowercase;
         }
         .live-score-panel__ball-token { min-width: 2.5rem; width: auto; height: 2.5rem; padding: 0 0.35rem; font-size: 0.93rem; }
-        .live-score-panel__strip-token { min-width: 2rem; height: 2rem; padding: 0 0.45rem; font-size: 0.86rem; }
+        .live-score-panel__strip-token {
+          min-width: 2.5rem;
+          height: 2.5rem;
+          padding: 0 0.45rem;
+          border-radius: 0.28rem;
+          font-size: 0.95rem;
+          flex: 0 0 auto;
+        }
         .live-score-panel__ball-token.is-four, .live-score-panel__strip-token.is-four { background: #22c55e; color: #fff; }
         .live-score-panel__ball-token.is-six, .live-score-panel__strip-token.is-six { background: #8b5cf6; color: #fff; }
         .live-score-panel__ball-token.is-wicket, .live-score-panel__strip-token.is-wicket { background: #dc2626; color: #fff; text-transform: uppercase; }
@@ -1542,11 +1807,35 @@ export function LiveScorePanel({
         .live-score-panel__ball-number { color: #4f5871; font-weight: 850; padding-top: 0.55rem; text-align: right; }
         .live-score-panel__ball-title { margin: 0 0 0.25rem; color: #4f5871; font-size: 0.78rem; font-weight: 950; letter-spacing: 0.09em; text-transform: uppercase; }
         .live-score-panel__ball-detail { margin: 0; color: var(--live-ink); font-size: 1rem; line-height: 1.55; }
-        .live-score-panel__worm { padding: 1rem; }
+        .live-score-panel__insights { min-width: 0; background: #fff; }
+        .live-score-panel__worm { padding: 1rem; border-bottom: 1px solid var(--live-line); }
         .live-score-panel__worm h3 { margin: 0 0 0.8rem; font-size: 1.1rem; font-weight: 900; }
-        .live-score-panel__worm-legend { display: inline-flex; align-items: center; gap: 0.4rem; margin-bottom: 0.6rem; color: var(--live-ink); font-size: 0.85rem; font-weight: 700; }
-        .live-score-panel__worm-legend::before { content: ''; width: 0.62rem; height: 0.62rem; border-radius: 999px; background: var(--live-blue); }
+        .live-score-panel__worm-legends { display: flex; flex-wrap: wrap; gap: 0.55rem 0.9rem; margin-bottom: 0.6rem; }
+        .live-score-panel__worm-legend { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--live-ink); font-size: 0.85rem; font-weight: 700; }
+        .live-score-panel__worm-legend i { width: 0.62rem; height: 0.62rem; border-radius: 999px; flex: 0 0 auto; }
         .live-score-panel__worm svg { display: block; width: 100%; height: auto; }
+        .live-score-panel__partnerships { padding: 1rem; }
+        .live-score-panel__partnerships > h3 { margin: 0 0 1rem; font-size: 1.1rem; font-weight: 900; }
+        .live-score-panel__partnership-innings + .live-score-panel__partnership-innings { margin-top: 1.35rem; padding-top: 1.1rem; border-top: 1px solid var(--live-line); }
+        .live-score-panel__partnership-innings h4 { margin: 0 0 0.9rem; color: #4c556f; font-size: 0.88rem; letter-spacing: 0.04em; }
+        .live-score-panel__partnership-list { display: grid; gap: 1rem; }
+        .live-score-panel__partnership-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(6.5rem, 0.8fr) minmax(0, 1fr); gap: 0.55rem; align-items: center; }
+        .live-score-panel__partnership-batter { min-width: 0; }
+        .live-score-panel__partnership-batter strong,
+        .live-score-panel__partnership-batter small { display: block; overflow: hidden; text-overflow: ellipsis; }
+        .live-score-panel__partnership-batter strong { color: var(--live-ink); font-size: 0.78rem; white-space: nowrap; }
+        .live-score-panel__partnership-batter small { margin-top: 0.22rem; color: var(--live-muted); font-size: 0.72rem; font-weight: 700; }
+        .live-score-panel__partnership-batter.is-right { text-align: right; }
+        .live-score-panel__partnership-total { display: grid; justify-items: center; min-width: 0; }
+        .live-score-panel__partnership-total > strong { color: var(--live-ink); font-size: 0.8rem; white-space: nowrap; }
+        .live-score-panel__partnership-total em { color: #64748b; font-size: 0.62rem; font-style: normal; font-weight: 800; text-transform: uppercase; }
+        .live-score-panel__partnership-bar { display: flex; height: 0.45rem; min-width: 0.22rem; max-width: 100%; margin-top: 0.38rem; overflow: hidden; border-radius: 999px; background: #dbeafe; }
+        .live-score-panel__partnership-bar span { display: block; height: 100%; }
+        .live-score-panel__partnership-bar .is-first { flex: 0 0 auto; background: #0969c8; }
+        .live-score-panel__partnership-bar .is-second { flex: 1 1 auto; background: #93b4df; }
+        .live-score-panel__partnership-innings.is-secondary .live-score-panel__partnership-bar { background: #ffedd5; }
+        .live-score-panel__partnership-innings.is-secondary .live-score-panel__partnership-bar .is-first { background: #f97316; }
+        .live-score-panel__partnership-innings.is-secondary .live-score-panel__partnership-bar .is-second { background: #fdba74; }
         .live-score-panel__empty, .live-score-panel__muted { margin: 0; color: var(--live-muted); }
         .live-score-panel__empty { padding: 1rem; }
         .live-score-panel__full-scorecard, .live-score-panel__teams-tab, .live-score-panel__standings-tab { padding: 1rem; }
@@ -1577,7 +1866,9 @@ export function LiveScorePanel({
           .live-score-panel__scorecard-foot span { display: block; }
           .live-score-panel__centre { display: block; }
           .live-score-panel__commentary-column { border-right: 0; }
-          .live-score-panel__worm { display: none; }
+          .live-score-panel__insights { border-top: 1px solid var(--live-line); }
+          .live-score-panel__worm { padding: 0.85rem; }
+          .live-score-panel__partnerships { padding: 0.85rem; }
           .live-score-panel__match-centre-title { padding-left: 0.85rem; padding-right: 0.85rem; }
           .live-score-panel__over-head { grid-template-columns: 4.4rem minmax(0, 1fr) auto; padding: 0.72rem 0.85rem; }
           .live-score-panel__over-score { font-size: 1.18rem; }
@@ -1612,8 +1903,8 @@ export function LiveScorePanel({
 
         {activeSummary ? (
           <>
-            <p className={`live-score-panel__match-note${chaseNote ? ' is-chase' : ''}`}>
-              {chaseNote ?? `${bowlingTeam} fielding.`}
+            <p className={`live-score-panel__match-note${matchSituationNote ? ' is-chase' : ''}`}>
+              {matchSituationNote ?? `${bowlingTeam} fielding.`}
             </p>
             <p className="live-score-panel__subnote">
               Current RR: {dashboard.currentRate}

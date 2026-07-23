@@ -342,6 +342,7 @@ class MatchBulkCancelIn(BaseModel):
 class MatchDetailOut(ORMModel):
     id: int
     season_id: int | None
+    match_overs: Decimal | None = None
     category: str
     home_team_id: int
     away_team_id: int
