@@ -1,9 +1,8 @@
-"""DLS Standard Edition resource helpers for live par-score schedules.
+"""ICC DLS Standard Edition calculations for interrupted limited-overs matches.
 
-The scorer remains responsible for entering the official revised target from
-the current ICC DLS calculator. These helpers use the published Standard
-Edition resource curve to advance the par score after each legal delivery and
-wicket.
+The ICC distributes the current Professional Edition calculator separately.
+These helpers implement the ICC-published Standard Edition fallback: its
+resource table, revised-target formula, and live par-score schedule.
 """
 
 from decimal import Decimal
@@ -11,7 +10,7 @@ from math import exp, floor
 
 
 # Parameters fitted to the ICC's published ball-by-ball Standard Edition table.
-# The resulting values match the one-decimal table within 0.1 percentage point.
+# Standard Edition calculations use the table's published one-decimal values.
 _RESOURCE_ASYMPTOTES = (
     134.046001968,
     118.509232324,
@@ -58,7 +57,80 @@ def dls_resource_percentage(remaining_balls: int, wickets_lost: int) -> float:
     overs = min(300, remaining_balls) / 6
     asymptote = _RESOURCE_ASYMPTOTES[wickets]
     decay = _RESOURCE_DECAY[wickets]
-    return asymptote * (1 - exp((-decay * overs) / asymptote))
+    return round(asymptote * (1 - exp((-decay * overs) / asymptote)), 1)
+
+
+def revised_resource_percentage(
+    *,
+    effective_resource_percentage: Decimal | float | None,
+    previous_allotted_balls: int,
+    revised_allotted_balls: int,
+    legal_balls: int,
+    wickets_lost: int,
+) -> float:
+    """Return the innings resource after changing its allotted length.
+
+    Resource lost at an interruption is the difference between the resources
+    remaining immediately before and after the revision. Passing the previously
+    saved effective resource supports more than one interruption in an innings.
+    """
+
+    if legal_balls < 0 or revised_allotted_balls < legal_balls:
+        raise ValueError("Revised overs cannot be less than the legal balls already bowled.")
+
+    effective_resource = (
+        float(effective_resource_percentage)
+        if effective_resource_percentage is not None
+        else dls_resource_percentage(previous_allotted_balls, 0)
+    )
+    previous_remaining = dls_resource_percentage(
+        max(0, previous_allotted_balls - legal_balls),
+        wickets_lost,
+    )
+    revised_remaining = dls_resource_percentage(
+        max(0, revised_allotted_balls - legal_balls),
+        wickets_lost,
+    )
+    revised_resource = effective_resource - (previous_remaining - revised_remaining)
+    return round(max(revised_remaining, revised_resource), 3)
+
+
+def dls_g50_for_category(category: str) -> int:
+    """Return the ICC Standard Edition average 50-over score for a match."""
+
+    normalized = category.strip().lower()
+    if normalized in {"mens", "men", "male", "senior_mens", "senior-men"}:
+        return 245
+    return 200
+
+
+def dls_revised_target(
+    *,
+    first_innings_runs: int,
+    team1_resource_percentage: Decimal | float,
+    team2_resource_percentage: Decimal | float,
+    g50: int,
+) -> int:
+    """Calculate the winning target using the published ICC DLS formula."""
+
+    resource_1 = float(team1_resource_percentage)
+    resource_2 = float(team2_resource_percentage)
+    if first_innings_runs < 0:
+        raise ValueError("First-innings runs cannot be negative.")
+    if resource_1 <= 0 or resource_2 < 0:
+        raise ValueError("DLS resource percentages must be positive.")
+    if g50 <= 0:
+        raise ValueError("G50 must be positive.")
+
+    if resource_2 < resource_1:
+        target_score = floor(first_innings_runs * resource_2 / resource_1)
+    elif resource_2 > resource_1:
+        target_score = floor(
+            first_innings_runs + ((resource_2 - resource_1) * g50 / 100),
+        )
+    else:
+        target_score = first_innings_runs
+    return target_score + 1
 
 
 def dls_par_score(
@@ -68,6 +140,9 @@ def dls_par_score(
     legal_balls: int,
     wickets_lost: int,
     effective_resource_percentage: Decimal | float | None = None,
+    first_innings_runs: int | None = None,
+    team1_resource_percentage: Decimal | float | None = None,
+    g50: int | None = None,
 ) -> int | None:
     if revised_target_runs is None or revised_target_runs < 1:
         return None
@@ -87,5 +162,20 @@ def dls_par_score(
         wickets_lost,
     )
     used_resource = max(0.0, min(effective_resource, effective_resource - remaining_resource))
-    par = floor(((revised_target_runs - 1) * used_resource / effective_resource) + 1e-9)
+    if (
+        first_innings_runs is not None
+        and team1_resource_percentage is not None
+        and g50 is not None
+    ):
+        resource_1 = float(team1_resource_percentage)
+        if used_resource < resource_1:
+            par = floor((first_innings_runs * used_resource / resource_1) + 1e-9)
+        elif used_resource > resource_1:
+            par = floor(
+                first_innings_runs + ((used_resource - resource_1) * g50 / 100) + 1e-9,
+            )
+        else:
+            par = first_innings_runs
+    else:
+        par = floor(((revised_target_runs - 1) * used_resource / effective_resource) + 1e-9)
     return max(0, min(revised_target_runs - 1, par))

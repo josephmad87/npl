@@ -1929,7 +1929,7 @@ export function LiveScorePanel({
 
         {secondInningsSummary && targetRuns != null && liveQ.data?.revised_target_runs != null ? (
           <div className="live-score-panel__dls" aria-live="polite">
-            <span>DLS revised target: {targetRuns}</span>
+            <span>ICC DLS Standard revised target: {targetRuns}</span>
             <strong>
               Duckworth-Lewis-Stern (DLS) par score: {liveQ.data.dls_par_score ?? '—'}
             </strong>

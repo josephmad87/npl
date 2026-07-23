@@ -442,7 +442,7 @@ export type MatchLiveSetupInput = {
 
 export type LiveMatchConditionsInput = {
   match_overs: string | number
-  revised_target_runs: number | null
+  innings: number
 }
 
 export type LiveScoreCompleteInput = {
