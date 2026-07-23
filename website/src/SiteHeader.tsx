@@ -415,23 +415,6 @@ export function SiteHeader() {
         </div>
 
         <div className="site-header-desktop">
-          <div className="utility-row">
-            <div className="utility-controls">
-              <input
-                type="search"
-                placeholder="Search"
-                aria-label="Search"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    submitSearch()
-                  }
-                }}
-              />
-            </div>
-          </div>
           <nav className="main-nav nav-row" aria-label="Main">
             <Link to="/" className="site-brand site-brand--inline" aria-label="NPL home">
               <img src={nplLogoUrl} alt="NPL logo" />
@@ -568,6 +551,22 @@ export function SiteHeader() {
 
             <Link to="/about-us">About</Link>
             <Link to="/contact-us">Contact</Link>
+            <form
+              className="site-header-desktop__search"
+              role="search"
+              onSubmit={(event) => {
+                event.preventDefault()
+                submitSearch()
+              }}
+            >
+              <input
+                type="search"
+                placeholder="Search"
+                aria-label="Search"
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+              />
+            </form>
           </nav>
         </div>
       </div>

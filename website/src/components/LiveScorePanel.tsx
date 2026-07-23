@@ -74,6 +74,13 @@ type PublicPlayer = {
   team_id: number
   batting_style?: string | null
   bowling_style?: string | null
+  matches_played?: number
+  runs_scored?: number
+  batting_average?: number | null
+  strike_rate?: number | null
+  wickets_taken?: number
+  bowling_average?: number | null
+  economy_rate?: number | null
 }
 
 type PublicTeam = {
@@ -184,6 +191,13 @@ type PartnershipStat = {
   batterOne: PartnershipBatterStat
   batterTwo: PartnershipBatterStat | null
   isCurrent: boolean
+}
+
+type WinProbabilityPoint = {
+  sequence: number
+  innings: number
+  firstTeamProbability: number
+  isWicket: boolean
 }
 
 type InningsDashboard = {
@@ -823,6 +837,157 @@ function renderWormPath(points: Array<{ over: number; runs: number }>, maxOver: 
     .join(' ')
 }
 
+function clampProbability(value: number): number {
+  return Math.max(0.01, Math.min(0.99, value))
+}
+
+function logistic(value: number): number {
+  return 1 / (1 + Math.exp(-value))
+}
+
+function batterForm(player: PublicPlayer | undefined): number {
+  if (!player) return 0.5
+  const average = Math.max(0, player.batting_average ?? 25)
+  const strikeRate = Math.max(0, player.strike_rate ?? 85)
+  const experience = Math.min(1, Math.max(0, player.matches_played ?? 0) / 20)
+  const raw = average / 40 * 0.55 + strikeRate / 120 * 0.45
+  return Math.max(0.2, Math.min(1.4, raw * (0.75 + experience * 0.25)))
+}
+
+function bowlerForm(player: PublicPlayer | undefined): number {
+  if (!player) return 0.5
+  const matches = Math.max(1, player.matches_played ?? 0)
+  const wicketsPerMatch = Math.max(0, player.wickets_taken ?? 0) / matches
+  const economy = Math.max(2.5, player.economy_rate ?? 7)
+  const average = Math.max(8, player.bowling_average ?? 32)
+  const raw =
+    Math.min(1.5, wicketsPerMatch / 1.5) * 0.4 +
+    Math.min(1.4, 7 / economy) * 0.35 +
+    Math.min(1.4, 30 / average) * 0.25
+  return Math.max(0.2, Math.min(1.4, raw))
+}
+
+function winProbabilityTimeline(
+  state: LiveScoreState | undefined,
+  playerById: Map<number, PublicPlayer>,
+  allottedBalls: number | null,
+  targetRuns: number | null,
+): WinProbabilityPoint[] {
+  const events = [...(state?.events ?? [])].sort(
+    (a, b) => a.sequence_number - b.sequence_number || a.id - b.id,
+  )
+  if (events.length === 0) {
+    return [{ sequence: 0, innings: 1, firstTeamProbability: 0.5, isWicket: false }]
+  }
+
+  const firstTeamId =
+    events.find((event) => event.innings === 1)?.batting_team_id ??
+    events[0]!.batting_team_id
+  const matchBalls = Math.max(6, allottedBalls ?? 240)
+  const parRuns = Math.max(1, (matchBalls / 6) * 7.5)
+  const inningsState = new Map<
+    number,
+    { runs: number; wickets: number; legalBalls: number }
+  >()
+  const points: WinProbabilityPoint[] = [
+    { sequence: 0, innings: 1, firstTeamProbability: 0.5, isWicket: false },
+  ]
+
+  for (const event of events) {
+    const current = inningsState.get(event.innings) ?? {
+      runs: 0,
+      wickets: 0,
+      legalBalls: 0,
+    }
+    current.runs += eventTotalRuns(event)
+    if (wicketCounts(event)) current.wickets += 1
+    if (event.is_legal_delivery && !event.is_dead_ball) current.legalBalls += 1
+    inningsState.set(event.innings, current)
+
+    const striker = playerById.get(event.striker_player_id)
+    const nonStriker = event.non_striker_player_id
+      ? playerById.get(event.non_striker_player_id)
+      : undefined
+    const bowler = playerById.get(event.bowler_player_id)
+    const battingForm =
+      (batterForm(striker) + batterForm(nonStriker ?? striker)) / 2
+    const bowlingForm = bowlerForm(bowler)
+    const formEdge = battingForm - bowlingForm
+    let battingTeamProbability = 0.5
+
+    if (event.innings === 1) {
+      const ballsUsed = Math.max(1, current.legalBalls)
+      const remainingBalls = Math.max(0, matchBalls - current.legalBalls)
+      const currentRate = current.runs / ballsUsed
+      const formAdjustedRate = Math.max(
+        0.25,
+        currentRate * 0.72 + (parRuns / matchBalls) * 0.28 + formEdge * 0.12,
+      )
+      const wicketResource = Math.max(0.25, (10 - current.wickets) / 10)
+      const projected =
+        current.runs +
+        remainingBalls *
+          formAdjustedRate *
+          (0.72 + wicketResource * 0.28)
+      const situationEdge = (projected - parRuns) / Math.max(18, parRuns * 0.16)
+      battingTeamProbability = logistic(situationEdge + formEdge * 0.65)
+    } else {
+      const effectiveTarget =
+        targetRuns ??
+        (inningsState.get(1)?.runs != null
+          ? inningsState.get(1)!.runs + 1
+          : Math.round(parRuns) + 1)
+      const runsRequired = Math.max(0, effectiveTarget - current.runs)
+      const ballsRemaining = Math.max(0, matchBalls - current.legalBalls)
+      const wicketsRemaining = Math.max(0, 10 - current.wickets)
+
+      if (runsRequired === 0) {
+        battingTeamProbability = 0.99
+      } else if (ballsRemaining === 0 || wicketsRemaining === 0) {
+        battingTeamProbability = 0.01
+      } else {
+        const requiredRate = runsRequired / ballsRemaining
+        const observedRate =
+          current.legalBalls > 0
+            ? current.runs / current.legalBalls
+            : parRuns / matchBalls
+        const expectedRate = Math.max(
+          0.2,
+          observedRate * 0.45 +
+            (parRuns / matchBalls) * 0.55 +
+            formEdge * 0.12,
+        )
+        const scoringCapacity =
+          ballsRemaining *
+          expectedRate *
+          (0.62 + (wicketsRemaining / 10) * 0.38)
+        const capacityEdge =
+          (scoringCapacity - runsRequired) /
+          Math.max(8, effectiveTarget * 0.08)
+        const rateEdge =
+          (expectedRate - requiredRate) /
+          Math.max(0.2, requiredRate * 0.25)
+        battingTeamProbability = logistic(
+          capacityEdge * 0.72 + rateEdge * 0.45 + formEdge * 0.55,
+        )
+      }
+    }
+
+    const firstTeamProbability =
+      event.batting_team_id === firstTeamId
+        ? battingTeamProbability
+        : 1 - battingTeamProbability
+    points.push({
+      sequence: event.sequence_number,
+      innings: event.innings,
+      firstTeamProbability: clampProbability(firstTeamProbability),
+      isWicket: wicketCounts(event),
+    })
+  }
+
+  return points
+}
+
 export function LiveScorePanel({
   matchId,
   matchStatus,
@@ -955,6 +1120,33 @@ export function LiveScorePanel({
   const allottedBalls = parseCricketOversToBalls(
     liveQ.data?.match_overs ?? matchQ.data?.match_overs,
   )
+  const winProbabilityPoints = useMemo(
+    () =>
+      winProbabilityTimeline(
+        liveQ.data,
+        playerById,
+        allottedBalls,
+        targetRuns,
+      ),
+    [allottedBalls, liveQ.data, playerById, targetRuns],
+  )
+  const winProbabilityMaxSequence = Math.max(
+    1,
+    winProbabilityPoints.at(-1)?.sequence ?? 1,
+  )
+  const secondInningsStartSequence =
+    winProbabilityPoints.find((point) => point.innings === 2)?.sequence ?? null
+  const currentFirstTeamProbability =
+    winProbabilityPoints.at(-1)?.firstTeamProbability ?? 0.5
+  const firstTeamWinPercent = Math.round(currentFirstTeamProbability * 100)
+  const secondTeamWinPercent = 100 - firstTeamWinPercent
+  const winProbabilityPath = winProbabilityPoints
+    .map((point, index) => {
+      const x = 12 + (point.sequence / winProbabilityMaxSequence) * 206
+      const y = 16 + (1 - point.firstTeamProbability) * 104
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`
+    })
+    .join(' ')
   const chaseRequiredRuns = secondInningsSummary && targetRuns != null
     ? Math.max(targetRuns - secondInningsSummary.runs, 0)
     : null
@@ -1315,6 +1507,101 @@ export function LiveScorePanel({
           </div>
 
           <aside className="live-score-panel__insights">
+            <section
+              className="live-score-panel__win-probability"
+              aria-label="Live win probability"
+            >
+              <div className="live-score-panel__insight-heading">
+                <h3>Win probability</h3>
+                <span
+                  title="Live estimate based on score, target, balls and wickets remaining, plus the available career form of the current batters and bowler."
+                  aria-label="About win probability"
+                >
+                  i
+                </span>
+              </div>
+              <div className="live-score-panel__probability-legends">
+                <span>
+                  <i style={{ backgroundColor: '#0969c8' }} aria-hidden />
+                  {firstDisplayTeam} <strong>{firstTeamWinPercent}%</strong>
+                </span>
+                <span>
+                  <i style={{ backgroundColor: '#f97316' }} aria-hidden />
+                  {secondDisplayTeam} <strong>{secondTeamWinPercent}%</strong>
+                </span>
+              </div>
+              <svg
+                viewBox="0 0 230 146"
+                role="img"
+                aria-label={`${firstDisplayTeam} ${firstTeamWinPercent} percent, ${secondDisplayTeam} ${secondTeamWinPercent} percent`}
+              >
+                <line
+                  x1="12"
+                  y1="68"
+                  x2="218"
+                  y2="68"
+                  stroke="rgba(15,23,42,0.18)"
+                />
+                <text x="218" y="13" textAnchor="end" fill="#4b5563" fontSize="8">
+                  {firstDisplayTeam} 100%
+                </text>
+                <text x="218" y="65" textAnchor="end" fill="#4b5563" fontSize="8">
+                  50%
+                </text>
+                <text x="218" y="132" textAnchor="end" fill="#4b5563" fontSize="8">
+                  {secondDisplayTeam} 100%
+                </text>
+                {secondInningsStartSequence != null ? (
+                  <line
+                    x1={
+                      12 +
+                      (secondInningsStartSequence /
+                        winProbabilityMaxSequence) *
+                        206
+                    }
+                    y1="16"
+                    x2={
+                      12 +
+                      (secondInningsStartSequence /
+                        winProbabilityMaxSequence) *
+                        206
+                    }
+                    y2="120"
+                    stroke="rgba(15,23,42,0.22)"
+                  />
+                ) : null}
+                <path
+                  d={winProbabilityPath}
+                  fill="none"
+                  stroke="#0969c8"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {winProbabilityPoints
+                  .filter((point) => point.isWicket)
+                  .map((point) => (
+                    <circle
+                      key={`probability-wicket-${point.sequence}`}
+                      cx={
+                        12 +
+                        (point.sequence / winProbabilityMaxSequence) * 206
+                      }
+                      cy={16 + (1 - point.firstTeamProbability) * 104}
+                      r="3.5"
+                      fill="#ef4444"
+                    />
+                  ))}
+                <text x="16" y="143" fill="#4b5563" fontSize="8">
+                  1st innings
+                </text>
+                {secondInningsStartSequence != null ? (
+                  <text x="214" y="143" textAnchor="end" fill="#4b5563" fontSize="8">
+                    2nd innings
+                  </text>
+                ) : null}
+              </svg>
+            </section>
             <section className="live-score-panel__worm" aria-label="Runs worm">
               <h3>Worm</h3>
               <div className="live-score-panel__worm-legends">
@@ -1931,6 +2218,15 @@ export function LiveScorePanel({
         .live-score-panel__ball-title { margin: 0 0 0.25rem; color: #4f5871; font-size: 0.78rem; font-weight: 950; letter-spacing: 0.09em; text-transform: uppercase; }
         .live-score-panel__ball-detail { margin: 0; color: var(--live-ink); font-size: 1rem; line-height: 1.55; }
         .live-score-panel__insights { min-width: 0; background: #fff; }
+        .live-score-panel__win-probability { padding: 1rem; border-bottom: 1px solid var(--live-line); }
+        .live-score-panel__insight-heading { display: flex; align-items: center; gap: 0.45rem; }
+        .live-score-panel__insight-heading h3 { margin: 0; font-size: 1.1rem; font-weight: 900; }
+        .live-score-panel__insight-heading > span { display: inline-grid; place-items: center; width: 1.15rem; height: 1.15rem; border: 1.5px solid #64748b; border-radius: 999px; color: #64748b; cursor: help; font-size: 0.7rem; font-weight: 900; }
+        .live-score-panel__probability-legends { display: flex; flex-wrap: wrap; gap: 0.45rem 0.8rem; margin: 0.65rem 0 0.35rem; }
+        .live-score-panel__probability-legends span { display: inline-flex; align-items: center; gap: 0.35rem; min-width: 0; color: var(--live-ink); font-size: 0.75rem; font-weight: 700; }
+        .live-score-panel__probability-legends i { width: 0.55rem; height: 0.55rem; border-radius: 999px; flex: 0 0 auto; }
+        .live-score-panel__probability-legends strong { font-weight: 950; }
+        .live-score-panel__win-probability svg { display: block; width: 100%; height: auto; }
         .live-score-panel__worm { padding: 1rem; border-bottom: 1px solid var(--live-line); }
         .live-score-panel__worm h3 { margin: 0 0 0.8rem; font-size: 1.1rem; font-weight: 900; }
         .live-score-panel__worm-legends { display: flex; flex-wrap: wrap; gap: 0.55rem 0.9rem; margin-bottom: 0.6rem; }

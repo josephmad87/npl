@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { Pencil, RotateCcw, Save, Undo2 } from 'lucide-react'
+import { LockKeyhole, Pencil, RotateCcw, Save, Undo2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type {
   LiveBallEventDto,
@@ -14,6 +14,7 @@ import type {
   MatchSquadSaveInput,
   Paginated,
   PlayerDto,
+  ScorecardEditRequestDto,
   TeamDto,
 } from '@/lib/api-types'
 import { adminGet, adminPost } from '@/lib/admin-client'
@@ -208,6 +209,16 @@ function matchWhen(match: MatchDto): string {
   return '—'
 }
 
+function dateTimeLabel(value: string | null | undefined): string {
+  if (!value) return '—'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString([], {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 function wicketEventLabel(event: LiveBallEventDto, compact = false): string {
   if (!event.wicket_type) return ''
 
@@ -325,6 +336,7 @@ function LiveScoringPage() {
   const queryClient = useQueryClient()
   const currentSession = getSession() as { role?: string } | null | undefined
   const canResetTestMatch = currentSession?.role === 'super_admin'
+  const isScorer = currentSession?.role === 'scorer'
 
   const matchesQ = useQuery({
     queryKey: ['admin', 'scorer', 'matches'],
@@ -922,6 +934,33 @@ function LiveScoringPage() {
     onError: (error: Error) => setActionError(error.message),
   })
 
+  const requestEditAccessMutation = useMutation({
+    mutationFn: () =>
+      adminPost<ScorecardEditRequestDto>(
+        `/admin/matches/${mid}/scorecard-edit-requests`,
+        {},
+      ),
+    onSuccess: async () => {
+      setActionError(null)
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'matches', mid, 'live'],
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'scorer', 'matches'],
+      })
+    },
+    onError: (error: Error) => setActionError(error.message),
+  })
+
+  const scorecardReadOnly =
+    Boolean(liveQ.data?.scorecard_locked) &&
+    liveQ.data?.can_edit_scorecard === false
+  const effectiveScorerPanel =
+    scorecardReadOnly &&
+    !(['balls', 'review', 'help'] as ScorerPanel[]).includes(activeScorerPanel)
+      ? 'review'
+      : activeScorerPanel
+
   const updateEditingBall = <K extends keyof LiveBallEventInput>(
     field: K,
     value: LiveBallEventInput[K],
@@ -1240,7 +1279,7 @@ function LiveScoringPage() {
   const strikerName = playerName(playerById, strikerPlayerId || null)
   const nonStrikerName = playerName(playerById, nonStrikerPlayerId || null)
   const bowlerName = playerName(playerById, bowlerPlayerId || null)
-  const scoringPanels: Array<{
+  const allScoringPanels: Array<{
     id: ScorerPanel
     label: string
     hint: string
@@ -1264,6 +1303,11 @@ function LiveScoringPage() {
     { id: 'review', label: 'Review', hint: 'Finalize' },
     { id: 'help', label: 'Help', hint: 'Scorer guide' },
   ]
+  const scoringPanels = scorecardReadOnly
+    ? allScoringPanels.filter((panel) =>
+        (['balls', 'review', 'help'] as ScorerPanel[]).includes(panel.id),
+      )
+    : allScoringPanels
 
   const overStripOverNumber =
     legalBalls > 0 && legalBalls % 6 === 0 ? Math.max(0, nextOverNumber - 1) : nextOverNumber
@@ -1301,7 +1345,7 @@ function LiveScoringPage() {
   )
   const correctionSearchText = correctionSearch.trim().toLowerCase()
   const displayedLiveEvents = [...allLiveEvents].reverse().filter((event) => {
-    if (activeScorerPanel !== 'corrections' || !correctionSearchText) return true
+    if (effectiveScorerPanel !== 'corrections' || !correctionSearchText) return true
 
     return [
       `${event.innings}.${event.over_number}.${event.ball_number}`,
@@ -1480,6 +1524,25 @@ function LiveScoringPage() {
         }
         .live-scorer-tab.is-complete span {
           color: #ffffff;
+        }
+        .live-scorer-lock-banner {
+          align-items: center;
+          background: rgba(229, 139, 27, 0.13);
+          border: 1px solid rgba(229, 139, 27, 0.45);
+          border-radius: 14px;
+          display: flex;
+          gap: 1rem;
+          justify-content: space-between;
+          margin: 1rem 0;
+          padding: 1rem;
+        }
+        .live-scorer-lock-banner p {
+          margin: 0.25rem 0 0;
+        }
+        .live-scorer-lock-banner__title {
+          align-items: center;
+          display: flex;
+          gap: 0.5rem;
         }
         .live-scorer-page .catalog-card-grid {
           display: grid;
@@ -1830,6 +1893,42 @@ function LiveScoringPage() {
         {actionError ? <p className="login-error">{actionError}</p> : null}
       </section>
 
+      {liveQ.data?.scorecard_locked ? (
+        <aside className="live-scorer-lock-banner" aria-live="polite">
+          <div>
+            <strong className="live-scorer-lock-banner__title">
+              <LockKeyhole size={19} aria-hidden />
+              {scorecardReadOnly
+                ? 'Scorecard locked — read only'
+                : 'Temporary scorecard edit access'}
+            </strong>
+            <p className="muted">
+              {scorecardReadOnly
+                ? `This scorecard locked 120 minutes after finalization (${dateTimeLabel(liveQ.data.scorecard_locks_at)}).`
+                : `Super-admin approval allows edits until ${dateTimeLabel(liveQ.data.edit_access_until)}.`}
+            </p>
+          </div>
+          {scorecardReadOnly && isScorer ? (
+            <button
+              type="button"
+              className="btn-primary btn--with-icon"
+              disabled={
+                liveQ.data.edit_request_status === 'pending' ||
+                requestEditAccessMutation.isPending
+              }
+              onClick={() => requestEditAccessMutation.mutate()}
+            >
+              <LockKeyhole size={18} aria-hidden />
+              {liveQ.data.edit_request_status === 'pending'
+                ? 'Permission requested'
+                : requestEditAccessMutation.isPending
+                  ? 'Requesting…'
+                  : 'Request edit permission'}
+            </button>
+          ) : null}
+        </aside>
+      ) : null}
+
       <section className="live-scorer-sticky" aria-label="Scoring quick controls">
         <div className="live-scorer-sticky__top">
           <div>
@@ -1842,16 +1941,18 @@ function LiveScoringPage() {
               <span className="live-scorer-chip">Bowler: {bowlerName}</span>
             </div>
           </div>
-          <div className="catalog-toolbar">
-            <button
-              type="button"
-              className="btn-primary btn--with-icon"
-              onClick={() => void startMutation.mutate()}
-              disabled={startMutation.isPending}
-            >
-              <Save size={18} strokeWidth={2} aria-hidden />
-              {startMutation.isPending ? 'Starting…' : 'Start'}
-            </button>
+          {!scorecardReadOnly ? <div className="catalog-toolbar">
+            {match.status !== 'completed' ? (
+              <button
+                type="button"
+                className="btn-primary btn--with-icon"
+                onClick={() => void startMutation.mutate()}
+                disabled={startMutation.isPending}
+              >
+                <Save size={18} strokeWidth={2} aria-hidden />
+                {startMutation.isPending ? 'Starting…' : 'Start'}
+              </button>
+            ) : null}
             {canResetTestMatch ? (
               <button
                 type="button"
@@ -1862,16 +1963,16 @@ function LiveScoringPage() {
                 {resetTestMutation.isPending ? 'Resetting…' : 'Reset test'}
               </button>
             ) : null}
-          </div>
+          </div> : null}
         </div>
         <div className="live-scorer-tabs" role="tablist" aria-label="Scorer sections">
           {scoringPanels.map((panel) => (
             <button
               key={panel.id}
               type="button"
-              className={`live-scorer-tab${activeScorerPanel === panel.id ? ' is-active' : ''}${panel.isComplete ? ' is-complete' : ''}`}
+              className={`live-scorer-tab${effectiveScorerPanel === panel.id ? ' is-active' : ''}${panel.isComplete ? ' is-complete' : ''}`}
               onClick={() => setActiveScorerPanel(panel.id)}
-              aria-pressed={activeScorerPanel === panel.id}
+              aria-pressed={effectiveScorerPanel === panel.id}
             >
               <strong>{panel.label}</strong>
               <span>{panel.hint}</span>
@@ -1880,7 +1981,7 @@ function LiveScoringPage() {
         </div>
       </section>
 
-      {activeScorerPanel === 'setup' ? (
+      {effectiveScorerPanel === 'setup' ? (
       <section className="team-hub-section">
         <div className="team-hub-section-head">
           <div className="team-hub-section-head__lead">
@@ -1973,7 +2074,7 @@ function LiveScoringPage() {
       </section>
       ) : null}
 
-      {activeScorerPanel === 'squads' ? (
+      {effectiveScorerPanel === 'squads' ? (
       <section className="team-hub-section">
         <div className="team-hub-section-head">
           <div className="team-hub-section-head__lead">
@@ -2069,7 +2170,7 @@ function LiveScoringPage() {
       </section>
       ) : null}
 
-      {activeScorerPanel === 'score' ? (
+      {effectiveScorerPanel === 'score' ? (
       <section className="team-hub-section">
         <div className="team-hub-section-head">
           <div className="team-hub-section-head__lead">
@@ -2918,7 +3019,7 @@ function LiveScoringPage() {
       </section>
       ) : null}
 
-      {activeScorerPanel === 'review' ? (
+      {effectiveScorerPanel === 'review' ? (
         <section className="team-hub-section">
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
@@ -2992,38 +3093,54 @@ function LiveScoringPage() {
             </div>
           ) : null}
 
-          <label className="live-scorer-final-confirm">
-            <input
-              type="checkbox"
-              checked={finalReviewConfirmed}
-              onChange={(event) => setFinalReviewConfirmed(event.target.checked)}
-            />
-            <span>
-              I have checked the score, wickets, fielding credits, extras, and NRR match overs. Finalize this match as official.
-            </span>
-          </label>
+          {scorecardReadOnly ? (
+            <p className="muted">
+              This final scorecard is read only. Request super-admin permission
+              before making corrections.
+            </p>
+          ) : (
+            <>
+              <label className="live-scorer-final-confirm">
+                <input
+                  type="checkbox"
+                  checked={finalReviewConfirmed}
+                  onChange={(event) =>
+                    setFinalReviewConfirmed(event.target.checked)
+                  }
+                />
+                <span>
+                  I have checked the score, wickets, fielding credits, extras,
+                  and NRR match overs. Finalize this match as official.
+                </span>
+              </label>
 
-          <div className="catalog-toolbar">
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => setActiveScorerPanel('score')}
-            >
-              Back to scoring
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={markMatchOver}
-              disabled={completeMutation.isPending || !finalReviewConfirmed}
-            >
-              {completeMutation.isPending ? 'Finalizing…' : 'Finalize official result'}
-            </button>
-          </div>
+              <div className="catalog-toolbar">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setActiveScorerPanel('score')}
+                >
+                  Back to scoring
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={markMatchOver}
+                  disabled={
+                    completeMutation.isPending || !finalReviewConfirmed
+                  }
+                >
+                  {completeMutation.isPending
+                    ? 'Finalizing…'
+                    : 'Finalize official result'}
+                </button>
+              </div>
+            </>
+          )}
         </section>
       ) : null}
 
-      {activeScorerPanel === 'help' ? (
+      {effectiveScorerPanel === 'help' ? (
         <section className="team-hub-section">
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
@@ -3061,7 +3178,7 @@ function LiveScoringPage() {
         </section>
       ) : null}
 
-      {editingBall && activeScorerPanel === 'corrections' ? (
+      {editingBall && effectiveScorerPanel === 'corrections' ? (
         <section className="team-hub-section">
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
@@ -3399,15 +3516,15 @@ function LiveScoringPage() {
         </section>
       ) : null}
 
-      {activeScorerPanel === 'balls' || activeScorerPanel === 'corrections' ? (
+      {effectiveScorerPanel === 'balls' || effectiveScorerPanel === 'corrections' ? (
       <section className="team-hub-section">
         <div className="team-hub-section-head">
           <div className="team-hub-section-head__lead">
             <h2 className="team-hub-section__title">
-              {activeScorerPanel === 'corrections' ? 'Choose a delivery to correct' : 'Ball-by-ball'}
+              {effectiveScorerPanel === 'corrections' ? 'Choose a delivery to correct' : 'Ball-by-ball'}
             </h2>
             <p className="muted">
-              {activeScorerPanel === 'corrections'
+              {effectiveScorerPanel === 'corrections'
                 ? 'Every recorded delivery is shown below. Select Edit on the exact ball you want to correct, including wides and no-balls that may share the same over.ball number.'
                 : 'Latest scoring events for this match.'}
             </p>
@@ -3416,7 +3533,7 @@ function LiveScoringPage() {
 
         {liveQ.isLoading ? <p className="muted">Loading live score…</p> : null}
 
-        {activeScorerPanel === 'corrections' && allLiveEvents.length > 0 ? (
+        {effectiveScorerPanel === 'corrections' && allLiveEvents.length > 0 ? (
           <label className="inline-edit__field" style={{ maxWidth: '34rem' }}>
             <span className="inline-edit__label">Find a delivery</span>
             <input
@@ -3445,7 +3562,7 @@ function LiveScoringPage() {
                   <th>Result</th>
                   <th>Dismissal / fielder</th>
                   <th>Notes</th>
-                  {activeScorerPanel === 'corrections' ? <th>Actions</th> : null}
+                  {effectiveScorerPanel === 'corrections' ? <th>Actions</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -3474,7 +3591,7 @@ function LiveScoringPage() {
                         : '—'}
                     </td>
                     <td>{event.notes ?? event.dismissal_text ?? '—'}</td>
-                    {activeScorerPanel === 'corrections' ? (
+                    {effectiveScorerPanel === 'corrections' ? (
                       <td>
                         <div className="catalog-toolbar">
                           <button

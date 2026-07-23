@@ -10,6 +10,11 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Overview' },
   {
+    to: '/scoring',
+    label: 'Scoring',
+    roles: ['super_admin', 'competition_manager', 'scorer'],
+  },
+  {
     to: '/teams',
     label: 'Teams',
     roles: ['super_admin', 'competition_manager', 'read_only_admin'],

@@ -9,53 +9,59 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as ShellRouteImport } from './routes/_shell'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ShellIndexRouteImport } from './routes/_shell/index'
 import { Route as ShellProfileRouteImport } from './routes/_shell/profile'
 import { Route as ShellSettingsRouteRouteImport } from './routes/_shell/settings/route'
-import { Route as ShellUsersIndexRouteImport } from './routes/_shell/users/index'
-import { Route as ShellTeamsIndexRouteImport } from './routes/_shell/teams/index'
-import { Route as ShellSponsorsIndexRouteImport } from './routes/_shell/sponsors/index'
-import { Route as ShellSettingsIndexRouteImport } from './routes/_shell/settings/index'
-import { Route as ShellPlayersIndexRouteImport } from './routes/_shell/players/index'
-import { Route as ShellNewsIndexRouteImport } from './routes/_shell/news/index'
-import { Route as ShellMatchesIndexRouteImport } from './routes/_shell/matches/index'
-import { Route as ShellLeaguesIndexRouteImport } from './routes/_shell/leagues/index'
-import { Route as ShellGalleryIndexRouteImport } from './routes/_shell/gallery/index'
-import { Route as ShellContactMessagesIndexRouteImport } from './routes/_shell/contact-messages/index'
-import { Route as ShellAuditIndexRouteImport } from './routes/_shell/audit/index'
 import { Route as ShellAboutIndexRouteImport } from './routes/_shell/about/index'
-import { Route as ShellUsersNewRouteImport } from './routes/_shell/users/new'
-import { Route as ShellUsersUserIdRouteImport } from './routes/_shell/users/$userId'
-import { Route as ShellTeamsNewRouteImport } from './routes/_shell/teams/new'
-import { Route as ShellTeamsTeamIdRouteImport } from './routes/_shell/teams/$teamId'
-import { Route as ShellSponsorsNewRouteImport } from './routes/_shell/sponsors/new'
-import { Route as ShellSponsorsSponsorIdRouteImport } from './routes/_shell/sponsors/$sponsorId'
-import { Route as ShellSettingsProfileRouteImport } from './routes/_shell/settings/profile'
-import { Route as ShellPlayersNewRouteImport } from './routes/_shell/players/new'
-import { Route as ShellPlayersPlayerIdRouteImport } from './routes/_shell/players/$playerId'
-import { Route as ShellNewsNewRouteImport } from './routes/_shell/news/new'
-import { Route as ShellNewsArticleIdRouteImport } from './routes/_shell/news/$articleId'
-import { Route as ShellMatchesNewRouteImport } from './routes/_shell/matches/new'
-import { Route as ShellMatchesMatchIdRouteImport } from './routes/_shell/matches/$matchId'
-import { Route as ShellLeaguesNewRouteImport } from './routes/_shell/leagues/new'
-import { Route as ShellLeaguesLeagueIdRouteImport } from './routes/_shell/leagues/$leagueId'
-import { Route as ShellGalleryNewRouteImport } from './routes/_shell/gallery/new'
-import { Route as ShellGalleryGalleryIdRouteImport } from './routes/_shell/gallery/$galleryId'
-import { Route as ShellContactMessagesMessageIdRouteImport } from './routes/_shell/contact-messages/$messageId'
+import { Route as ShellAuditIndexRouteImport } from './routes/_shell/audit/index'
 import { Route as ShellAuditAuditIdRouteImport } from './routes/_shell/audit/$auditId'
+import { Route as ShellContactMessagesIndexRouteImport } from './routes/_shell/contact-messages/index'
+import { Route as ShellContactMessagesMessageIdRouteImport } from './routes/_shell/contact-messages/$messageId'
+import { Route as ShellGalleryIndexRouteImport } from './routes/_shell/gallery/index'
+import { Route as ShellGalleryGalleryIdRouteImport } from './routes/_shell/gallery/$galleryId'
+import { Route as ShellGalleryNewRouteImport } from './routes/_shell/gallery/new'
+import { Route as ShellLeaguesIndexRouteImport } from './routes/_shell/leagues/index'
+import { Route as ShellLeaguesLeagueIdRouteImport } from './routes/_shell/leagues/$leagueId'
+import { Route as ShellLeaguesNewRouteImport } from './routes/_shell/leagues/new'
+import { Route as ShellMatchesIndexRouteImport } from './routes/_shell/matches/index'
+import { Route as ShellMatchesMatchIdRouteImport } from './routes/_shell/matches/$matchId'
+import { Route as ShellMatchesNewRouteImport } from './routes/_shell/matches/new'
+import { Route as ShellMerchandiseIndexRouteImport } from './routes/_shell/merchandise/index'
+import { Route as ShellMerchandiseProductIdRouteImport } from './routes/_shell/merchandise/$productId'
+import { Route as ShellMerchandiseNewRouteImport } from './routes/_shell/merchandise/new'
+import { Route as ShellMerchandiseOrdersRouteImport } from './routes/_shell/merchandise/orders'
+import { Route as ShellNewsIndexRouteImport } from './routes/_shell/news/index'
+import { Route as ShellNewsArticleIdRouteImport } from './routes/_shell/news/$articleId'
+import { Route as ShellNewsNewRouteImport } from './routes/_shell/news/new'
+import { Route as ShellPlayersIndexRouteImport } from './routes/_shell/players/index'
+import { Route as ShellPlayersPlayerIdRouteImport } from './routes/_shell/players/$playerId'
+import { Route as ShellPlayersNewRouteImport } from './routes/_shell/players/new'
+import { Route as ShellScoringIndexRouteImport } from './routes/_shell/scoring/index'
+import { Route as ShellScoringMatchIdRouteImport } from './routes/_shell/scoring/$matchId'
+import { Route as ShellSettingsIndexRouteImport } from './routes/_shell/settings/index'
+import { Route as ShellSettingsProfileRouteImport } from './routes/_shell/settings/profile'
+import { Route as ShellSponsorsIndexRouteImport } from './routes/_shell/sponsors/index'
+import { Route as ShellSponsorsSponsorIdRouteImport } from './routes/_shell/sponsors/$sponsorId'
+import { Route as ShellSponsorsNewRouteImport } from './routes/_shell/sponsors/new'
+import { Route as ShellTeamsIndexRouteImport } from './routes/_shell/teams/index'
+import { Route as ShellTeamsTeamIdRouteImport } from './routes/_shell/teams/$teamId'
+import { Route as ShellTeamsNewRouteImport } from './routes/_shell/teams/new'
+import { Route as ShellUsersIndexRouteImport } from './routes/_shell/users/index'
+import { Route as ShellUsersUserIdRouteImport } from './routes/_shell/users/$userId'
+import { Route as ShellUsersNewRouteImport } from './routes/_shell/users/new'
 import { Route as ShellLeaguesLeagueIdSeasonsIndexRouteImport } from './routes/_shell/leagues/$leagueId/seasons/index'
-import { Route as ShellLeaguesLeagueIdSeasonsNewRouteImport } from './routes/_shell/leagues/$leagueId/seasons/new'
 import { Route as ShellLeaguesLeagueIdSeasonsSeasonIdRouteImport } from './routes/_shell/leagues/$leagueId/seasons/$seasonId'
+import { Route as ShellLeaguesLeagueIdSeasonsNewRouteImport } from './routes/_shell/leagues/$leagueId/seasons/new'
 
+const ShellRoute = ShellRouteImport.update({
+  id: '/_shell',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ShellRoute = ShellRouteImport.update({
-  id: '/_shell',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShellIndexRoute = ShellIndexRouteImport.update({
@@ -73,49 +79,19 @@ const ShellSettingsRouteRoute = ShellSettingsRouteRouteImport.update({
   path: '/settings',
   getParentRoute: () => ShellRoute,
 } as any)
-const ShellUsersIndexRoute = ShellUsersIndexRouteImport.update({
-  id: '/users/',
-  path: '/users/',
+const ShellAboutIndexRoute = ShellAboutIndexRouteImport.update({
+  id: '/about/',
+  path: '/about/',
   getParentRoute: () => ShellRoute,
 } as any)
-const ShellTeamsIndexRoute = ShellTeamsIndexRouteImport.update({
-  id: '/teams/',
-  path: '/teams/',
+const ShellAuditIndexRoute = ShellAuditIndexRouteImport.update({
+  id: '/audit/',
+  path: '/audit/',
   getParentRoute: () => ShellRoute,
 } as any)
-const ShellSponsorsIndexRoute = ShellSponsorsIndexRouteImport.update({
-  id: '/sponsors/',
-  path: '/sponsors/',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellSettingsIndexRoute = ShellSettingsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ShellSettingsRouteRoute,
-} as any)
-const ShellPlayersIndexRoute = ShellPlayersIndexRouteImport.update({
-  id: '/players/',
-  path: '/players/',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellNewsIndexRoute = ShellNewsIndexRouteImport.update({
-  id: '/news/',
-  path: '/news/',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellMatchesIndexRoute = ShellMatchesIndexRouteImport.update({
-  id: '/matches/',
-  path: '/matches/',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellLeaguesIndexRoute = ShellLeaguesIndexRouteImport.update({
-  id: '/leagues/',
-  path: '/leagues/',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellGalleryIndexRoute = ShellGalleryIndexRouteImport.update({
-  id: '/gallery/',
-  path: '/gallery/',
+const ShellAuditAuditIdRoute = ShellAuditAuditIdRouteImport.update({
+  id: '/audit/$auditId',
+  path: '/audit/$auditId',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellContactMessagesIndexRoute =
@@ -124,94 +100,15 @@ const ShellContactMessagesIndexRoute =
     path: '/contact-messages/',
     getParentRoute: () => ShellRoute,
   } as any)
-const ShellAuditIndexRoute = ShellAuditIndexRouteImport.update({
-  id: '/audit/',
-  path: '/audit/',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellAboutIndexRoute = ShellAboutIndexRouteImport.update({
-  id: '/about/',
-  path: '/about/',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellUsersNewRoute = ShellUsersNewRouteImport.update({
-  id: '/users/new',
-  path: '/users/new',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellUsersUserIdRoute = ShellUsersUserIdRouteImport.update({
-  id: '/users/$userId',
-  path: '/users/$userId',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellTeamsNewRoute = ShellTeamsNewRouteImport.update({
-  id: '/teams/new',
-  path: '/teams/new',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellTeamsTeamIdRoute = ShellTeamsTeamIdRouteImport.update({
-  id: '/teams/$teamId',
-  path: '/teams/$teamId',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellSponsorsNewRoute = ShellSponsorsNewRouteImport.update({
-  id: '/sponsors/new',
-  path: '/sponsors/new',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellSponsorsSponsorIdRoute = ShellSponsorsSponsorIdRouteImport.update({
-  id: '/sponsors/$sponsorId',
-  path: '/sponsors/$sponsorId',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellSettingsProfileRoute = ShellSettingsProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => ShellSettingsRouteRoute,
-} as any)
-const ShellPlayersNewRoute = ShellPlayersNewRouteImport.update({
-  id: '/players/new',
-  path: '/players/new',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellPlayersPlayerIdRoute = ShellPlayersPlayerIdRouteImport.update({
-  id: '/players/$playerId',
-  path: '/players/$playerId',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellNewsNewRoute = ShellNewsNewRouteImport.update({
-  id: '/news/new',
-  path: '/news/new',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellNewsArticleIdRoute = ShellNewsArticleIdRouteImport.update({
-  id: '/news/$articleId',
-  path: '/news/$articleId',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellMatchesNewRoute = ShellMatchesNewRouteImport.update({
-  id: '/matches/new',
-  path: '/matches/new',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellMatchesMatchIdRoute = ShellMatchesMatchIdRouteImport.update({
-  id: '/matches/$matchId',
-  path: '/matches/$matchId',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellLeaguesNewRoute = ShellLeaguesNewRouteImport.update({
-  id: '/leagues/new',
-  path: '/leagues/new',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellLeaguesLeagueIdRoute = ShellLeaguesLeagueIdRouteImport.update({
-  id: '/leagues/$leagueId',
-  path: '/leagues/$leagueId',
-  getParentRoute: () => ShellRoute,
-} as any)
-const ShellGalleryNewRoute = ShellGalleryNewRouteImport.update({
-  id: '/gallery/new',
-  path: '/gallery/new',
+const ShellContactMessagesMessageIdRoute =
+  ShellContactMessagesMessageIdRouteImport.update({
+    id: '/contact-messages/$messageId',
+    path: '/contact-messages/$messageId',
+    getParentRoute: () => ShellRoute,
+  } as any)
+const ShellGalleryIndexRoute = ShellGalleryIndexRouteImport.update({
+  id: '/gallery/',
+  path: '/gallery/',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellGalleryGalleryIdRoute = ShellGalleryGalleryIdRouteImport.update({
@@ -219,15 +116,155 @@ const ShellGalleryGalleryIdRoute = ShellGalleryGalleryIdRouteImport.update({
   path: '/gallery/$galleryId',
   getParentRoute: () => ShellRoute,
 } as any)
-const ShellContactMessagesMessageIdRoute =
-  ShellContactMessagesMessageIdRouteImport.update({
-    id: '/contact-messages/$messageId',
-    path: '/contact-messages/$messageId',
+const ShellGalleryNewRoute = ShellGalleryNewRouteImport.update({
+  id: '/gallery/new',
+  path: '/gallery/new',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellLeaguesIndexRoute = ShellLeaguesIndexRouteImport.update({
+  id: '/leagues/',
+  path: '/leagues/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellLeaguesLeagueIdRoute = ShellLeaguesLeagueIdRouteImport.update({
+  id: '/leagues/$leagueId',
+  path: '/leagues/$leagueId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellLeaguesNewRoute = ShellLeaguesNewRouteImport.update({
+  id: '/leagues/new',
+  path: '/leagues/new',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellMatchesIndexRoute = ShellMatchesIndexRouteImport.update({
+  id: '/matches/',
+  path: '/matches/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellMatchesMatchIdRoute = ShellMatchesMatchIdRouteImport.update({
+  id: '/matches/$matchId',
+  path: '/matches/$matchId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellMatchesNewRoute = ShellMatchesNewRouteImport.update({
+  id: '/matches/new',
+  path: '/matches/new',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellMerchandiseIndexRoute = ShellMerchandiseIndexRouteImport.update({
+  id: '/merchandise/',
+  path: '/merchandise/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellMerchandiseProductIdRoute =
+  ShellMerchandiseProductIdRouteImport.update({
+    id: '/merchandise/$productId',
+    path: '/merchandise/$productId',
     getParentRoute: () => ShellRoute,
   } as any)
-const ShellAuditAuditIdRoute = ShellAuditAuditIdRouteImport.update({
-  id: '/audit/$auditId',
-  path: '/audit/$auditId',
+const ShellMerchandiseNewRoute = ShellMerchandiseNewRouteImport.update({
+  id: '/merchandise/new',
+  path: '/merchandise/new',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellMerchandiseOrdersRoute = ShellMerchandiseOrdersRouteImport.update({
+  id: '/merchandise/orders',
+  path: '/merchandise/orders',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellNewsIndexRoute = ShellNewsIndexRouteImport.update({
+  id: '/news/',
+  path: '/news/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellNewsArticleIdRoute = ShellNewsArticleIdRouteImport.update({
+  id: '/news/$articleId',
+  path: '/news/$articleId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellNewsNewRoute = ShellNewsNewRouteImport.update({
+  id: '/news/new',
+  path: '/news/new',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellPlayersIndexRoute = ShellPlayersIndexRouteImport.update({
+  id: '/players/',
+  path: '/players/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellPlayersPlayerIdRoute = ShellPlayersPlayerIdRouteImport.update({
+  id: '/players/$playerId',
+  path: '/players/$playerId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellPlayersNewRoute = ShellPlayersNewRouteImport.update({
+  id: '/players/new',
+  path: '/players/new',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellScoringIndexRoute = ShellScoringIndexRouteImport.update({
+  id: '/scoring/',
+  path: '/scoring/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellScoringMatchIdRoute = ShellScoringMatchIdRouteImport.update({
+  id: '/scoring/$matchId',
+  path: '/scoring/$matchId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellSettingsIndexRoute = ShellSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ShellSettingsRouteRoute,
+} as any)
+const ShellSettingsProfileRoute = ShellSettingsProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => ShellSettingsRouteRoute,
+} as any)
+const ShellSponsorsIndexRoute = ShellSponsorsIndexRouteImport.update({
+  id: '/sponsors/',
+  path: '/sponsors/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellSponsorsSponsorIdRoute = ShellSponsorsSponsorIdRouteImport.update({
+  id: '/sponsors/$sponsorId',
+  path: '/sponsors/$sponsorId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellSponsorsNewRoute = ShellSponsorsNewRouteImport.update({
+  id: '/sponsors/new',
+  path: '/sponsors/new',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellTeamsIndexRoute = ShellTeamsIndexRouteImport.update({
+  id: '/teams/',
+  path: '/teams/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellTeamsTeamIdRoute = ShellTeamsTeamIdRouteImport.update({
+  id: '/teams/$teamId',
+  path: '/teams/$teamId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellTeamsNewRoute = ShellTeamsNewRouteImport.update({
+  id: '/teams/new',
+  path: '/teams/new',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellUsersIndexRoute = ShellUsersIndexRouteImport.update({
+  id: '/users/',
+  path: '/users/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellUsersUserIdRoute = ShellUsersUserIdRouteImport.update({
+  id: '/users/$userId',
+  path: '/users/$userId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellUsersNewRoute = ShellUsersNewRouteImport.update({
+  id: '/users/new',
+  path: '/users/new',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellLeaguesLeagueIdSeasonsIndexRoute =
@@ -236,16 +273,16 @@ const ShellLeaguesLeagueIdSeasonsIndexRoute =
     path: '/seasons/',
     getParentRoute: () => ShellLeaguesLeagueIdRoute,
   } as any)
-const ShellLeaguesLeagueIdSeasonsNewRoute =
-  ShellLeaguesLeagueIdSeasonsNewRouteImport.update({
-    id: '/seasons/new',
-    path: '/seasons/new',
-    getParentRoute: () => ShellLeaguesLeagueIdRoute,
-  } as any)
 const ShellLeaguesLeagueIdSeasonsSeasonIdRoute =
   ShellLeaguesLeagueIdSeasonsSeasonIdRouteImport.update({
     id: '/seasons/$seasonId',
     path: '/seasons/$seasonId',
+    getParentRoute: () => ShellLeaguesLeagueIdRoute,
+  } as any)
+const ShellLeaguesLeagueIdSeasonsNewRoute =
+  ShellLeaguesLeagueIdSeasonsNewRouteImport.update({
+    id: '/seasons/new',
+    path: '/seasons/new',
     getParentRoute: () => ShellLeaguesLeagueIdRoute,
   } as any)
 
@@ -262,10 +299,14 @@ export interface FileRoutesByFullPath {
   '/leagues/new': typeof ShellLeaguesNewRoute
   '/matches/$matchId': typeof ShellMatchesMatchIdRoute
   '/matches/new': typeof ShellMatchesNewRoute
+  '/merchandise/$productId': typeof ShellMerchandiseProductIdRoute
+  '/merchandise/new': typeof ShellMerchandiseNewRoute
+  '/merchandise/orders': typeof ShellMerchandiseOrdersRoute
   '/news/$articleId': typeof ShellNewsArticleIdRoute
   '/news/new': typeof ShellNewsNewRoute
   '/players/$playerId': typeof ShellPlayersPlayerIdRoute
   '/players/new': typeof ShellPlayersNewRoute
+  '/scoring/$matchId': typeof ShellScoringMatchIdRoute
   '/settings/profile': typeof ShellSettingsProfileRoute
   '/sponsors/$sponsorId': typeof ShellSponsorsSponsorIdRoute
   '/sponsors/new': typeof ShellSponsorsNewRoute
@@ -279,8 +320,10 @@ export interface FileRoutesByFullPath {
   '/gallery/': typeof ShellGalleryIndexRoute
   '/leagues/': typeof ShellLeaguesIndexRoute
   '/matches/': typeof ShellMatchesIndexRoute
+  '/merchandise/': typeof ShellMerchandiseIndexRoute
   '/news/': typeof ShellNewsIndexRoute
   '/players/': typeof ShellPlayersIndexRoute
+  '/scoring/': typeof ShellScoringIndexRoute
   '/settings/': typeof ShellSettingsIndexRoute
   '/sponsors/': typeof ShellSponsorsIndexRoute
   '/teams/': typeof ShellTeamsIndexRoute
@@ -301,10 +344,14 @@ export interface FileRoutesByTo {
   '/leagues/new': typeof ShellLeaguesNewRoute
   '/matches/$matchId': typeof ShellMatchesMatchIdRoute
   '/matches/new': typeof ShellMatchesNewRoute
+  '/merchandise/$productId': typeof ShellMerchandiseProductIdRoute
+  '/merchandise/new': typeof ShellMerchandiseNewRoute
+  '/merchandise/orders': typeof ShellMerchandiseOrdersRoute
   '/news/$articleId': typeof ShellNewsArticleIdRoute
   '/news/new': typeof ShellNewsNewRoute
   '/players/$playerId': typeof ShellPlayersPlayerIdRoute
   '/players/new': typeof ShellPlayersNewRoute
+  '/scoring/$matchId': typeof ShellScoringMatchIdRoute
   '/settings/profile': typeof ShellSettingsProfileRoute
   '/sponsors/$sponsorId': typeof ShellSponsorsSponsorIdRoute
   '/sponsors/new': typeof ShellSponsorsNewRoute
@@ -318,8 +365,10 @@ export interface FileRoutesByTo {
   '/gallery': typeof ShellGalleryIndexRoute
   '/leagues': typeof ShellLeaguesIndexRoute
   '/matches': typeof ShellMatchesIndexRoute
+  '/merchandise': typeof ShellMerchandiseIndexRoute
   '/news': typeof ShellNewsIndexRoute
   '/players': typeof ShellPlayersIndexRoute
+  '/scoring': typeof ShellScoringIndexRoute
   '/settings': typeof ShellSettingsIndexRoute
   '/sponsors': typeof ShellSponsorsIndexRoute
   '/teams': typeof ShellTeamsIndexRoute
@@ -343,10 +392,14 @@ export interface FileRoutesById {
   '/_shell/leagues/new': typeof ShellLeaguesNewRoute
   '/_shell/matches/$matchId': typeof ShellMatchesMatchIdRoute
   '/_shell/matches/new': typeof ShellMatchesNewRoute
+  '/_shell/merchandise/$productId': typeof ShellMerchandiseProductIdRoute
+  '/_shell/merchandise/new': typeof ShellMerchandiseNewRoute
+  '/_shell/merchandise/orders': typeof ShellMerchandiseOrdersRoute
   '/_shell/news/$articleId': typeof ShellNewsArticleIdRoute
   '/_shell/news/new': typeof ShellNewsNewRoute
   '/_shell/players/$playerId': typeof ShellPlayersPlayerIdRoute
   '/_shell/players/new': typeof ShellPlayersNewRoute
+  '/_shell/scoring/$matchId': typeof ShellScoringMatchIdRoute
   '/_shell/settings/profile': typeof ShellSettingsProfileRoute
   '/_shell/sponsors/$sponsorId': typeof ShellSponsorsSponsorIdRoute
   '/_shell/sponsors/new': typeof ShellSponsorsNewRoute
@@ -360,8 +413,10 @@ export interface FileRoutesById {
   '/_shell/gallery/': typeof ShellGalleryIndexRoute
   '/_shell/leagues/': typeof ShellLeaguesIndexRoute
   '/_shell/matches/': typeof ShellMatchesIndexRoute
+  '/_shell/merchandise/': typeof ShellMerchandiseIndexRoute
   '/_shell/news/': typeof ShellNewsIndexRoute
   '/_shell/players/': typeof ShellPlayersIndexRoute
+  '/_shell/scoring/': typeof ShellScoringIndexRoute
   '/_shell/settings/': typeof ShellSettingsIndexRoute
   '/_shell/sponsors/': typeof ShellSponsorsIndexRoute
   '/_shell/teams/': typeof ShellTeamsIndexRoute
@@ -385,10 +440,14 @@ export interface FileRouteTypes {
     | '/leagues/new'
     | '/matches/$matchId'
     | '/matches/new'
+    | '/merchandise/$productId'
+    | '/merchandise/new'
+    | '/merchandise/orders'
     | '/news/$articleId'
     | '/news/new'
     | '/players/$playerId'
     | '/players/new'
+    | '/scoring/$matchId'
     | '/settings/profile'
     | '/sponsors/$sponsorId'
     | '/sponsors/new'
@@ -402,8 +461,10 @@ export interface FileRouteTypes {
     | '/gallery/'
     | '/leagues/'
     | '/matches/'
+    | '/merchandise/'
     | '/news/'
     | '/players/'
+    | '/scoring/'
     | '/settings/'
     | '/sponsors/'
     | '/teams/'
@@ -424,10 +485,14 @@ export interface FileRouteTypes {
     | '/leagues/new'
     | '/matches/$matchId'
     | '/matches/new'
+    | '/merchandise/$productId'
+    | '/merchandise/new'
+    | '/merchandise/orders'
     | '/news/$articleId'
     | '/news/new'
     | '/players/$playerId'
     | '/players/new'
+    | '/scoring/$matchId'
     | '/settings/profile'
     | '/sponsors/$sponsorId'
     | '/sponsors/new'
@@ -441,8 +506,10 @@ export interface FileRouteTypes {
     | '/gallery'
     | '/leagues'
     | '/matches'
+    | '/merchandise'
     | '/news'
     | '/players'
+    | '/scoring'
     | '/settings'
     | '/sponsors'
     | '/teams'
@@ -465,10 +532,14 @@ export interface FileRouteTypes {
     | '/_shell/leagues/new'
     | '/_shell/matches/$matchId'
     | '/_shell/matches/new'
+    | '/_shell/merchandise/$productId'
+    | '/_shell/merchandise/new'
+    | '/_shell/merchandise/orders'
     | '/_shell/news/$articleId'
     | '/_shell/news/new'
     | '/_shell/players/$playerId'
     | '/_shell/players/new'
+    | '/_shell/scoring/$matchId'
     | '/_shell/settings/profile'
     | '/_shell/sponsors/$sponsorId'
     | '/_shell/sponsors/new'
@@ -482,8 +553,10 @@ export interface FileRouteTypes {
     | '/_shell/gallery/'
     | '/_shell/leagues/'
     | '/_shell/matches/'
+    | '/_shell/merchandise/'
     | '/_shell/news/'
     | '/_shell/players/'
+    | '/_shell/scoring/'
     | '/_shell/settings/'
     | '/_shell/sponsors/'
     | '/_shell/teams/'
@@ -500,18 +573,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_shell': {
       id: '/_shell'
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof ShellRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_shell/': {
@@ -535,74 +608,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsRouteRouteImport
       parentRoute: typeof ShellRoute
     }
-    '/_shell/users/': {
-      id: '/_shell/users/'
-      path: '/users'
-      fullPath: '/users/'
-      preLoaderRoute: typeof ShellUsersIndexRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/teams/': {
-      id: '/_shell/teams/'
-      path: '/teams'
-      fullPath: '/teams/'
-      preLoaderRoute: typeof ShellTeamsIndexRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/sponsors/': {
-      id: '/_shell/sponsors/'
-      path: '/sponsors'
-      fullPath: '/sponsors/'
-      preLoaderRoute: typeof ShellSponsorsIndexRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/settings/': {
-      id: '/_shell/settings/'
-      path: '/'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof ShellSettingsIndexRouteImport
-      parentRoute: typeof ShellSettingsRouteRoute
-    }
-    '/_shell/players/': {
-      id: '/_shell/players/'
-      path: '/players'
-      fullPath: '/players/'
-      preLoaderRoute: typeof ShellPlayersIndexRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/news/': {
-      id: '/_shell/news/'
-      path: '/news'
-      fullPath: '/news/'
-      preLoaderRoute: typeof ShellNewsIndexRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/matches/': {
-      id: '/_shell/matches/'
-      path: '/matches'
-      fullPath: '/matches/'
-      preLoaderRoute: typeof ShellMatchesIndexRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/leagues/': {
-      id: '/_shell/leagues/'
-      path: '/leagues'
-      fullPath: '/leagues/'
-      preLoaderRoute: typeof ShellLeaguesIndexRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/gallery/': {
-      id: '/_shell/gallery/'
-      path: '/gallery'
-      fullPath: '/gallery/'
-      preLoaderRoute: typeof ShellGalleryIndexRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/contact-messages/': {
-      id: '/_shell/contact-messages/'
-      path: '/contact-messages'
-      fullPath: '/contact-messages/'
-      preLoaderRoute: typeof ShellContactMessagesIndexRouteImport
+    '/_shell/about/': {
+      id: '/_shell/about/'
+      path: '/about'
+      fullPath: '/about/'
+      preLoaderRoute: typeof ShellAboutIndexRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/audit/': {
@@ -612,130 +622,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellAuditIndexRouteImport
       parentRoute: typeof ShellRoute
     }
-    '/_shell/about/': {
-      id: '/_shell/about/'
-      path: '/about'
-      fullPath: '/about/'
-      preLoaderRoute: typeof ShellAboutIndexRouteImport
+    '/_shell/audit/$auditId': {
+      id: '/_shell/audit/$auditId'
+      path: '/audit/$auditId'
+      fullPath: '/audit/$auditId'
+      preLoaderRoute: typeof ShellAuditAuditIdRouteImport
       parentRoute: typeof ShellRoute
     }
-    '/_shell/users/new': {
-      id: '/_shell/users/new'
-      path: '/users/new'
-      fullPath: '/users/new'
-      preLoaderRoute: typeof ShellUsersNewRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/users/$userId': {
-      id: '/_shell/users/$userId'
-      path: '/users/$userId'
-      fullPath: '/users/$userId'
-      preLoaderRoute: typeof ShellUsersUserIdRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/teams/new': {
-      id: '/_shell/teams/new'
-      path: '/teams/new'
-      fullPath: '/teams/new'
-      preLoaderRoute: typeof ShellTeamsNewRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/teams/$teamId': {
-      id: '/_shell/teams/$teamId'
-      path: '/teams/$teamId'
-      fullPath: '/teams/$teamId'
-      preLoaderRoute: typeof ShellTeamsTeamIdRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/sponsors/new': {
-      id: '/_shell/sponsors/new'
-      path: '/sponsors/new'
-      fullPath: '/sponsors/new'
-      preLoaderRoute: typeof ShellSponsorsNewRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/sponsors/$sponsorId': {
-      id: '/_shell/sponsors/$sponsorId'
-      path: '/sponsors/$sponsorId'
-      fullPath: '/sponsors/$sponsorId'
-      preLoaderRoute: typeof ShellSponsorsSponsorIdRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/settings/profile': {
-      id: '/_shell/settings/profile'
-      path: '/profile'
-      fullPath: '/settings/profile'
-      preLoaderRoute: typeof ShellSettingsProfileRouteImport
-      parentRoute: typeof ShellSettingsRouteRoute
-    }
-    '/_shell/players/new': {
-      id: '/_shell/players/new'
-      path: '/players/new'
-      fullPath: '/players/new'
-      preLoaderRoute: typeof ShellPlayersNewRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/players/$playerId': {
-      id: '/_shell/players/$playerId'
-      path: '/players/$playerId'
-      fullPath: '/players/$playerId'
-      preLoaderRoute: typeof ShellPlayersPlayerIdRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/news/new': {
-      id: '/_shell/news/new'
-      path: '/news/new'
-      fullPath: '/news/new'
-      preLoaderRoute: typeof ShellNewsNewRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/news/$articleId': {
-      id: '/_shell/news/$articleId'
-      path: '/news/$articleId'
-      fullPath: '/news/$articleId'
-      preLoaderRoute: typeof ShellNewsArticleIdRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/matches/new': {
-      id: '/_shell/matches/new'
-      path: '/matches/new'
-      fullPath: '/matches/new'
-      preLoaderRoute: typeof ShellMatchesNewRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/matches/$matchId': {
-      id: '/_shell/matches/$matchId'
-      path: '/matches/$matchId'
-      fullPath: '/matches/$matchId'
-      preLoaderRoute: typeof ShellMatchesMatchIdRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/leagues/new': {
-      id: '/_shell/leagues/new'
-      path: '/leagues/new'
-      fullPath: '/leagues/new'
-      preLoaderRoute: typeof ShellLeaguesNewRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/leagues/$leagueId': {
-      id: '/_shell/leagues/$leagueId'
-      path: '/leagues/$leagueId'
-      fullPath: '/leagues/$leagueId'
-      preLoaderRoute: typeof ShellLeaguesLeagueIdRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/gallery/new': {
-      id: '/_shell/gallery/new'
-      path: '/gallery/new'
-      fullPath: '/gallery/new'
-      preLoaderRoute: typeof ShellGalleryNewRouteImport
-      parentRoute: typeof ShellRoute
-    }
-    '/_shell/gallery/$galleryId': {
-      id: '/_shell/gallery/$galleryId'
-      path: '/gallery/$galleryId'
-      fullPath: '/gallery/$galleryId'
-      preLoaderRoute: typeof ShellGalleryGalleryIdRouteImport
+    '/_shell/contact-messages/': {
+      id: '/_shell/contact-messages/'
+      path: '/contact-messages'
+      fullPath: '/contact-messages/'
+      preLoaderRoute: typeof ShellContactMessagesIndexRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/contact-messages/$messageId': {
@@ -745,11 +643,228 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellContactMessagesMessageIdRouteImport
       parentRoute: typeof ShellRoute
     }
-    '/_shell/audit/$auditId': {
-      id: '/_shell/audit/$auditId'
-      path: '/audit/$auditId'
-      fullPath: '/audit/$auditId'
-      preLoaderRoute: typeof ShellAuditAuditIdRouteImport
+    '/_shell/gallery/': {
+      id: '/_shell/gallery/'
+      path: '/gallery'
+      fullPath: '/gallery/'
+      preLoaderRoute: typeof ShellGalleryIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/gallery/$galleryId': {
+      id: '/_shell/gallery/$galleryId'
+      path: '/gallery/$galleryId'
+      fullPath: '/gallery/$galleryId'
+      preLoaderRoute: typeof ShellGalleryGalleryIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/gallery/new': {
+      id: '/_shell/gallery/new'
+      path: '/gallery/new'
+      fullPath: '/gallery/new'
+      preLoaderRoute: typeof ShellGalleryNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/leagues/': {
+      id: '/_shell/leagues/'
+      path: '/leagues'
+      fullPath: '/leagues/'
+      preLoaderRoute: typeof ShellLeaguesIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/leagues/$leagueId': {
+      id: '/_shell/leagues/$leagueId'
+      path: '/leagues/$leagueId'
+      fullPath: '/leagues/$leagueId'
+      preLoaderRoute: typeof ShellLeaguesLeagueIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/leagues/new': {
+      id: '/_shell/leagues/new'
+      path: '/leagues/new'
+      fullPath: '/leagues/new'
+      preLoaderRoute: typeof ShellLeaguesNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/matches/': {
+      id: '/_shell/matches/'
+      path: '/matches'
+      fullPath: '/matches/'
+      preLoaderRoute: typeof ShellMatchesIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/matches/$matchId': {
+      id: '/_shell/matches/$matchId'
+      path: '/matches/$matchId'
+      fullPath: '/matches/$matchId'
+      preLoaderRoute: typeof ShellMatchesMatchIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/matches/new': {
+      id: '/_shell/matches/new'
+      path: '/matches/new'
+      fullPath: '/matches/new'
+      preLoaderRoute: typeof ShellMatchesNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/merchandise/': {
+      id: '/_shell/merchandise/'
+      path: '/merchandise'
+      fullPath: '/merchandise/'
+      preLoaderRoute: typeof ShellMerchandiseIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/merchandise/$productId': {
+      id: '/_shell/merchandise/$productId'
+      path: '/merchandise/$productId'
+      fullPath: '/merchandise/$productId'
+      preLoaderRoute: typeof ShellMerchandiseProductIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/merchandise/new': {
+      id: '/_shell/merchandise/new'
+      path: '/merchandise/new'
+      fullPath: '/merchandise/new'
+      preLoaderRoute: typeof ShellMerchandiseNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/merchandise/orders': {
+      id: '/_shell/merchandise/orders'
+      path: '/merchandise/orders'
+      fullPath: '/merchandise/orders'
+      preLoaderRoute: typeof ShellMerchandiseOrdersRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/news/': {
+      id: '/_shell/news/'
+      path: '/news'
+      fullPath: '/news/'
+      preLoaderRoute: typeof ShellNewsIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/news/$articleId': {
+      id: '/_shell/news/$articleId'
+      path: '/news/$articleId'
+      fullPath: '/news/$articleId'
+      preLoaderRoute: typeof ShellNewsArticleIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/news/new': {
+      id: '/_shell/news/new'
+      path: '/news/new'
+      fullPath: '/news/new'
+      preLoaderRoute: typeof ShellNewsNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/players/': {
+      id: '/_shell/players/'
+      path: '/players'
+      fullPath: '/players/'
+      preLoaderRoute: typeof ShellPlayersIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/players/$playerId': {
+      id: '/_shell/players/$playerId'
+      path: '/players/$playerId'
+      fullPath: '/players/$playerId'
+      preLoaderRoute: typeof ShellPlayersPlayerIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/players/new': {
+      id: '/_shell/players/new'
+      path: '/players/new'
+      fullPath: '/players/new'
+      preLoaderRoute: typeof ShellPlayersNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/scoring/': {
+      id: '/_shell/scoring/'
+      path: '/scoring'
+      fullPath: '/scoring/'
+      preLoaderRoute: typeof ShellScoringIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/scoring/$matchId': {
+      id: '/_shell/scoring/$matchId'
+      path: '/scoring/$matchId'
+      fullPath: '/scoring/$matchId'
+      preLoaderRoute: typeof ShellScoringMatchIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/settings/': {
+      id: '/_shell/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof ShellSettingsIndexRouteImport
+      parentRoute: typeof ShellSettingsRouteRoute
+    }
+    '/_shell/settings/profile': {
+      id: '/_shell/settings/profile'
+      path: '/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof ShellSettingsProfileRouteImport
+      parentRoute: typeof ShellSettingsRouteRoute
+    }
+    '/_shell/sponsors/': {
+      id: '/_shell/sponsors/'
+      path: '/sponsors'
+      fullPath: '/sponsors/'
+      preLoaderRoute: typeof ShellSponsorsIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/sponsors/$sponsorId': {
+      id: '/_shell/sponsors/$sponsorId'
+      path: '/sponsors/$sponsorId'
+      fullPath: '/sponsors/$sponsorId'
+      preLoaderRoute: typeof ShellSponsorsSponsorIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/sponsors/new': {
+      id: '/_shell/sponsors/new'
+      path: '/sponsors/new'
+      fullPath: '/sponsors/new'
+      preLoaderRoute: typeof ShellSponsorsNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/teams/': {
+      id: '/_shell/teams/'
+      path: '/teams'
+      fullPath: '/teams/'
+      preLoaderRoute: typeof ShellTeamsIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/teams/$teamId': {
+      id: '/_shell/teams/$teamId'
+      path: '/teams/$teamId'
+      fullPath: '/teams/$teamId'
+      preLoaderRoute: typeof ShellTeamsTeamIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/teams/new': {
+      id: '/_shell/teams/new'
+      path: '/teams/new'
+      fullPath: '/teams/new'
+      preLoaderRoute: typeof ShellTeamsNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/users/': {
+      id: '/_shell/users/'
+      path: '/users'
+      fullPath: '/users/'
+      preLoaderRoute: typeof ShellUsersIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/users/$userId': {
+      id: '/_shell/users/$userId'
+      path: '/users/$userId'
+      fullPath: '/users/$userId'
+      preLoaderRoute: typeof ShellUsersUserIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/users/new': {
+      id: '/_shell/users/new'
+      path: '/users/new'
+      fullPath: '/users/new'
+      preLoaderRoute: typeof ShellUsersNewRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/leagues/$leagueId/seasons/': {
@@ -759,18 +874,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellLeaguesLeagueIdSeasonsIndexRouteImport
       parentRoute: typeof ShellLeaguesLeagueIdRoute
     }
-    '/_shell/leagues/$leagueId/seasons/new': {
-      id: '/_shell/leagues/$leagueId/seasons/new'
-      path: '/seasons/new'
-      fullPath: '/leagues/$leagueId/seasons/new'
-      preLoaderRoute: typeof ShellLeaguesLeagueIdSeasonsNewRouteImport
-      parentRoute: typeof ShellLeaguesLeagueIdRoute
-    }
     '/_shell/leagues/$leagueId/seasons/$seasonId': {
       id: '/_shell/leagues/$leagueId/seasons/$seasonId'
       path: '/seasons/$seasonId'
       fullPath: '/leagues/$leagueId/seasons/$seasonId'
       preLoaderRoute: typeof ShellLeaguesLeagueIdSeasonsSeasonIdRouteImport
+      parentRoute: typeof ShellLeaguesLeagueIdRoute
+    }
+    '/_shell/leagues/$leagueId/seasons/new': {
+      id: '/_shell/leagues/$leagueId/seasons/new'
+      path: '/seasons/new'
+      fullPath: '/leagues/$leagueId/seasons/new'
+      preLoaderRoute: typeof ShellLeaguesLeagueIdSeasonsNewRouteImport
       parentRoute: typeof ShellLeaguesLeagueIdRoute
     }
   }
@@ -817,10 +932,14 @@ interface ShellRouteChildren {
   ShellLeaguesNewRoute: typeof ShellLeaguesNewRoute
   ShellMatchesMatchIdRoute: typeof ShellMatchesMatchIdRoute
   ShellMatchesNewRoute: typeof ShellMatchesNewRoute
+  ShellMerchandiseProductIdRoute: typeof ShellMerchandiseProductIdRoute
+  ShellMerchandiseNewRoute: typeof ShellMerchandiseNewRoute
+  ShellMerchandiseOrdersRoute: typeof ShellMerchandiseOrdersRoute
   ShellNewsArticleIdRoute: typeof ShellNewsArticleIdRoute
   ShellNewsNewRoute: typeof ShellNewsNewRoute
   ShellPlayersPlayerIdRoute: typeof ShellPlayersPlayerIdRoute
   ShellPlayersNewRoute: typeof ShellPlayersNewRoute
+  ShellScoringMatchIdRoute: typeof ShellScoringMatchIdRoute
   ShellSponsorsSponsorIdRoute: typeof ShellSponsorsSponsorIdRoute
   ShellSponsorsNewRoute: typeof ShellSponsorsNewRoute
   ShellTeamsTeamIdRoute: typeof ShellTeamsTeamIdRoute
@@ -833,8 +952,10 @@ interface ShellRouteChildren {
   ShellGalleryIndexRoute: typeof ShellGalleryIndexRoute
   ShellLeaguesIndexRoute: typeof ShellLeaguesIndexRoute
   ShellMatchesIndexRoute: typeof ShellMatchesIndexRoute
+  ShellMerchandiseIndexRoute: typeof ShellMerchandiseIndexRoute
   ShellNewsIndexRoute: typeof ShellNewsIndexRoute
   ShellPlayersIndexRoute: typeof ShellPlayersIndexRoute
+  ShellScoringIndexRoute: typeof ShellScoringIndexRoute
   ShellSponsorsIndexRoute: typeof ShellSponsorsIndexRoute
   ShellTeamsIndexRoute: typeof ShellTeamsIndexRoute
   ShellUsersIndexRoute: typeof ShellUsersIndexRoute
@@ -852,10 +973,14 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellLeaguesNewRoute: ShellLeaguesNewRoute,
   ShellMatchesMatchIdRoute: ShellMatchesMatchIdRoute,
   ShellMatchesNewRoute: ShellMatchesNewRoute,
+  ShellMerchandiseProductIdRoute: ShellMerchandiseProductIdRoute,
+  ShellMerchandiseNewRoute: ShellMerchandiseNewRoute,
+  ShellMerchandiseOrdersRoute: ShellMerchandiseOrdersRoute,
   ShellNewsArticleIdRoute: ShellNewsArticleIdRoute,
   ShellNewsNewRoute: ShellNewsNewRoute,
   ShellPlayersPlayerIdRoute: ShellPlayersPlayerIdRoute,
   ShellPlayersNewRoute: ShellPlayersNewRoute,
+  ShellScoringMatchIdRoute: ShellScoringMatchIdRoute,
   ShellSponsorsSponsorIdRoute: ShellSponsorsSponsorIdRoute,
   ShellSponsorsNewRoute: ShellSponsorsNewRoute,
   ShellTeamsTeamIdRoute: ShellTeamsTeamIdRoute,
@@ -868,8 +993,10 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellGalleryIndexRoute: ShellGalleryIndexRoute,
   ShellLeaguesIndexRoute: ShellLeaguesIndexRoute,
   ShellMatchesIndexRoute: ShellMatchesIndexRoute,
+  ShellMerchandiseIndexRoute: ShellMerchandiseIndexRoute,
   ShellNewsIndexRoute: ShellNewsIndexRoute,
   ShellPlayersIndexRoute: ShellPlayersIndexRoute,
+  ShellScoringIndexRoute: ShellScoringIndexRoute,
   ShellSponsorsIndexRoute: ShellSponsorsIndexRoute,
   ShellTeamsIndexRoute: ShellTeamsIndexRoute,
   ShellUsersIndexRoute: ShellUsersIndexRoute,

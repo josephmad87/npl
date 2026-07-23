@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from math import ceil
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
@@ -32,6 +32,7 @@ from app.models.match import (
     MatchDaySquadPlayer,
     MatchPlayerStat,
     MatchResult,
+    MatchScorecardEditRequest,
     MatchScorerAssignment,
 )
 from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
@@ -60,6 +61,9 @@ from app.schemas.matches import (
     MatchCreate,
     MatchDetailOut,
     MatchResultIn,
+    ScorecardEditRequestDecisionIn,
+    ScorecardEditRequestIn,
+    ScorecardEditRequestOut,
     MatchScorerAssignmentIn,
     MatchScorerAssignmentOut,
     MatchSquadOut,
@@ -1402,8 +1406,16 @@ def admin_update_match(
     if previous_status == "completed" and next_status != "completed":
         db.execute(delete(MatchResult).where(MatchResult.match_id == match_id))
         db.execute(delete(MatchPlayerStat).where(MatchPlayerStat.match_id == match_id))
+        db.execute(
+            delete(MatchScorecardEditRequest).where(
+                MatchScorecardEditRequest.match_id == match_id,
+            ),
+        )
+        m.scorecard_finalized_at = None
         recompute_player_career_stats(db, affected_ids)
     elif previous_status == "completed" or next_status == "completed":
+        if next_status == "completed" and m.scorecard_finalized_at is None:
+            m.scorecard_finalized_at = datetime.now(timezone.utc)
         recompute_player_career_stats(db, affected_ids)
     db.commit()
     db.refresh(m)
@@ -1576,6 +1588,8 @@ def admin_set_match_result(
             setattr(res, k, v)
 
     m.status = "completed"
+    if m.scorecard_finalized_at is None:
+        m.scorecard_finalized_at = datetime.now(timezone.utc)
 
     db.execute(delete(MatchPlayerStat).where(MatchPlayerStat.match_id == m.id))
 
@@ -2132,6 +2146,108 @@ def _assert_can_score_match(db: Session, match_id: int, actor: User) -> None:
     )
 
 
+SCORECARD_LOCK_DELAY = timedelta(minutes=120)
+SCORECARD_EDIT_ACCESS_WINDOW = timedelta(minutes=120)
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _scorecard_locks_at(match: Match) -> datetime | None:
+    finalized_at = _as_utc(match.scorecard_finalized_at)
+    return finalized_at + SCORECARD_LOCK_DELAY if finalized_at is not None else None
+
+
+def _latest_scorecard_edit_request(
+    db: Session,
+    match_id: int,
+    user_id: int,
+) -> MatchScorecardEditRequest | None:
+    return db.scalar(
+        select(MatchScorecardEditRequest)
+        .where(
+            MatchScorecardEditRequest.match_id == match_id,
+            MatchScorecardEditRequest.requested_by_user_id == user_id,
+        )
+        .order_by(
+            MatchScorecardEditRequest.requested_at.desc(),
+            MatchScorecardEditRequest.id.desc(),
+        ),
+    )
+
+
+def _scorecard_access(
+    db: Session,
+    match: Match,
+    actor: User,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    current_time = _as_utc(now) or datetime.now(timezone.utc)
+    locks_at = _scorecard_locks_at(match)
+    locked = (
+        match.status == "completed"
+        and locks_at is not None
+        and current_time >= locks_at
+    )
+    latest_request = (
+        _latest_scorecard_edit_request(db, match.id, actor.id)
+        if actor.role == "scorer"
+        else None
+    )
+    access_until = _as_utc(latest_request.access_until) if latest_request is not None else None
+    approved_access = (
+        latest_request is not None
+        and latest_request.status == "approved"
+        and access_until is not None
+        and current_time < access_until
+    )
+    can_edit = actor.role != "scorer" or not locked or approved_access
+    return {
+        "scorecard_finalized_at": _as_utc(match.scorecard_finalized_at),
+        "scorecard_locks_at": locks_at,
+        "scorecard_locked": locked,
+        "can_edit_scorecard": can_edit,
+        "edit_request_status": latest_request.status if latest_request is not None else None,
+        "edit_access_until": access_until,
+    }
+
+
+def _assert_can_edit_score_match(
+    db: Session,
+    match: Match,
+    actor: User,
+) -> None:
+    _assert_can_score_match(db, match.id, actor)
+    access = _scorecard_access(db, match, actor)
+    if not access["can_edit_scorecard"]:
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail={
+                "code": "scorecard_locked",
+                "message": (
+                    "This scorecard was locked 120 minutes after finalization. "
+                    "Request edit permission from a super admin."
+                ),
+                "scorecard_locks_at": access["scorecard_locks_at"],
+            },
+        )
+
+
+def _match_detail_for_actor(
+    db: Session,
+    match: Match,
+    actor: User,
+) -> MatchDetailOut:
+    return MatchDetailOut.model_validate(match).model_copy(
+        update=_scorecard_access(db, match, actor),
+    )
+
+
 def _assert_live_team_ids(match: Match, *team_ids: int) -> None:
     allowed = {match.home_team_id, match.away_team_id}
     if any(tid not in allowed for tid in team_ids):
@@ -2605,7 +2721,11 @@ def _renumber_live_events(db: Session, match_id: int) -> None:
         legal_balls_by_innings[event.innings] = legal_balls
 
 
-def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
+def _live_score_state(
+    db: Session,
+    match: Match,
+    actor: User | None = None,
+) -> LiveScoreStateOut:
     events = list(
         db.scalars(
             select(MatchBallEvent)
@@ -2645,7 +2765,7 @@ def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
     first_innings = next((summary for summary in summaries if summary.innings == 1), None)
     second_innings = next((summary for summary in summaries if summary.innings == 2), None)
 
-    return LiveScoreStateOut(
+    state = LiveScoreStateOut(
         match_id=match.id,
         status=match.status,
         match_overs=match.match_overs,
@@ -2668,6 +2788,9 @@ def _live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
         summaries=summaries,
         events=[_live_event_out(event) for event in events],
     )
+    if actor is None:
+        return state
+    return state.model_copy(update=_scorecard_access(db, match, actor))
 
 
 def _assignment_out(row: MatchScorerAssignment) -> MatchScorerAssignmentOut:
@@ -2707,7 +2830,6 @@ def scorer_assigned_matches(
                 selectinload(Match.player_stats),
                 joinedload(Match.season).joinedload(Season.league),
             )
-            .where(Match.status.in_(("scheduled", "live")))
             .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
         )
     else:
@@ -2717,7 +2839,178 @@ def scorer_assigned_matches(
         )
 
     matches = db.scalars(stmt).unique().all()
-    return [MatchDetailOut.model_validate(match) for match in matches]
+    return [_match_detail_for_actor(db, match, actor) for match in matches]
+
+
+def _scorecard_edit_request_out(
+    row: MatchScorecardEditRequest,
+) -> ScorecardEditRequestOut:
+    return ScorecardEditRequestOut(
+        id=row.id,
+        match_id=row.match_id,
+        requested_by_user_id=row.requested_by_user_id,
+        requester_email=row.requested_by.email if row.requested_by else "",
+        requester_full_name=row.requested_by.full_name if row.requested_by else None,
+        status=row.status,
+        reason=row.reason,
+        requested_at=row.requested_at,
+        reviewed_by_user_id=row.reviewed_by_user_id,
+        reviewed_at=row.reviewed_at,
+        access_until=row.access_until,
+        home_team_id=row.match.home_team_id,
+        away_team_id=row.match.away_team_id,
+    )
+
+
+@router.post(
+    "/matches/{match_id}/scorecard-edit-requests",
+    response_model=ScorecardEditRequestOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def request_scorecard_edit_access(
+    match_id: int,
+    body: ScorecardEditRequestIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> ScorecardEditRequestOut:
+    if actor.role != "scorer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "forbidden", "message": "Only scorer accounts submit edit requests."},
+        )
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+    access = _scorecard_access(db, match, actor)
+    if not access["scorecard_locked"]:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "not_locked",
+                "message": "This scorecard is still inside its 120-minute editing window.",
+            },
+        )
+    if access["can_edit_scorecard"]:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "access_active",
+                "message": "You already have active scorecard editing permission.",
+            },
+        )
+
+    pending = db.scalar(
+        select(MatchScorecardEditRequest)
+        .where(
+            MatchScorecardEditRequest.match_id == match_id,
+            MatchScorecardEditRequest.requested_by_user_id == actor.id,
+            MatchScorecardEditRequest.status == "pending",
+        )
+        .order_by(MatchScorecardEditRequest.requested_at.desc()),
+    )
+    if pending is not None:
+        return _scorecard_edit_request_out(pending)
+
+    row = MatchScorecardEditRequest(
+        match_id=match_id,
+        requested_by_user_id=actor.id,
+        reason=(body.reason or "").strip() or None,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="request_scorecard_edit",
+        entity_type="match",
+        entity_id=match_id,
+        summary=f"Requested permission to edit locked scorecard for match {match_id}",
+    )
+    db.commit()
+    row = db.scalar(
+        select(MatchScorecardEditRequest)
+        .options(
+            joinedload(MatchScorecardEditRequest.requested_by),
+            joinedload(MatchScorecardEditRequest.match),
+        )
+        .where(MatchScorecardEditRequest.id == row.id),
+    )
+    assert row is not None
+    return _scorecard_edit_request_out(row)
+
+
+@router.get("/scorecard-edit-requests", response_model=list[ScorecardEditRequestOut])
+def list_scorecard_edit_requests(
+    request_status: str | None = Query(default="pending", alias="status"),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+) -> list[ScorecardEditRequestOut]:
+    stmt = (
+        select(MatchScorecardEditRequest)
+        .options(
+            joinedload(MatchScorecardEditRequest.requested_by),
+            joinedload(MatchScorecardEditRequest.match),
+        )
+        .order_by(
+            MatchScorecardEditRequest.requested_at.desc(),
+            MatchScorecardEditRequest.id.desc(),
+        )
+    )
+    if request_status:
+        stmt = stmt.where(MatchScorecardEditRequest.status == request_status)
+    rows = db.scalars(stmt).unique().all()
+    return [_scorecard_edit_request_out(row) for row in rows]
+
+
+@router.put(
+    "/scorecard-edit-requests/{request_id}",
+    response_model=ScorecardEditRequestOut,
+)
+def decide_scorecard_edit_request(
+    request_id: int,
+    body: ScorecardEditRequestDecisionIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super_admin),
+) -> ScorecardEditRequestOut:
+    row = db.scalar(
+        select(MatchScorecardEditRequest)
+        .options(
+            joinedload(MatchScorecardEditRequest.requested_by),
+            joinedload(MatchScorecardEditRequest.match),
+        )
+        .where(MatchScorecardEditRequest.id == request_id),
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Scorecard edit request not found"},
+        )
+    if row.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "already_reviewed", "message": "This request has already been reviewed."},
+        )
+
+    reviewed_at = datetime.now(timezone.utc)
+    row.status = "approved" if body.approved else "denied"
+    row.reviewed_by_user_id = actor.id
+    row.reviewed_at = reviewed_at
+    row.access_until = reviewed_at + SCORECARD_EDIT_ACCESS_WINDOW if body.approved else None
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="approve_scorecard_edit" if body.approved else "deny_scorecard_edit",
+        entity_type="match",
+        entity_id=row.match_id,
+        summary=(
+            f"{'Approved' if body.approved else 'Denied'} locked scorecard edit "
+            f"request {row.id} for match {row.match_id}"
+        ),
+    )
+    db.commit()
+    db.refresh(row)
+    return _scorecard_edit_request_out(row)
 
 
 @router.get("/matches/{match_id}/scorers", response_model=list[MatchScorerAssignmentOut])
@@ -2824,7 +3117,7 @@ def admin_save_match_day_squad(
     match = db.get(Match, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_edit_score_match(db, match, actor)
 
     allowed_team_ids = {match.home_team_id, match.away_team_id}
     seen_players: set[int] = set()
@@ -2927,7 +3220,7 @@ def admin_live_score_state(
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
     _assert_can_score_match(db, match_id, actor)
-    return _live_score_state(db, match)
+    return _live_score_state(db, match, actor)
 
 
 @router.put("/matches/{match_id}/live/setup", response_model=MatchDetailOut)
@@ -2940,7 +3233,7 @@ def admin_save_live_match_setup(
     match = db.get(Match, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_edit_score_match(db, match, actor)
     _assert_live_team_ids(match, body.toss_winner_team_id, body.batting_first_team_id)
 
     bowling_first_team_id = match.away_team_id if body.batting_first_team_id == match.home_team_id else match.home_team_id
@@ -2997,7 +3290,7 @@ def admin_save_live_match_conditions(
     match = db.get(Match, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_edit_score_match(db, match, actor)
 
     clear_dls = body.clear_dls or body.match_overs is None or body.match_overs == 0
     if clear_dls:
@@ -3016,7 +3309,7 @@ def admin_save_live_match_conditions(
             summary=f"Cleared ICC DLS Standard conditions for match {match_id}",
         )
         db.commit()
-        return _live_score_state(db, match)
+        return _live_score_state(db, match, actor)
 
     assert body.match_overs is not None
     try:
@@ -3118,7 +3411,7 @@ def admin_save_live_match_conditions(
         ),
     )
     db.commit()
-    return _live_score_state(db, match)
+    return _live_score_state(db, match, actor)
 
 
 @router.post("/matches/{match_id}/live/start", response_model=LiveScoreStateOut)
@@ -3131,13 +3424,14 @@ def admin_start_live_score(
     match = db.get(Match, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_edit_score_match(db, match, actor)
     _assert_live_team_ids(match, body.batting_team_id, body.bowling_team_id)
 
-    match.status = "live"
+    if match.status != "completed":
+        match.status = "live"
     db.commit()
     db.refresh(match)
-    return _live_score_state(db, match)
+    return _live_score_state(db, match, actor)
 
 
 @router.post("/matches/{match_id}/live/balls", response_model=LiveBallEventOut, status_code=status.HTTP_201_CREATED)
@@ -3150,9 +3444,10 @@ def admin_create_live_ball(
     match = db.get(Match, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_edit_score_match(db, match, actor)
     _assert_live_ball_payload(db, match, body)
 
+    was_completed = match.status == "completed" and match.result is not None
     latest_sequence = db.scalar(
         select(func.max(MatchBallEvent.sequence_number)).where(MatchBallEvent.match_id == match_id),
     )
@@ -3165,7 +3460,11 @@ def admin_create_live_ball(
         **body.model_dump(),
     )
     db.add(event)
-    match.status = "live"
+    db.flush()
+    if was_completed:
+        _finalize_live_match_result(db, match, actor, match.match_overs)
+    else:
+        match.status = "live"
     db.commit()
     db.refresh(event)
     return _live_event_out(event)
@@ -3180,8 +3479,9 @@ def admin_delete_last_live_ball(
     match = db.get(Match, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_edit_score_match(db, match, actor)
 
+    was_completed = match.status == "completed" and match.result is not None
     event = db.scalar(
         select(MatchBallEvent)
         .where(MatchBallEvent.match_id == match_id)
@@ -3193,6 +3493,8 @@ def admin_delete_last_live_ball(
         db.delete(event)
         db.flush()
         _renumber_live_events(db, match_id)
+        if was_completed:
+            _finalize_live_match_result(db, match, actor, match.match_overs)
         write_audit(
             db,
             actor_user_id=actor.id,
@@ -3203,7 +3505,7 @@ def admin_delete_last_live_ball(
         )
         db.commit()
 
-    state = _live_score_state(db, match)
+    state = _live_score_state(db, match, actor)
     state.undone_event = undone_event
     return state
 
@@ -3223,7 +3525,7 @@ def admin_update_live_ball(
     )
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_edit_score_match(db, match, actor)
 
     event = db.get(MatchBallEvent, event_id)
     if event is None or event.match_id != match_id:
@@ -3254,7 +3556,7 @@ def admin_update_live_ball(
     )
     db.commit()
     db.refresh(match)
-    return _live_score_state(db, match)
+    return _live_score_state(db, match, actor)
 
 
 @router.delete("/matches/{match_id}/live/balls/{event_id}", response_model=LiveScoreStateOut)
@@ -3271,7 +3573,7 @@ def admin_delete_live_ball(
     )
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_edit_score_match(db, match, actor)
 
     event = db.get(MatchBallEvent, event_id)
     if event is None or event.match_id != match_id:
@@ -3294,7 +3596,7 @@ def admin_delete_live_ball(
     )
     db.commit()
     db.refresh(match)
-    return _live_score_state(db, match)
+    return _live_score_state(db, match, actor)
 
 OUT_DISMISSALS = {
     "bowled",
@@ -3741,6 +4043,8 @@ def _finalize_live_match_result(
         )
 
     match.status = "completed"
+    if match.scorecard_finalized_at is None:
+        match.scorecard_finalized_at = datetime.now(timezone.utc)
     db.flush()
     recompute_player_career_stats(db, affected_player_ids)
 
@@ -3801,6 +4105,11 @@ def admin_reset_live_test_match(
     db.execute(delete(MatchDaySquadPlayer).where(MatchDaySquadPlayer.match_id == match_id))
     db.execute(delete(MatchPlayerStat).where(MatchPlayerStat.match_id == match_id))
     db.execute(delete(MatchResult).where(MatchResult.match_id == match_id))
+    db.execute(
+        delete(MatchScorecardEditRequest).where(
+            MatchScorecardEditRequest.match_id == match_id,
+        ),
+    )
 
     match.status = "scheduled"
     match.toss_info = None
@@ -3809,6 +4118,7 @@ def admin_reset_live_test_match(
     match.revised_target_runs = None
     match.dls_team1_resource_percentage = None
     match.dls_team2_resource_percentage = None
+    match.scorecard_finalized_at = None
 
     if affected_player_ids:
         recompute_player_career_stats(db, affected_player_ids)
@@ -3823,7 +4133,7 @@ def admin_reset_live_test_match(
     )
     db.commit()
     db.refresh(match)
-    return _live_score_state(db, match)
+    return _live_score_state(db, match, actor)
 
 
 @router.post("/matches/{match_id}/live/complete", response_model=LiveScoreStateOut)
@@ -3840,7 +4150,7 @@ def admin_complete_live_score(
     )
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_edit_score_match(db, match, actor)
 
     if body.status == "completed":
         _finalize_live_match_result(db, match, actor, body.match_overs)
@@ -3854,6 +4164,7 @@ def admin_complete_live_score(
         )
     else:
         match.status = body.status
+        match.scorecard_finalized_at = None
         write_audit(
             db,
             actor_user_id=actor.id,
@@ -3865,4 +4176,4 @@ def admin_complete_live_score(
 
     db.commit()
     db.refresh(match)
-    return _live_score_state(db, match)
+    return _live_score_state(db, match, actor)

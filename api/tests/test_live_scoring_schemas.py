@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -16,6 +17,7 @@ from app.schemas.matches import (
     LiveBallEventIn,
     LiveMatchConditionsIn,
     LiveScoreCompleteIn,
+    LiveScoreStartIn,
     LiveScoreStateOut,
     MatchDetailOut,
     MatchLiveSetupIn,
@@ -77,6 +79,7 @@ def test_match_model_maps_match_overs_column() -> None:
     assert "revised_target_runs" in Match.__table__.columns
     assert "dls_team1_resource_percentage" in Match.__table__.columns
     assert "dls_team2_resource_percentage" in Match.__table__.columns
+    assert "scorecard_finalized_at" in Match.__table__.columns
 
 
 def test_live_conditions_preserve_revised_overs_and_innings() -> None:
@@ -119,7 +122,11 @@ def test_clear_live_conditions_resets_dls_and_preserves_match_length(
         def refresh(self, _match: object) -> None:
             return None
 
-    monkeypatch.setattr(admin_routes, "_assert_can_score_match", lambda *_args: None)
+    monkeypatch.setattr(
+        admin_routes,
+        "_assert_can_edit_score_match",
+        lambda *_args: None,
+    )
     monkeypatch.setattr(
         admin_routes,
         "write_audit",
@@ -128,7 +135,7 @@ def test_clear_live_conditions_resets_dls_and_preserves_match_length(
     monkeypatch.setattr(
         admin_routes,
         "_live_score_state",
-        lambda _db, _match: LiveScoreStateOut(
+        lambda _db, _match, *_args: LiveScoreStateOut(
             match_id=1,
             status="live",
             match_overs=match.match_overs,
@@ -158,6 +165,110 @@ def test_match_squad_accepts_concussion_substitute() -> None:
     )
 
     assert player.role == "concussion_substitute"
+
+
+def test_completed_scorecard_locks_120_minutes_after_finalization() -> None:
+    finalized_at = datetime(2026, 7, 23, 12, 0, tzinfo=timezone.utc)
+    match = SimpleNamespace(
+        id=12,
+        status="completed",
+        scorecard_finalized_at=finalized_at,
+    )
+    actor = SimpleNamespace(id=8, role="scorer")
+
+    class _Db:
+        def scalar(self, _statement: object) -> None:
+            return None
+
+    before_lock = admin_routes._scorecard_access(
+        _Db(),  # type: ignore[arg-type]
+        match,  # type: ignore[arg-type]
+        actor,  # type: ignore[arg-type]
+        now=finalized_at + timedelta(minutes=119),
+    )
+    after_lock = admin_routes._scorecard_access(
+        _Db(),  # type: ignore[arg-type]
+        match,  # type: ignore[arg-type]
+        actor,  # type: ignore[arg-type]
+        now=finalized_at + timedelta(minutes=120),
+    )
+
+    assert before_lock["scorecard_locked"] is False
+    assert before_lock["can_edit_scorecard"] is True
+    assert after_lock["scorecard_locked"] is True
+    assert after_lock["can_edit_scorecard"] is False
+
+
+def test_super_admin_approval_reopens_locked_scorecard_temporarily() -> None:
+    finalized_at = datetime(2026, 7, 23, 12, 0, tzinfo=timezone.utc)
+    now = finalized_at + timedelta(hours=3)
+    match = SimpleNamespace(
+        id=12,
+        status="completed",
+        scorecard_finalized_at=finalized_at,
+    )
+    actor = SimpleNamespace(id=8, role="scorer")
+    request = SimpleNamespace(
+        status="approved",
+        access_until=now + timedelta(minutes=30),
+    )
+
+    class _Db:
+        def scalar(self, _statement: object) -> SimpleNamespace:
+            return request
+
+    access = admin_routes._scorecard_access(
+        _Db(),  # type: ignore[arg-type]
+        match,  # type: ignore[arg-type]
+        actor,  # type: ignore[arg-type]
+        now=now,
+    )
+
+    assert access["scorecard_locked"] is True
+    assert access["can_edit_scorecard"] is True
+    assert access["edit_request_status"] == "approved"
+
+
+def test_start_does_not_reopen_completed_scorecard(monkeypatch: pytest.MonkeyPatch) -> None:
+    match = SimpleNamespace(
+        id=12,
+        status="completed",
+        home_team_id=1,
+        away_team_id=2,
+    )
+    actor = SimpleNamespace(id=8, role="scorer")
+
+    class _Db:
+        def get(self, _model: object, _match_id: int) -> SimpleNamespace:
+            return match
+
+        def commit(self) -> None:
+            return None
+
+        def refresh(self, _match: object) -> None:
+            return None
+
+    monkeypatch.setattr(
+        admin_routes,
+        "_assert_can_edit_score_match",
+        lambda *_args: None,
+    )
+    monkeypatch.setattr(admin_routes, "_assert_live_team_ids", lambda *_args: None)
+    monkeypatch.setattr(
+        admin_routes,
+        "_live_score_state",
+        lambda _db, current_match, *_args: current_match.status,
+    )
+
+    status_after_start = admin_routes.admin_start_live_score(
+        match_id=12,
+        body=LiveScoreStartIn(batting_team_id=1, bowling_team_id=2),
+        db=_Db(),  # type: ignore[arg-type]
+        actor=actor,  # type: ignore[arg-type]
+    )
+
+    assert status_after_start == "completed"
+    assert match.status == "completed"
 
 
 def test_dls_revised_target_matches_icc_standard_examples() -> None:

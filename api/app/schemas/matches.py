@@ -164,6 +164,30 @@ class MatchScorerAssignmentOut(BaseModel):
     created_at: datetime
 
 
+class ScorecardEditRequestIn(BaseModel):
+    reason: str | None = Field(default=None, max_length=512)
+
+
+class ScorecardEditRequestDecisionIn(BaseModel):
+    approved: bool
+
+
+class ScorecardEditRequestOut(BaseModel):
+    id: int
+    match_id: int
+    requested_by_user_id: int
+    requester_email: str
+    requester_full_name: str | None = None
+    status: str
+    reason: str | None = None
+    requested_at: datetime
+    reviewed_by_user_id: int | None = None
+    reviewed_at: datetime | None = None
+    access_until: datetime | None = None
+    home_team_id: int
+    away_team_id: int
+
+
 
 
 class MatchLiveSetupIn(BaseModel):
@@ -280,6 +304,12 @@ class LiveScoreStateOut(BaseModel):
     summaries: list[LiveScoreInningsSummaryOut] = Field(default_factory=list)
     events: list[LiveBallEventOut] = Field(default_factory=list)
     undone_event: LiveBallEventOut | None = None
+    scorecard_finalized_at: datetime | None = None
+    scorecard_locks_at: datetime | None = None
+    scorecard_locked: bool = False
+    can_edit_scorecard: bool = True
+    edit_request_status: str | None = None
+    edit_access_until: datetime | None = None
 
 
 class MatchResultIn(BaseModel):
@@ -366,6 +396,12 @@ class MatchDetailOut(ORMModel):
     status: str
     description: str | None
     cover_image_url: str | None
+    scorecard_finalized_at: datetime | None = None
+    scorecard_locks_at: datetime | None = None
+    scorecard_locked: bool = False
+    can_edit_scorecard: bool = True
+    edit_request_status: str | None = None
+    edit_access_until: datetime | None = None
     result: MatchResultOut | None
     player_stats: list[MatchPlayerStatOut] = Field(default_factory=list)
     season: SeasonBriefOut | None = None
