@@ -874,6 +874,7 @@ export default function MatchDetailPage() {
     data?.status === 'completed' &&
     playerMatchupOptions.home.length > 0 &&
     playerMatchupOptions.away.length > 0
+  const isLiveMatch = String(data?.status ?? '').toLowerCase() === 'live'
 
   const highlightPlayerStat = (stat: MatchPlayerStat) => {
     const focus = preferredScorecardFocus(stat)
@@ -956,7 +957,7 @@ export default function MatchDetailPage() {
           </div>
 
 
-          {String(data.status).toLowerCase() === 'live' ? (
+          {isLiveMatch ? (
             <LiveScorePanel
               matchId={data.id}
               matchStatus={data.status}
@@ -968,6 +969,8 @@ export default function MatchDetailPage() {
             />
           ) : null}
 
+          {!isLiveMatch ? (
+            <>
           <div className="match-centre-panels">
             <div className="match-centre-panels__col">
               <div className="match-centre-panel">
@@ -1466,6 +1469,8 @@ export default function MatchDetailPage() {
                 ))}
               </div>
             </section>
+          ) : null}
+            </>
           ) : null}
         </section>
       </main>
