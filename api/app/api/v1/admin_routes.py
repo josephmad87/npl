@@ -2399,6 +2399,12 @@ def _validate_squad_player(db: Session, match: Match, team_id: int, player_id: i
 
 def _live_ball_label(event: MatchBallEvent) -> str:
     if event.is_dead_ball:
+        if event.wicket_type == "retired_hurt":
+            return "RH"
+        if event.wicket_type == "retired_not_out":
+            return "RNO"
+        if event.wicket_type == "retired_out":
+            return "RO"
         if event.penalty_runs_batting:
             return f"P{event.penalty_runs_batting}"
         if event.penalty_runs_fielding:
@@ -2523,13 +2529,25 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
             detail={"code": "validation", "message": "One ball event cannot award penalties to both sides."},
         )
 
+    retirement_transition = wicket_type in {"retired_hurt", "retired_out", "retired_not_out"}
+
     if body.is_dead_ball:
         if body.is_legal_delivery:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "Dead ball events are not legal deliveries."})
-        if body.runs_batter or body.runs_extras or wicket_type:
+        if body.runs_batter or body.runs_extras:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "Dead ball events cannot record batter runs, extras, or a wicket. Use penalty fields only if needed."},
+                detail={"code": "validation", "message": "Dead ball events cannot record batter runs or extras. Use penalty fields only if needed."},
+            )
+        if wicket_type and not retirement_transition:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Only a batter retirement can be recorded without a delivery."},
+            )
+        if retirement_transition and body.wicket_player_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Choose the batter who retired."},
             )
         return
 
@@ -2810,7 +2828,14 @@ def _live_score_state(
         runs = sum(event.runs_batter + event.runs_extras + event.penalty_runs_batting for event in rows)
         wickets = sum(1 for event in rows if _live_event_counts_as_wicket(event))
         legal_balls = sum(1 for event in rows if event.is_legal_delivery)
-        last_rows = rows[-6:]
+        last_rows = [
+            event
+            for event in rows
+            if not (
+                event.is_dead_ball
+                and event.wicket_type in {"retired_hurt", "retired_out", "retired_not_out"}
+            )
+        ][-6:]
 
         summaries.append(
             LiveScoreInningsSummaryOut(
@@ -3722,14 +3747,6 @@ def _dismissal_text_for_live_event(
     event: MatchBallEvent,
     player_names: dict[int, str],
 ) -> str:
-    ball_comment = " ".join(
-        line
-        for raw_line in (event.notes or "").splitlines()
-        if (line := raw_line.strip()) and not line.lower().startswith("over note:")
-    )
-    if ball_comment:
-        return ball_comment
-
     if event.dismissal_text and event.dismissal_text.strip():
         return event.dismissal_text.strip()
 

@@ -972,6 +972,12 @@ def submit_contact_message(
 # ---------------------------------------------------------------------------
 
 def _public_live_ball_label(event: MatchBallEvent) -> str:
+    if event.is_dead_ball and event.wicket_type == "retired_hurt":
+        return "RH"
+    if event.is_dead_ball and event.wicket_type == "retired_not_out":
+        return "RNO"
+    if event.is_dead_ball and event.wicket_type == "retired_out":
+        return "RO"
     if event.wicket_type:
         return "W"
     if event.extras_type:
@@ -1003,7 +1009,14 @@ def _public_live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
         runs = sum(event.runs_batter + event.runs_extras + event.penalty_runs_batting for event in rows)
         wickets = sum(1 for event in rows if event.wicket_type and event.wicket_type not in ("retired_hurt", "retired_not_out"))
         legal_balls = sum(1 for event in rows if event.is_legal_delivery)
-        last_rows = rows[-6:]
+        last_rows = [
+            event
+            for event in rows
+            if not (
+                event.is_dead_ball
+                and event.wicket_type in ("retired_hurt", "retired_out", "retired_not_out")
+            )
+        ][-6:]
         summaries.append(
             LiveScoreInningsSummaryOut(
                 innings=innings,
