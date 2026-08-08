@@ -494,6 +494,9 @@ function LiveScoringPage() {
   const [correctionSearch, setCorrectionSearch] = useState('')
   const [extrasOpen, setExtrasOpen] = useState(false)
   const [finalReviewConfirmed, setFinalReviewConfirmed] = useState(false)
+  const [bowlerChangeOpen, setBowlerChangeOpen] = useState(false)
+  const [previousBowlerPlayerId, setPreviousBowlerPlayerId] = useState<number | null>(null)
+  const [nextBowlerPlayerId, setNextBowlerPlayerId] = useState<number | ''>('')
   const selectionContextRef = useRef('')
   const lastHydratedEventKeyRef = useRef('')
   const hasHydratedInningsRef = useRef(false)
@@ -919,6 +922,15 @@ function LiveScoringPage() {
       lastHydratedEventKeyRef.current = `${created.innings}:${created.sequence_number}:${created.updated_at}`
       if (!inningsEnded) {
         applyPostBallState(payload.body, payload.newBatterId ?? null, payload.strikeRuns ?? 0)
+        if (
+          payload.body.is_legal_delivery !== false &&
+          !payload.body.is_dead_ball &&
+          payload.body.ball_number === 6
+        ) {
+          setPreviousBowlerPlayerId(payload.body.bowler_player_id)
+          setNextBowlerPlayerId('')
+          setBowlerChangeOpen(true)
+        }
       }
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
 
@@ -973,6 +985,9 @@ function LiveScoringPage() {
       setBattersCrossed(false)
       setDismissalText('')
       setDismissalTextTouched(false)
+      setBowlerChangeOpen(false)
+      setPreviousBowlerPlayerId(null)
+      setNextBowlerPlayerId('')
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
     },
     onError: (error: Error) => setActionError(error.message),
@@ -1043,6 +1058,9 @@ function LiveScoringPage() {
       setWicketRunCredit('bat')
       setDismissalText('')
       setDismissalTextTouched(false)
+      setBowlerChangeOpen(false)
+      setPreviousBowlerPlayerId(null)
+      setNextBowlerPlayerId('')
       setRevisedMatchOvers('40.0')
       setConditionsDirty(false)
       setConditionsOpen(true)
@@ -1144,6 +1162,9 @@ function LiveScoringPage() {
     setNewBatterPlayerId('')
     setWicketRunsCompleted(0)
     setWicketRunCredit('bat')
+    setBowlerChangeOpen(false)
+    setPreviousBowlerPlayerId(null)
+    setNextBowlerPlayerId('')
     setInnings(innings + 1)
   }
 
@@ -1191,6 +1212,11 @@ function LiveScoringPage() {
     },
     newBatterId?: number | null,
   ) => {
+    if (bowlerChangeOpen) {
+      setActionError('Choose the new bowler before recording the next ball.')
+      return
+    }
+
     if (!battingTeamId || !bowlingTeamId || !strikerPlayerId || !bowlerPlayerId) {
       setActionError('Choose teams, striker and bowler first.')
       return
@@ -1411,6 +1437,9 @@ function LiveScoringPage() {
   const strikerName = playerName(playerById, strikerPlayerId || null)
   const nonStrikerName = playerName(playerById, nonStrikerPlayerId || null)
   const bowlerName = playerName(playerById, bowlerPlayerId || null)
+  const newOverBowlerOptions = bowlingPlayers.filter(
+    (player) => player.id !== previousBowlerPlayerId,
+  )
   const wicketIsRetirement = RETIREMENT_DISMISSALS.has(wicketType)
   const suggestedDismissalText = suggestedDismissal(
     wicketType,
@@ -1496,6 +1525,23 @@ function LiveScoringPage() {
       setNewBatterPlayerId('')
     }
     setWicketOpen(true)
+  }
+
+  const confirmNewOverBowler = () => {
+    if (!nextBowlerPlayerId) {
+      setActionError('Choose the bowler for the new over.')
+      return
+    }
+    if (nextBowlerPlayerId === previousBowlerPlayerId) {
+      setActionError('The previous bowler cannot bowl consecutive overs.')
+      return
+    }
+
+    setBowlerPlayerId(nextBowlerPlayerId)
+    setBowlerChangeOpen(false)
+    setPreviousBowlerPlayerId(null)
+    setNextBowlerPlayerId('')
+    setActionError(null)
   }
 
   const closeWicketDetails = () => {
@@ -3320,6 +3366,67 @@ function LiveScoringPage() {
           </div>
         </aside>
         </div>
+
+        {bowlerChangeOpen ? (
+          <div className="live-scorer-dialog-backdrop">
+            <section
+              className="live-scorer-dialog live-scorer-dialog--bowler-change"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="new-bowler-dialog-title"
+            >
+              <div className="team-hub-section-head">
+                <div className="team-hub-section-head__lead">
+                  <h3 id="new-bowler-dialog-title" className="team-hub-section__title">
+                    Over complete — choose the new bowler
+                  </h3>
+                  <p className="muted">
+                    {playerName(playerById, previousBowlerPlayerId)} completed the over.
+                    Select the bowler for over {nextOverNumber + 1} before recording the next ball.
+                  </p>
+                </div>
+              </div>
+
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">New bowler</span>
+                <select
+                  className="inline-edit__control"
+                  value={nextBowlerPlayerId}
+                  onChange={(event) => {
+                    setNextBowlerPlayerId(event.target.value ? Number(event.target.value) : '')
+                    setActionError(null)
+                  }}
+                  autoFocus
+                >
+                  <option value="">Choose new bowler</option>
+                  {newOverBowlerOptions.map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.full_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {newOverBowlerOptions.length === 0 ? (
+                <p className="login-error">
+                  Add another eligible bowler to the match-day squad before continuing.
+                </p>
+              ) : null}
+              {actionError ? <p className="login-error">{actionError}</p> : null}
+
+              <div className="catalog-toolbar live-scorer-dialog__actions">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={confirmNewOverBowler}
+                  disabled={!nextBowlerPlayerId || newOverBowlerOptions.length === 0}
+                >
+                  Start new over
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         {wicketOpen ? (
           <div className="live-scorer-dialog-backdrop">
