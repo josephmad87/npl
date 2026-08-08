@@ -5833,6 +5833,57 @@ table.player-public-table--match-log {
   border-bottom: 0;
 }
 
+/* Batting and bowling share the same five right-aligned statistic positions:
+   R/O, B/M, 4s/R, 6s/W, and SR/Econ. */
+.batting-scorecard-table,
+.bowling-scorecard-table {
+  table-layout: fixed;
+}
+
+.scorecard-stat-columns__batter {
+  width: 27%;
+}
+
+.scorecard-stat-columns__dismissal {
+  width: 39%;
+}
+
+.scorecard-stat-columns__bowler {
+  width: 66%;
+}
+
+.scorecard-stat-columns__first-stat,
+.scorecard-stat-columns__stat {
+  width: 6%;
+}
+
+.scorecard-stat-columns__rate {
+  width: 10%;
+}
+
+.batting-scorecard-table th:nth-child(2),
+.batting-scorecard-table td:nth-child(2),
+.batting-scorecard-table th:nth-child(n + 3),
+.batting-scorecard-table td:nth-child(n + 3),
+.bowling-scorecard-table th:nth-child(n + 2),
+.bowling-scorecard-table td:nth-child(n + 2) {
+  min-width: 0;
+}
+
+.batting-scorecard-table th:nth-child(2),
+.batting-scorecard-table td:nth-child(2) {
+  text-align: left;
+  white-space: normal;
+}
+
+.batting-scorecard-table th:nth-child(n + 3),
+.batting-scorecard-table td:nth-child(n + 3),
+.bowling-scorecard-table th:nth-child(n + 2),
+.bowling-scorecard-table td:nth-child(n + 2) {
+  text-align: right;
+  white-space: nowrap;
+}
+
 /* Player column */
 .match-centre-scorecard-table th:first-child,
 .match-centre-scorecard-table td:first-child {
@@ -5841,9 +5892,9 @@ table.player-public-table--match-log {
   font-weight: 700;
 }
 
-/* How out / Notes column */
-.match-centre-scorecard-table th:last-child,
-.match-centre-scorecard-table td:last-child {
+/* How out column */
+.batting-scorecard-table th:nth-child(2),
+.batting-scorecard-table td:nth-child(2) {
   min-width: 280px;
   white-space: normal;
 }
