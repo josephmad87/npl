@@ -467,7 +467,7 @@ def test_live_ball_label_keeps_wicket_and_wide_visible() -> None:
     assert _live_ball_label(event) == "W+3wd"
 
 
-def test_final_scorecard_dismissal_prefers_scorer_ball_commentary() -> None:
+def test_final_scorecard_dismissal_prefers_dedicated_how_out_text() -> None:
     event = SimpleNamespace(
         notes="Caught at deep midwicket by T. Ncube.\nOver note: Excellent over",
         dismissal_text="Caught · fielder: T. Ncube",
@@ -481,7 +481,7 @@ def test_final_scorecard_dismissal_prefers_scorer_ball_commentary() -> None:
         {20: "P. Moyo", 21: "T. Ncube"},
     )
 
-    assert dismissal == "Caught at deep midwicket by T. Ncube."
+    assert dismissal == "Caught · fielder: T. Ncube"
 
 
 def test_final_scorecard_dismissal_ignores_over_note_without_ball_commentary() -> None:
@@ -499,3 +499,40 @@ def test_final_scorecard_dismissal_ignores_over_note_without_ball_commentary() -
     )
 
     assert dismissal == "Caught · fielder: T. Ncube"
+
+
+def test_retired_hurt_is_a_non_delivery_player_transition() -> None:
+    body = _wicket_ball(
+        wicket_type="retired_hurt",
+        fielder_player_id=None,
+        wicket_end=None,
+        is_legal_delivery=False,
+        is_dead_ball=True,
+        replacement_player_id=12,
+        dismissal_text="retired hurt",
+    )
+
+    _validate_live_ball_event(body)
+    assert body.is_legal_delivery is False
+    assert body.is_dead_ball is True
+    assert body.completed_runs == 0
+
+
+def test_normal_wicket_cannot_be_saved_as_a_non_delivery_transition() -> None:
+    body = _wicket_ball(is_legal_delivery=False, is_dead_ball=True)
+
+    with pytest.raises(HTTPException) as error:
+        _validate_live_ball_event(body)
+
+    assert "Only a batter retirement" in error.value.detail["message"]
+
+
+def test_retired_hurt_live_label_is_not_a_ball_or_wicket() -> None:
+    event = SimpleNamespace(
+        is_dead_ball=True,
+        wicket_type="retired_hurt",
+        penalty_runs_batting=0,
+        penalty_runs_fielding=0,
+    )
+
+    assert _live_ball_label(event) == "RH"
