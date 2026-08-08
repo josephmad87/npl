@@ -291,6 +291,15 @@ export function InningsScorecardPanels({
         {battingRows.length > 0 ? (
           <div className="table-scroll match-stats-scroll">
             <table className="match-centre-scorecard-table batting-scorecard-table">
+              <colgroup>
+                <col className="scorecard-stat-columns__batter" />
+                <col className="scorecard-stat-columns__dismissal" />
+                <col className="scorecard-stat-columns__first-stat" />
+                <col className="scorecard-stat-columns__stat" />
+                <col className="scorecard-stat-columns__stat" />
+                <col className="scorecard-stat-columns__stat" />
+                <col className="scorecard-stat-columns__rate" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Batter</th>
@@ -345,6 +354,14 @@ export function InningsScorecardPanels({
         {bowlingRows.length > 0 ? (
           <div className="table-scroll match-stats-scroll">
             <table className="match-centre-scorecard-table bowling-scorecard-table">
+              <colgroup>
+                <col className="scorecard-stat-columns__bowler" />
+                <col className="scorecard-stat-columns__first-stat" />
+                <col className="scorecard-stat-columns__stat" />
+                <col className="scorecard-stat-columns__stat" />
+                <col className="scorecard-stat-columns__stat" />
+                <col className="scorecard-stat-columns__rate" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Bowler</th>
