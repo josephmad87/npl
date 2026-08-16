@@ -20,6 +20,7 @@ import type {
 import { adminGet, adminPost } from '@/lib/admin-client'
 import { apiFetch } from '@/lib/api'
 import { getSession } from '@/lib/session'
+import { oversFieldToBalls } from '@/lib/cricket'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 
@@ -497,6 +498,8 @@ function LiveScoringPage() {
   const [bowlerChangeOpen, setBowlerChangeOpen] = useState(false)
   const [previousBowlerPlayerId, setPreviousBowlerPlayerId] = useState<number | null>(null)
   const [nextBowlerPlayerId, setNextBowlerPlayerId] = useState<number | ''>('')
+  const [matchOverOpen, setMatchOverOpen] = useState(false)
+  const [inningsOverOpen, setInningsOverOpen] = useState(false)
   const selectionContextRef = useRef('')
   const lastHydratedEventKeyRef = useRef('')
   const hasHydratedInningsRef = useRef(false)
@@ -712,6 +715,50 @@ function LiveScoringPage() {
     () => liveQ.data?.summaries.find((summary) => summary.innings === innings) ?? null,
     [innings, liveQ.data?.summaries],
   )
+  const firstInningsSummary = useMemo(
+    () => liveQ.data?.summaries.find((summary) => summary.innings === 1) ?? null,
+    [liveQ.data?.summaries],
+  )
+  const secondInningsSummary = useMemo(
+    () => liveQ.data?.summaries.find((summary) => summary.innings === 2) ?? null,
+    [liveQ.data?.summaries],
+  )
+  const chaseTarget =
+    liveQ.data?.revised_target_runs ??
+    (firstInningsSummary ? firstInningsSummary.runs + 1 : null)
+  const chaseTargetReached =
+    liveQ.data?.status !== 'completed' &&
+    secondInningsSummary != null &&
+    chaseTarget != null &&
+    secondInningsSummary.runs >= chaseTarget
+  const allocatedInningsBalls = oversFieldToBalls(
+    liveQ.data?.match_overs ?? matchOvers,
+  )
+  const firstInningsOversReached =
+    liveQ.data?.status !== 'completed' &&
+    innings === 1 &&
+    firstInningsSummary != null &&
+    secondInningsSummary == null &&
+    allocatedInningsBalls > 0 &&
+    firstInningsSummary.legal_balls >= allocatedInningsBalls
+
+  useEffect(() => {
+    if (liveQ.data?.status === 'completed' || !chaseTargetReached) {
+      setMatchOverOpen(false)
+      return
+    }
+    setBowlerChangeOpen(false)
+    setMatchOverOpen(true)
+  }, [chaseTargetReached, liveQ.data?.status])
+
+  useEffect(() => {
+    if (liveQ.data?.status === 'completed' || !firstInningsOversReached) {
+      setInningsOverOpen(false)
+      return
+    }
+    setBowlerChangeOpen(false)
+    setInningsOverOpen(true)
+  }, [firstInningsOversReached, liveQ.data?.status])
 
   useEffect(() => {
     const latestEvent = [...(liveQ.data?.events ?? [])]
@@ -1032,9 +1079,18 @@ function LiveScoringPage() {
         status,
         match_overs: matchOvers,
       }),
-    onSuccess: async () => {
+    onSuccess: async (state) => {
       setActionError(null)
       setFinalReviewConfirmed(false)
+      setMatchOverOpen(false)
+      setInningsOverOpen(false)
+      queryClient.setQueryData<MatchDto[]>(
+        ['admin', 'scorer', 'matches'],
+        (current) =>
+          current?.map((row) =>
+            row.id === mid ? { ...row, status: state.status } : row,
+          ) ?? current,
+      )
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
     },
@@ -1061,6 +1117,8 @@ function LiveScoringPage() {
       setBowlerChangeOpen(false)
       setPreviousBowlerPlayerId(null)
       setNextBowlerPlayerId('')
+      setMatchOverOpen(false)
+      setInningsOverOpen(false)
       setRevisedMatchOvers('40.0')
       setConditionsDirty(false)
       setConditionsOpen(true)
@@ -1097,6 +1155,8 @@ function LiveScoringPage() {
   const scorecardReadOnly =
     Boolean(liveQ.data?.scorecard_locked) &&
     liveQ.data?.can_edit_scorecard === false
+  const matchFinalized =
+    liveQ.data?.status === 'completed' || match?.status === 'completed'
   const effectiveScorerPanel =
     scorecardReadOnly &&
     !(['balls', 'review', 'help'] as ScorerPanel[]).includes(activeScorerPanel)
@@ -1139,19 +1199,21 @@ function LiveScoringPage() {
     setActiveScorerPanel('corrections')
   }
 
-  const endCurrentInnings = () => {
+  const endCurrentInnings = (confirmed = false) => {
     if (innings >= 2) {
       setActionError('This is already the second innings. Use Match over when the match is finished.')
       return
     }
 
-    if (legalBalls === 0 && (currentSummary?.runs ?? 0) === 0 && (currentSummary?.wickets ?? 0) === 0) {
+    if (!confirmed && legalBalls === 0 && (currentSummary?.runs ?? 0) === 0 && (currentSummary?.wickets ?? 0) === 0) {
       const ok = window.confirm('No balls have been recorded in this innings yet. End innings anyway?')
       if (!ok) return
     }
 
-    const ok = window.confirm('End this innings and move to the second innings?')
-    if (!ok) return
+    if (!confirmed) {
+      const ok = window.confirm('End this innings and move to the second innings?')
+      if (!ok) return
+    }
 
     setActionError(null)
     setNotes('')
@@ -1165,6 +1227,8 @@ function LiveScoringPage() {
     setBowlerChangeOpen(false)
     setPreviousBowlerPlayerId(null)
     setNextBowlerPlayerId('')
+    setMatchOverOpen(false)
+    setInningsOverOpen(false)
     setInnings(innings + 1)
   }
 
@@ -1212,6 +1276,18 @@ function LiveScoringPage() {
     },
     newBatterId?: number | null,
   ) => {
+    if (firstInningsOversReached) {
+      setInningsOverOpen(true)
+      setActionError('The allocated overs are complete. Confirm the move to the second innings.')
+      return
+    }
+
+    if (chaseTargetReached) {
+      setMatchOverOpen(true)
+      setActionError('The target has been reached. Review and finalize the match.')
+      return
+    }
+
     if (bowlerChangeOpen) {
       setActionError('Choose the new bowler before recording the next ball.')
       return
@@ -1426,7 +1502,7 @@ function LiveScoringPage() {
   const inningsTarget =
     innings === 1 && currentSummary
       ? liveQ.data?.revised_target_runs ?? currentSummary.runs + 1
-      : liveQ.data?.revised_target_runs ?? null
+      : chaseTarget
   const hasSavedSetup = Boolean(match.toss_info?.trim())
   const hasMatchDaySquads =
     !squadDirty &&
@@ -1616,13 +1692,15 @@ function LiveScoringPage() {
       return 'Second innings not complete yet.'
     }
 
-    if (secondReviewSummary.runs > firstReviewSummary.runs) {
+    const target = liveQ.data?.revised_target_runs ?? firstReviewSummary.runs + 1
+
+    if (secondReviewSummary.runs >= target) {
       const wicketsLeft = Math.max(0, 10 - secondReviewSummary.wickets)
       return `${reviewTeamName(secondReviewSummary.batting_team_id)} by ${wicketsLeft} wicket${wicketsLeft === 1 ? '' : 's'}`
     }
 
-    if (firstReviewSummary.runs > secondReviewSummary.runs) {
-      const margin = firstReviewSummary.runs - secondReviewSummary.runs
+    if (secondReviewSummary.runs < target - 1) {
+      const margin = target - 1 - secondReviewSummary.runs
       return `${reviewTeamName(firstReviewSummary.batting_team_id)} by ${margin} run${margin === 1 ? '' : 's'}`
     }
 
@@ -3367,6 +3445,74 @@ function LiveScoringPage() {
         </aside>
         </div>
 
+        {inningsOverOpen ? (
+          <div className="live-scorer-dialog-backdrop">
+            <section
+              className="live-scorer-dialog live-scorer-dialog--match-over"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="innings-over-dialog-title"
+            >
+              <div className="team-hub-section-head">
+                <div className="team-hub-section-head__lead">
+                  <h3 id="innings-over-dialog-title" className="team-hub-section__title">
+                    INNINGS OVER
+                  </h3>
+                  <p className="muted">
+                    {reviewTeamName(firstInningsSummary?.batting_team_id)} have completed the allocated {liveQ.data?.match_overs ?? matchOvers} overs.
+                    Confirm to set up the second innings.
+                  </p>
+                </div>
+              </div>
+              <div className="catalog-toolbar live-scorer-dialog__actions">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => endCurrentInnings(true)}
+                >
+                  Confirm & move to 2nd innings
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {matchOverOpen ? (
+          <div className="live-scorer-dialog-backdrop">
+            <section
+              className="live-scorer-dialog live-scorer-dialog--match-over"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="match-over-dialog-title"
+            >
+              <div className="team-hub-section-head">
+                <div className="team-hub-section-head__lead">
+                  <h3 id="match-over-dialog-title" className="team-hub-section__title">
+                    MATCH OVER
+                  </h3>
+                  <p className="muted">
+                    {reviewTeamName(secondInningsSummary?.batting_team_id)} have reached the target of {chaseTarget}.
+                    Review the scorecard, then finalize the official result.
+                  </p>
+                </div>
+              </div>
+              <div className="catalog-toolbar live-scorer-dialog__actions">
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => {
+                    setMatchOverOpen(false)
+                    setFinalReviewConfirmed(false)
+                    setActiveScorerPanel('review')
+                  }}
+                >
+                  Review & finalize match
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
         {bowlerChangeOpen ? (
           <div className="live-scorer-dialog-backdrop">
             <section
@@ -3727,7 +3873,7 @@ function LiveScoringPage() {
             <button
               type="button"
               className="btn-primary"
-              onClick={endCurrentInnings}
+              onClick={() => endCurrentInnings()}
               disabled={ballMutation.isPending || undoMutation.isPending}
             >
               End innings
@@ -3737,12 +3883,16 @@ function LiveScoringPage() {
             type="button"
             className="btn-primary"
             onClick={() => {
-              setFinalReviewConfirmed(false)
-              setActiveScorerPanel('review')
+              if (matchFinalized) {
+                setActiveScorerPanel('score')
+              } else {
+                setFinalReviewConfirmed(false)
+                setActiveScorerPanel('review')
+              }
             }}
             disabled={completeMutation.isPending}
           >
-            Review & finalize
+            {matchFinalized ? 'Finalized / edit' : 'Review & finalize'}
           </button>
           <button
             type="button"
@@ -3830,7 +3980,24 @@ function LiveScoringPage() {
             </div>
           ) : null}
 
-          {scorecardReadOnly ? (
+          {matchFinalized ? (
+            <div className="catalog-toolbar">
+              <p className="muted">
+                {scorecardReadOnly
+                  ? 'This match is finalized and the scorecard is locked. Request super-admin permission before making corrections.'
+                  : 'This match is finalized. You can return to scoring to make an approved correction.'}
+              </p>
+              {!scorecardReadOnly ? (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setActiveScorerPanel('score')}
+                >
+                  Finalized / edit
+                </button>
+              ) : null}
+            </div>
+          ) : scorecardReadOnly ? (
             <p className="muted">
               This final scorecard is read only. Request super-admin permission
               before making corrections.
