@@ -9,6 +9,7 @@ from app.api.v1 import admin_routes
 from app.api.v1.admin_routes import (
     _dismissal_text_for_live_event,
     _live_ball_label,
+    _live_top_performers_text,
     _assert_live_players_not_dismissed,
     _validate_live_ball_event,
 )
@@ -499,6 +500,70 @@ def test_final_scorecard_dismissal_ignores_over_note_without_ball_commentary() -
     )
 
     assert dismissal == "Caught · fielder: T. Ncube"
+
+
+def test_live_top_performers_lists_three_batters_and_three_bowlers() -> None:
+    rows = [
+        {
+            "player_id": 1,
+            "team_id": 10,
+            "runs": 56,
+            "balls_faced": 51,
+            "fours": 5,
+            "sixes": 1,
+            "dismissal": "bowled",
+            "overs_balls": 48,
+            "wickets": 4,
+            "runs_conceded": 19,
+        },
+        {
+            "player_id": 2,
+            "team_id": 11,
+            "runs": 52,
+            "balls_faced": 70,
+            "fours": 4,
+            "sixes": 0,
+            "dismissal": "not out",
+            "overs_balls": 0,
+            "wickets": 0,
+            "runs_conceded": 0,
+        },
+        {
+            "player_id": 3,
+            "team_id": 11,
+            "runs": 32,
+            "balls_faced": 57,
+            "fours": 2,
+            "sixes": 0,
+            "dismissal": "caught",
+            "overs_balls": 50,
+            "wickets": 3,
+            "runs_conceded": 23,
+        },
+        {
+            "player_id": 4,
+            "team_id": 10,
+            "runs": 0,
+            "balls_faced": 0,
+            "fours": 0,
+            "sixes": 0,
+            "dismissal": "did not bat",
+            "overs_balls": 26,
+            "wickets": 1,
+            "runs_conceded": 7,
+        },
+    ]
+
+    assert _live_top_performers_text(
+        rows,
+        {1: "Tony Munyonga", 2: "Kian Arnold", 3: "Munyaradzi Chingoruma", 4: "Trevor Gwandu"},
+        {10: "Gladiators Cricket Club", 11: "Mbizo Cricket Club"},
+    ) == (
+        "Tony Munyonga (Gladiators Cricket Club) 56 (51) & 4/19 (8.0 overs); "
+        "Kian Arnold (Mbizo Cricket Club) 52* (70); "
+        "Munyaradzi Chingoruma (Mbizo Cricket Club) 32 (57) & 3/23 (8.2 overs); "
+        "Trevor Gwandu (Gladiators Cricket Club) 1/7 (4.2 overs)"
+    )
 
 
 def test_retired_hurt_is_a_non_delivery_player_transition() -> None:

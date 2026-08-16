@@ -3788,6 +3788,73 @@ def _team_name(db: Session, team_id: int) -> str:
     return team.name if team is not None else f"Team {team_id}"
 
 
+def _live_top_performers_text(
+    stat_rows: list[dict[str, object]],
+    player_names: dict[int, str],
+    team_names: dict[int, str],
+) -> str | None:
+    """Create the public top-performers line from a finalized scorecard."""
+
+    def player_label(row: dict[str, object]) -> str:
+        player_id = int(row["player_id"])
+        team_id = int(row["team_id"])
+        return f"{player_names.get(player_id, f'Player {player_id}')} ({team_names.get(team_id, f'Team {team_id}')})"
+
+    def batting_line(row: dict[str, object]) -> str:
+        runs = int(row["runs"])
+        balls = int(row["balls_faced"])
+        dismissal = str(row.get("dismissal") or "").strip().lower()
+        not_out = dismissal in {"not out", "retired hurt", "retired not out"}
+        return f"{runs}{'*' if not_out else ''} ({balls})"
+
+    def bowling_line(row: dict[str, object]) -> str:
+        wickets = int(row["wickets"])
+        conceded = int(row["runs_conceded"])
+        balls = int(row["overs_balls"])
+        return f"{wickets}/{conceded} ({_live_overs_label(balls)} overs)"
+
+    batters = sorted(
+        (
+            row
+            for row in stat_rows
+            if int(row["runs"]) > 0 or int(row["balls_faced"]) > 0
+        ),
+        key=lambda row: (
+            -int(row["runs"]),
+            int(row["balls_faced"]),
+            -int(row["fours"]),
+            -int(row["sixes"]),
+            int(row["player_id"]),
+        ),
+    )[:3]
+    bowlers = sorted(
+        (row for row in stat_rows if int(row["overs_balls"]) > 0),
+        key=lambda row: (
+            -int(row["wickets"]),
+            int(row["runs_conceded"]),
+            -int(row["overs_balls"]),
+            int(row["player_id"]),
+        ),
+    )[:3]
+
+    bowling_by_player = {int(row["player_id"]): row for row in bowlers}
+    top_batter_ids = {int(row["player_id"]) for row in batters}
+    entries: list[str] = []
+
+    for batter in batters:
+        player_id = int(batter["player_id"])
+        line = f"{player_label(batter)} {batting_line(batter)}"
+        if bowler := bowling_by_player.get(player_id):
+            line = f"{line} & {bowling_line(bowler)}"
+        entries.append(line)
+
+    for bowler in bowlers:
+        if int(bowler["player_id"]) not in top_batter_ids:
+            entries.append(f"{player_label(bowler)} {bowling_line(bowler)}")
+
+    return "; ".join(entries) or None
+
+
 def _finalize_live_match_result(
     db: Session,
     match: Match,
@@ -4015,6 +4082,16 @@ def _finalize_live_match_result(
         elif row.get("from_squad") and row["batting_order"] is None:
             row["dismissal"] = "did not bat"
 
+    team_names = {
+        match.home_team_id: _team_name(db, match.home_team_id),
+        match.away_team_id: _team_name(db, match.away_team_id),
+    }
+    top_performers = _live_top_performers_text(
+        list(stat_by_player.values()),
+        player_names,
+        team_names,
+    )
+
     innings_lines: list[str] = []
     for innings in innings_by_number:
         meta = innings_meta.get(innings)
@@ -4070,7 +4147,7 @@ def _finalize_live_match_result(
         "margin_text": margin_text,
         "score_summary": score_summary,
         "innings_breakdown": innings_breakdown,
-        "top_performers": None,
+        "top_performers": top_performers,
         "player_of_match_player_id": None,
         "result_status": "official",
         "match_report": None,

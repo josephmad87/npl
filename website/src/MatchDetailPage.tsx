@@ -1152,6 +1152,11 @@ export default function MatchDetailPage() {
                   </p>
                   <h2 id="top-performers-title">Top Performers</h2>
                   <p>Tap a card to jump to that player’s scorecard row.</p>
+                  {data.result?.top_performers ? (
+                    <p className="match-centre-top-performers__summary">
+                      {data.result.top_performers}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
