@@ -178,7 +178,9 @@ const searchRoute = createRoute({
       search.type === 'news' ||
       search.type === 'team' ||
       search.type === 'player' ||
-      search.type === 'league'
+      search.type === 'league' ||
+      search.type === 'fixture' ||
+      search.type === 'result'
         ? search.type
         : 'all',
   }),

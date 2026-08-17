@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Select, func, or_, select
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, aliased, joinedload, selectinload
 
 from app.api.pagination import PageParams, paginate_select, to_paginated
 from app.db.session import get_db
@@ -61,6 +61,134 @@ router = APIRouter(prefix="/public", tags=["public"])
 
 FIXTURE_STATUSES = ("scheduled", "live", "postponed")
 RESULT_STATUSES = ("completed",)
+
+
+def _cricket_overs_label(value: object | None) -> str:
+    """Format a scorecard's cricket-over value without decimal-ball drift."""
+    text = str(value or "0").strip()
+    whole, separator, fraction = text.partition(".")
+    try:
+        overs = int(whole or "0")
+    except ValueError:
+        overs = 0
+    balls = int(fraction[0]) if separator and fraction[:1].isdigit() else 0
+    return f"{overs}.{balls}"
+
+
+def _computed_top_performers(db: Session, match: Match) -> str | None:
+    """Build the public performer line directly from the submitted scorecard.
+
+    A result may have been saved before a scorecard correction. Computing this
+    from the same player-stat rows displayed on the scorecard prevents the
+    summary from becoming stale or showing different balls faced.
+    """
+    stats = list(match.player_stats or [])
+    if not stats:
+        return None
+
+    player_ids = {stat.player_id for stat in stats}
+    players = db.scalars(select(Player).where(Player.id.in_(player_ids))).all()
+    player_names = {player.id: player.full_name for player in players}
+    team_names = {
+        match.home_team_id: match.home_team.name,
+        match.away_team_id: match.away_team.name,
+    }
+
+    def player_label(stat: MatchPlayerStat) -> str:
+        player_name = player_names.get(stat.player_id, f"Player {stat.player_id}")
+        team_name = team_names.get(stat.team_id, f"Team {stat.team_id}")
+        return f"{player_name} ({team_name})"
+
+    def overs_balls(stat: MatchPlayerStat) -> int:
+        label = _cricket_overs_label(stat.overs)
+        overs, _, balls = label.partition(".")
+        return int(overs) * 6 + int(balls)
+
+    batters = sorted(
+        (stat for stat in stats if stat.runs > 0 or stat.balls_faced > 0),
+        key=lambda stat: (
+            -stat.runs,
+            stat.balls_faced,
+            -stat.fours,
+            -stat.sixes,
+            stat.player_id,
+        ),
+    )[:3]
+    bowlers = sorted(
+        (stat for stat in stats if overs_balls(stat) > 0 or stat.wickets > 0),
+        key=lambda stat: (
+            -stat.wickets,
+            stat.runs_conceded,
+            -overs_balls(stat),
+            stat.player_id,
+        ),
+    )[:3]
+
+    bowlers_by_player = {stat.player_id: stat for stat in bowlers}
+    batter_ids = {stat.player_id for stat in batters}
+    entries: list[str] = []
+
+    for batter in batters:
+        dismissal = (batter.dismissal or "").strip().lower()
+        not_out = dismissal in {"not out", "retired hurt", "retired not out"}
+        line = f"{player_label(batter)} {batter.runs}{'*' if not_out else ''} ({batter.balls_faced})"
+        if bowler := bowlers_by_player.get(batter.player_id):
+            line = f"{line} & {bowler.wickets}/{bowler.runs_conceded} ({_cricket_overs_label(bowler.overs)} overs)"
+        entries.append(line)
+
+    for bowler in bowlers:
+        if bowler.player_id not in batter_ids:
+            entries.append(
+                f"{player_label(bowler)} {bowler.wickets}/{bowler.runs_conceded} ({_cricket_overs_label(bowler.overs)} overs)",
+            )
+
+    return "; ".join(entries) or None
+
+
+def _public_match_detail(
+    db: Session,
+    match: Match,
+    *,
+    refresh_top_performers: bool = False,
+) -> MatchDetailOut:
+    detail = MatchDetailOut.model_validate(match)
+    if not refresh_top_performers or detail.result is None:
+        return detail
+
+    top_performers = _computed_top_performers(db, match)
+    if top_performers is None:
+        return detail
+
+    return detail.model_copy(
+        update={
+            "result": detail.result.model_copy(
+                update={"top_performers": top_performers},
+            ),
+        },
+    )
+
+
+def _match_search_filter(stmt, query: str | None):
+    """Filter public fixture/result lists by either participating club."""
+    needle = (query or "").strip()
+    if not needle:
+        return stmt
+
+    home = aliased(Team)
+    away = aliased(Team)
+    pattern = f"%{needle}%"
+    return (
+        stmt.join(home, Match.home_team_id == home.id)
+        .join(away, Match.away_team_id == away.id)
+        .where(
+            or_(
+                home.name.ilike(pattern),
+                away.name.ilike(pattern),
+                Match.title.ilike(pattern),
+                Match.venue.ilike(pattern),
+            ),
+        )
+    )
 
 
 def _coerce_public_about_body(raw: object) -> AboutContentBody:
@@ -472,6 +600,7 @@ def list_fixtures(
     league_id: int | None = Query(default=None),
     team_id: int | None = Query(default=None),
     category: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=120),
 ) -> dict:
     stmt = (
         select(Match)
@@ -483,6 +612,15 @@ def list_fixtures(
             selectinload(Match.player_stats),
         )
         .where(Match.status.in_(FIXTURE_STATUSES))
+        # A fixture still marked scheduled after its match date is a data issue,
+        # not an upcoming game. Live and postponed matches remain visible.
+        .where(
+            or_(
+                Match.status != "scheduled",
+                Match.match_date.is_(None),
+                Match.match_date >= date.today(),
+            ),
+        )
     )
     if season_id is not None:
         stmt = stmt.where(Match.season_id == season_id)
@@ -492,9 +630,10 @@ def list_fixtures(
         stmt = stmt.where(Match.category == category)
     if team_id is not None:
         stmt = stmt.where(or_(Match.home_team_id == team_id, Match.away_team_id == team_id))
+    stmt = _match_search_filter(stmt, q)
     stmt = stmt.order_by(Match.match_date.asc().nullslast(), Match.id)
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
-    items = [MatchDetailOut.model_validate(r) for r in rows]
+    items = [_public_match_detail(db, r) for r in rows]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
 
 
@@ -506,6 +645,7 @@ def list_results(
     league_id: int | None = Query(default=None),
     team_id: int | None = Query(default=None),
     category: str | None = Query(default=None),
+    q: str | None = Query(default=None, max_length=120),
 ) -> dict:
     stmt = (
         select(Match)
@@ -526,9 +666,10 @@ def list_results(
         stmt = stmt.where(Match.category == category)
     if team_id is not None:
         stmt = stmt.where(or_(Match.home_team_id == team_id, Match.away_team_id == team_id))
+    stmt = _match_search_filter(stmt, q)
     stmt = stmt.order_by(Match.match_date.desc().nullslast(), Match.id.desc())
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
-    items = [MatchDetailOut.model_validate(r) for r in rows]
+    items = [_public_match_detail(db, r) for r in rows]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
 
 
@@ -547,7 +688,7 @@ def get_match(match_id: int, db: Session = Depends(get_db)) -> MatchDetailOut:
     )
     if m is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    return MatchDetailOut.model_validate(m)
+    return _public_match_detail(db, m, refresh_top_performers=True)
 def _fan_player_vote_candidate_stats(match: Match) -> list[MatchPlayerStat]:
     stats = list(match.player_stats or [])
 

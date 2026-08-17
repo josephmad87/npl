@@ -23,6 +23,9 @@ function slugify(value: string | null | undefined): string {
     .trim()
     .toLowerCase()
     .replace(/&/g, 'and')
+    // Apostrophes are omitted from canonical slugs rather than becoming an
+    // extra hyphen ("Men's" -> "mens", not "men-s").
+    .replace(/[’']/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
 }
