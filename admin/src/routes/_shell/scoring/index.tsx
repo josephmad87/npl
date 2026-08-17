@@ -134,6 +134,15 @@ function ScoringDashboardPage() {
     },
   })
 
+  const reportIncidentMutation = useMutation({
+    mutationFn: ({ matchId, category, summary }: { matchId: number; category: string; summary: string }) =>
+      adminPost(`/admin/matches/${matchId}/incidents`, {
+        category,
+        summary,
+        confidentiality: category === 'safeguarding' ? 'safeguarding' : 'restricted',
+      }),
+  })
+
   const decideRequestMutation = useMutation({
     mutationFn: ({
       requestId,
@@ -379,6 +388,9 @@ function ScoringDashboardPage() {
       {requestEditMutation.isError ? (
         <p className="login-error">{requestEditMutation.error.message}</p>
       ) : null}
+      {reportIncidentMutation.isError ? (
+        <p className="login-error">{reportIncidentMutation.error.message}</p>
+      ) : null}
       {decideRequestMutation.isError ? (
         <p className="login-error">{decideRequestMutation.error.message}</p>
       ) : null}
@@ -456,6 +468,24 @@ function ScoringDashboardPage() {
                         ? 'Edit scorecard'
                         : 'Score'}
                   </Link>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    disabled={reportIncidentMutation.isPending}
+                    onClick={() => {
+                      const category = window.prompt('Incident type (for example: unsafe_pitch, misconduct, eligibility, safeguarding)')
+                      if (!category?.trim()) return
+                      const summary = window.prompt('Brief factual report for the super admin')
+                      if (!summary?.trim()) return
+                      void reportIncidentMutation.mutate({
+                        matchId: match.id,
+                        category: category.trim(),
+                        summary: summary.trim(),
+                      })
+                    }}
+                  >
+                    Report incident
+                  </button>
                 </div>
 
                 {isCompleted ? (

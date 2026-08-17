@@ -280,6 +280,7 @@ export function formatRunsOversLine(runs: number, balls: number): string {
 export function computeSeasonStandings(
   matches: MatchLite[],
   teamIds: number[],
+  pointsAdjustments: Record<number, number> = {},
 ): StandingRow[] {
   const WIN_POINTS = 4
   const TIE_POINTS = 3
@@ -474,6 +475,10 @@ export function computeSeasonStandings(
       continue
     }
 
+    if (m.result?.nrr_excluded === true) {
+      continue
+    }
+
     const homeBatting = battingPlayerTotals(m, home)
     const awayBatting = battingPlayerTotals(m, away)
     const homeExtras = teamExtras(m, home)
@@ -537,7 +542,8 @@ export function computeSeasonStandings(
     const points =
       r.won * WIN_POINTS +
       r.tied * TIE_POINTS +
-      r.nr * NO_RESULT_POINTS
+      r.nr * NO_RESULT_POINTS +
+      (pointsAdjustments[teamId] ?? 0)
 
     const nrr = nrrFrom(
       r.runsFor,

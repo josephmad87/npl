@@ -45,6 +45,8 @@ export type LiveBallEvent = {
   updated_at: string
 }
 
+type StandingAdjustment = { team_id: number; points_delta: number }
+
 export type LiveInningsSummary = {
   innings: number
   batting_team_id: number
@@ -1069,6 +1071,13 @@ export function LiveScorePanel({
     retry: 1,
   })
 
+  const adjustmentsQ = useQuery({
+    queryKey: ['public-live-standing-adjustments', seasonId],
+    queryFn: () => fetchJson<StandingAdjustment[]>(`/public/seasons/${seasonId}/standing-adjustments`),
+    enabled: Boolean(seasonId),
+    retry: 1,
+  })
+
   const teamById = useMemo(
     () => new Map((teamsQ.data ?? []).map((team) => [team.id, team] as const)),
     [teamsQ.data],
@@ -1100,8 +1109,11 @@ export function LiveScorePanel({
   const standingsRows = useMemo(() => {
     const teamIds = seasonDetailQ.data?.team_ids ?? []
     if (!teamIds.length) return []
-    return sortStandingsDesc(computeSeasonStandings(resultsQ.data ?? [], teamIds))
-  }, [resultsQ.data, seasonDetailQ.data?.team_ids])
+    const adjustments = Object.fromEntries(
+      (adjustmentsQ.data ?? []).map((row) => [row.team_id, row.points_delta]),
+    )
+    return sortStandingsDesc(computeSeasonStandings(resultsQ.data ?? [], teamIds, adjustments))
+  }, [adjustmentsQ.data, resultsQ.data, seasonDetailQ.data?.team_ids])
 
   const activeSummary = dashboard.summary
   const summaries = liveQ.data?.summaries ?? []

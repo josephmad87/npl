@@ -147,6 +147,7 @@ export type MatchResultDto = {
   top_performers: string | null
   player_of_match_player_id: number | null
   result_status: string
+  nrr_excluded?: boolean
   match_report: string | null
   home_extras_wides?: number
   home_extras_byes?: number

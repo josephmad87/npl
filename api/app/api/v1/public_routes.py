@@ -12,7 +12,15 @@ from app.models.contact_message import ContactMessage
 from app.models.article import Article
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season, SeasonTeam
-from app.models.match import FanPlayerMatchVote, Match, MatchBallEvent, MatchDaySquadPlayer, MatchPlayerStat
+from app.models.match import (
+    DisciplineCase,
+    DisciplineSanction,
+    FanPlayerMatchVote,
+    Match,
+    MatchBallEvent,
+    MatchDaySquadPlayer,
+    MatchPlayerStat,
+)
 from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
 from app.models.player import Player
 from app.models.site_page_content import SitePageContent
@@ -34,6 +42,7 @@ from app.schemas.matches import (
     MatchSquadOut,
     MatchSquadPlayerOut,
     MatchSquadTeamOut,
+    SeasonStandingAdjustmentOut,
 )
 from app.schemas.merchandise import (
     MerchandiseOrderCreate,
@@ -99,6 +108,42 @@ def get_public_site_page(
         **body.model_dump(),
         updated_at=row.updated_at,
     )
+
+
+@router.get(
+    "/seasons/{season_id}/standing-adjustments",
+    response_model=list[SeasonStandingAdjustmentOut],
+)
+def public_season_standing_adjustments(
+    season_id: int,
+    db: Session = Depends(get_db),
+) -> list[SeasonStandingAdjustmentOut]:
+    """Public, aggregate-only points adjustments; case evidence stays private."""
+    stmt = (
+        select(
+            DisciplineSanction.team_id,
+            func.coalesce(func.sum(DisciplineSanction.points_delta), 0).label("points_delta"),
+        )
+        .join(DisciplineCase, DisciplineSanction.case_id == DisciplineCase.id)
+        .join(Match, DisciplineCase.match_id == Match.id)
+        .where(
+            Match.season_id == season_id,
+            DisciplineSanction.team_id.isnot(None),
+            DisciplineSanction.status == "active",
+            DisciplineCase.status.in_(("decided", "appealed", "final")),
+            DisciplineSanction.points_delta != 0,
+        )
+        .group_by(DisciplineSanction.team_id)
+    )
+    return [
+        SeasonStandingAdjustmentOut(
+            team_id=team_id,
+            points_delta=int(points_delta or 0),
+            reason="Official points adjustment",
+        )
+        for team_id, points_delta in db.execute(stmt).all()
+        if team_id is not None
+    ]
 
 
 def _published_article_filter(stmt: Select) -> Select:

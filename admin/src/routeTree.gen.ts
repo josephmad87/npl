@@ -19,6 +19,7 @@ import { Route as ShellAuditIndexRouteImport } from './routes/_shell/audit/index
 import { Route as ShellAuditAuditIdRouteImport } from './routes/_shell/audit/$auditId'
 import { Route as ShellContactMessagesIndexRouteImport } from './routes/_shell/contact-messages/index'
 import { Route as ShellContactMessagesMessageIdRouteImport } from './routes/_shell/contact-messages/$messageId'
+import { Route as ShellDisciplineIndexRouteImport } from './routes/_shell/discipline/index'
 import { Route as ShellGalleryIndexRouteImport } from './routes/_shell/gallery/index'
 import { Route as ShellGalleryGalleryIdRouteImport } from './routes/_shell/gallery/$galleryId'
 import { Route as ShellGalleryNewRouteImport } from './routes/_shell/gallery/new'
@@ -107,6 +108,11 @@ const ShellContactMessagesMessageIdRoute =
     path: '/contact-messages/$messageId',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellDisciplineIndexRoute = ShellDisciplineIndexRouteImport.update({
+  id: '/discipline/',
+  path: '/discipline/',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellGalleryIndexRoute = ShellGalleryIndexRouteImport.update({
   id: '/gallery/',
   path: '/gallery/',
@@ -323,6 +329,7 @@ export interface FileRoutesByFullPath {
   '/about/': typeof ShellAboutIndexRoute
   '/audit/': typeof ShellAuditIndexRoute
   '/contact-messages/': typeof ShellContactMessagesIndexRoute
+  '/discipline/': typeof ShellDisciplineIndexRoute
   '/gallery/': typeof ShellGalleryIndexRoute
   '/leagues/': typeof ShellLeaguesIndexRoute
   '/matches/': typeof ShellMatchesIndexRoute
@@ -369,6 +376,7 @@ export interface FileRoutesByTo {
   '/about': typeof ShellAboutIndexRoute
   '/audit': typeof ShellAuditIndexRoute
   '/contact-messages': typeof ShellContactMessagesIndexRoute
+  '/discipline': typeof ShellDisciplineIndexRoute
   '/gallery': typeof ShellGalleryIndexRoute
   '/leagues': typeof ShellLeaguesIndexRoute
   '/matches': typeof ShellMatchesIndexRoute
@@ -418,6 +426,7 @@ export interface FileRoutesById {
   '/_shell/about/': typeof ShellAboutIndexRoute
   '/_shell/audit/': typeof ShellAuditIndexRoute
   '/_shell/contact-messages/': typeof ShellContactMessagesIndexRoute
+  '/_shell/discipline/': typeof ShellDisciplineIndexRoute
   '/_shell/gallery/': typeof ShellGalleryIndexRoute
   '/_shell/leagues/': typeof ShellLeaguesIndexRoute
   '/_shell/matches/': typeof ShellMatchesIndexRoute
@@ -467,6 +476,7 @@ export interface FileRouteTypes {
     | '/about/'
     | '/audit/'
     | '/contact-messages/'
+    | '/discipline/'
     | '/gallery/'
     | '/leagues/'
     | '/matches/'
@@ -513,6 +523,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/audit'
     | '/contact-messages'
+    | '/discipline'
     | '/gallery'
     | '/leagues'
     | '/matches'
@@ -561,6 +572,7 @@ export interface FileRouteTypes {
     | '/_shell/about/'
     | '/_shell/audit/'
     | '/_shell/contact-messages/'
+    | '/_shell/discipline/'
     | '/_shell/gallery/'
     | '/_shell/leagues/'
     | '/_shell/matches/'
@@ -653,6 +665,13 @@ declare module '@tanstack/react-router' {
       path: '/contact-messages/$messageId'
       fullPath: '/contact-messages/$messageId'
       preLoaderRoute: typeof ShellContactMessagesMessageIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/discipline/': {
+      id: '/_shell/discipline/'
+      path: '/discipline'
+      fullPath: '/discipline/'
+      preLoaderRoute: typeof ShellDisciplineIndexRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/gallery/': {
@@ -968,6 +987,7 @@ interface ShellRouteChildren {
   ShellAboutIndexRoute: typeof ShellAboutIndexRoute
   ShellAuditIndexRoute: typeof ShellAuditIndexRoute
   ShellContactMessagesIndexRoute: typeof ShellContactMessagesIndexRoute
+  ShellDisciplineIndexRoute: typeof ShellDisciplineIndexRoute
   ShellGalleryIndexRoute: typeof ShellGalleryIndexRoute
   ShellLeaguesIndexRoute: typeof ShellLeaguesIndexRoute
   ShellMatchesIndexRoute: typeof ShellMatchesIndexRoute
@@ -1010,6 +1030,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellAboutIndexRoute: ShellAboutIndexRoute,
   ShellAuditIndexRoute: ShellAuditIndexRoute,
   ShellContactMessagesIndexRoute: ShellContactMessagesIndexRoute,
+  ShellDisciplineIndexRoute: ShellDisciplineIndexRoute,
   ShellGalleryIndexRoute: ShellGalleryIndexRoute,
   ShellLeaguesIndexRoute: ShellLeaguesIndexRoute,
   ShellMatchesIndexRoute: ShellMatchesIndexRoute,

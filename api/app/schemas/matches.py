@@ -327,6 +327,7 @@ class MatchResultIn(BaseModel):
     top_performers: str | None = None
     player_of_match_player_id: int | None = None
     result_status: str = "official"
+    nrr_excluded: bool = False
     match_report: str | None = None
     home_allotted_overs: float = Field(default=40.0, ge=0, le=300)
     away_allotted_overs: float = Field(default=40.0, ge=0, le=300)
@@ -353,6 +354,7 @@ class MatchResultOut(ORMModel):
     top_performers: str | None
     player_of_match_player_id: int | None
     result_status: str
+    nrr_excluded: bool = False
     match_report: str | None
     home_allotted_overs: Decimal = Decimal("40.0")
     away_allotted_overs: Decimal = Decimal("40.0")
@@ -382,6 +384,91 @@ class SeasonBriefOut(ORMModel):
 
 class MatchBulkCancelIn(BaseModel):
     match_ids: list[int] = Field(min_length=1)
+
+
+class DisciplineIncidentIn(BaseModel):
+    category: str = Field(min_length=2, max_length=48)
+    summary: str = Field(min_length=5, max_length=512)
+    evidence_notes: str | None = None
+    occurred_at: datetime | None = None
+    confidentiality: str = Field(default="restricted", pattern="^(restricted|safeguarding)$")
+
+
+class DisciplineCaseCreateIn(DisciplineIncidentIn):
+    match_id: int | None = Field(default=None, ge=1)
+    subject_team_id: int | None = Field(default=None, ge=1)
+    subject_player_id: int | None = Field(default=None, ge=1)
+
+
+class DisciplineSanctionIn(BaseModel):
+    sanction_type: str = Field(min_length=2, max_length=48)
+    team_id: int | None = Field(default=None, ge=1)
+    player_id: int | None = Field(default=None, ge=1)
+    points_delta: int = Field(default=0, ge=-100, le=100)
+    fine_amount: Decimal | None = Field(default=None, ge=0)
+    currency: str | None = Field(default=None, max_length=8)
+    match_count: int | None = Field(default=None, ge=1, le=100)
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    notes: str | None = Field(default=None, max_length=512)
+
+
+class DisciplineCaseDecisionIn(BaseModel):
+    status: str = Field(pattern="^(under_review|decided|appealed|final|dismissed)$")
+    decision_text: str | None = None
+    public_summary: str | None = Field(default=None, max_length=512)
+    appeal_due_at: datetime | None = None
+    # An administrative award is a result override, never a replacement
+    # scorecard. It excludes NRR unless explicitly overridden by the super admin.
+    override_outcome: str | None = Field(default=None, pattern="^(win|tie|no_result)$")
+    winning_team_id: int | None = Field(default=None, ge=1)
+    margin_text: str | None = Field(default=None, max_length=255)
+    nrr_excluded: bool = True
+    sanctions: list[DisciplineSanctionIn] = Field(default_factory=list)
+
+
+class DisciplineSanctionOut(ORMModel):
+    id: int
+    case_id: int
+    sanction_type: str
+    team_id: int | None = None
+    player_id: int | None = None
+    points_delta: int
+    fine_amount: Decimal | None = None
+    currency: str | None = None
+    match_count: int | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    status: str
+    notes: str | None = None
+    created_at: datetime
+
+
+class DisciplineCaseOut(ORMModel):
+    id: int
+    match_id: int | None = None
+    subject_team_id: int | None = None
+    subject_player_id: int | None = None
+    category: str
+    status: str
+    confidentiality: str
+    summary: str
+    evidence_notes: str | None = None
+    occurred_at: datetime | None = None
+    reported_at: datetime
+    reported_by_user_id: int | None = None
+    decision_text: str | None = None
+    public_summary: str | None = None
+    appeal_due_at: datetime | None = None
+    decided_at: datetime | None = None
+    decided_by_user_id: int | None = None
+    sanctions: list[DisciplineSanctionOut] = Field(default_factory=list)
+
+
+class SeasonStandingAdjustmentOut(BaseModel):
+    team_id: int
+    points_delta: int
+    reason: str
 
 
 class MatchDetailOut(ORMModel):

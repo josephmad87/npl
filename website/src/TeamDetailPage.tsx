@@ -382,7 +382,7 @@ const sponsorsQ = useQuery({
     )
   }, [seasonRecordsQ.data])
 
-  const latestSeasonRecord = useMemo(() => {
+const latestSeasonRecord = useMemo(() => {
   const rows = seasonRecordsQ.data ?? []
 
   if (rows.length === 0) return null
@@ -395,6 +395,15 @@ const sponsorsQ = useQuery({
     return b.season_id - a.season_id
   })[0]
 }, [seasonRecordsQ.data])
+
+const seasonAdjustmentsQ = useQuery({
+  queryKey: ['team-season-standing-adjustments', latestSeasonRecord?.season_id ?? 'none'],
+  queryFn: () => fetchJson<Array<{ team_id: number; points_delta: number }>>(
+    `/public/seasons/${latestSeasonRecord?.season_id}/standing-adjustments`,
+  ),
+  enabled: Boolean(latestSeasonRecord?.season_id),
+  retry: 1,
+})
 
 const teamSeasonSnapshot = useMemo(() => {
   if (!data) return null
@@ -417,7 +426,10 @@ const teamSeasonSnapshot = useMemo(() => {
     teamIds.add(match.away_team_id)
   }
 
-  const row = computeSeasonStandings(snapshotMatches, [...teamIds]).find(
+  const pointsAdjustments = Object.fromEntries(
+    (seasonAdjustmentsQ.data ?? []).map((item) => [item.team_id, item.points_delta]),
+  )
+  const row = computeSeasonStandings(snapshotMatches, [...teamIds], pointsAdjustments).find(
     (standing) => standing.teamId === data.id,
   )
 
@@ -437,7 +449,7 @@ const teamSeasonSnapshot = useMemo(() => {
     row,
     form,
   }
-}, [data, latestSeasonRecord, resultsQ.data])
+}, [data, latestSeasonRecord, resultsQ.data, seasonAdjustmentsQ.data])
 
 const teamStatistics = useMemo(() => {
   if (!data) return null
