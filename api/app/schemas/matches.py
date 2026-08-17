@@ -170,6 +170,7 @@ class ScorecardEditRequestIn(BaseModel):
 
 class ScorecardEditRequestDecisionIn(BaseModel):
     approved: bool
+    decision_note: str | None = Field(default=None, max_length=512)
 
 
 class ScorecardEditRequestOut(BaseModel):
@@ -180,6 +181,7 @@ class ScorecardEditRequestOut(BaseModel):
     requester_full_name: str | None = None
     status: str
     reason: str | None = None
+    decision_note: str | None = None
     requested_at: datetime
     reviewed_by_user_id: int | None = None
     reviewed_at: datetime | None = None
@@ -217,6 +219,7 @@ class LiveScoreCompleteIn(BaseModel):
 
 
 class LiveBallEventIn(BaseModel):
+    client_event_id: str | None = Field(default=None, min_length=8, max_length=64)
     innings: int = Field(ge=1, le=4)
     over_number: int = Field(ge=0, le=999)
     ball_number: int = Field(ge=0, le=12)
@@ -276,6 +279,7 @@ class LiveBallEventOut(ORMModel):
     batters_crossed: bool = False
     dismissal_text: str | None
     notes: str | None
+    client_event_id: str | None = None
     sequence_number: int
     created_by_user_id: int | None
     created_at: datetime
@@ -309,6 +313,7 @@ class LiveScoreStateOut(BaseModel):
     scorecard_locked: bool = False
     can_edit_scorecard: bool = True
     edit_request_status: str | None = None
+    edit_request_decision_note: str | None = None
     edit_access_until: datetime | None = None
 
 
@@ -401,6 +406,7 @@ class MatchDetailOut(ORMModel):
     scorecard_locked: bool = False
     can_edit_scorecard: bool = True
     edit_request_status: str | None = None
+    edit_request_decision_note: str | None = None
     edit_access_until: datetime | None = None
     result: MatchResultOut | None
     player_stats: list[MatchPlayerStatOut] = Field(default_factory=list)

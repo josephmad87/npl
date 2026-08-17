@@ -2278,6 +2278,7 @@ def _scorecard_access(
         "scorecard_locked": locked,
         "can_edit_scorecard": can_edit,
         "edit_request_status": latest_request.status if latest_request is not None else None,
+        "edit_request_decision_note": latest_request.decision_note if latest_request is not None else None,
         "edit_access_until": access_until,
     }
 
@@ -2943,6 +2944,7 @@ def _scorecard_edit_request_out(
         requester_full_name=row.requested_by.full_name if row.requested_by else None,
         status=row.status,
         reason=row.reason,
+        decision_note=row.decision_note,
         requested_at=row.requested_at,
         reviewed_by_user_id=row.reviewed_by_user_id,
         reviewed_at=row.reviewed_at,
@@ -3084,6 +3086,7 @@ def decide_scorecard_edit_request(
 
     reviewed_at = datetime.now(timezone.utc)
     row.status = "approved" if body.approved else "denied"
+    row.decision_note = (body.decision_note or "").strip() or None
     row.reviewed_by_user_id = actor.id
     row.reviewed_at = reviewed_at
     row.access_until = reviewed_at + SCORECARD_EDIT_ACCESS_WINDOW if body.approved else None
@@ -3535,6 +3538,20 @@ def admin_create_live_ball(
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
     _assert_can_edit_score_match(db, match, actor)
+
+    # A network timeout can occur after the server has committed the ball. A
+    # scorer retry with the same token must return the existing delivery rather
+    # than creating a duplicate event.
+    if body.client_event_id:
+        existing = db.scalar(
+            select(MatchBallEvent).where(
+                MatchBallEvent.match_id == match_id,
+                MatchBallEvent.client_event_id == body.client_event_id,
+            ),
+        )
+        if existing is not None:
+            return _live_event_out(existing)
+
     _assert_live_ball_payload(db, match, body)
 
     was_completed = match.status == "completed" and match.result is not None
@@ -3628,7 +3645,7 @@ def admin_update_live_ball(
         before_sequence_number=event.sequence_number,
     )
 
-    for field, value in body.model_dump().items():
+    for field, value in body.model_dump(exclude={"client_event_id"}).items():
         setattr(event, field, value)
 
     _renumber_live_events(db, match_id)

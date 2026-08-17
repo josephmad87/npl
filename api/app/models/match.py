@@ -237,6 +237,7 @@ class MatchScorecardEditRequest(Base):
     )
     status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False, index=True)
     reason: Mapped[str | None] = mapped_column(String(512))
+    decision_note: Mapped[str | None] = mapped_column(String(512))
     requested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -308,6 +309,11 @@ class MatchBallEvent(Base):
             "sequence_number",
             name="uq_match_ball_events_match_sequence",
         ),
+        UniqueConstraint(
+            "match_id",
+            "client_event_id",
+            name="uq_match_ball_events_match_client_event",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -343,6 +349,9 @@ class MatchBallEvent(Base):
     batters_crossed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     dismissal_text: Mapped[str | None] = mapped_column(String(255))
     notes: Mapped[str | None] = mapped_column(Text)
+    # A client-generated token makes a retry safe when connectivity drops
+    # after the server has accepted a delivery.
+    client_event_id: Mapped[str | None] = mapped_column(String(64), index=True)
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
     created_at: Mapped[datetime] = mapped_column(

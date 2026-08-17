@@ -297,6 +297,26 @@ export default function PlayerDetailPage() {
         }
       })
   }, [appearances])
+
+  const playerMilestones = useMemo(() => {
+    const completed = appearances.filter((row) => row.status === 'completed')
+    return {
+      fifties: completed.filter((row) => row.runs >= 50 && row.runs < 100).length,
+      hundreds: completed.filter((row) => row.runs >= 100).length,
+      fiveWickets: completed.filter((row) => row.wickets >= 5).length,
+      notOuts: completed.filter(
+        (row) => !isBattingOut(row.dismissal) && countsBattingInnings(row.dismissal, row.runs, row.balls_faced),
+      ).length,
+      boundaries: completed.reduce(
+        (total, row) => total + (row.fours ?? 0) + (row.sixes ?? 0),
+        0,
+      ),
+      fielding: completed.reduce(
+        (total, row) => total + (row.catches ?? 0) + (row.stumpings ?? 0) + (row.run_outs ?? 0),
+        0,
+      ),
+    }
+  }, [appearances])
 const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
   () =>
     appearances
@@ -566,6 +586,28 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                     {data.player_of_match_awards}
                   </span>
                 </div>
+              </div>
+            </section>
+
+            <section className="player-public-section" aria-label="Career milestones">
+              <SectionHeader title="Career milestones" />
+              <p className="player-public-hint muted">
+                Additional batting, bowling, and fielding achievements calculated from completed scorecards.
+              </p>
+              <div className="player-public-stat-grid player-public-stat-grid--milestones">
+                {[
+                  ['50s', playerMilestones.fifties],
+                  ['100s', playerMilestones.hundreds],
+                  ['5 wickets', playerMilestones.fiveWickets],
+                  ['Not outs', playerMilestones.notOuts],
+                  ['Boundaries', playerMilestones.boundaries],
+                  ['Fielding dismissals', playerMilestones.fielding],
+                ].map(([label, value]) => (
+                  <div key={label} className="player-public-stat-card">
+                    <span className="player-public-stat-card__label">{label}</span>
+                    <span className="player-public-stat-card__value">{value}</span>
+                  </div>
+                ))}
               </div>
             </section>
 
