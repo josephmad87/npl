@@ -89,7 +89,7 @@ function DisciplineAdminPage() {
     setFineAmount('')
     setCurrency('USD')
     setSanctionNotes('')
-  }, [selected?.id])
+  }, [selected])
 
   const saveMutation = useMutation({
     mutationFn: (body: unknown) => adminPut<DisciplineCase>(`/admin/discipline/cases/${selected?.id}/decision`, body),
