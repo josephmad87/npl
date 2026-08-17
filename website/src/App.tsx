@@ -569,7 +569,11 @@ function bowlingAppearanceLine(
 }
 
 function App() {
-  const { data: newsArticles = [] } = useRecentNews(36)
+  const {
+    data: newsArticles = [],
+    isLoading: isNewsLoading,
+    isError: isNewsError,
+  } = useRecentNews(8)
   const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 80)
   const { data: latestResults = [] } = useLatestResults(undefined, 80)
   const { map: teamsMap } = useTeamsMap()
@@ -977,7 +981,14 @@ useEffect(() => {
   return (
     <main className="container">
       <section className="hero-carousel" aria-label="Latest news highlights">
-        {heroSlides.length > 0 ? (
+        {isNewsLoading ? (
+          <article className="hero-slide hero-slide--loading is-active" aria-busy="true">
+            <div className="hero-slide-overlay">
+              <p className="hero-slide-eyebrow">Latest News</p>
+              <h2>Loading latest news…</h2>
+            </div>
+          </article>
+        ) : heroSlides.length > 0 ? (
           <>
             {heroSlides.map((slide, index) => {
               const isActive = index === currentSlideIndex
@@ -1037,10 +1048,11 @@ useEffect(() => {
           <article className="hero-slide is-active">
             <div className="hero-slide-overlay">
               <p className="hero-slide-eyebrow">Latest News</p>
-              <h2>No published news yet</h2>
+              <h2>{isNewsError ? 'Latest news is temporarily unavailable' : 'No published news yet'}</h2>
               <p>
-                Add and publish a news article with a featured image to populate
-                this carousel.
+                {isNewsError
+                  ? 'Please refresh the page or try again shortly.'
+                  : 'Add and publish a news article with a featured image to populate this carousel.'}
               </p>
             </div>
           </article>
@@ -1180,7 +1192,7 @@ useEffect(() => {
         ) : null}
       </section>
 
-      <HomeNewsCarousel articles={newsArticles} />
+      <HomeNewsCarousel articles={newsArticles} isLoading={isNewsLoading} />
 
       {selectedSpotlightTeam ? (
         <section className="home-section home-team-spotlight">

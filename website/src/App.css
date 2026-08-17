@@ -516,6 +516,21 @@
   pointer-events: auto;
 }
 
+.hero-slide--loading {
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--color-primary) 88%, var(--color-surface)) 25%,
+    color-mix(in srgb, var(--color-primary-alt) 76%, var(--color-surface)) 50%,
+    color-mix(in srgb, var(--color-primary) 88%, var(--color-surface)) 75%
+  );
+  background-size: 200% 100%;
+  animation: hero-loading-shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes hero-loading-shimmer {
+  to { background-position: -200% 0; }
+}
+
 .hero-slide img {
   width: 100%;
   height: 100%;

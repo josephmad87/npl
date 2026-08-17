@@ -120,7 +120,13 @@ function HomeNewsCarouselTrack({
   )
 }
 
-export function HomeNewsCarousel({ articles }: { articles: ArticleLite[] }) {
+export function HomeNewsCarousel({
+  articles,
+  isLoading = false,
+}: {
+  articles: ArticleLite[]
+  isLoading?: boolean
+}) {
   const [activeFilter, setActiveFilter] = useState('all')
   const scrollerRef = useRef<HTMLDivElement>(null)
 
@@ -133,7 +139,8 @@ export function HomeNewsCarousel({ articles }: { articles: ArticleLite[] }) {
 
   const filteredArticles = useMemo(() => {
     const list = articles.filter((a) => articleMatchesFilter(a, effectiveFilter))
-    return [...list].sort(sortByPublishedDesc)
+    // Keep the home page light even when the news archive grows.
+    return [...list].sort(sortByPublishedDesc).slice(0, 8)
   }, [articles, effectiveFilter])
 
   const scrollBy = useCallback((direction: -1 | 1) => {
@@ -194,7 +201,9 @@ export function HomeNewsCarousel({ articles }: { articles: ArticleLite[] }) {
         </div>
       </div>
 
-      {filteredArticles.length === 0 ? (
+      {isLoading ? (
+        <p className="home-news-carousel__empty" aria-live="polite">Loading latest news…</p>
+      ) : filteredArticles.length === 0 ? (
         <p className="home-news-carousel__empty">No articles match this filter.</p>
       ) : (
         <HomeNewsCarouselTrack key={effectiveFilter} articles={filteredArticles} scrollRef={scrollerRef} />

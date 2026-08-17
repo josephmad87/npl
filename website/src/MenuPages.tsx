@@ -19,6 +19,7 @@ import { Spinner } from './components/Spinner'
 import { TeamCard } from './components/TeamCard'
 import type { CompetitionCategory } from './lib/competitionCategories'
 import { formatCategoryLabel } from './lib/formatters'
+import { matchSeoPath } from './lib/matchUrls'
 import {
   type ArticleLite,
   type MatchLite,
@@ -642,23 +643,44 @@ function SearchResultsPageImpl() {
   const hasQuery = query.length > 0
   const encodedQuery = encodeURIComponent(query)
   const activeFilter = type as SearchFilter
+  const { map: teamsMap } = useTeamsMap()
 
   const resultsQ = useQuery({
     queryKey: ['site-search', query],
     queryFn: async () => {
-      const [teamsRaw, playersRaw, newsRaw, leaguesRaw] = await Promise.all([
+      const [teamsRaw, playersRaw, newsRaw, leaguesRaw, fixturesRaw, resultsRaw] = await Promise.all([
         fetchJson<unknown>(`/public/teams?page=1&page_size=12&q=${encodedQuery}`),
         fetchJson<unknown>(`/public/players?page=1&page_size=12&q=${encodedQuery}`),
         fetchJson<unknown>(`/public/news?page=1&page_size=12&q=${encodedQuery}`),
         fetchJson<unknown>(`/public/leagues?page=1&page_size=12&q=${encodedQuery}`),
+        fetchJson<unknown>(`/public/fixtures?page=1&page_size=12&q=${encodedQuery}`),
+        fetchJson<unknown>(`/public/results?page=1&page_size=12&q=${encodedQuery}`),
       ])
-      const teams = extractList<SearchTeam>(teamsRaw)
-      const players = extractList<SearchPlayer>(playersRaw)
-      const news = extractList<ArticleLite>(newsRaw)
-      const leagues = extractList<SearchLeague>(leaguesRaw)
+      return {
+        teams: extractList<SearchTeam>(teamsRaw),
+        players: extractList<SearchPlayer>(playersRaw),
+        news: extractList<ArticleLite>(newsRaw),
+        leagues: extractList<SearchLeague>(leaguesRaw),
+        fixtures: extractList<MatchLite>(fixturesRaw),
+        results: extractList<MatchLite>(resultsRaw),
+      }
+    },
+    enabled: hasQuery,
+    retry: 1,
+  })
 
-      const items: SearchResultItem[] = [
-        ...news.map((article) => ({
+  const results = useMemo<SearchResultItem[]>(() => {
+    const data = resultsQ.data
+    if (!data) return []
+
+    const matchTitle = (match: MatchLite) => {
+      const homeName = teamsMap[match.home_team_id]?.name ?? `Team ${match.home_team_id}`
+      const awayName = teamsMap[match.away_team_id]?.name ?? `Team ${match.away_team_id}`
+      return `${homeName} vs ${awayName}`
+    }
+
+    return [
+        ...data.news.map((article) => ({
           key: `news-${article.id}`,
           kind: 'news' as const,
           title: article.title,
@@ -668,21 +690,21 @@ function SearchResultsPageImpl() {
             'News article and competition update.',
           slug: article.slug,
         })),
-        ...teams.map((team) => ({
+        ...data.teams.map((team) => ({
           key: `team-${team.id}`,
           kind: 'team' as const,
           title: team.name,
           snippet: `${formatCategoryLabel(team.category ?? 'mens')} team profile`,
           slug: team.slug,
         })),
-        ...players.map((player) => ({
+        ...data.players.map((player) => ({
           key: `player-${player.id}`,
           kind: 'player' as const,
           title: player.full_name,
           snippet: player.role?.trim() ?? 'Player profile and stats',
           slug: player.slug,
         })),
-        ...leagues.map((league) => ({
+        ...data.leagues.map((league) => ({
           key: `league-${league.id}`,
           kind: 'league' as const,
           title: league.name,
@@ -691,14 +713,22 @@ function SearchResultsPageImpl() {
             `${formatCategoryLabel(league.category ?? 'mens')} competition league`,
           slug: league.slug,
         })),
+        ...data.fixtures.map((match) => ({
+          key: `fixture-${match.id}`,
+          kind: 'fixture' as const,
+          title: matchTitle(match),
+          snippet: [match.match_date, match.venue].filter(Boolean).join(' · ') || 'Upcoming fixture',
+          match,
+        })),
+        ...data.results.map((match) => ({
+          key: `result-${match.id}`,
+          kind: 'result' as const,
+          title: matchTitle(match),
+          snippet: match.result?.margin_text?.trim() ?? match.result?.score_summary?.trim() ?? 'Completed match result',
+          match,
+        })),
       ]
-      return items
-    },
-    enabled: hasQuery,
-    retry: 1,
-  })
-
-  const results = resultsQ.data ?? []
+  }, [resultsQ.data, teamsMap])
   const filteredResults = useMemo(() => {
     if (activeFilter === 'all') return results
     return results.filter((item) => item.kind === activeFilter)
@@ -709,6 +739,8 @@ function SearchResultsPageImpl() {
     { id: 'team', label: 'Teams' },
     { id: 'player', label: 'Players' },
     { id: 'league', label: 'Leagues' },
+    { id: 'fixture', label: 'Fixtures' },
+    { id: 'result', label: 'Results' },
   ]
 
   return (
@@ -786,22 +818,27 @@ function SearchResultsPageImpl() {
                 {filteredResults.map((item) => (
                   <article key={item.key} className="search-page__result" role="listitem">
                   {item.kind === 'news' ? (
-                    <Link to="/news/$slug" params={{ slug: item.slug }} className="search-page__title">
+                    <Link to="/news/$slug" params={{ slug: item.slug! }} className="search-page__title">
                       {item.title}
                     </Link>
                   ) : null}
                   {item.kind === 'team' ? (
-                    <Link to="/teams/$slug" params={{ slug: item.slug }} className="search-page__title">
+                    <Link to="/teams/$slug" params={{ slug: item.slug! }} className="search-page__title">
                       {item.title}
                     </Link>
                   ) : null}
                   {item.kind === 'player' ? (
-                    <Link to="/players/$slug" params={{ slug: item.slug }} className="search-page__title">
+                    <Link to="/players/$slug" params={{ slug: item.slug! }} className="search-page__title">
                       {item.title}
                     </Link>
                   ) : null}
                   {item.kind === 'league' ? (
-                    <Link to="/leagues/$slug" params={{ slug: item.slug }} className="search-page__title">
+                    <Link to="/leagues/$slug" params={{ slug: item.slug! }} className="search-page__title">
+                      {item.title}
+                    </Link>
+                  ) : null}
+                  {item.kind === 'fixture' || item.kind === 'result' ? (
+                    <Link to={matchSeoPath(item.match!)} className="search-page__title">
                       {item.title}
                     </Link>
                   ) : null}
@@ -908,10 +945,11 @@ type SearchLeague = {
 
 type SearchResultItem = {
   key: string
-  kind: 'news' | 'team' | 'player' | 'league'
+  kind: 'news' | 'team' | 'player' | 'league' | 'fixture' | 'result'
   title: string
   snippet: string
-  slug: string
+  slug?: string
+  match?: MatchLite
 }
 
 type SearchFilter = 'all' | SearchResultItem['kind']
