@@ -206,6 +206,7 @@ export type MatchDto = {
   scorecard_locked?: boolean
   can_edit_scorecard?: boolean
   edit_request_status?: 'pending' | 'approved' | 'denied' | null
+  edit_request_decision_note?: string | null
   edit_access_until?: string | null
   season: SeasonBriefDto | null
   result: MatchResultDto | null
@@ -429,6 +430,7 @@ export type ScorecardEditRequestDto = {
   requester_full_name: string | null
   status: 'pending' | 'approved' | 'denied'
   reason: string | null
+  decision_note: string | null
   requested_at: string
   reviewed_by_user_id: number | null
   reviewed_at: string | null
@@ -528,6 +530,7 @@ export type LiveBallEventDto = {
   batters_crossed: boolean
   dismissal_text: string | null
   notes: string | null
+  client_event_id: string | null
   sequence_number: number
   created_by_user_id: number | null
   created_at: string
@@ -561,10 +564,12 @@ export type LiveScoreStateDto = {
   scorecard_locked: boolean
   can_edit_scorecard: boolean
   edit_request_status: 'pending' | 'approved' | 'denied' | null
+  edit_request_decision_note: string | null
   edit_access_until: string | null
 }
 
 export type LiveBallEventInput = {
+  client_event_id?: string | null
   innings: number
   over_number: number
   ball_number: number

@@ -18,8 +18,10 @@ import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicA
 import { sortFixturesByDateAsc } from './lib/sortFixtures'
 import { SponsorMarquee } from './components/SponsorMarquee'
 import {
+  ballsToOversLabel,
   computeSeasonStandings,
   formatStandingsNrr,
+  oversFieldToBalls,
 } from './lib/leagueSeasonAggregates'
 
 type TeamDetail = {
@@ -99,6 +101,7 @@ type TeamSectionTabId =
   | 'home-ground'
   | 'history'
   | 'season-records'
+  | 'statistics'
   | 'fixtures'
   | 'results'
   | 'squad'
@@ -148,6 +151,15 @@ function teamFormCode(match: MatchLite, teamId: number): TeamFormCode {
   if (winnerId != null) return 'L'
 
   return 'NR'
+}
+
+function scorecardNumber(row: Record<string, unknown>, field: string): number {
+  const value = row[field]
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
+    return Number(value)
+  }
+  return 0
 }
 
 function StaffCard({
@@ -427,6 +439,84 @@ const teamSeasonSnapshot = useMemo(() => {
   }
 }, [data, latestSeasonRecord, resultsQ.data])
 
+const teamStatistics = useMemo(() => {
+  if (!data) return null
+
+  type Batter = { playerId: number; name: string; runs: number; balls: number; fours: number; sixes: number }
+  type Bowler = { playerId: number; name: string; wickets: number; conceded: number; balls: number; maidens: number }
+  const playerNames = new Map((playersQ.data ?? []).map((player) => [player.id, player.full_name]))
+  const batting = new Map<number, Batter>()
+  const bowling = new Map<number, Bowler>()
+  let matches = 0
+  let wins = 0
+  let losses = 0
+  let ties = 0
+  let noResults = 0
+  let teamRuns = 0
+  let wickets = 0
+  let catches = 0
+
+  for (const match of resultsQ.data ?? []) {
+    if (match.status !== 'completed') continue
+    matches += 1
+    const result = match.result as
+      | { outcome?: string | null; winning_team_id?: number | null }
+      | null
+      | undefined
+    const outcome = String(result?.outcome ?? '').toLowerCase()
+    if (result?.winning_team_id === data.id) wins += 1
+    else if (outcome === 'tie') ties += 1
+    else if (outcome === 'no_result' || result?.winning_team_id == null) noResults += 1
+    else losses += 1
+
+    for (const rawRow of match.player_stats ?? []) {
+      if (scorecardNumber(rawRow, 'team_id') !== data.id) continue
+      const playerId = scorecardNumber(rawRow, 'player_id')
+      if (!playerId) continue
+      const name = playerNames.get(playerId) ?? `Player #${playerId}`
+      const runs = scorecardNumber(rawRow, 'runs')
+      const balls = scorecardNumber(rawRow, 'balls_faced')
+      const fours = scorecardNumber(rawRow, 'fours')
+      const sixes = scorecardNumber(rawRow, 'sixes')
+      const playerBatting = batting.get(playerId) ?? { playerId, name, runs: 0, balls: 0, fours: 0, sixes: 0 }
+      playerBatting.runs += runs
+      playerBatting.balls += balls
+      playerBatting.fours += fours
+      playerBatting.sixes += sixes
+      batting.set(playerId, playerBatting)
+      teamRuns += runs
+
+      const playerBowling = bowling.get(playerId) ?? { playerId, name, wickets: 0, conceded: 0, balls: 0, maidens: 0 }
+      playerBowling.wickets += scorecardNumber(rawRow, 'wickets')
+      playerBowling.conceded += scorecardNumber(rawRow, 'runs_conceded')
+      playerBowling.balls += oversFieldToBalls(rawRow.overs)
+      playerBowling.maidens += scorecardNumber(rawRow, 'maidens')
+      bowling.set(playerId, playerBowling)
+      wickets += scorecardNumber(rawRow, 'wickets')
+      catches += scorecardNumber(rawRow, 'catches')
+    }
+  }
+
+  return {
+    matches,
+    wins,
+    losses,
+    ties,
+    noResults,
+    teamRuns,
+    wickets,
+    catches,
+    battingLeaders: [...batting.values()]
+      .filter((row) => row.runs > 0 || row.balls > 0)
+      .sort((a, b) => b.runs - a.runs || a.balls - b.balls)
+      .slice(0, 5),
+    bowlingLeaders: [...bowling.values()]
+      .filter((row) => row.wickets > 0 || row.balls > 0)
+      .sort((a, b) => b.wickets - a.wickets || a.conceded - b.conceded)
+      .slice(0, 5),
+  }
+}, [data, playersQ.data, resultsQ.data])
+
   const playersSorted = useMemo(() => {
     const list = playersQ.data ?? []
     return [...list].sort((a, b) =>
@@ -502,6 +592,7 @@ useEffect(() => {
         { id: 'home-ground', label: 'Home ground' },
         { id: 'history', label: 'History' },
         { id: 'season-records', label: 'Season records' },
+        { id: 'statistics', label: 'Statistics' },
         { id: 'fixtures', label: 'Fixtures' },
         { id: 'results', label: 'Results' },
         { id: 'squad', label: 'Squad' },
@@ -835,6 +926,69 @@ useEffect(() => {
                   *NR: matches with no winner recorded (tie, abandoned, or
                   incomplete result).
                 </p>
+                </section>
+              ) : null}
+
+              {activeTab === 'statistics' ? (
+                <section className="team-page__section" aria-label="Team statistics">
+                  <SectionHeader title="Team statistics" />
+                  <p className="team-page__hint muted">
+                    Career figures from completed scorecards, including all recorded club matches.
+                  </p>
+                  {resultsQ.isLoading ? <Spinner label="Calculating team figures…" /> : null}
+                  {!resultsQ.isLoading && (!teamStatistics || teamStatistics.matches === 0) ? (
+                    <p className="muted">Statistics will appear once the team has completed scorecards.</p>
+                  ) : teamStatistics ? (
+                    <>
+                      <div className="team-page__statistics-grid">
+                        {[
+                          ['Matches', teamStatistics.matches],
+                          ['Won', teamStatistics.wins],
+                          ['Lost', teamStatistics.losses],
+                          ['Tied', teamStatistics.ties],
+                          ['No result', teamStatistics.noResults],
+                          ['Batting runs', teamStatistics.teamRuns],
+                          ['Wickets', teamStatistics.wickets],
+                          ['Catches', teamStatistics.catches],
+                        ].map(([label, value]) => (
+                          <article key={label}>
+                            <span>{label}</span>
+                            <strong>{value}</strong>
+                          </article>
+                        ))}
+                      </div>
+
+                      <div className="team-page__statistics-leaders">
+                        <div>
+                          <h3>Batting leaders</h3>
+                          <div className="table-wrap team-page__table-wrap">
+                            <table className="team-page__standings-table team-page__statistics-table">
+                              <thead><tr><th>Player</th><th>Runs</th><th>BF</th><th>4s</th><th>6s</th></tr></thead>
+                              <tbody>
+                                {teamStatistics.battingLeaders.map((row) => (
+                                  <tr key={row.playerId}><td>{row.name}</td><td>{row.runs}</td><td>{row.balls}</td><td>{row.fours}</td><td>{row.sixes}</td></tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                        <div>
+                          <h3>Bowling leaders</h3>
+                          <div className="table-wrap team-page__table-wrap">
+                            <table className="team-page__standings-table team-page__statistics-table">
+                              <thead><tr><th>Player</th><th>Wkts</th><th>Runs</th><th>Overs</th><th>Econ</th></tr></thead>
+                              <tbody>
+                                {teamStatistics.bowlingLeaders.map((row) => {
+                                  const economy = row.balls > 0 ? (row.conceded * 6) / row.balls : null
+                                  return <tr key={row.playerId}><td>{row.name}</td><td>{row.wickets}</td><td>{row.conceded}</td><td>{ballsToOversLabel(row.balls)}</td><td>{economy == null ? '—' : economy.toFixed(2)}</td></tr>
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
                 </section>
               ) : null}
 

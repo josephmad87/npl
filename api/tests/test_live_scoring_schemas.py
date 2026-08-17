@@ -51,6 +51,26 @@ def test_live_score_complete_preserves_match_overs() -> None:
     assert body.match_overs == Decimal("20.0")
 
 
+def test_live_ball_accepts_client_event_id_for_safe_retry() -> None:
+    body = LiveBallEventIn(
+        client_event_id="4c281c7f-7097-4d95-bb0a-72bd5f53d1a6",
+        innings=1,
+        over_number=0,
+        ball_number=1,
+        batting_team_id=1,
+        bowling_team_id=2,
+        striker_player_id=10,
+        non_striker_player_id=11,
+        bowler_player_id=20,
+    )
+
+    assert body.client_event_id == "4c281c7f-7097-4d95-bb0a-72bd5f53d1a6"
+
+
+def test_live_ball_model_has_idempotency_column() -> None:
+    assert "client_event_id" in Match.__table__.metadata.tables["match_ball_events"].columns
+
+
 def test_public_match_detail_exposes_match_overs() -> None:
     detail = MatchDetailOut(
         id=1,

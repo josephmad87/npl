@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { LockKeyhole, Pencil, RotateCcw, Save, Undo2, X } from 'lucide-react'
+import { CloudUpload, LockKeyhole, Pencil, RotateCcw, Save, Undo2, Wifi, WifiOff, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   LiveBallEventDto,
@@ -18,7 +18,7 @@ import type {
   TeamDto,
 } from '@/lib/api-types'
 import { adminGet, adminPost } from '@/lib/admin-client'
-import { apiFetch } from '@/lib/api'
+import { ApiError, apiFetch } from '@/lib/api'
 import { getSession } from '@/lib/session'
 import { oversFieldToBalls } from '@/lib/cricket'
 import { PageHeader } from '@/components/PageHeader'
@@ -39,6 +39,18 @@ type BallSubmitPayload = {
   body: LiveBallEventInput
   newBatterId?: number | null
   strikeRuns?: number
+}
+
+function newClientEventId(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID()
+  }
+
+  return `ball-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`
+}
+
+function pendingBallStorageKey(matchId: number): string {
+  return `npl:scorer:pending-ball:${matchId}`
 }
 
 type WicketEnd = 'striker' | 'non_striker'
@@ -500,9 +512,38 @@ function LiveScoringPage() {
   const [nextBowlerPlayerId, setNextBowlerPlayerId] = useState<number | ''>('')
   const [matchOverOpen, setMatchOverOpen] = useState(false)
   const [inningsOverOpen, setInningsOverOpen] = useState(false)
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === 'undefined' ? true : navigator.onLine,
+  )
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
+  const [pendingBallPayload, setPendingBallPayload] = useState<BallSubmitPayload | null>(null)
+  const [requestEditOpen, setRequestEditOpen] = useState(false)
+  const [requestEditReason, setRequestEditReason] = useState('')
   const selectionContextRef = useRef('')
   const lastHydratedEventKeyRef = useRef('')
   const hasHydratedInningsRef = useRef(false)
+
+  useEffect(() => {
+    const updateOnlineState = () => setIsOnline(navigator.onLine)
+    globalThis.addEventListener('online', updateOnlineState)
+    globalThis.addEventListener('offline', updateOnlineState)
+    return () => {
+      globalThis.removeEventListener('online', updateOnlineState)
+      globalThis.removeEventListener('offline', updateOnlineState)
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      const stored = globalThis.sessionStorage.getItem(pendingBallStorageKey(mid))
+      if (!stored) return
+      const parsed = JSON.parse(stored) as BallSubmitPayload
+      if (parsed?.body?.client_event_id) setPendingBallPayload(parsed)
+    } catch {
+      // A corrupt recovery draft must never stop the scorer from continuing.
+      globalThis.sessionStorage.removeItem(pendingBallStorageKey(mid))
+    }
+  }, [mid])
 
   const matchTeams = useMemo<ScoringTeam[]>(() => {
     if (!match) return []
@@ -952,6 +993,9 @@ function LiveScoringPage() {
         (currentSummary?.wickets ?? 0) >= 9
 
       setActionError(null)
+      setLastSavedAt(new Date())
+      setPendingBallPayload(null)
+      globalThis.sessionStorage.removeItem(pendingBallStorageKey(mid))
       setNotes('')
       if (payload.body.is_legal_delivery !== false && !payload.body.is_dead_ball && payload.body.ball_number === 6) {
         setOverNote('')
@@ -990,7 +1034,24 @@ function LiveScoringPage() {
         }
       }
     },
-    onError: (error: Error) => setActionError(error.message),
+    onError: (error: Error, payload) => {
+      if (error instanceof ApiError && error.status < 500) {
+        setActionError(error.message)
+        return
+      }
+      setPendingBallPayload(payload)
+      try {
+        globalThis.sessionStorage.setItem(
+          pendingBallStorageKey(mid),
+          JSON.stringify(payload),
+        )
+      } catch {
+        // The retry still remains available for this browser session.
+      }
+      setActionError(
+        `Ball not saved yet: ${error.message}. It has been kept here so you can retry safely.`,
+      )
+    },
   })
 
   const undoMutation = useMutation({
@@ -1135,13 +1196,15 @@ function LiveScoringPage() {
   })
 
   const requestEditAccessMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (reason: string) =>
       adminPost<ScorecardEditRequestDto>(
         `/admin/matches/${mid}/scorecard-edit-requests`,
-        {},
+        { reason: reason.trim() || null },
       ),
     onSuccess: async () => {
       setActionError(null)
+      setRequestEditOpen(false)
+      setRequestEditReason('')
       await queryClient.invalidateQueries({
         queryKey: ['admin', 'matches', mid, 'live'],
       })
@@ -1155,6 +1218,14 @@ function LiveScoringPage() {
   const scorecardReadOnly =
     Boolean(liveQ.data?.scorecard_locked) &&
     liveQ.data?.can_edit_scorecard === false
+  const retryPendingBall = () => {
+    if (!pendingBallPayload) return
+    if (!isOnline) {
+      setActionError('You are offline. Reconnect before retrying the saved ball.')
+      return
+    }
+    void ballMutation.mutate(pendingBallPayload)
+  }
   const matchFinalized =
     liveQ.data?.status === 'completed' || match?.status === 'completed'
   const effectiveScorerPanel =
@@ -1276,6 +1347,11 @@ function LiveScoringPage() {
     },
     newBatterId?: number | null,
   ) => {
+    if (pendingBallPayload) {
+      setActionError('A previous ball is waiting to be saved. Retry it before recording another delivery.')
+      return
+    }
+
     if (firstInningsOversReached) {
       setInningsOverOpen(true)
       setActionError('The allocated overs are complete. Confirm the move to the second innings.')
@@ -1310,6 +1386,7 @@ function LiveScoringPage() {
       .join('\n')
 
     const body: LiveBallEventInput = {
+      client_event_id: newClientEventId(),
       innings,
       over_number: nextOverNumber,
       ball_number: nextBallNumber,
@@ -1342,11 +1419,27 @@ function LiveScoringPage() {
       notes: combinedNotes || null,
     }
 
-    void ballMutation.mutate({
+    const payload: BallSubmitPayload = {
       body,
       newBatterId,
       strikeRuns: input.strikeRuns ?? input.runsBatter ?? 0,
-    })
+    }
+
+    if (!isOnline) {
+      setPendingBallPayload(payload)
+      try {
+        globalThis.sessionStorage.setItem(
+          pendingBallStorageKey(mid),
+          JSON.stringify(payload),
+        )
+      } catch {
+        // The scorer can still retry the ball while this page stays open.
+      }
+      setActionError('You are offline. This ball is waiting on this device and can be retried after reconnecting.')
+      return
+    }
+
+    void ballMutation.mutate(payload)
   }
 
   const submitWicket = () => {
@@ -1832,6 +1925,30 @@ function LiveScoringPage() {
           align-items: center;
           display: flex;
           gap: 0.5rem;
+        }
+        .live-scorer-sync-banner {
+          align-items: center;
+          background: rgba(34, 197, 94, 0.1);
+          border: 1px solid rgba(34, 197, 94, 0.34);
+          border-radius: 14px;
+          display: flex;
+          gap: 0.75rem;
+          justify-content: space-between;
+          margin: 1rem 0;
+          padding: 0.75rem 1rem;
+        }
+        .live-scorer-sync-banner--offline,
+        .live-scorer-sync-banner--retry {
+          background: rgba(229, 139, 27, 0.13);
+          border-color: rgba(229, 139, 27, 0.45);
+        }
+        .live-scorer-sync-banner__copy {
+          align-items: center;
+          display: flex;
+          gap: 0.55rem;
+        }
+        .live-scorer-sync-banner p {
+          margin: 0.15rem 0 0;
         }
         .live-scorer-page .catalog-card-grid {
           display: grid;
@@ -2510,6 +2627,9 @@ function LiveScoringPage() {
                 ? `This scorecard locked 120 minutes after finalization (${dateTimeLabel(liveQ.data.scorecard_locks_at)}).`
                 : `Super-admin approval allows edits until ${dateTimeLabel(liveQ.data.edit_access_until)}.`}
             </p>
+            {liveQ.data.edit_request_status === 'denied' && liveQ.data.edit_request_decision_note ? (
+              <p className="muted">Super-admin note: {liveQ.data.edit_request_decision_note}</p>
+            ) : null}
           </div>
           {scorecardReadOnly && isScorer ? (
             <button
@@ -2519,7 +2639,7 @@ function LiveScoringPage() {
                 liveQ.data.edit_request_status === 'pending' ||
                 requestEditAccessMutation.isPending
               }
-              onClick={() => requestEditAccessMutation.mutate()}
+              onClick={() => setRequestEditOpen(true)}
             >
               <LockKeyhole size={18} aria-hidden />
               {liveQ.data.edit_request_status === 'pending'
@@ -2531,6 +2651,46 @@ function LiveScoringPage() {
           ) : null}
         </aside>
       ) : null}
+
+      <aside
+        className={`live-scorer-sync-banner${!isOnline ? ' live-scorer-sync-banner--offline' : pendingBallPayload ? ' live-scorer-sync-banner--retry' : ''}`}
+        aria-live="polite"
+      >
+        <div className="live-scorer-sync-banner__copy">
+          {!isOnline ? <WifiOff size={19} aria-hidden /> : <Wifi size={19} aria-hidden />}
+          <div>
+            <strong>
+              {!isOnline
+                ? 'Offline — scoring is paused'
+                : pendingBallPayload
+                  ? 'One ball is waiting to be saved'
+                  : ballMutation.isPending
+                    ? 'Saving ball…'
+                    : 'Live score is connected'}
+            </strong>
+            <p className="muted">
+              {!isOnline
+                ? 'New balls are held safely on this device until you reconnect.'
+                : pendingBallPayload
+                  ? 'Retry is safe: the same delivery cannot be added twice.'
+                  : lastSavedAt
+                    ? `Last ball saved at ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`
+                    : 'Each recorded ball is saved to the match centre immediately.'}
+            </p>
+          </div>
+        </div>
+        {pendingBallPayload ? (
+          <button
+            type="button"
+            className="btn-primary btn--with-icon"
+            disabled={!isOnline || ballMutation.isPending}
+            onClick={retryPendingBall}
+          >
+            <CloudUpload size={18} aria-hidden />
+            {ballMutation.isPending ? 'Saving…' : 'Retry saved ball'}
+          </button>
+        ) : null}
+      </aside>
 
       <section className="live-scorer-sticky" aria-label="Scoring quick controls">
         <div className="live-scorer-sticky__top">
@@ -3507,6 +3667,57 @@ function LiveScoringPage() {
                   }}
                 >
                   Review & finalize match
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {requestEditOpen ? (
+          <div className="live-scorer-dialog-backdrop">
+            <section
+              className="live-scorer-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="scorecard-edit-request-title"
+            >
+              <div className="team-hub-section-head">
+                <div className="team-hub-section-head__lead">
+                  <h3 id="scorecard-edit-request-title" className="team-hub-section__title">
+                    Request scorecard correction access
+                  </h3>
+                  <p className="muted">
+                    Tell the super admin what needs correcting. Approved access lasts 120 minutes and every change remains in the audit trail.
+                  </p>
+                </div>
+              </div>
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">Correction reason</span>
+                <textarea
+                  className="inline-edit__control"
+                  value={requestEditReason}
+                  onChange={(event) => setRequestEditReason(event.target.value)}
+                  placeholder="For example: wicket was recorded against the wrong batter at 18.4."
+                  rows={4}
+                  maxLength={512}
+                />
+              </label>
+              <div className="catalog-toolbar live-scorer-dialog__actions">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setRequestEditOpen(false)}
+                  disabled={requestEditAccessMutation.isPending}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => requestEditAccessMutation.mutate(requestEditReason)}
+                  disabled={requestEditAccessMutation.isPending}
+                >
+                  {requestEditAccessMutation.isPending ? 'Requesting…' : 'Send request'}
                 </button>
               </div>
             </section>

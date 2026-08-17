@@ -85,6 +85,7 @@ function ScoringDashboardPage() {
   const isScorer = session?.role === 'scorer'
   const isSuperAdmin = session?.role === 'super_admin'
   const [activeTab, setActiveTab] = useState<MatchTab>('assigned')
+  const [decisionNotes, setDecisionNotes] = useState<Record<number, string>>({})
 
   const matchesQ = useQuery({
     queryKey: ['admin', 'scorer', 'matches'],
@@ -121,10 +122,10 @@ function ScoringDashboardPage() {
   const visibleRows = activeTab === 'assigned' ? assignedRows : completedRows
 
   const requestEditMutation = useMutation({
-    mutationFn: (matchId: number) =>
+    mutationFn: ({ matchId, reason }: { matchId: number; reason: string }) =>
       adminPost<ScorecardEditRequestDto>(
         `/admin/matches/${matchId}/scorecard-edit-requests`,
-        {},
+        { reason: reason.trim() || null },
       ),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -137,15 +138,18 @@ function ScoringDashboardPage() {
     mutationFn: ({
       requestId,
       approved,
+      decisionNote,
     }: {
       requestId: number
       approved: boolean
+      decisionNote: string
     }) =>
       adminPutJson<ScorecardEditRequestDto>(
         `/admin/scorecard-edit-requests/${requestId}`,
-        { approved },
+        { approved, decision_note: decisionNote.trim() || null },
       ),
     onSuccess: async () => {
+      setDecisionNotes({})
       await queryClient.invalidateQueries({
         queryKey: ['admin', 'scorecard-edit-requests'],
       })
@@ -293,6 +297,21 @@ function ScoringDashboardPage() {
                         · requested {dateTimeLabel(request.requested_at)}
                       </p>
                       {request.reason ? <p>{request.reason}</p> : null}
+                      <label className="inline-edit__field" style={{ marginTop: '0.65rem' }}>
+                        <span className="inline-edit__label">Decision note (optional)</span>
+                        <input
+                          className="inline-edit__control"
+                          value={decisionNotes[request.id] ?? ''}
+                          onChange={(event) =>
+                            setDecisionNotes((current) => ({
+                              ...current,
+                              [request.id]: event.target.value,
+                            }))
+                          }
+                          maxLength={512}
+                          placeholder="Explain the approval or denial to the scorer"
+                        />
+                      </label>
                     </div>
                     <div className="scoring-match-card__actions">
                       <button
@@ -303,6 +322,7 @@ function ScoringDashboardPage() {
                           decideRequestMutation.mutate({
                             requestId: request.id,
                             approved: true,
+                            decisionNote: decisionNotes[request.id] ?? '',
                           })
                         }
                       >
@@ -317,6 +337,7 @@ function ScoringDashboardPage() {
                           decideRequestMutation.mutate({
                             requestId: request.id,
                             approved: false,
+                            decisionNote: decisionNotes[request.id] ?? '',
                           })
                         }
                       >
@@ -463,7 +484,14 @@ function ScoringDashboardPage() {
                         disabled={
                           requestPending || requestEditMutation.isPending
                         }
-                        onClick={() => requestEditMutation.mutate(match.id)}
+                        onClick={() => {
+                          const reason = window.prompt(
+                            'What needs correcting? This will be sent to the super admin.',
+                          )
+                          if (reason != null) {
+                            requestEditMutation.mutate({ matchId: match.id, reason })
+                          }
+                        }}
                       >
                         <LockKeyhole size={18} aria-hidden />
                         {requestPending
