@@ -173,8 +173,6 @@ function SitePagesAdminPage() {
     refetchOnWindowFocus: false,
   })
 
-  /* Intentional: load the selected server page into the editor form. */
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!pageQuery.data) return
     setTitle(pageQuery.data.title)
@@ -185,8 +183,6 @@ function SitePagesAdminPage() {
     setFormError(null)
     setSavedFlash(null)
   }, [pageQuery.data])
-  /* eslint-enable react-hooks/set-state-in-effect */
-
   const saveMutation = useMutation({
     mutationFn: (body: SitePageBodyDto) =>
       adminPatch<SitePageDto>(`/admin/site-pages/${selectedSlug}`, body),

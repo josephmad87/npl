@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { Plus } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -72,7 +72,7 @@ function UsersPage() {
     onError: (error: Error) => setStatusError(error.message),
   })
 
-  const changeScorerStatus = (user: UserDto, isActive: boolean) => {
+  const changeScorerStatus = useCallback((user: UserDto, isActive: boolean) => {
     const label = user.full_name?.trim() || user.email
     const ok = window.confirm(
       isActive
@@ -83,7 +83,7 @@ function UsersPage() {
     if (!ok) return
 
     userStatusMutation.mutate({ user, isActive })
-  }
+  }, [userStatusMutation])
 
   const columns = useMemo<ColumnDef<UserDto, unknown>[]>(
     () => [
@@ -114,7 +114,7 @@ function UsersPage() {
         },
       },
     ],
-    [userStatusMutation.isPending],
+    [changeScorerStatus, userStatusMutation.isPending],
   )
 
   const data = q.data ?? []

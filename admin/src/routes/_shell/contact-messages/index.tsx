@@ -27,9 +27,8 @@ function ContactMessagesPage() {
     queryFn: () => adminListAll<ContactMessageDto>('/admin/contact-messages'),
   })
 
-  const rows = q.data ?? []
-
   const queryFilteredRows = useMemo(() => {
+    const rows = q.data ?? []
     const needle = searchQuery.trim().toLowerCase()
     if (!needle) return rows
     return rows.filter((r) =>
@@ -39,7 +38,7 @@ function ContactMessagesPage() {
         .toLowerCase()
         .includes(needle),
     )
-  }, [rows, searchQuery])
+  }, [q.data, searchQuery])
 
   const columns: ColumnDef<ContactMessageDto, unknown>[] = [
     { accessorKey: 'full_name', header: 'Name' },
