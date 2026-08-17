@@ -81,6 +81,9 @@ export type MatchLite = {
     score_summary?: string | null
     innings_breakdown?: string | null
     player_of_match_player_id?: number | null
+    outcome?: string | null
+    result_status?: string | null
+    nrr_excluded?: boolean
     home_extras_wides?: number
     home_extras_byes?: number
     home_extras_no_balls?: number

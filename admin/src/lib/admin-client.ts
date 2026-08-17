@@ -123,6 +123,13 @@ export async function adminPatch<T>(path: string, body: unknown): Promise<T> {
   })
 }
 
+export async function adminPut<T>(path: string, body: unknown): Promise<T> {
+  return adminApiFetch<T>(path, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function adminDelete(path: string): Promise<void> {
   await adminApiFetch<unknown>(path, { method: 'DELETE' })
 }

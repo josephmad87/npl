@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.player import Player
     from app.models.league import Season
     from app.models.team import Team
     from app.models.user import User
@@ -83,6 +84,11 @@ class Match(Base):
         order_by="MatchDaySquadPlayer.team_id,MatchDaySquadPlayer.lineup_order,MatchDaySquadPlayer.id",
         cascade="all, delete-orphan",
     )
+    discipline_cases: Mapped[list["DisciplineCase"]] = relationship(
+        "DisciplineCase",
+        back_populates="match",
+        cascade="all, delete-orphan",
+    )
 
 
 class MatchResult(Base):
@@ -102,6 +108,9 @@ class MatchResult(Base):
     player_of_match_player_id: Mapped[int | None] = mapped_column(ForeignKey("players.id", ondelete="SET NULL"))
     outcome: Mapped[str] = mapped_column(String(32), default="win", nullable=False, index=True)
     result_status: Mapped[str] = mapped_column(String(64), default="official", nullable=False)
+    # Administrative awards must not distort NRR.  Normal played results retain
+    # the default False; determinations explicitly set this to True.
+    nrr_excluded: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     match_report: Mapped[str | None] = mapped_column(Text)
     home_allotted_overs: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("40.0"), nullable=False,)
     away_allotted_overs: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("40.0"), nullable=False,)
@@ -219,6 +228,97 @@ class MatchScorerAssignment(Base):
     match: Mapped["Match"] = relationship("Match", back_populates="scorer_assignments")
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
     assigned_by: Mapped["User | None"] = relationship("User", foreign_keys=[assigned_by_user_id])
+
+
+class DisciplineCase(Base):
+    """An auditable incident, protest, eligibility or safeguarding case.
+
+    This is deliberately separate from the scorecard. A scorer can report an
+    incident, but only a super admin can determine a result or sanction.
+    """
+
+    __tablename__ = "discipline_cases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[int | None] = mapped_column(
+        ForeignKey("matches.id", ondelete="SET NULL"), index=True
+    )
+    subject_team_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teams.id", ondelete="SET NULL"), index=True
+    )
+    subject_player_id: Mapped[int | None] = mapped_column(
+        ForeignKey("players.id", ondelete="SET NULL"), index=True
+    )
+    category: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), default="open", nullable=False, index=True)
+    confidentiality: Mapped[str] = mapped_column(
+        String(32), default="restricted", nullable=False, index=True
+    )
+    summary: Mapped[str] = mapped_column(String(512), nullable=False)
+    evidence_notes: Mapped[str | None] = mapped_column(Text)
+    occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    reported_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    decision_text: Mapped[str | None] = mapped_column(Text)
+    public_summary: Mapped[str | None] = mapped_column(String(512))
+    appeal_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    match: Mapped["Match | None"] = relationship("Match", back_populates="discipline_cases")
+    subject_team: Mapped["Team | None"] = relationship("Team", foreign_keys=[subject_team_id])
+    subject_player: Mapped["Player | None"] = relationship("Player", foreign_keys=[subject_player_id])
+    reported_by: Mapped["User | None"] = relationship("User", foreign_keys=[reported_by_user_id])
+    decided_by: Mapped["User | None"] = relationship("User", foreign_keys=[decided_by_user_id])
+    sanctions: Mapped[list["DisciplineSanction"]] = relationship(
+        "DisciplineSanction", back_populates="case", cascade="all, delete-orphan"
+    )
+
+
+class DisciplineSanction(Base):
+    """One action in a case: fine, suspension, warning or points adjustment."""
+
+    __tablename__ = "discipline_sanctions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    case_id: Mapped[int] = mapped_column(
+        ForeignKey("discipline_cases.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    sanction_type: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    team_id: Mapped[int | None] = mapped_column(
+        ForeignKey("teams.id", ondelete="SET NULL"), index=True
+    )
+    player_id: Mapped[int | None] = mapped_column(
+        ForeignKey("players.id", ondelete="SET NULL"), index=True
+    )
+    points_delta: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    fine_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    currency: Mapped[str | None] = mapped_column(String(8))
+    match_count: Mapped[int | None] = mapped_column(Integer)
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False, index=True)
+    notes: Mapped[str | None] = mapped_column(String(512))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    case: Mapped["DisciplineCase"] = relationship("DisciplineCase", back_populates="sanctions")
+    team: Mapped["Team | None"] = relationship("Team", foreign_keys=[team_id])
+    player: Mapped["Player | None"] = relationship("Player", foreign_keys=[player_id])
 
 
 class MatchScorecardEditRequest(Base):

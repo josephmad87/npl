@@ -27,6 +27,8 @@ from app.models.gallery import GalleryItem
 from app.models.sponsor import Sponsor
 from app.models.league import League, Season, SeasonTeam
 from app.models.match import (
+    DisciplineCase,
+    DisciplineSanction,
     Match,
     MatchBallEvent,
     MatchDaySquadPlayer,
@@ -59,6 +61,11 @@ from app.schemas.matches import (
     LiveScoreInningsSummaryOut,
     MatchLiveSetupIn,
     MatchBulkCancelIn,
+    DisciplineCaseDecisionIn,
+    DisciplineCaseCreateIn,
+    DisciplineCaseOut,
+    DisciplineIncidentIn,
+    DisciplineSanctionOut,
     MatchCreate,
     MatchDetailOut,
     MatchResultIn,
@@ -2931,6 +2938,169 @@ def scorer_assigned_matches(
 
     matches = db.scalars(stmt).unique().all()
     return [_match_detail_for_actor(db, match, actor) for match in matches]
+
+
+def _discipline_case_out(row: DisciplineCase) -> DisciplineCaseOut:
+    return DisciplineCaseOut.model_validate(row)
+
+
+def _discipline_case_query():
+    return select(DisciplineCase).options(
+        selectinload(DisciplineCase.sanctions),
+        joinedload(DisciplineCase.match),
+    )
+
+
+@router.post(
+    "/matches/{match_id}/incidents",
+    response_model=DisciplineCaseOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def report_match_incident(
+    match_id: int,
+    body: DisciplineIncidentIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> DisciplineCaseOut:
+    """An assigned scorer can report an incident but cannot decide it."""
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_score_match(db, match_id, actor)
+    row = DisciplineCase(
+        match_id=match.id,
+        category=body.category.strip().lower().replace(" ", "_"),
+        confidentiality=body.confidentiality,
+        summary=body.summary.strip(),
+        evidence_notes=(body.evidence_notes or "").strip() or None,
+        occurred_at=body.occurred_at,
+        reported_by_user_id=actor.id,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db, actor_user_id=actor.id, action="report_match_incident",
+        entity_type="discipline_case", entity_id=row.id,
+        summary=f"Reported {row.category} incident for match {match.id}",
+    )
+    db.commit()
+    row = db.scalar(_discipline_case_query().where(DisciplineCase.id == row.id))
+    assert row is not None
+    return _discipline_case_out(row)
+
+
+@router.post("/discipline/cases", response_model=DisciplineCaseOut, status_code=status.HTTP_201_CREATED)
+def create_discipline_case(
+    body: DisciplineCaseCreateIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super_admin),
+) -> DisciplineCaseOut:
+    if body.match_id is not None and db.get(Match, body.match_id) is None:
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown match."})
+    if body.subject_team_id is not None and db.get(Team, body.subject_team_id) is None:
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown subject team."})
+    if body.subject_player_id is not None and db.get(Player, body.subject_player_id) is None:
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown subject player."})
+    row = DisciplineCase(
+        match_id=body.match_id,
+        subject_team_id=body.subject_team_id,
+        subject_player_id=body.subject_player_id,
+        category=body.category.strip().lower().replace(" ", "_"),
+        confidentiality=body.confidentiality,
+        summary=body.summary.strip(),
+        evidence_notes=(body.evidence_notes or "").strip() or None,
+        occurred_at=body.occurred_at,
+        reported_by_user_id=actor.id,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db, actor_user_id=actor.id, action="create_discipline_case",
+        entity_type="discipline_case", entity_id=row.id,
+        summary=f"Created {row.category} discipline case",
+    )
+    db.commit()
+    row = db.scalar(_discipline_case_query().where(DisciplineCase.id == row.id))
+    assert row is not None
+    return _discipline_case_out(row)
+
+
+@router.get("/discipline/cases", response_model=list[DisciplineCaseOut])
+def list_discipline_cases(
+    case_status: str | None = Query(default=None, alias="status"),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+) -> list[DisciplineCaseOut]:
+    stmt = _discipline_case_query().order_by(DisciplineCase.reported_at.desc(), DisciplineCase.id.desc())
+    if case_status:
+        stmt = stmt.where(DisciplineCase.status == case_status)
+    return [_discipline_case_out(row) for row in db.scalars(stmt).unique().all()]
+
+
+@router.put("/discipline/cases/{case_id}/decision", response_model=DisciplineCaseOut)
+def decide_discipline_case(
+    case_id: int,
+    body: DisciplineCaseDecisionIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_super_admin),
+) -> DisciplineCaseOut:
+    row = db.scalar(_discipline_case_query().where(DisciplineCase.id == case_id))
+    if row is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Case not found"})
+    if body.override_outcome is not None:
+        if row.match is None:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "A result override requires a linked match."})
+        match = row.match
+        if body.override_outcome == "win" and body.winning_team_id not in (match.home_team_id, match.away_team_id):
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Awarded winner must be one of the fixture teams."})
+        if body.override_outcome != "win" and body.winning_team_id is not None:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Only a win may name a winning team."})
+        result = match.result
+        if result is None:
+            result = MatchResult(match_id=match.id)
+            db.add(result)
+        result.outcome = body.override_outcome
+        result.winning_team_id = body.winning_team_id if body.override_outcome == "win" else None
+        result.margin_text = ((body.margin_text or "").strip() or (
+            "Match awarded following official determination" if body.override_outcome == "win" else "No result"
+        ))
+        result.result_status = "administrative_determination"
+        result.nrr_excluded = body.nrr_excluded
+        match.status = "completed"
+
+    row.status = body.status
+    row.decision_text = (body.decision_text or "").strip() or None
+    row.public_summary = (body.public_summary or "").strip() or None
+    row.appeal_due_at = body.appeal_due_at
+    if body.status in {"decided", "final", "dismissed"}:
+        row.decided_at = datetime.now(timezone.utc)
+        row.decided_by_user_id = actor.id
+    for sanction in list(row.sanctions):
+        db.delete(sanction)
+    db.flush()
+    for sanction in body.sanctions:
+        if sanction.team_id is not None and db.get(Team, sanction.team_id) is None:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown sanction team."})
+        if sanction.player_id is not None and db.get(Player, sanction.player_id) is None:
+            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown sanctioned player."})
+        db.add(DisciplineSanction(
+            case_id=row.id,
+            sanction_type=sanction.sanction_type.strip().lower().replace(" ", "_"),
+            team_id=sanction.team_id, player_id=sanction.player_id,
+            points_delta=sanction.points_delta, fine_amount=sanction.fine_amount,
+            currency=(sanction.currency or "").strip().upper() or None,
+            match_count=sanction.match_count, starts_at=sanction.starts_at,
+            ends_at=sanction.ends_at, notes=(sanction.notes or "").strip() or None,
+        ))
+    write_audit(
+        db, actor_user_id=actor.id, action="decide_discipline_case",
+        entity_type="discipline_case", entity_id=row.id,
+        summary=f"Set discipline case {row.id} to {row.status}",
+    )
+    db.commit()
+    row = db.scalar(_discipline_case_query().where(DisciplineCase.id == row.id))
+    assert row is not None
+    return _discipline_case_out(row)
 
 
 def _scorecard_edit_request_out(

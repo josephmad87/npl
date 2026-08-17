@@ -60,6 +60,11 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ['super_admin'],
   },
   {
+    to: '/discipline',
+    label: 'Discipline & safeguarding',
+    roles: ['super_admin'],
+  },
+  {
     to: '/contact-messages',
     label: 'Contact messages',
     roles: [

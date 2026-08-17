@@ -46,6 +46,8 @@ type SeasonDetail = {
   team_ids: number[]
 }
 
+type StandingAdjustment = { team_id: number; points_delta: number }
+
 type StandingSortMode = 'points' | 'nrr' | 'wins' | 'played' | 'form' | 'team'
 
 type StandingRowItem = ReturnType<typeof computeSeasonStandings>[number]
@@ -252,17 +254,28 @@ export function LeagueSeasonHub({
     retry: 1,
   })
 
+  const adjustmentsQ = useQuery({
+    queryKey: ['league-page-standing-adjustments', seasonId],
+    queryFn: () => fetchJson<StandingAdjustment[]>(`/public/seasons/${seasonId}/standing-adjustments`),
+    enabled: seasonId != null && seasonId > 0,
+    retry: 1,
+  })
+
   const resultMatches = useMemo(() => resultsQ.data ?? [], [resultsQ.data])
+  const pointsAdjustments = useMemo(
+    () => Object.fromEntries((adjustmentsQ.data ?? []).map((row) => [row.team_id, row.points_delta])),
+    [adjustmentsQ.data],
+  )
   const standingsRows = useMemo(() => {
   if (teamIds.length === 0) return []
 
   return sortStandingRowsForMode(
-    computeSeasonStandings(resultMatches, teamIds),
+    computeSeasonStandings(resultMatches, teamIds, pointsAdjustments),
     standingsSort,
     teamsMap,
     resultMatches,
   )
-}, [resultMatches, standingsSort, teamIds, teamsMap])
+}, [pointsAdjustments, resultMatches, standingsSort, teamIds, teamsMap])
 
   if (!leagueSlug) {
     return null

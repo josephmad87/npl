@@ -5,6 +5,8 @@ from app.models.audit import AuditLog
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season, SeasonTeam
 from app.models.match import (
+    DisciplineCase,
+    DisciplineSanction,
     Match,
     MatchBallEvent,
     MatchPlayerStat,
@@ -23,6 +25,8 @@ __all__ = [
     "AboutContent",
     "Article",
     "ContactMessage",
+    "DisciplineCase",
+    "DisciplineSanction",
     "AuditLog",
     "GalleryItem",
     "League",
