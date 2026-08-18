@@ -1,7 +1,7 @@
 """Add live-scoring law controls for leg-byes and umpire over calls.
 
-Revision ID: 20260818_0033
-Revises: 20260817_0032
+Revision ID: 20260818_0034
+Revises: 20260817_0033
 Create Date: 2026-08-18
 """
 
@@ -9,8 +9,8 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision = "20260818_0033"
-down_revision = "20260817_0032"
+revision = "20260818_0034"
+down_revision = "20260817_0033"
 branch_labels = None
 depends_on = None
 
