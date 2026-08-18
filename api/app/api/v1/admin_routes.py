@@ -3917,11 +3917,17 @@ def _match_overs_decimal(value: object | None) -> Decimal:
 
 
 def _bowler_runs_for_live_event(event: MatchBallEvent) -> int:
+    """Return runs charged to the bowler under NPL wide-scoring policy.
+
+    The one-run wide penalty is charged to the bowler. Any additional runs
+    completed from the same wide remain in the batting team's total and extras,
+    but are not added to the bowler's individual figures.
+    """
     extras_type = (event.extras_type or "").strip().lower()
     runs = int(event.runs_batter or 0)
 
     if extras_type == "wide":
-        runs += int(event.runs_extras or 0)
+        runs += min(1, int(event.runs_extras or 0))
     elif extras_type == "no_ball":
         runs += int(event.runs_extras or 0)
     elif extras_type in {"no_ball_bye", "no_ball_leg_bye"}:
@@ -4045,8 +4051,10 @@ def _live_top_performers_text(
 def _finalize_live_match_result(
     db: Session,
     match: Match,
-    actor: User,
+    actor: User | None,
     match_overs_value: object | None = None,
+    *,
+    preserve_result: bool = False,
 ) -> None:
     events = list(
         db.scalars(
@@ -4063,7 +4071,8 @@ def _finalize_live_match_result(
         )
 
     match_overs = _match_overs_decimal(match_overs_value if match_overs_value is not None else match.match_overs)
-    match.match_overs = match_overs
+    if not preserve_result:
+        match.match_overs = match_overs
 
     team_ids = {match.home_team_id, match.away_team_id}
     player_ids = {event.striker_player_id for event in events}
@@ -4353,13 +4362,14 @@ def _finalize_live_match_result(
     affected_player_ids = affected_player_ids_for_match(db, match.id)
     affected_player_ids.update(stat_by_player.keys())
 
-    res = match.result
-    if res is None:
-        res = MatchResult(match_id=match.id, **result_payload)
-        db.add(res)
-    else:
-        for key, value in result_payload.items():
-            setattr(res, key, value)
+    if not preserve_result:
+        res = match.result
+        if res is None:
+            res = MatchResult(match_id=match.id, **result_payload)
+            db.add(res)
+        else:
+            for key, value in result_payload.items():
+                setattr(res, key, value)
 
     db.execute(delete(MatchPlayerStat).where(MatchPlayerStat.match_id == match.id))
 
@@ -4388,9 +4398,10 @@ def _finalize_live_match_result(
             ),
         )
 
-    match.status = "completed"
-    if match.scorecard_finalized_at is None:
-        match.scorecard_finalized_at = datetime.now(timezone.utc)
+    if not preserve_result:
+        match.status = "completed"
+        if match.scorecard_finalized_at is None:
+            match.scorecard_finalized_at = datetime.now(timezone.utc)
     db.flush()
     recompute_player_career_stats(db, affected_player_ids)
 
