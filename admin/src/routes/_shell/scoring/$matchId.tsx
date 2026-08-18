@@ -2577,6 +2577,12 @@ function LiveScoringPage() {
           display: grid;
           gap: 0.45rem;
         }
+        .live-scorer-over-summary__batters-header {
+          color: #475569;
+          font-size: 0.72rem;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+        }
         .live-scorer-over-summary__batter {
           display: flex;
           justify-content: space-between;
@@ -4055,6 +4061,7 @@ function LiveScoringPage() {
                   </div>
                   <div className="live-scorer-over-summary__details">
                     <div className="live-scorer-over-summary__batters">
+                      <span className="live-scorer-over-summary__batters-header">BATSMEN</span>
                       {completedOverSummary.batters.map((batter, index) => (
                         <div key={`${batter.playerId ?? 'unknown'}-${index}`} className="live-scorer-over-summary__batter">
                           <span>{playerName(playerById, batter.playerId)}*</span>
@@ -4063,7 +4070,7 @@ function LiveScoringPage() {
                       ))}
                     </div>
                     <div className="live-scorer-over-summary__bowler">
-                      <span className="live-scorer-over-summary__bowler-header" aria-hidden="true" />
+                      <span className="live-scorer-over-summary__bowler-header">BOWLER</span>
                       <span className="live-scorer-over-summary__bowler-header">O</span>
                       <span className="live-scorer-over-summary__bowler-header">M</span>
                       <span className="live-scorer-over-summary__bowler-header">R</span>
