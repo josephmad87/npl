@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { CloudUpload, LockKeyhole, Pencil, RotateCcw, Save, Undo2, Wifi, WifiOff, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   LiveBallEventDto,
   LiveBallEventInput,
@@ -41,6 +41,14 @@ type BallSubmitPayload = {
   strikeRuns?: number
 }
 
+type BowlerFigures = {
+  playerId: number
+  legalBalls: number
+  maidens: number
+  runs: number
+  wickets: number
+}
+
 type EndOfOverSummary = {
   over: number
   battingTeamId: number
@@ -49,7 +57,7 @@ type EndOfOverSummary = {
   overRuns: number
   overWickets: number
   batters: Array<{ playerId: number | null; runs: number; balls: number }>
-  bowler: { playerId: number; legalBalls: number; maidens: number; runs: number; wickets: number }
+  bowlers: BowlerFigures[]
 }
 
 function newClientEventId(): string {
@@ -370,16 +378,34 @@ function endOfOverSummary(
       balls: playerEvents.filter((event) => event.is_legal_delivery && !event.is_dead_ball).length,
     }
   }
-  const bowlerEvents = inningsEvents.filter(
-    (event) => event.bowler_player_id === completedEvent.bowler_player_id,
-  )
-  const overs = new Map<number, { legalBalls: number; runs: number }>()
-  for (const event of bowlerEvents) {
-    const current = overs.get(event.over_number) ?? { legalBalls: 0, runs: 0 }
-    current.legalBalls += event.is_legal_delivery && !event.is_dead_ball ? 1 : 0
-    current.runs += bowlerRunsConceded(event)
-    overs.set(event.over_number, current)
+  const figuresForBowler = (playerId: number): BowlerFigures => {
+    const bowlerEvents = inningsEvents.filter((event) => event.bowler_player_id === playerId)
+    const overs = new Map<number, { legalBalls: number; runs: number }>()
+    for (const event of bowlerEvents) {
+      const current = overs.get(event.over_number) ?? { legalBalls: 0, runs: 0 }
+      current.legalBalls += event.is_legal_delivery && !event.is_dead_ball ? 1 : 0
+      current.runs += bowlerRunsConceded(event)
+      overs.set(event.over_number, current)
+    }
+    return {
+      playerId,
+      legalBalls: bowlerEvents.filter((event) => event.is_legal_delivery && !event.is_dead_ball)
+        .length,
+      maidens: [...overs.values()].filter(
+        (over) => over.legalBalls === 6 && over.runs === 0,
+      ).length,
+      runs: bowlerEvents.reduce((total, event) => total + bowlerRunsConceded(event), 0),
+      wickets: bowlerEvents.filter(creditsBowlerWicket).length,
+    }
   }
+  const lastTwoBowlerIds = [...inningsEvents]
+    .filter((event) => event.is_legal_delivery && !event.is_dead_ball)
+    .sort((a, b) => b.over_number - a.over_number || b.sequence_number - a.sequence_number)
+    .reduce<number[]>((ids, event) => (
+      ids.includes(event.bowler_player_id) || ids.length >= 2
+        ? ids
+        : [...ids, event.bowler_player_id]
+    ), [])
 
   return {
     over: completedEvent.over_number + 1,
@@ -402,16 +428,7 @@ function endOfOverSummary(
       batterStats(selection.strikerPlayerId),
       batterStats(selection.nonStrikerPlayerId),
     ],
-    bowler: {
-      playerId: completedEvent.bowler_player_id,
-      legalBalls: bowlerEvents.filter((event) => event.is_legal_delivery && !event.is_dead_ball)
-        .length,
-      maidens: [...overs.values()].filter(
-        (over) => over.legalBalls === 6 && over.runs === 0,
-      ).length,
-      runs: bowlerEvents.reduce((total, event) => total + bowlerRunsConceded(event), 0),
-      wickets: bowlerEvents.filter(creditsBowlerWicket).length,
-    },
+    bowlers: lastTwoBowlerIds.map(figuresForBowler),
   }
 }
 
@@ -2587,9 +2604,6 @@ function LiveScoringPage() {
           letter-spacing: 0.08em;
           text-align: center;
         }
-        .live-scorer-over-summary__bowler-header:first-child {
-          text-align: left;
-        }
         .live-scorer-over-summary__bowler-name {
           min-width: 0;
           overflow: hidden;
@@ -4049,26 +4063,30 @@ function LiveScoringPage() {
                       ))}
                     </div>
                     <div className="live-scorer-over-summary__bowler">
-                      <span className="live-scorer-over-summary__bowler-header">BOWLER</span>
+                      <span className="live-scorer-over-summary__bowler-header" aria-hidden="true" />
                       <span className="live-scorer-over-summary__bowler-header">O</span>
                       <span className="live-scorer-over-summary__bowler-header">M</span>
                       <span className="live-scorer-over-summary__bowler-header">R</span>
                       <span className="live-scorer-over-summary__bowler-header">W</span>
-                      <strong className="live-scorer-over-summary__bowler-name">
-                        {playerName(playerById, completedOverSummary.bowler.playerId)}
-                      </strong>
-                      <strong className="live-scorer-over-summary__bowler-figure">
-                        {oversLabel(completedOverSummary.bowler.legalBalls)}
-                      </strong>
-                      <strong className="live-scorer-over-summary__bowler-figure">
-                        {completedOverSummary.bowler.maidens}
-                      </strong>
-                      <strong className="live-scorer-over-summary__bowler-figure">
-                        {completedOverSummary.bowler.runs}
-                      </strong>
-                      <strong className="live-scorer-over-summary__bowler-figure">
-                        {completedOverSummary.bowler.wickets}
-                      </strong>
+                      {completedOverSummary.bowlers.map((bowler) => (
+                        <Fragment key={bowler.playerId}>
+                          <strong className="live-scorer-over-summary__bowler-name">
+                            {playerName(playerById, bowler.playerId)}
+                          </strong>
+                          <strong className="live-scorer-over-summary__bowler-figure">
+                            {oversLabel(bowler.legalBalls)}
+                          </strong>
+                          <strong className="live-scorer-over-summary__bowler-figure">
+                            {bowler.maidens}
+                          </strong>
+                          <strong className="live-scorer-over-summary__bowler-figure">
+                            {bowler.runs}
+                          </strong>
+                          <strong className="live-scorer-over-summary__bowler-figure">
+                            {bowler.wickets}
+                          </strong>
+                        </Fragment>
+                      ))}
                     </div>
                   </div>
                 </section>
