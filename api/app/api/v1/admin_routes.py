@@ -3920,6 +3920,22 @@ def _live_event_counts_as_wicket(event: MatchBallEvent) -> bool:
     return (event.wicket_type or "").strip().lower() in OUT_DISMISSALS
 
 
+def _live_event_counts_as_batter_ball(event: MatchBallEvent) -> bool:
+    """Whether a delivery is faced by the striker for batting statistics.
+
+    No-balls do not advance the over, but the striker has faced the delivery.
+    Wides remain the only delivery type excluded from balls faced.
+    """
+    if event.is_dead_ball:
+        return False
+    extras_type = (event.extras_type or "").strip().lower()
+    return event.is_legal_delivery or extras_type in {
+        "no_ball",
+        "no_ball_bye",
+        "no_ball_leg_bye",
+    }
+
+
 def _balls_to_cricket_overs_decimal(balls: int) -> Decimal:
     if balls <= 0:
         return Decimal("0.0")
@@ -4222,7 +4238,7 @@ def _finalize_live_match_result(
                     striker["batting_order"] = batting_order[event.batting_team_id]
                     batting_order[event.batting_team_id] += 1
                 striker["runs"] = int(striker["runs"]) + int(event.runs_batter or 0)
-                if event.is_legal_delivery:
+                if _live_event_counts_as_batter_ball(event):
                     striker["balls_faced"] = int(striker["balls_faced"]) + 1
                 if event.boundary_type == "four" and event.runs_batter == 4:
                     striker["fours"] = int(striker["fours"]) + 1
