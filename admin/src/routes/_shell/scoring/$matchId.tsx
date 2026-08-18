@@ -742,9 +742,14 @@ function LiveScoringPage() {
   useEffect(() => {
     if (!currentMatchId || !currentHomeTeamId || !currentAwayTeamId) return
 
-    const firstBattingTeamId = battingFirstTeamId || currentHomeTeamId
+    const recordedFirstInningsEvent = (liveQ.data?.events ?? []).find(
+      (event) => event.innings === 1,
+    )
+    const firstBattingTeamId =
+      recordedFirstInningsEvent?.batting_team_id ?? (battingFirstTeamId || currentHomeTeamId)
     const firstBowlingTeamId =
-      firstBattingTeamId === currentHomeTeamId ? currentAwayTeamId : currentHomeTeamId
+      recordedFirstInningsEvent?.bowling_team_id ??
+      (firstBattingTeamId === currentHomeTeamId ? currentAwayTeamId : currentHomeTeamId)
     const latestRecordedEvent = [...(liveQ.data?.events ?? [])]
       .filter((event) => event.innings === innings)
       .sort((a, b) => b.sequence_number - a.sequence_number || b.id - a.id)[0]
@@ -1106,6 +1111,34 @@ function LiveScoringPage() {
     setOverNote(savedOverNote?.slice('Over note: '.length) ?? '')
   }
 
+  const moveToSecondInnings = () => {
+    const firstInningsEvent = (liveQ.data?.events ?? []).find(
+      (event) => event.innings === 1,
+    )
+    const firstInningsBattingTeamId = firstInningsEvent?.batting_team_id ?? battingTeamId
+    const firstInningsBowlingTeamId = firstInningsEvent?.bowling_team_id ?? bowlingTeamId
+
+    if (
+      firstInningsBattingTeamId &&
+      firstInningsBowlingTeamId &&
+      firstInningsBattingTeamId !== firstInningsBowlingTeamId
+    ) {
+      setBattingTeamId(firstInningsBowlingTeamId)
+      setBowlingTeamId(firstInningsBattingTeamId)
+    }
+
+    setStrikerPlayerId('')
+    setNonStrikerPlayerId('')
+    setBowlerPlayerId('')
+    setWicketPlayerId('')
+    setFielderPlayerId('')
+    setNewBatterPlayerId('')
+    selectionContextRef.current = ''
+    lastHydratedEventKeyRef.current = ''
+    setInnings(2)
+    setActiveScorerPanel('score')
+  }
+
   const ballMutation = useMutation({
     mutationFn: (payload: BallSubmitPayload) =>
       adminPost<LiveBallEventDto>(`/admin/matches/${mid}/live/balls`, payload.body),
@@ -1153,8 +1186,7 @@ function LiveScoringPage() {
 
       if (inningsEnded) {
         if (payload.body.innings === 1) {
-          setInnings(2)
-          setActiveScorerPanel('score')
+          moveToSecondInnings()
         } else {
           setActiveScorerPanel('review')
         }
@@ -1426,7 +1458,7 @@ function LiveScoringPage() {
     setNextBowlerPlayerId('')
     setMatchOverOpen(false)
     setInningsOverOpen(false)
-    setInnings(innings + 1)
+    moveToSecondInnings()
   }
 
   const markMatchOver = () => {
