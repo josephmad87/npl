@@ -2358,6 +2358,21 @@ def _match_day_squad_ids(
     return set(db.scalars(stmt).all())
 
 
+def _match_day_squad_roles(
+    db: Session,
+    match_id: int,
+    team_id: int,
+) -> dict[int, str]:
+    """Return match-day roles so a normal substitute cannot bat or bowl."""
+    rows = db.execute(
+        select(MatchDaySquadPlayer.player_id, MatchDaySquadPlayer.role).where(
+            MatchDaySquadPlayer.match_id == match_id,
+            MatchDaySquadPlayer.team_id == team_id,
+        ),
+    ).all()
+    return {int(player_id): str(role) for player_id, role in rows}
+
+
 def _assert_live_player(
     db: Session,
     player_id: int | None,
@@ -2478,6 +2493,28 @@ def _live_overs_label(legal_balls: int) -> str:
     return f"{legal_balls // 6}.{legal_balls % 6}"
 
 
+def _live_event_closes_over(event: MatchBallEvent, legal_balls_in_over: int) -> bool:
+    """Apply the normal six-ball rule unless an umpire has called otherwise."""
+    if not event.is_legal_delivery:
+        return False
+    if event.over_complete_override is not None:
+        return bool(event.over_complete_override)
+    return legal_balls_in_over == 6
+
+
+def _live_overs_label_for_events(events: list[MatchBallEvent]) -> str:
+    completed_overs = 0
+    balls_in_current_over = 0
+    for event in events:
+        if not event.is_legal_delivery:
+            continue
+        balls_in_current_over += 1
+        if _live_event_closes_over(event, balls_in_current_over):
+            completed_overs += 1
+            balls_in_current_over = 0
+    return f"{completed_overs}.{balls_in_current_over}"
+
+
 def _live_event_out(event: MatchBallEvent) -> LiveBallEventOut:
     return LiveBallEventOut.model_validate(event)
 
@@ -2504,6 +2541,7 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
         "caught_and_bowled",
         "lbw",
         "run_out",
+        "non_striker_left_early",
         "stumped",
         "hit_wicket",
         "retired_hurt",
@@ -2542,6 +2580,12 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
             detail={"code": "validation", "message": "completed_runs must be greater than short_runs when a short run is called."},
         )
 
+    if body.over_complete_override is not None and not body.is_legal_delivery:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "An umpire over call can only be applied to a legal delivery."},
+        )
+
     if body.penalty_runs_batting not in (0, 5, 10) or body.penalty_runs_fielding not in (0, 5, 10):
         raise HTTPException(
             status_code=400,
@@ -2555,6 +2599,7 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
         )
 
     retirement_transition = wicket_type in {"retired_hurt", "retired_out", "retired_not_out"}
+    non_delivery_dismissal = wicket_type == "non_striker_left_early"
 
     if body.is_dead_ball:
         if body.is_legal_delivery:
@@ -2564,16 +2609,27 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
                 status_code=400,
                 detail={"code": "validation", "message": "Dead ball events cannot record batter runs or extras. Use penalty fields only if needed."},
             )
-        if wicket_type and not retirement_transition:
+        if wicket_type and not (retirement_transition or non_delivery_dismissal):
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "Only a batter retirement can be recorded without a delivery."},
+                detail={"code": "validation", "message": "Only a batter retirement or non-striker leaving early can be recorded without a delivery."},
             )
-        if retirement_transition and body.wicket_player_id is None:
+        if (retirement_transition or non_delivery_dismissal) and body.wicket_player_id is None:
             raise HTTPException(
                 status_code=400,
                 detail={"code": "validation", "message": "Choose the batter who retired."},
             )
+        if non_delivery_dismissal:
+            if body.wicket_player_id != body.non_striker_player_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"code": "validation", "message": "The non-striker leaving early must be the player out."},
+                )
+            if body.fielder_player_id is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"code": "validation", "message": "Choose the player who completed the non-striker run out."},
+                )
         return
 
     if extras_type is None:
@@ -2639,6 +2695,11 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
                 status_code=400,
                 detail={"code": "validation", "message": "Byes and leg-byes must record at least one run."},
             )
+        if extras_type == "leg_bye" and not body.leg_bye_attempted:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Confirm that the batter attempted to play the ball or was avoiding it before recording leg-byes."},
+            )
 
     if extras_type in {"no_ball_bye", "no_ball_leg_bye"}:
         if body.is_legal_delivery:
@@ -2656,13 +2717,18 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
                 status_code=400,
                 detail={"code": "validation", "message": "No-ball byes/leg-byes must include the one-run No-ball penalty plus completed runs."},
             )
+        if extras_type == "no_ball_leg_bye" and not body.leg_bye_attempted:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Confirm that the batter attempted to play the ball or was avoiding it before recording leg-byes."},
+            )
 
     if wicket_type:
         if wicket_type not in allowed_wickets:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown mode of dismissal."})
         if body.wicket_player_id is None and wicket_type not in {"timed_out"}:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "Choose the player who is out."})
-        if wicket_type in {"caught", "run_out", "stumped"} and body.fielder_player_id is None:
+        if wicket_type in {"caught", "run_out", "stumped", "non_striker_left_early"} and body.fielder_player_id is None:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "This dismissal requires a fielder."})
         if wicket_type in {"bowled", "lbw", "hit_wicket"} and body.fielder_player_id is not None:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "This dismissal should not record a fielder."})
@@ -2732,10 +2798,22 @@ def _assert_live_ball_payload(
     _assert_live_team_ids(match, body.batting_team_id, body.bowling_team_id)
     _validate_live_ball_event(body)
 
-    batting_squad_ids = _match_day_squad_ids(db, match.id, body.batting_team_id)
-    bowling_squad_ids = _match_day_squad_ids(db, match.id, body.bowling_team_id)
-    batting_allowed = batting_squad_ids or None
-    bowling_allowed = bowling_squad_ids or None
+    batting_roles = _match_day_squad_roles(db, match.id, body.batting_team_id)
+    bowling_roles = _match_day_squad_roles(db, match.id, body.bowling_team_id)
+    # An ordinary substitute may field only. A registered concussion
+    # substitute is a like-for-like player who is eligible to bat and bowl.
+    active_roles = {"playing_xi", "concussion_substitute"}
+    batting_allowed = (
+        {player_id for player_id, role in batting_roles.items() if role in active_roles}
+        if batting_roles
+        else None
+    )
+    bowling_allowed = (
+        {player_id for player_id, role in bowling_roles.items() if role in active_roles}
+        if bowling_roles
+        else None
+    )
+    fielding_allowed = set(bowling_roles) or None
 
     _assert_live_player(
         db,
@@ -2769,7 +2847,7 @@ def _assert_live_ball_payload(
         db,
         body.fielder_player_id,
         {body.bowling_team_id},
-        bowling_allowed,
+        fielding_allowed,
         "Fielder",
     )
     _assert_live_player(
@@ -2818,15 +2896,18 @@ def _renumber_live_events(db: Session, match_id: int) -> None:
             .order_by(MatchBallEvent.sequence_number, MatchBallEvent.id),
         ).all(),
     )
-    legal_balls_by_innings: dict[int, int] = {}
+    over_state_by_innings: dict[int, tuple[int, int]] = {}
     for sequence, event in enumerate(events, start=1):
-        legal_balls = legal_balls_by_innings.get(event.innings, 0)
+        completed_overs, balls_in_current_over = over_state_by_innings.get(event.innings, (0, 0))
         event.sequence_number = sequence
-        event.over_number = legal_balls // 6
-        event.ball_number = (legal_balls % 6) + 1
+        event.over_number = completed_overs
+        event.ball_number = balls_in_current_over + 1
         if event.is_legal_delivery:
-            legal_balls += 1
-        legal_balls_by_innings[event.innings] = legal_balls
+            balls_in_current_over += 1
+            if _live_event_closes_over(event, balls_in_current_over):
+                completed_overs += 1
+                balls_in_current_over = 0
+        over_state_by_innings[event.innings] = (completed_overs, balls_in_current_over)
 
 
 def _live_score_state(
@@ -2870,7 +2951,7 @@ def _live_score_state(
                 runs=runs,
                 wickets=wickets,
                 legal_balls=legal_balls,
-                overs_label=_live_overs_label(legal_balls),
+                overs_label=_live_overs_label_for_events(rows),
                 last_six=[_live_ball_label(event) for event in last_rows],
                 last_event=_live_event_out(rows[-1]),
             ),
@@ -3755,6 +3836,8 @@ def admin_create_live_ball(
     )
     db.add(event)
     db.flush()
+    _renumber_live_events(db, match_id)
+    db.flush()
     if was_completed:
         _finalize_live_match_result(db, match, actor, match.match_overs)
     else:
@@ -3898,6 +3981,7 @@ OUT_DISMISSALS = {
     "caught_and_bowled",
     "lbw",
     "run_out",
+    "non_striker_left_early",
     "stumped",
     "hit_wicket",
     "retired_out",
@@ -3990,6 +4074,12 @@ def _dismissal_text_for_live_event(
         return f"lbw b {bowler_name}"
     if wicket_type == "run_out":
         return f"run out ({fielder_name})" if fielder_name else "run out"
+    if wicket_type == "non_striker_left_early":
+        return (
+            f"run out ({fielder_name}), non-striker left early"
+            if fielder_name
+            else "run out, non-striker left early"
+        )
     if wicket_type == "stumped":
         return f"st {fielder_name or 'wicketkeeper'} b {bowler_name}"
     if wicket_type == "hit_wicket":
@@ -4293,7 +4383,7 @@ def _finalize_live_match_result(
                 fielder = ensure_row(event.fielder_player_id, event.bowling_team_id)
                 if fielder is not None:
                     fielder["stumpings"] = int(fielder["stumpings"]) + 1
-            elif wicket_type == "run_out":
+            elif wicket_type in {"run_out", "non_striker_left_early"}:
                 fielder = ensure_row(event.fielder_player_id, event.bowling_team_id)
                 if fielder is not None:
                     fielder["run_outs"] = int(fielder["run_outs"]) + 1

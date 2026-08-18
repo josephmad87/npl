@@ -440,6 +440,10 @@ class MatchBallEvent(Base):
     penalty_runs_batting: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     penalty_runs_fielding: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     short_runs: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    leg_bye_attempted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # None uses the normal six-ball rule; True/False records an umpire's
+    # explicit call to close or continue an over after this delivery.
+    over_complete_override: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     is_dead_ball: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     wicket_type: Mapped[str | None] = mapped_column(String(64))
     wicket_player_id: Mapped[int | None] = mapped_column(ForeignKey("players.id", ondelete="SET NULL"), index=True)
