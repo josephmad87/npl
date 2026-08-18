@@ -2414,12 +2414,9 @@ function LiveScoringPage() {
         }
         .live-scorer-short-run {
           display: grid;
-          grid-template-columns: auto minmax(8rem, 1fr) minmax(8rem, 1fr) auto;
+          grid-template-columns: auto minmax(7rem, 1fr) minmax(6rem, 0.8fr) minmax(7rem, 1fr) auto;
           align-items: end;
           gap: 0.5rem;
-          margin-top: 0.75rem;
-          padding-top: 0.75rem;
-          border-top: 1px solid rgba(252, 252, 252, 0.12);
         }
         .live-scorer-short-run__title {
           padding-bottom: 0.6rem;
@@ -2440,7 +2437,11 @@ function LiveScoringPage() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 1rem;
-          align-items: stretch;
+          align-items: start;
+        }
+        .live-scorer-record-main {
+          display: grid;
+          gap: 0.75rem;
         }
         .live-scorer-quick-actions {
           display: grid;
@@ -3021,11 +3022,8 @@ function LiveScoringPage() {
             font-size: 1.05rem !important;
           }
           .live-scorer-short-run {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-          .live-scorer-short-run__title,
-          .live-scorer-short-run .btn-ghost {
-            grid-column: 1 / -1;
+            grid-template-columns: auto minmax(6rem, 1fr) minmax(5rem, 0.75fr) minmax(6rem, 1fr) auto;
+            gap: 0.35rem;
           }
           .live-scorer-short-run__title {
             padding-bottom: 0;
@@ -3758,7 +3756,7 @@ function LiveScoringPage() {
           </div>
 
           <div className="live-scorer-record-grid">
-            <div>
+            <div className="live-scorer-record-main">
               <div className="live-scorer-score-buttons">
                 {[0, 1, 2, 3, 4, 5, 6, 7].map((runs) => (
                   <button
@@ -3777,68 +3775,10 @@ function LiveScoringPage() {
                     }
                     disabled={ballMutation.isPending}
                   >
-                    {runs}
-                  </button>
-                ))}
-              </div>
-              <div className="live-scorer-short-run" aria-label="Record a short run">
-                <span className="live-scorer-short-run__title">Short run</span>
-                <label className="inline-edit__field">
-                  <span className="inline-edit__label">Delivery</span>
-                  <select
-                    className="inline-edit__control"
-                    value={shortRunDelivery}
-                    onChange={(event) => setShortRunDelivery(event.target.value as ShortRunDelivery)}
-                  >
-                    <option value="bat">Bat runs</option>
-                    <option value="wide">Wide</option>
-                    <option value="no_ball_bat">No-ball + bat</option>
-                    <option value="bye">Bye</option>
-                    <option value="leg_bye">Leg bye</option>
-                    <option value="no_ball_bye">No-ball + bye</option>
-                    <option value="no_ball_leg_bye">No-ball + leg bye</option>
-                  </select>
-                </label>
-                <label className="inline-edit__field">
-                  <span className="inline-edit__label">Ran</span>
-                  <select
-                    className="inline-edit__control"
-                    value={shortRunCompleted}
-                    onChange={(event) => {
-                      const completed = Number(event.target.value)
-                      setShortRunCompleted(completed)
-                      setShortRunScored((current) => Math.min(current, completed - 1))
-                    }}
-                  >
-                    {Array.from({ length: 10 }, (_, index) => index + 1).map((runs) => (
-                      <option key={runs} value={runs}>Ran {runs}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="inline-edit__field">
-                  <span className="inline-edit__label">Scored</span>
-                  <select
-                    className="inline-edit__control"
-                    value={shortRunScored}
-                    onChange={(event) => setShortRunScored(Number(event.target.value))}
-                  >
-                    {Array.from({ length: shortRunCompleted }, (_, runs) => (
-                      <option key={runs} value={runs}>Scored {runs}</option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={recordShortRun}
-                  disabled={ballMutation.isPending}
-                >
-                  Record short run
+                  {runs}
                 </button>
+              ))}
               </div>
-            </div>
-
-            <div style={{ display: 'grid', gap: '0.75rem' }}>
               <label className="inline-edit__field" style={{ margin: 0 }}>
                 <span className="inline-edit__label">Ball comment / commentary</span>
                 <textarea
@@ -3846,14 +3786,69 @@ function LiveScoringPage() {
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
                   placeholder="Optional comment, for example: edged past slip, excellent yorker, overthrow, dropped catch…"
-                  rows={5}
-                  style={{ minHeight: '9rem', resize: 'vertical', lineHeight: 1.5 }}
+                  rows={3}
+                  style={{ minHeight: '6.5rem', resize: 'vertical', lineHeight: 1.5 }}
                 />
                 <span className="muted" style={{ marginTop: '0.4rem' }}>
                   This comment is saved with the next ball or wicket you record.
                 </span>
               </label>
+            </div>
 
+            <div className="live-scorer-short-run" aria-label="Record a short run">
+              <span className="live-scorer-short-run__title">Short run</span>
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">Delivery</span>
+                <select
+                  className="inline-edit__control"
+                  value={shortRunDelivery}
+                  onChange={(event) => setShortRunDelivery(event.target.value as ShortRunDelivery)}
+                >
+                  <option value="bat">Bat runs</option>
+                  <option value="wide">Wide</option>
+                  <option value="no_ball_bat">No-ball + bat</option>
+                  <option value="bye">Bye</option>
+                  <option value="leg_bye">Leg bye</option>
+                  <option value="no_ball_bye">No-ball + bye</option>
+                  <option value="no_ball_leg_bye">No-ball + leg bye</option>
+                </select>
+              </label>
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">Ran</span>
+                <select
+                  className="inline-edit__control"
+                  value={shortRunCompleted}
+                  onChange={(event) => {
+                    const completed = Number(event.target.value)
+                    setShortRunCompleted(completed)
+                    setShortRunScored((current) => Math.min(current, completed - 1))
+                  }}
+                >
+                  {Array.from({ length: 10 }, (_, index) => index + 1).map((runs) => (
+                    <option key={runs} value={runs}>Ran {runs}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="inline-edit__field">
+                <span className="inline-edit__label">Scored</span>
+                <select
+                  className="inline-edit__control"
+                  value={shortRunScored}
+                  onChange={(event) => setShortRunScored(Number(event.target.value))}
+                >
+                  {Array.from({ length: shortRunCompleted }, (_, runs) => (
+                    <option key={runs} value={runs}>Scored {runs}</option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={recordShortRun}
+                disabled={ballMutation.isPending}
+              >
+                Record short run
+              </button>
             </div>
           </div>
 
