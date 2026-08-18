@@ -2414,9 +2414,12 @@ function LiveScoringPage() {
         }
         .live-scorer-short-run {
           display: grid;
-          grid-template-columns: auto minmax(7rem, 1fr) minmax(6rem, 0.8fr) minmax(7rem, 1fr) auto;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
           align-items: end;
           gap: 0.5rem;
+          margin-top: 0.75rem;
+          padding-top: 0.75rem;
+          border-top: 1px solid rgba(252, 252, 252, 0.12);
         }
         .live-scorer-short-run__title {
           padding-bottom: 0.6rem;
@@ -2437,11 +2440,16 @@ function LiveScoringPage() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 1rem;
-          align-items: start;
+          align-items: stretch;
         }
-        .live-scorer-record-main {
+        .live-scorer-commentary {
           display: grid;
-          gap: 0.75rem;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          min-height: 0;
+        }
+        .live-scorer-commentary textarea.inline-edit__control {
+          height: 100%;
+          min-height: 0;
         }
         .live-scorer-quick-actions {
           display: grid;
@@ -3022,7 +3030,7 @@ function LiveScoringPage() {
             font-size: 1.05rem !important;
           }
           .live-scorer-short-run {
-            grid-template-columns: auto minmax(6rem, 1fr) minmax(5rem, 0.75fr) minmax(6rem, 1fr) auto;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 0.35rem;
           }
           .live-scorer-short-run__title {
@@ -3756,7 +3764,7 @@ function LiveScoringPage() {
           </div>
 
           <div className="live-scorer-record-grid">
-            <div className="live-scorer-record-main">
+            <div>
               <div className="live-scorer-score-buttons">
                 {[0, 1, 2, 3, 4, 5, 6, 7].map((runs) => (
                   <button
@@ -3779,23 +3787,25 @@ function LiveScoringPage() {
                 </button>
               ))}
               </div>
-              <label className="inline-edit__field" style={{ margin: 0 }}>
-                <span className="inline-edit__label">Ball comment / commentary</span>
-                <textarea
-                  className="inline-edit__control"
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Optional comment, for example: edged past slip, excellent yorker, overthrow, dropped catch…"
-                  rows={3}
-                  style={{ minHeight: '6.5rem', resize: 'vertical', lineHeight: 1.5 }}
-                />
-                <span className="muted" style={{ marginTop: '0.4rem' }}>
-                  This comment is saved with the next ball or wicket you record.
-                </span>
-              </label>
             </div>
 
-            <div className="live-scorer-short-run" aria-label="Record a short run">
+            <label className="inline-edit__field live-scorer-commentary" style={{ margin: 0 }}>
+              <span className="inline-edit__label">Ball comment / commentary</span>
+              <textarea
+                className="inline-edit__control"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Optional comment, for example: edged past slip, excellent yorker, overthrow, dropped catch…"
+                rows={4}
+                style={{ resize: 'vertical', lineHeight: 1.5 }}
+              />
+              <span className="muted" style={{ marginTop: '0.4rem' }}>
+                This comment is saved with the next ball or wicket you record.
+              </span>
+            </label>
+          </div>
+
+          <div className="live-scorer-short-run" aria-label="Record a short run">
               <span className="live-scorer-short-run__title">Short run</span>
               <label className="inline-edit__field">
                 <span className="inline-edit__label">Delivery</span>
@@ -3849,7 +3859,6 @@ function LiveScoringPage() {
               >
                 Record short run
               </button>
-            </div>
           </div>
 
           <div className="live-scorer-quick-actions" style={{ marginTop: '1rem' }}>
