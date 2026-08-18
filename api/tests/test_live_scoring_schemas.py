@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from app.api.v1 import admin_routes
 from app.api.v1.admin_routes import (
     _dismissal_text_for_live_event,
+    _live_event_counts_as_batter_ball,
     _live_ball_label,
     _live_top_performers_text,
     _assert_live_players_not_dismissed,
@@ -69,6 +70,19 @@ def test_live_ball_accepts_client_event_id_for_safe_retry() -> None:
 
 def test_live_ball_model_has_idempotency_column() -> None:
     assert "client_event_id" in Match.__table__.metadata.tables["match_ball_events"].columns
+
+
+@pytest.mark.parametrize("extras_type", ["no_ball", "no_ball_bye", "no_ball_leg_bye"])
+def test_no_ball_counts_as_a_ball_faced(extras_type: str) -> None:
+    event = SimpleNamespace(is_dead_ball=False, is_legal_delivery=False, extras_type=extras_type)
+
+    assert _live_event_counts_as_batter_ball(event) is True
+
+
+def test_wide_does_not_count_as_a_ball_faced() -> None:
+    event = SimpleNamespace(is_dead_ball=False, is_legal_delivery=False, extras_type="wide")
+
+    assert _live_event_counts_as_batter_ball(event) is False
 
 
 def test_public_match_detail_exposes_match_overs() -> None:
