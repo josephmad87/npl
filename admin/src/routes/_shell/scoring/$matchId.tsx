@@ -390,8 +390,29 @@ function oversLabel(legalBalls: number): string {
   return `${Math.floor(legalBalls / 6)}.${legalBalls % 6}`
 }
 
-function eventClosesOver(event: Pick<LiveBallEventDto, 'is_legal_delivery' | 'ball_number' | 'over_complete_override'>): boolean {
-  return event.is_legal_delivery && (event.over_complete_override ?? event.ball_number === 6)
+function eventClosesOver(
+  event: Pick<LiveBallEventDto, 'is_legal_delivery' | 'over_complete_override'>,
+  legalBallsInOver: number,
+): boolean {
+  return event.is_legal_delivery && (event.over_complete_override ?? legalBallsInOver === 6)
+}
+
+function completedOverEventIds(events: LiveBallEventDto[], innings: number): Set<number> {
+  const completedEventIds = new Set<number>()
+  let legalBallsInOver = 0
+
+  for (const event of events
+    .filter((item) => item.innings === innings)
+    .sort((a, b) => a.sequence_number - b.sequence_number || a.id - b.id)) {
+    if (!event.is_legal_delivery) continue
+    legalBallsInOver += 1
+    if (eventClosesOver(event, legalBallsInOver)) {
+      completedEventIds.add(event.id)
+      legalBallsInOver = 0
+    }
+  }
+
+  return completedEventIds
 }
 
 function nextDeliveryPosition(events: LiveBallEventDto[], innings: number): { over: number; ball: number } {
@@ -402,7 +423,7 @@ function nextDeliveryPosition(events: LiveBallEventDto[], innings: number): { ov
     .sort((a, b) => a.sequence_number - b.sequence_number || a.id - b.id)) {
     if (!event.is_legal_delivery) continue
     balls += 1
-    if (eventClosesOver(event)) {
+    if (eventClosesOver(event, balls)) {
       over += 1
       balls = 0
     }
@@ -2102,9 +2123,10 @@ function LiveScoringPage() {
   const allLiveEvents = [...(liveQ.data?.events ?? [])].sort(
     (a, b) => a.sequence_number - b.sequence_number || a.id - b.id,
   )
+  const completedOverEventIdSet = completedOverEventIds(allLiveEvents, innings)
   const completedOverSummaryByEventId = new Map(
     allLiveEvents
-      .filter((event) => event.innings === innings && eventClosesOver(event))
+      .filter((event) => completedOverEventIdSet.has(event.id))
       .map((event) => [event.id, endOfOverSummary(allLiveEvents, event)]),
   )
   const correctionSearchText = correctionSearch.trim().toLowerCase()
