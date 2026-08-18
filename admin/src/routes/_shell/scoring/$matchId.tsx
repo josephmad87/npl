@@ -4268,31 +4268,6 @@ function LiveScoringPage() {
 
                 return (
                   <Fragment key={event.id}>
-                    <button
-                      type="button"
-                      className="live-scorer-ball-panel__event"
-                      onClick={() => beginEditingBall(event)}
-                      title="Open this event in Fix ball"
-                    >
-                      <span className={`live-scorer-ball-chip${event.wicket_type ? ' live-scorer-ball-chip--wicket' : event.boundary_runs >= 4 ? ' live-scorer-ball-chip--boundary' : ''}`}>
-                        {liveEventChipLabel(event)}
-                      </span>
-                      <span className="live-scorer-ball-panel__event-copy">
-                        <strong>
-                          {event.is_dead_ball && RETIREMENT_DISMISSALS.has(event.wicket_type ?? '')
-                            ? 'No ball'
-                            : `${event.over_number}.${event.ball_number}`}{' '}
-                          {playerName(playerById, event.bowler_player_id)} to{' '}
-                          {playerName(playerById, event.striker_player_id)}
-                        </strong>
-                        <span>
-                          {liveEventLabel(event)}
-                          {event.dismissal_text ? ` · ${event.dismissal_text}` : ''}
-                        </span>
-                        {event.notes ? <small>{event.notes}</small> : null}
-                      </span>
-                      <Pencil size={15} aria-hidden />
-                    </button>
                     {overSummary ? (
                       <section className="live-scorer-ball-panel__over-summary" aria-label={`End of over ${overSummary.over} summary`}>
                         <div className="live-scorer-ball-panel__over-summary-head">
@@ -4324,6 +4299,31 @@ function LiveScoringPage() {
                         </div>
                       </section>
                     ) : null}
+                    <button
+                      type="button"
+                      className="live-scorer-ball-panel__event"
+                      onClick={() => beginEditingBall(event)}
+                      title="Open this event in Fix ball"
+                    >
+                      <span className={`live-scorer-ball-chip${event.wicket_type ? ' live-scorer-ball-chip--wicket' : event.boundary_runs >= 4 ? ' live-scorer-ball-chip--boundary' : ''}`}>
+                        {liveEventChipLabel(event)}
+                      </span>
+                      <span className="live-scorer-ball-panel__event-copy">
+                        <strong>
+                          {event.is_dead_ball && RETIREMENT_DISMISSALS.has(event.wicket_type ?? '')
+                            ? 'No ball'
+                            : `${event.over_number}.${event.ball_number}`}{' '}
+                          {playerName(playerById, event.bowler_player_id)} to{' '}
+                          {playerName(playerById, event.striker_player_id)}
+                        </strong>
+                        <span>
+                          {liveEventLabel(event)}
+                          {event.dismissal_text ? ` · ${event.dismissal_text}` : ''}
+                        </span>
+                        {event.notes ? <small>{event.notes}</small> : null}
+                      </span>
+                      <Pencil size={15} aria-hidden />
+                    </button>
                   </Fragment>
                 )
               })}
