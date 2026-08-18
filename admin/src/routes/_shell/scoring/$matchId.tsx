@@ -2773,16 +2773,17 @@ function LiveScoringPage() {
           color: #334155;
           font-size: 0.74rem;
           font-weight: 750;
+          justify-content: flex-start;
         }
         .live-scorer-ball-panel__over-summary-batters {
           display: grid;
           gap: 0.2rem;
         }
         .live-scorer-ball-panel__over-summary-batter {
-          display: flex;
-          justify-content: space-between;
-          gap: 0.5rem;
           font-size: 0.76rem;
+        }
+        .live-scorer-ball-panel__over-summary-batter span {
+          white-space: nowrap;
         }
         .live-scorer-ball-panel__over-summary-batter strong,
         .live-scorer-ball-panel__over-summary-bowler strong {
@@ -4278,20 +4279,21 @@ function LiveScoringPage() {
                           </strong>
                         </div>
                         <div className="live-scorer-ball-panel__over-summary-meta">
-                          <span>Runs: {overSummary.overRuns}</span>
-                          <span>Wickets: {overSummary.overWickets}</span>
+                          <span>
+                            Runs: {overSummary.overRuns} <span aria-hidden> | </span> Wickets: {overSummary.overWickets}
+                          </span>
                         </div>
                         <div className="live-scorer-ball-panel__over-summary-batters">
                           {overSummary.batters.map((batter, index) => (
                             <div key={`${batter.playerId ?? 'unknown'}-${index}`} className="live-scorer-ball-panel__over-summary-batter">
-                              <span>{playerName(playerById, batter.playerId)}*</span>
-                              <strong>{batter.runs} ({batter.balls})</strong>
+                              <span>
+                                {playerName(playerById, batter.playerId)}* <strong>{batter.runs} ({batter.balls})</strong>
+                              </span>
                             </div>
                           ))}
                         </div>
                         {completedOverBowler ? (
                           <div className="live-scorer-ball-panel__over-summary-bowler">
-                            <span>Bowler</span>
                             <strong>{playerName(playerById, completedOverBowler.playerId)}</strong>
                             <strong>
                               {oversLabel(completedOverBowler.legalBalls)}–{completedOverBowler.maidens}–{completedOverBowler.runs}–{completedOverBowler.wickets}
