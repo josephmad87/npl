@@ -627,7 +627,6 @@ function LiveScoringPage() {
   const [activeScorerPanel, setActiveScorerPanel] = useState<ScorerPanel>('score')
   const [correctionSearch, setCorrectionSearch] = useState('')
   const [extrasOpen, setExtrasOpen] = useState(false)
-  const [extrasReturnPrompt, setExtrasReturnPrompt] = useState(false)
   const [finalReviewConfirmed, setFinalReviewConfirmed] = useState(false)
   const [bowlerChangeOpen, setBowlerChangeOpen] = useState(false)
   const [completedOverSummary, setCompletedOverSummary] = useState<EndOfOverSummary | null>(null)
@@ -645,7 +644,6 @@ function LiveScoringPage() {
   const selectionContextRef = useRef('')
   const lastHydratedEventKeyRef = useRef('')
   const hasHydratedInningsRef = useRef(false)
-  const extrasReturnPromptTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     const updateOnlineState = () => setIsOnline(navigator.onLine)
@@ -654,14 +652,6 @@ function LiveScoringPage() {
     return () => {
       globalThis.removeEventListener('online', updateOnlineState)
       globalThis.removeEventListener('offline', updateOnlineState)
-    }
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (extrasReturnPromptTimerRef.current !== null) {
-        globalThis.clearTimeout(extrasReturnPromptTimerRef.current)
-      }
     }
   }, [])
 
@@ -1142,18 +1132,7 @@ function LiveScoringPage() {
       setBattersCrossed(false)
       setDismissalText('')
       setDismissalTextTouched(false)
-      if (payload.body.extras_type) {
-        setExtrasOpen(true)
-        setExtrasReturnPrompt(false)
-        if (extrasReturnPromptTimerRef.current !== null) {
-          globalThis.clearTimeout(extrasReturnPromptTimerRef.current)
-        }
-        extrasReturnPromptTimerRef.current = globalThis.setTimeout(() => {
-          setExtrasReturnPrompt(false)
-          extrasReturnPromptTimerRef.current = null
-        }, 5000)
-        requestAnimationFrame(() => setExtrasReturnPrompt(true))
-      }
+      setExtrasOpen(false)
       lastHydratedEventKeyRef.current = `${created.innings}:${created.sequence_number}:${created.updated_at}`
       if (!inningsEnded) {
         applyPostBallState(payload.body, payload.newBatterId ?? null, payload.strikeRuns ?? 0)
@@ -1571,10 +1550,6 @@ function LiveScoringPage() {
       newBatterId,
       strikeRuns: input.strikeRuns ?? input.runsBatter ?? 0,
     }
-
-    // Normal deliveries return to the score controls. After an extra, keep
-    // this panel open and highlight its return action after the save succeeds.
-    if (!input.extrasType) setExtrasOpen(false)
 
     if (!isOnline) {
       setPendingBallPayload(payload)
@@ -2241,45 +2216,6 @@ function LiveScoringPage() {
         .live-scorer-extras-panel .btn-ghost:disabled {
           opacity: 0.48;
         }
-        .live-scorer-extras-panel__return {
-          position: sticky;
-          top: 0;
-          z-index: 2;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 0.75rem;
-          margin: 0 -0.25rem 0.65rem;
-          padding: 0.5rem 0.25rem;
-          background: var(--bg);
-          border-bottom: 1px solid rgba(252, 252, 252, 0.12);
-        }
-        .live-scorer-extras-panel__return strong,
-        .live-scorer-extras-panel__return span {
-          display: block;
-        }
-        .live-scorer-extras-panel__return span {
-          margin-top: 0.1rem;
-          color: var(--text-muted);
-          font-size: 0.78rem;
-        }
-        .live-scorer-extras-panel__back,
-        .live-scorer-extras-panel__back:hover {
-          flex: 0 0 auto;
-          min-height: 2.8rem;
-          background: #15803d !important;
-          border-color: #15803d !important;
-          box-shadow: 0 0 0 2px rgba(134, 239, 172, 0.35);
-          color: #ffffff !important;
-          font-weight: 850;
-        }
-        .live-scorer-extras-panel__back.is-pulsing {
-          animation: live-scorer-return-pulse 0.8s ease-in-out 6;
-        }
-        @keyframes live-scorer-return-pulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(134, 239, 172, 0.35); }
-          50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(74, 222, 128, 0.6); }
-        }
         .live-scorer-match-actions {
           margin-top: 2rem;
           padding-top: 1rem;
@@ -2535,6 +2471,19 @@ function LiveScoringPage() {
         }
         .live-scorer-dialog > .team-hub-section-head:first-child {
           margin-bottom: 0.85rem;
+        }
+        .live-scorer-dialog--extras {
+          width: min(1080px, 100%);
+        }
+        .live-scorer-extras-panel {
+          display: grid;
+          gap: 1rem;
+        }
+        .live-scorer-extras-panel .team-hub-section {
+          margin-top: 0 !important;
+        }
+        .live-scorer-extras-panel .catalog-card-grid {
+          grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
         }
         .live-scorer-over-summary {
           margin: 0 0 1rem;
@@ -2808,11 +2757,6 @@ function LiveScoringPage() {
             min-height: 2.45rem;
             padding: 0.35rem;
             font-size: 0.76rem;
-          }
-          .live-scorer-extras-panel {
-            max-height: 42vh;
-            overflow-y: auto;
-            overscroll-behavior: contain;
           }
           .live-scorer-match-actions {
             margin-top: 0.4rem;
@@ -3572,9 +3516,9 @@ function LiveScoringPage() {
             <button
               type="button"
               className="btn-ghost"
-              onClick={() => setExtrasOpen((open) => !open)}
+              onClick={() => setExtrasOpen(true)}
             >
-              {extrasOpen ? 'Hide extras' : 'Extras'}
+              Extras
             </button>
             <button
               type="button"
@@ -3609,24 +3553,31 @@ function LiveScoringPage() {
         </div>
 
         {extrasOpen ? (
-          <div className="live-scorer-extras-panel">
-        <div className="live-scorer-extras-panel__return">
-          <div>
-            <strong>Extras</strong>
-            <span>Return to the normal ball controls at any time.</span>
-          </div>
-          <button
-            type="button"
-            className={`btn-primary live-scorer-extras-panel__back${extrasReturnPrompt ? ' is-pulsing' : ''}`}
-            onClick={() => {
-              setExtrasReturnPrompt(false)
-              setExtrasOpen(false)
-            }}
-          >
-            Back to ball scoring
-          </button>
-        </div>
-        <div className="team-hub-section" style={{ marginTop: '1rem' }}>
+          <div className="live-scorer-dialog-backdrop">
+            <section
+              className="live-scorer-dialog live-scorer-dialog--extras"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="extras-dialog-title"
+            >
+              <div className="team-hub-section-head">
+                <div className="team-hub-section-head__lead">
+                  <h3 id="extras-dialog-title" className="team-hub-section__title">
+                    Extras
+                  </h3>
+                  <p className="muted">Choose an extra to record it and return to ball scoring.</p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-ghost live-scorer-dialog__close"
+                  onClick={() => setExtrasOpen(false)}
+                  aria-label="Close extras"
+                >
+                  <X size={18} aria-hidden />
+                </button>
+              </div>
+              <div className="live-scorer-extras-panel">
+        <div className="team-hub-section">
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
               <h4 className="team-hub-section__title">Wides</h4>
@@ -3853,6 +3804,8 @@ function LiveScoringPage() {
             </button>
           </div>
         </div>
+              </div>
+            </section>
           </div>
         ) : null}
 
