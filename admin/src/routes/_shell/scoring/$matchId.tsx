@@ -417,7 +417,11 @@ function endOfOverSummary(
   const events = allEvents.some((event) => event.id === completedEvent.id)
     ? allEvents
     : [...allEvents, completedEvent]
-  const inningsEvents = events.filter((event) => event.innings === completedEvent.innings)
+  const inningsEvents = events.filter(
+    (event) =>
+      event.innings === completedEvent.innings &&
+      event.sequence_number <= completedEvent.sequence_number,
+  )
   const completedOverEvents = inningsEvents.filter(
     (event) => event.over_number === completedEvent.over_number,
   )
@@ -2098,6 +2102,11 @@ function LiveScoringPage() {
   const allLiveEvents = [...(liveQ.data?.events ?? [])].sort(
     (a, b) => a.sequence_number - b.sequence_number || a.id - b.id,
   )
+  const completedOverSummaryByEventId = new Map(
+    allLiveEvents
+      .filter((event) => event.innings === innings && eventClosesOver(event))
+      .map((event) => [event.id, endOfOverSummary(allLiveEvents, event)]),
+  )
   const correctionSearchText = correctionSearch.trim().toLowerCase()
   const displayedLiveEvents = [...allLiveEvents].reverse().filter((event) => {
     if (effectiveScorerPanel !== 'corrections' || !correctionSearchText) return true
@@ -2418,8 +2427,8 @@ function LiveScoringPage() {
           align-items: end;
           gap: 0.5rem;
           margin-top: 0.75rem;
-          padding-top: 0.75rem;
-          border-top: 1px solid rgba(252, 252, 252, 0.12);
+          padding-bottom: 0.75rem;
+          border-bottom: 1px solid rgba(252, 252, 252, 0.22);
         }
         .live-scorer-short-run__title {
           padding-bottom: 0.6rem;
@@ -2450,6 +2459,10 @@ function LiveScoringPage() {
         .live-scorer-commentary textarea.inline-edit__control {
           height: 100%;
           min-height: 0;
+        }
+        .live-scorer-commentary .inline-edit__label {
+          font-size: 1.05rem !important;
+          font-weight: 800;
         }
         .live-scorer-quick-actions {
           display: grid;
@@ -2728,6 +2741,57 @@ function LiveScoringPage() {
           margin-top: 0.12rem;
           color: #64748b;
           font-size: 0.72rem;
+        }
+        .live-scorer-ball-panel__over-summary {
+          display: grid;
+          gap: 0.45rem;
+          padding: 0.65rem 0.7rem;
+          border-bottom: 1px solid rgba(100, 116, 139, 0.22);
+          background: #eaf3ff;
+          color: #172554;
+        }
+        .live-scorer-ball-panel__over-summary-head,
+        .live-scorer-ball-panel__over-summary-meta,
+        .live-scorer-ball-panel__over-summary-bowler {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+        }
+        .live-scorer-ball-panel__over-summary-head span,
+        .live-scorer-ball-panel__over-summary-bowler span:first-child {
+          font-size: 0.68rem;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .live-scorer-ball-panel__over-summary-head strong {
+          font-size: 0.82rem;
+          text-align: right;
+        }
+        .live-scorer-ball-panel__over-summary-meta {
+          color: #334155;
+          font-size: 0.74rem;
+          font-weight: 750;
+        }
+        .live-scorer-ball-panel__over-summary-batters {
+          display: grid;
+          gap: 0.2rem;
+        }
+        .live-scorer-ball-panel__over-summary-batter {
+          display: flex;
+          justify-content: space-between;
+          gap: 0.5rem;
+          font-size: 0.76rem;
+        }
+        .live-scorer-ball-panel__over-summary-batter strong,
+        .live-scorer-ball-panel__over-summary-bowler strong {
+          white-space: nowrap;
+        }
+        .live-scorer-ball-panel__over-summary-bowler {
+          padding-top: 0.35rem;
+          border-top: 1px solid rgba(59, 130, 246, 0.25);
+          font-size: 0.74rem;
         }
         .live-scorer-dialog-backdrop {
           position: fixed;
@@ -3807,11 +3871,11 @@ function LiveScoringPage() {
 
           <div className="live-scorer-short-run" aria-label="Record a short run">
               <span className="live-scorer-short-run__title">Short run</span>
-              <label className="inline-edit__field">
-                <span className="inline-edit__label">Delivery</span>
+              <label className="inline-edit__field" aria-label="Short-run delivery">
                 <select
                   className="inline-edit__control"
                   value={shortRunDelivery}
+                  aria-label="Short-run delivery"
                   onChange={(event) => setShortRunDelivery(event.target.value as ShortRunDelivery)}
                 >
                   <option value="bat">Bat runs</option>
@@ -3823,11 +3887,11 @@ function LiveScoringPage() {
                   <option value="no_ball_leg_bye">No-ball + leg bye</option>
                 </select>
               </label>
-              <label className="inline-edit__field">
-                <span className="inline-edit__label">Ran</span>
+              <label className="inline-edit__field" aria-label="Completed runs">
                 <select
                   className="inline-edit__control"
                   value={shortRunCompleted}
+                  aria-label="Completed runs"
                   onChange={(event) => {
                     const completed = Number(event.target.value)
                     setShortRunCompleted(completed)
@@ -3839,11 +3903,11 @@ function LiveScoringPage() {
                   ))}
                 </select>
               </label>
-              <label className="inline-edit__field">
-                <span className="inline-edit__label">Scored</span>
+              <label className="inline-edit__field" aria-label="Runs scored">
                 <select
                   className="inline-edit__control"
                   value={shortRunScored}
+                  aria-label="Runs scored"
                   onChange={(event) => setShortRunScored(Number(event.target.value))}
                 >
                   {Array.from({ length: shortRunCompleted }, (_, runs) => (
@@ -4171,34 +4235,74 @@ function LiveScoringPage() {
             {[...allLiveEvents]
               .filter((event) => event.innings === innings)
               .reverse()
-              .map((event) => (
-                <button
-                  key={event.id}
-                  type="button"
-                  className="live-scorer-ball-panel__event"
-                  onClick={() => beginEditingBall(event)}
-                  title="Open this event in Fix ball"
-                >
-                  <span className={`live-scorer-ball-chip${event.wicket_type ? ' live-scorer-ball-chip--wicket' : event.boundary_runs >= 4 ? ' live-scorer-ball-chip--boundary' : ''}`}>
-                    {liveEventChipLabel(event)}
-                  </span>
-                  <span className="live-scorer-ball-panel__event-copy">
-                    <strong>
-                      {event.is_dead_ball && RETIREMENT_DISMISSALS.has(event.wicket_type ?? '')
-                        ? 'No ball'
-                        : `${event.over_number}.${event.ball_number}`}{' '}
-                      {playerName(playerById, event.bowler_player_id)} to{' '}
-                      {playerName(playerById, event.striker_player_id)}
-                    </strong>
-                    <span>
-                      {liveEventLabel(event)}
-                      {event.dismissal_text ? ` · ${event.dismissal_text}` : ''}
-                    </span>
-                    {event.notes ? <small>{event.notes}</small> : null}
-                  </span>
-                  <Pencil size={15} aria-hidden />
-                </button>
-              ))}
+              .map((event) => {
+                const overSummary = completedOverSummaryByEventId.get(event.id)
+                const completedOverBowler = overSummary?.bowlers.find(
+                  (bowler) => bowler.playerId === event.bowler_player_id,
+                )
+
+                return (
+                  <Fragment key={event.id}>
+                    <button
+                      type="button"
+                      className="live-scorer-ball-panel__event"
+                      onClick={() => beginEditingBall(event)}
+                      title="Open this event in Fix ball"
+                    >
+                      <span className={`live-scorer-ball-chip${event.wicket_type ? ' live-scorer-ball-chip--wicket' : event.boundary_runs >= 4 ? ' live-scorer-ball-chip--boundary' : ''}`}>
+                        {liveEventChipLabel(event)}
+                      </span>
+                      <span className="live-scorer-ball-panel__event-copy">
+                        <strong>
+                          {event.is_dead_ball && RETIREMENT_DISMISSALS.has(event.wicket_type ?? '')
+                            ? 'No ball'
+                            : `${event.over_number}.${event.ball_number}`}{' '}
+                          {playerName(playerById, event.bowler_player_id)} to{' '}
+                          {playerName(playerById, event.striker_player_id)}
+                        </strong>
+                        <span>
+                          {liveEventLabel(event)}
+                          {event.dismissal_text ? ` · ${event.dismissal_text}` : ''}
+                        </span>
+                        {event.notes ? <small>{event.notes}</small> : null}
+                      </span>
+                      <Pencil size={15} aria-hidden />
+                    </button>
+                    {overSummary ? (
+                      <section className="live-scorer-ball-panel__over-summary" aria-label={`End of over ${overSummary.over} summary`}>
+                        <div className="live-scorer-ball-panel__over-summary-head">
+                          <span>End of over {overSummary.over}</span>
+                          <strong>
+                            {matchTeams.find((team) => team.id === overSummary.battingTeamId)?.name ?? 'Batting team'}{' '}
+                            {overSummary.runs}/{overSummary.wickets}
+                          </strong>
+                        </div>
+                        <div className="live-scorer-ball-panel__over-summary-meta">
+                          <span>Runs: {overSummary.overRuns}</span>
+                          <span>Wickets: {overSummary.overWickets}</span>
+                        </div>
+                        <div className="live-scorer-ball-panel__over-summary-batters">
+                          {overSummary.batters.map((batter, index) => (
+                            <div key={`${batter.playerId ?? 'unknown'}-${index}`} className="live-scorer-ball-panel__over-summary-batter">
+                              <span>{playerName(playerById, batter.playerId)}*</span>
+                              <strong>{batter.runs} ({batter.balls})</strong>
+                            </div>
+                          ))}
+                        </div>
+                        {completedOverBowler ? (
+                          <div className="live-scorer-ball-panel__over-summary-bowler">
+                            <span>Bowler</span>
+                            <strong>{playerName(playerById, completedOverBowler.playerId)}</strong>
+                            <strong>
+                              {oversLabel(completedOverBowler.legalBalls)}–{completedOverBowler.maidens}–{completedOverBowler.runs}–{completedOverBowler.wickets}
+                            </strong>
+                          </div>
+                        ) : null}
+                      </section>
+                    ) : null}
+                  </Fragment>
+                )
+              })}
             {allLiveEvents.every((event) => event.innings !== innings) ? (
               <p className="muted">No events recorded in this innings.</p>
             ) : null}
