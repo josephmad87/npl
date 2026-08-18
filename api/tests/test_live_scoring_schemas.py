@@ -9,6 +9,7 @@ from app.api.v1 import admin_routes
 from app.api.v1.admin_routes import (
     _dismissal_text_for_live_event,
     _live_event_counts_as_batter_ball,
+    _live_overs_label_for_events,
     _live_ball_label,
     _live_top_performers_text,
     _assert_live_players_not_dismissed,
@@ -520,6 +521,53 @@ def test_no_ball_rejects_hit_wicket() -> None:
 
     assert error.value.status_code == 400
     assert "hit the ball twice" in error.value.detail["message"]
+
+
+def test_leg_bye_requires_attempt_or_avoidance_confirmation() -> None:
+    body = LiveBallEventIn(
+        innings=1,
+        over_number=0,
+        ball_number=1,
+        batting_team_id=1,
+        bowling_team_id=2,
+        striker_player_id=10,
+        non_striker_player_id=11,
+        bowler_player_id=20,
+        extras_type="leg_bye",
+        runs_extras=1,
+    )
+
+    with pytest.raises(HTTPException):
+        _validate_live_ball_event(body)
+
+    _validate_live_ball_event(body.model_copy(update={"leg_bye_attempted": True}))
+
+
+def test_non_striker_leaving_early_is_a_no_delivery_run_out() -> None:
+    body = _wicket_ball(
+        is_dead_ball=True,
+        is_legal_delivery=False,
+        wicket_type="non_striker_left_early",
+        wicket_player_id=11,
+        fielder_player_id=21,
+        wicket_end="non_striker",
+    )
+
+    _validate_live_ball_event(body)
+
+
+def test_umpire_over_call_can_close_or_extend_an_over() -> None:
+    five_ball_over = [
+        SimpleNamespace(is_legal_delivery=True, over_complete_override=None)
+        for _ in range(4)
+    ] + [SimpleNamespace(is_legal_delivery=True, over_complete_override=True)]
+    extended_over = [
+        SimpleNamespace(is_legal_delivery=True, over_complete_override=None)
+        for _ in range(5)
+    ] + [SimpleNamespace(is_legal_delivery=True, over_complete_override=False)]
+
+    assert _live_overs_label_for_events(five_ball_over) == "1.0"
+    assert _live_overs_label_for_events(extended_over) == "0.6"
 
 
 def test_live_ball_label_keeps_wicket_and_wide_visible() -> None:

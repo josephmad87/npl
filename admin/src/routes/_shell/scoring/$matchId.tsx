@@ -75,6 +75,7 @@ function pendingBallStorageKey(matchId: number): string {
 type WicketEnd = 'striker' | 'non_striker'
 type WicketRunCredit = 'bat' | 'bye' | 'leg_bye'
 type WicketDeliveryType = 'legal' | 'wide' | 'no_ball'
+type ShortRunDelivery = 'bat' | 'wide' | 'no_ball_bat' | 'bye' | 'leg_bye' | 'no_ball_bye' | 'no_ball_leg_bye'
 
 type EditingBallDraft = {
   eventId: number
@@ -126,6 +127,8 @@ function eventToLiveBallInput(event: LiveBallEventDto): LiveBallEventInput {
     penalty_runs_batting: event.penalty_runs_batting,
     penalty_runs_fielding: event.penalty_runs_fielding,
     short_runs: event.short_runs,
+    leg_bye_attempted: event.leg_bye_attempted,
+    over_complete_override: event.over_complete_override,
     is_dead_ball: event.is_dead_ball,
     wicket_type: event.wicket_type,
     wicket_player_id: event.wicket_player_id,
@@ -151,6 +154,7 @@ const DISMISSAL_OPTIONS: DismissalOption[] = [
   { value: 'caught_and_bowled', label: 'Caught & bowled', needsFielder: false },
   { value: 'lbw', label: 'LBW', needsFielder: false },
   { value: 'run_out', label: 'Run out', needsFielder: true, fielderLabel: 'Run out fielder' },
+  { value: 'non_striker_left_early', label: 'Non-striker leaving early', needsFielder: true, fielderLabel: 'Run out fielder' },
   { value: 'stumped', label: 'Stumped', needsFielder: true, fielderLabel: 'Wicketkeeper' },
   { value: 'hit_wicket', label: 'Hit wicket', needsFielder: false },
   { value: 'retired_hurt', label: 'Retired hurt', needsFielder: false },
@@ -171,6 +175,7 @@ const COUNTED_WICKET_DISMISSALS = new Set([
   'caught_and_bowled',
   'lbw',
   'run_out',
+  'non_striker_left_early',
   'stumped',
   'hit_wicket',
   'retired_out',
@@ -372,6 +377,26 @@ function oversLabel(legalBalls: number): string {
   return `${Math.floor(legalBalls / 6)}.${legalBalls % 6}`
 }
 
+function eventClosesOver(event: Pick<LiveBallEventDto, 'is_legal_delivery' | 'ball_number' | 'over_complete_override'>): boolean {
+  return event.is_legal_delivery && (event.over_complete_override ?? event.ball_number === 6)
+}
+
+function nextDeliveryPosition(events: LiveBallEventDto[], innings: number): { over: number; ball: number } {
+  let over = 0
+  let balls = 0
+  for (const event of [...events]
+    .filter((item) => item.innings === innings)
+    .sort((a, b) => a.sequence_number - b.sequence_number || a.id - b.id)) {
+    if (!event.is_legal_delivery) continue
+    balls += 1
+    if (eventClosesOver(event)) {
+      over += 1
+      balls = 0
+    }
+  }
+  return { over, ball: balls + 1 }
+}
+
 function endOfOverSummary(
   allEvents: LiveBallEventDto[],
   completedEvent: LiveBallEventDto,
@@ -493,7 +518,9 @@ function selectionAfterEvent(event: LiveBallEventDto) {
   }
 
   const changedEnds = (event.completed_runs ?? 0) % 2 === 1
-  const overEnded = event.is_legal_delivery && event.ball_number === 6
+  const overEnded = event.is_legal_delivery && (
+    event.over_complete_override ?? event.ball_number === 6
+  )
   if (changedEnds !== overEnded && strikerPlayerId && nonStrikerPlayerId) {
     const previousStriker = strikerPlayerId
     strikerPlayerId = nonStrikerPlayerId
@@ -517,6 +544,11 @@ function suggestedDismissal(
   if (wicketType === 'caught_and_bowled') return `c & b ${bowlerName}`
   if (wicketType === 'lbw') return `lbw b ${bowlerName}`
   if (wicketType === 'run_out') return fielderName ? `run out (${fielderName})` : 'run out'
+  if (wicketType === 'non_striker_left_early') {
+    return fielderName
+      ? `run out (${fielderName}), non-striker left early`
+      : 'run out, non-striker left early'
+  }
   if (wicketType === 'stumped') return `st ${fielderName || 'wicketkeeper'} b ${bowlerName}`
   if (wicketType === 'hit_wicket') return `hit wicket b ${bowlerName}`
   if (wicketType === 'retired_hurt') return 'retired hurt'
@@ -642,6 +674,9 @@ function LiveScoringPage() {
   const [extrasOpen, setExtrasOpen] = useState(false)
   const [shortRunCompleted, setShortRunCompleted] = useState(2)
   const [shortRunScored, setShortRunScored] = useState(1)
+  const [shortRunDelivery, setShortRunDelivery] = useState<ShortRunDelivery>('bat')
+  const [umpireEndOverAfterNextBall, setUmpireEndOverAfterNextBall] = useState(false)
+  const [umpireReplacementInOver, setUmpireReplacementInOver] = useState(false)
   const [finalReviewConfirmed, setFinalReviewConfirmed] = useState(false)
   const [bowlerChangeOpen, setBowlerChangeOpen] = useState(false)
   const [completedOverSummary, setCompletedOverSummary] = useState<EndOfOverSummary | null>(null)
@@ -822,6 +857,15 @@ function LiveScoringPage() {
   const scoringPlayersForTeam = (teamId: number | '') => {
     const players = playersForTeam(teamId)
     if (!teamId || !teamHasSavedSquad.get(teamId)) return players
+    return players.filter((player) => {
+      const role = playerRoles[player.id]
+      return role === 'playing_xi' || role === 'concussion_substitute'
+    })
+  }
+
+  const fieldingPlayersForTeam = (teamId: number | '') => {
+    const players = playersForTeam(teamId)
+    if (!teamId || !teamHasSavedSquad.get(teamId)) return players
     return players.filter((player) => Boolean(playerRoles[player.id]))
   }
 
@@ -833,6 +877,12 @@ function LiveScoringPage() {
 
   const bowlingPlayers = useMemo(
     () => scoringPlayersForTeam(bowlingTeamId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bowlingTeamId, playersQ.data, playerRoles, teamHasSavedSquad],
+  )
+
+  const fieldingPlayers = useMemo(
+    () => fieldingPlayersForTeam(bowlingTeamId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [bowlingTeamId, playersQ.data, playerRoles, teamHasSavedSquad],
   )
@@ -889,10 +939,10 @@ function LiveScoringPage() {
     if (!bowlerPlayerId && bowlingPlayers[0]) {
       setBowlerPlayerId(bowlingPlayers[0].id)
     }
-    if (!fielderPlayerId && bowlingPlayers[0]) {
-      setFielderPlayerId(bowlingPlayers[0].id)
+    if (!fielderPlayerId && fieldingPlayers[0]) {
+      setFielderPlayerId(fieldingPlayers[0].id)
     }
-  }, [bowlerPlayerId, bowlingPlayers, fielderPlayerId])
+  }, [bowlerPlayerId, bowlingPlayers, fieldingPlayers, fielderPlayerId])
 
   const currentSummary = useMemo(
     () => liveQ.data?.summaries.find((summary) => summary.innings === innings) ?? null,
@@ -906,6 +956,10 @@ function LiveScoringPage() {
     () => liveQ.data?.summaries.find((summary) => summary.innings === 2) ?? null,
     [liveQ.data?.summaries],
   )
+  const legalBalls = currentSummary?.legal_balls ?? 0
+  const nextDelivery = nextDeliveryPosition(liveQ.data?.events ?? [], innings)
+  const nextOverNumber = nextDelivery.over
+  const nextBallNumber = nextDelivery.ball
   const chaseTarget =
     liveQ.data?.revised_target_runs ??
     (firstInningsSummary ? firstInningsSummary.runs + 1 : null)
@@ -917,13 +971,18 @@ function LiveScoringPage() {
   const allocatedInningsBalls = oversFieldToBalls(
     liveQ.data?.match_overs ?? matchOvers,
   )
+  const allocatedWholeOvers = Math.floor(allocatedInningsBalls / 6)
+  const completedAllocatedOvers =
+    allocatedInningsBalls > 0 &&
+    allocatedInningsBalls % 6 === 0 &&
+    nextOverNumber >= allocatedWholeOvers
   const firstInningsOversReached =
     liveQ.data?.status !== 'completed' &&
     innings === 1 &&
     firstInningsSummary != null &&
     secondInningsSummary == null &&
     allocatedInningsBalls > 0 &&
-    firstInningsSummary.legal_balls >= allocatedInningsBalls
+    (completedAllocatedOvers || firstInningsSummary.legal_balls >= allocatedInningsBalls)
 
   useEffect(() => {
     if (liveQ.data?.status === 'completed' || !chaseTargetReached) {
@@ -962,9 +1021,6 @@ function LiveScoringPage() {
     setWicketPlayerId(selection.strikerPlayerId ?? selection.nonStrikerPlayerId ?? '')
   }, [innings, liveQ.data?.events])
 
-  const legalBalls = currentSummary?.legal_balls ?? 0
-  const nextOverNumber = Math.floor(legalBalls / 6)
-  const nextBallNumber = (legalBalls % 6) + 1
   const battingTeamName =
     matchTeams.find((team) => team.id === battingTeamId)?.name ?? 'Batting team'
   const bowlingTeamName =
@@ -1099,7 +1155,9 @@ function LiveScoringPage() {
     }
 
     const oddRuns = strikeRuns % 2 === 1
-    const endOfOver = body.is_legal_delivery !== false && (legalBalls + 1) % 6 === 0
+    const endOfOver =
+      body.is_legal_delivery !== false &&
+      (body.over_complete_override ?? nextBallNumber === 6)
 
     if (oddRuns !== endOfOver && nextStriker && nextNonStriker) {
       const oldStriker = nextStriker
@@ -1167,7 +1225,11 @@ function LiveScoringPage() {
       setPendingBallPayload(null)
       globalThis.sessionStorage.removeItem(pendingBallStorageKey(mid))
       setNotes('')
-      if (payload.body.is_legal_delivery !== false && !payload.body.is_dead_ball && payload.body.ball_number === 6) {
+      if (
+        payload.body.is_legal_delivery !== false &&
+        !payload.body.is_dead_ball &&
+        (payload.body.over_complete_override ?? created.over_complete_override ?? created.ball_number === 6)
+      ) {
         setOverNote('')
       }
       setWicketOpen(false)
@@ -1181,13 +1243,17 @@ function LiveScoringPage() {
       setDismissalText('')
       setDismissalTextTouched(false)
       setExtrasOpen(false)
+      if (payload.body.is_legal_delivery !== false) {
+        setUmpireEndOverAfterNextBall(false)
+        setUmpireReplacementInOver(false)
+      }
       lastHydratedEventKeyRef.current = `${created.innings}:${created.sequence_number}:${created.updated_at}`
       if (!inningsEnded) {
         applyPostBallState(payload.body, payload.newBatterId ?? null, payload.strikeRuns ?? 0)
         if (
           payload.body.is_legal_delivery !== false &&
           !payload.body.is_dead_ball &&
-          payload.body.ball_number === 6
+          (payload.body.over_complete_override ?? created.over_complete_override ?? created.ball_number === 6)
         ) {
           setCompletedOverSummary(
             endOfOverSummary(liveQ.data?.events ?? [], created),
@@ -1290,6 +1356,26 @@ function LiveScoringPage() {
       await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
     },
     onError: (error: Error) => setEditBallError(error.message),
+  })
+
+  const continueOverMutation = useMutation({
+    mutationFn: (event: LiveBallEventDto) =>
+      adminPutJson<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live/balls/${event.id}`,
+        { ...eventToLiveBallInput(event), over_complete_override: false },
+      ),
+    onSuccess: async (state) => {
+      setActionError(null)
+      setBowlerChangeOpen(false)
+      setCompletedOverSummary(null)
+      setPreviousBowlerPlayerId(null)
+      setNextBowlerPlayerId('')
+      setUmpireEndOverAfterNextBall(true)
+      lastHydratedEventKeyRef.current = ''
+      queryClient.setQueryData(['admin', 'matches', mid, 'live'], state)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
+    },
+    onError: (error: Error) => setActionError(error.message),
   })
 
   const deleteBallMutation = useMutation({
@@ -1509,6 +1595,8 @@ function LiveScoringPage() {
       penaltyRunsBatting?: number
       penaltyRunsFielding?: number
       shortRuns?: number
+      legByeAttempted?: boolean
+      overCompleteOverride?: boolean | null
       isDeadBall?: boolean
       wicketType?: string | null
       wicketPlayerId?: number | null
@@ -1547,12 +1635,17 @@ function LiveScoringPage() {
       return
     }
 
+    const isLegalDelivery = input.isLegalDelivery ?? true
+    const overCompleteOverride = input.overCompleteOverride ?? (
+      isLegalDelivery && umpireEndOverAfterNextBall ? true : null
+    )
     const willCompleteOver =
-      (input.isLegalDelivery ?? true) !== false && !(input.isDeadBall ?? false) && nextBallNumber === 6
+      isLegalDelivery && !(input.isDeadBall ?? false) && (overCompleteOverride ?? nextBallNumber === 6)
     const ballComment = notes.trim()
     const pendingOverNote = overNote.trim()
     const combinedNotes = [
       ballComment,
+      umpireReplacementInOver ? 'Umpire-approved replacement bowler completing this over.' : '',
       willCompleteOver && pendingOverNote ? `Over note: ${pendingOverNote}` : '',
     ]
       .filter(Boolean)
@@ -1571,7 +1664,7 @@ function LiveScoringPage() {
       runs_batter: input.runsBatter ?? 0,
       runs_extras: input.runsExtras ?? 0,
       extras_type: input.extrasType ?? null,
-      is_legal_delivery: input.isLegalDelivery ?? true,
+      is_legal_delivery: isLegalDelivery,
       completed_runs:
         input.completedRuns ?? input.strikeRuns ?? input.runsBatter ?? 0,
       boundary_runs: input.boundaryRuns ?? 0,
@@ -1579,6 +1672,8 @@ function LiveScoringPage() {
       penalty_runs_batting: input.penaltyRunsBatting ?? 0,
       penalty_runs_fielding: input.penaltyRunsFielding ?? 0,
       short_runs: input.shortRuns ?? 0,
+      leg_bye_attempted: input.legByeAttempted ?? false,
+      over_complete_override: overCompleteOverride,
       is_dead_ball: input.isDeadBall ?? false,
       wicket_type: input.wicketType ?? null,
       wicket_player_id: input.wicketType
@@ -1621,13 +1716,39 @@ function LiveScoringPage() {
       return
     }
 
-    submitBall({
-      runsBatter: shortRunScored,
+    const shortRuns = shortRunCompleted - shortRunScored
+    const common = {
       completedRuns: shortRunCompleted,
-      shortRuns: shortRunCompleted - shortRunScored,
+      shortRuns,
       strikeRuns: shortRunCompleted,
-      dismissalText: `${shortRunCompleted - shortRunScored} short run${shortRunCompleted - shortRunScored === 1 ? '' : 's'} called`,
-    })
+      dismissalText: `${shortRuns} short run${shortRuns === 1 ? '' : 's'} called`,
+    }
+
+    if (shortRunDelivery === 'wide') {
+      submitBall({ ...common, runsExtras: shortRunScored + 1, extrasType: 'wide', isLegalDelivery: false })
+      return
+    }
+    if (shortRunDelivery === 'no_ball_bat') {
+      submitBall({ ...common, runsBatter: shortRunScored, runsExtras: 1, extrasType: 'no_ball', isLegalDelivery: false })
+      return
+    }
+    if (shortRunDelivery === 'bye') {
+      submitBall({ ...common, runsExtras: shortRunScored, extrasType: 'bye' })
+      return
+    }
+    if (shortRunDelivery === 'leg_bye') {
+      submitBall({ ...common, runsExtras: shortRunScored, extrasType: 'leg_bye', legByeAttempted: true })
+      return
+    }
+    if (shortRunDelivery === 'no_ball_bye') {
+      submitBall({ ...common, runsExtras: shortRunScored + 1, extrasType: 'no_ball_bye', isLegalDelivery: false })
+      return
+    }
+    if (shortRunDelivery === 'no_ball_leg_bye') {
+      submitBall({ ...common, runsExtras: shortRunScored + 1, extrasType: 'no_ball_leg_bye', isLegalDelivery: false, legByeAttempted: true })
+      return
+    }
+    submitBall({ ...common, runsBatter: shortRunScored })
   }
 
   const submitWicket = () => {
@@ -1692,6 +1813,28 @@ function LiveScoringPage() {
         fielderId ? playerName(playerById, fielderId) : '',
       )
 
+    if (wicketType === 'non_striker_left_early') {
+      if (playerOut !== nonStrikerPlayerId) {
+        setActionError('For non-striker leaving early, select the current non-striker as the player out.')
+        return
+      }
+      submitBall(
+        {
+          wicketType,
+          wicketPlayerId: playerOut,
+          fielderPlayerId: fielderId,
+          wicketEnd: 'non_striker',
+          isLegalDelivery: false,
+          isDeadBall: true,
+          completedRuns: 0,
+          strikeRuns: 0,
+          dismissalText: finalDismissalText,
+        },
+        newBatter,
+      )
+      return
+    }
+
     if (RETIREMENT_DISMISSALS.has(wicketType)) {
       submitBall(
         {
@@ -1742,6 +1885,7 @@ function LiveScoringPage() {
         runsExtras,
         extrasType,
         isLegalDelivery,
+        legByeAttempted: wicketRunCredit === 'leg_bye',
         completedRuns: wicketRuns,
         strikeRuns: wicketRuns,
         dismissalText: finalDismissalText,
@@ -1836,8 +1980,10 @@ function LiveScoringPage() {
       )
     : allScoringPanels
 
-  const overStripOverNumber =
-    legalBalls > 0 && legalBalls % 6 === 0 ? Math.max(0, nextOverNumber - 1) : nextOverNumber
+  const latestInningsEvent = [...(liveQ.data?.events ?? [])]
+    .filter((event) => event.innings === innings)
+    .sort((a, b) => b.sequence_number - a.sequence_number || b.id - a.id)[0]
+  const overStripOverNumber = latestInningsEvent?.over_number ?? nextOverNumber
   const overStripEvents = [...(liveQ.data?.events ?? [])]
     .filter(
       (event) =>
@@ -3549,8 +3695,27 @@ function LiveScoringPage() {
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
               <h4 className="team-hub-section__title">Record ball</h4>
-              <p className="muted">Add the ball comment first, then tap the run button. Normal run buttons are legal deliveries.</p>
+              <p className="muted">Add the ball comment first, then tap the run button. Short runs preserve the completed-run strike change while recording only the scored runs.</p>
             </div>
+          </div>
+
+          <div className="catalog-toolbar" style={{ marginBottom: '0.75rem' }}>
+            <label className="live-scorer-final-confirm">
+              <input
+                type="checkbox"
+                checked={umpireEndOverAfterNextBall}
+                onChange={(event) => setUmpireEndOverAfterNextBall(event.target.checked)}
+              />
+              <span>Umpire call: end the over after the next legal ball</span>
+            </label>
+            <label className="live-scorer-final-confirm">
+              <input
+                type="checkbox"
+                checked={umpireReplacementInOver}
+                onChange={(event) => setUmpireReplacementInOver(event.target.checked)}
+              />
+              <span>Replacement bowler is completing this over</span>
+            </label>
           </div>
 
           <div className="live-scorer-record-grid">
@@ -3579,6 +3744,22 @@ function LiveScoringPage() {
               </div>
               <div className="live-scorer-short-run" aria-label="Record a short run">
                 <span className="live-scorer-short-run__title">Short run</span>
+                <label className="inline-edit__field">
+                  <span className="inline-edit__label">Delivery</span>
+                  <select
+                    className="inline-edit__control"
+                    value={shortRunDelivery}
+                    onChange={(event) => setShortRunDelivery(event.target.value as ShortRunDelivery)}
+                  >
+                    <option value="bat">Bat runs</option>
+                    <option value="wide">Wide</option>
+                    <option value="no_ball_bat">No-ball + bat</option>
+                    <option value="bye">Bye</option>
+                    <option value="leg_bye">Leg bye</option>
+                    <option value="no_ball_bye">No-ball + bye</option>
+                    <option value="no_ball_leg_bye">No-ball + leg bye</option>
+                  </select>
+                </label>
                 <label className="inline-edit__field">
                   <span className="inline-edit__label">Ran</span>
                   <select
@@ -3826,6 +4007,7 @@ function LiveScoringPage() {
                     extrasType: 'no_ball_leg_bye',
                     isLegalDelivery: false,
                     strikeRuns: runs,
+                    legByeAttempted: true,
                   })
                 }
                 disabled={ballMutation.isPending}
@@ -3863,7 +4045,7 @@ function LiveScoringPage() {
                 type="button"
                 className="btn-ghost"
                 onClick={() =>
-                  submitBall({ runsExtras: runs, extrasType: 'leg_bye', strikeRuns: runs })
+                  submitBall({ runsExtras: runs, extrasType: 'leg_bye', strikeRuns: runs, legByeAttempted: true })
                 }
                 disabled={ballMutation.isPending}
               >
@@ -4013,6 +4195,23 @@ function LiveScoringPage() {
                 </div>
               </div>
               <div className="catalog-toolbar live-scorer-dialog__actions">
+                {(() => {
+                  const lastLegalEvent = [...(liveQ.data?.events ?? [])]
+                    .filter((event) => event.innings === innings && event.is_legal_delivery)
+                    .sort((a, b) => b.sequence_number - a.sequence_number || b.id - a.id)[0]
+                  return lastLegalEvent ? (
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => continueOverMutation.mutate(lastLegalEvent)}
+                      disabled={continueOverMutation.isPending}
+                    >
+                      {continueOverMutation.isPending
+                        ? 'Updating…'
+                        : 'Umpire count: continue this over'}
+                    </button>
+                  ) : null
+                })()}
                 <button
                   type="button"
                   className="btn-primary"
@@ -4362,7 +4561,7 @@ function LiveScoringPage() {
                     }
                   >
                     <option value="">Choose fielder</option>
-                    {bowlingPlayers.map((player) => (
+                    {fieldingPlayers.map((player) => (
                       <option key={player.id} value={player.id}>
                         {player.full_name}
                       </option>

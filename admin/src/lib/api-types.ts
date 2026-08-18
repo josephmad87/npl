@@ -522,6 +522,8 @@ export type LiveBallEventDto = {
   penalty_runs_batting: number
   penalty_runs_fielding: number
   short_runs: number
+  leg_bye_attempted: boolean
+  over_complete_override: boolean | null
   is_dead_ball: boolean
   wicket_type: string | null
   wicket_player_id: number | null
@@ -589,6 +591,8 @@ export type LiveBallEventInput = {
   penalty_runs_batting?: number
   penalty_runs_fielding?: number
   short_runs?: number
+  leg_bye_attempted?: boolean
+  over_complete_override?: boolean | null
   is_dead_ball?: boolean
   wicket_type?: string | null
   wicket_player_id?: number | null

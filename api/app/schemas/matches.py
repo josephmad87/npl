@@ -238,6 +238,8 @@ class LiveBallEventIn(BaseModel):
     penalty_runs_batting: int = Field(default=0, ge=0, le=10)
     penalty_runs_fielding: int = Field(default=0, ge=0, le=10)
     short_runs: int = Field(default=0, ge=0, le=6)
+    leg_bye_attempted: bool = False
+    over_complete_override: bool | None = None
     is_dead_ball: bool = False
     wicket_type: str | None = Field(default=None, max_length=64)
     wicket_player_id: int | None = Field(default=None, ge=1)
@@ -270,6 +272,8 @@ class LiveBallEventOut(ORMModel):
     penalty_runs_batting: int = 0
     penalty_runs_fielding: int = 0
     short_runs: int = 0
+    leg_bye_attempted: bool = False
+    over_complete_override: bool | None = None
     is_dead_ball: bool = False
     wicket_type: str | None
     wicket_player_id: int | None
