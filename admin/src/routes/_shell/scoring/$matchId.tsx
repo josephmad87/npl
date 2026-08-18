@@ -2374,10 +2374,11 @@ function LiveScoringPage() {
             padding: 0.65rem 1rem 0.8rem;
           }
           .live-scorer-page--score {
+            display: flex;
+            flex-direction: column;
             height: calc(100dvh - 6rem);
             max-height: calc(100dvh - 6rem);
             min-height: 0;
-            grid-template-rows: auto minmax(0, 1fr);
             gap: 0.5rem;
           }
           .live-scorer-page--score > .page-header,
@@ -2385,10 +2386,16 @@ function LiveScoringPage() {
             display: none;
           }
           .live-scorer-page--score .live-scorer-sticky {
+            flex: 0 0 auto;
             position: relative;
             top: auto;
             padding: 0.55rem 0.65rem;
             border-radius: 0.9rem;
+          }
+          .live-scorer-page--score .live-scorer-sync-banner,
+          .live-scorer-page--score .live-scorer-lock-banner {
+            flex: 0 0 auto;
+            margin: 0;
           }
           .live-scorer-page--score .live-scorer-score {
             font-size: 1.75rem;
@@ -2417,6 +2424,7 @@ function LiveScoringPage() {
             font-size: 0.65rem;
           }
           .live-scorer-score-section {
+            flex: 1 1 auto;
             min-height: 0;
             margin-top: 0;
             padding-top: 0;
