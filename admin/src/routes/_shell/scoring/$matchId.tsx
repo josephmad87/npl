@@ -41,6 +41,17 @@ type BallSubmitPayload = {
   strikeRuns?: number
 }
 
+type EndOfOverSummary = {
+  over: number
+  battingTeamId: number
+  runs: number
+  wickets: number
+  overRuns: number
+  overWickets: number
+  batters: Array<{ playerId: number | null; runs: number; balls: number }>
+  bowler: { playerId: number; legalBalls: number; maidens: number; runs: number; wickets: number }
+}
+
 function newClientEventId(): string {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID()
@@ -314,6 +325,96 @@ function eventRunsTotal(event: LiveBallEventDto): number {
   )
 }
 
+function bowlerRunsConceded(event: LiveBallEventDto): number {
+  if (event.extras_type === 'bye' || event.extras_type === 'leg_bye') {
+    return event.runs_batter
+  }
+  if (event.extras_type === 'no_ball_bye' || event.extras_type === 'no_ball_leg_bye') {
+    return event.runs_batter + Math.min(1, event.runs_extras)
+  }
+  return event.runs_batter + event.runs_extras
+}
+
+function creditsBowlerWicket(event: LiveBallEventDto): boolean {
+  return Boolean(
+    event.wicket_type &&
+      ['bowled', 'caught', 'caught_and_bowled', 'lbw', 'stumped', 'hit_wicket'].includes(
+        event.wicket_type,
+      ),
+  )
+}
+
+function oversLabel(legalBalls: number): string {
+  return `${Math.floor(legalBalls / 6)}.${legalBalls % 6}`
+}
+
+function endOfOverSummary(
+  allEvents: LiveBallEventDto[],
+  completedEvent: LiveBallEventDto,
+): EndOfOverSummary {
+  const events = allEvents.some((event) => event.id === completedEvent.id)
+    ? allEvents
+    : [...allEvents, completedEvent]
+  const inningsEvents = events.filter((event) => event.innings === completedEvent.innings)
+  const completedOverEvents = inningsEvents.filter(
+    (event) => event.over_number === completedEvent.over_number,
+  )
+  const selection = selectionAfterEvent(completedEvent)
+  const batterStats = (playerId: number | null) => {
+    const playerEvents = playerId
+      ? inningsEvents.filter((event) => event.striker_player_id === playerId)
+      : []
+    return {
+      playerId,
+      runs: playerEvents.reduce((total, event) => total + event.runs_batter, 0),
+      balls: playerEvents.filter((event) => event.is_legal_delivery && !event.is_dead_ball).length,
+    }
+  }
+  const bowlerEvents = inningsEvents.filter(
+    (event) => event.bowler_player_id === completedEvent.bowler_player_id,
+  )
+  const overs = new Map<number, { legalBalls: number; runs: number }>()
+  for (const event of bowlerEvents) {
+    const current = overs.get(event.over_number) ?? { legalBalls: 0, runs: 0 }
+    current.legalBalls += event.is_legal_delivery && !event.is_dead_ball ? 1 : 0
+    current.runs += bowlerRunsConceded(event)
+    overs.set(event.over_number, current)
+  }
+
+  return {
+    over: completedEvent.over_number + 1,
+    battingTeamId: completedEvent.batting_team_id,
+    runs: inningsEvents.reduce(
+      (total, event) => total + event.runs_batter + event.runs_extras + event.penalty_runs_batting,
+      0,
+    ),
+    wickets: inningsEvents.filter(
+      (event) => event.wicket_type && !['retired_hurt', 'retired_not_out'].includes(event.wicket_type),
+    ).length,
+    overRuns: completedOverEvents.reduce(
+      (total, event) => total + event.runs_batter + event.runs_extras + event.penalty_runs_batting,
+      0,
+    ),
+    overWickets: completedOverEvents.filter(
+      (event) => event.wicket_type && !['retired_hurt', 'retired_not_out'].includes(event.wicket_type),
+    ).length,
+    batters: [
+      batterStats(selection.strikerPlayerId),
+      batterStats(selection.nonStrikerPlayerId),
+    ],
+    bowler: {
+      playerId: completedEvent.bowler_player_id,
+      legalBalls: bowlerEvents.filter((event) => event.is_legal_delivery && !event.is_dead_ball)
+        .length,
+      maidens: [...overs.values()].filter(
+        (over) => over.legalBalls === 6 && over.runs === 0,
+      ).length,
+      runs: bowlerEvents.reduce((total, event) => total + bowlerRunsConceded(event), 0),
+      wickets: bowlerEvents.filter(creditsBowlerWicket).length,
+    },
+  }
+}
+
 function liveEventChipLabel(event: LiveBallEventDto): string {
   if (event.is_dead_ball) {
     if (event.wicket_type === 'retired_hurt') return 'RH'
@@ -509,6 +610,7 @@ function LiveScoringPage() {
   const [extrasReturnPrompt, setExtrasReturnPrompt] = useState(false)
   const [finalReviewConfirmed, setFinalReviewConfirmed] = useState(false)
   const [bowlerChangeOpen, setBowlerChangeOpen] = useState(false)
+  const [completedOverSummary, setCompletedOverSummary] = useState<EndOfOverSummary | null>(null)
   const [previousBowlerPlayerId, setPreviousBowlerPlayerId] = useState<number | null>(null)
   const [nextBowlerPlayerId, setNextBowlerPlayerId] = useState<number | ''>('')
   const [matchOverOpen, setMatchOverOpen] = useState(false)
@@ -1040,6 +1142,9 @@ function LiveScoringPage() {
           !payload.body.is_dead_ball &&
           payload.body.ball_number === 6
         ) {
+          setCompletedOverSummary(
+            endOfOverSummary(liveQ.data?.events ?? [], created),
+          )
           setPreviousBowlerPlayerId(payload.body.bowler_player_id)
           setNextBowlerPlayerId('')
           setBowlerChangeOpen(true)
@@ -1734,6 +1839,7 @@ function LiveScoringPage() {
 
     setBowlerPlayerId(nextBowlerPlayerId)
     setBowlerChangeOpen(false)
+    setCompletedOverSummary(null)
     setPreviousBowlerPlayerId(null)
     setNextBowlerPlayerId('')
     setActionError(null)
@@ -2409,6 +2515,78 @@ function LiveScoringPage() {
         }
         .live-scorer-dialog > .team-hub-section-head:first-child {
           margin-bottom: 0.85rem;
+        }
+        .live-scorer-over-summary {
+          margin: 0 0 1rem;
+          overflow: hidden;
+          border: 1px solid rgba(30, 64, 175, 0.28);
+          border-radius: 0.85rem;
+          background: #eff6ff;
+        }
+        .live-scorer-over-summary__headline {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 0.75rem 0.9rem;
+          background: #dbeafe;
+          color: #172554;
+          font-weight: 900;
+        }
+        .live-scorer-over-summary__headline span {
+          font-size: 0.76rem;
+          letter-spacing: 0.1em;
+        }
+        .live-scorer-over-summary__headline strong {
+          text-align: right;
+        }
+        .live-scorer-over-summary__meta {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.55rem;
+          padding: 0.7rem 0.9rem;
+          border-bottom: 1px solid rgba(30, 64, 175, 0.16);
+          color: #334155;
+          font-size: 0.9rem;
+          font-weight: 750;
+        }
+        .live-scorer-over-summary__details {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(180px, 0.72fr);
+          gap: 1rem;
+          padding: 0.8rem 0.9rem;
+        }
+        .live-scorer-over-summary__batters {
+          display: grid;
+          gap: 0.45rem;
+        }
+        .live-scorer-over-summary__batter,
+        .live-scorer-over-summary__bowler {
+          display: flex;
+          justify-content: space-between;
+          gap: 0.75rem;
+          color: #172554;
+          font-size: 0.94rem;
+        }
+        .live-scorer-over-summary__batter strong,
+        .live-scorer-over-summary__bowler strong {
+          white-space: nowrap;
+        }
+        .live-scorer-over-summary__bowler {
+          flex-direction: column;
+          justify-content: center;
+          border-left: 1px solid rgba(30, 64, 175, 0.22);
+          padding-left: 1rem;
+        }
+        .live-scorer-over-summary__bowler small {
+          color: #475569;
+          font-size: 0.72rem;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+        }
+        @media (max-width: 640px) {
+          .live-scorer-over-summary__details { grid-template-columns: 1fr; }
+          .live-scorer-over-summary__bowler { border-left: 0; border-top: 1px solid rgba(30, 64, 175, 0.22); padding: 0.75rem 0 0; }
         }
         .live-scorer-dialog__close {
           min-height: 2.5rem;
@@ -3824,14 +4002,46 @@ function LiveScoringPage() {
               <div className="team-hub-section-head">
                 <div className="team-hub-section-head__lead">
                   <h3 id="new-bowler-dialog-title" className="team-hub-section__title">
-                    Over complete — choose the new bowler
+                    End of over — choose the new bowler
                   </h3>
                   <p className="muted">
-                    {playerName(playerById, previousBowlerPlayerId)} completed the over.
-                    Select the bowler for over {nextOverNumber + 1} before recording the next ball.
+                    Select the bowler for over {completedOverSummary ? completedOverSummary.over + 1 : nextOverNumber + 1} before recording the next ball.
                   </p>
                 </div>
               </div>
+
+              {completedOverSummary ? (
+                <section className="live-scorer-over-summary" aria-label="End of over summary">
+                  <div className="live-scorer-over-summary__headline">
+                    <span>END OF OVER {completedOverSummary.over}</span>
+                    <strong>
+                      {matchTeams.find((team) => team.id === completedOverSummary.battingTeamId)?.name ?? 'Batting team'}{' '}
+                      {completedOverSummary.runs}/{completedOverSummary.wickets}
+                    </strong>
+                  </div>
+                  <div className="live-scorer-over-summary__meta">
+                    <span>Runs scored in the over: {completedOverSummary.overRuns}</span>
+                    <span>Wickets taken in the over: {completedOverSummary.overWickets}</span>
+                  </div>
+                  <div className="live-scorer-over-summary__details">
+                    <div className="live-scorer-over-summary__batters">
+                      {completedOverSummary.batters.map((batter, index) => (
+                        <div key={`${batter.playerId ?? 'unknown'}-${index}`} className="live-scorer-over-summary__batter">
+                          <span>{playerName(playerById, batter.playerId)}*</span>
+                          <strong>{batter.runs} ({batter.balls})</strong>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="live-scorer-over-summary__bowler">
+                      <small>PREVIOUS BOWLER · O–M–R–W</small>
+                      <span>{playerName(playerById, completedOverSummary.bowler.playerId)}</span>
+                      <strong>
+                        {oversLabel(completedOverSummary.bowler.legalBalls)}–{completedOverSummary.bowler.maidens}–{completedOverSummary.bowler.runs}–{completedOverSummary.bowler.wickets}
+                      </strong>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
 
               <label className="inline-edit__field">
                 <span className="inline-edit__label">New bowler</span>
