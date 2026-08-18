@@ -627,6 +627,8 @@ function LiveScoringPage() {
   const [activeScorerPanel, setActiveScorerPanel] = useState<ScorerPanel>('score')
   const [correctionSearch, setCorrectionSearch] = useState('')
   const [extrasOpen, setExtrasOpen] = useState(false)
+  const [shortRunCompleted, setShortRunCompleted] = useState(2)
+  const [shortRunScored, setShortRunScored] = useState(1)
   const [finalReviewConfirmed, setFinalReviewConfirmed] = useState(false)
   const [bowlerChangeOpen, setBowlerChangeOpen] = useState(false)
   const [completedOverSummary, setCompletedOverSummary] = useState<EndOfOverSummary | null>(null)
@@ -1600,6 +1602,21 @@ function LiveScoringPage() {
     void ballMutation.mutate(payload)
   }
 
+  const recordShortRun = () => {
+    if (shortRunCompleted <= shortRunScored) {
+      setActionError('For a short run, the runs scored must be lower than the runs completed.')
+      return
+    }
+
+    submitBall({
+      runsBatter: shortRunScored,
+      completedRuns: shortRunCompleted,
+      shortRuns: shortRunCompleted - shortRunScored,
+      strikeRuns: shortRunCompleted,
+      dismissalText: `${shortRunCompleted - shortRunScored} short run${shortRunCompleted - shortRunScored === 1 ? '' : 's'} called`,
+    })
+  }
+
   const submitWicket = () => {
     setActionError(null)
 
@@ -2196,6 +2213,30 @@ function LiveScoringPage() {
           font-size: 1.25rem;
           font-weight: 900;
         }
+        .live-scorer-short-run {
+          display: grid;
+          grid-template-columns: auto minmax(8rem, 1fr) minmax(8rem, 1fr) auto;
+          align-items: end;
+          gap: 0.5rem;
+          margin-top: 0.75rem;
+          padding-top: 0.75rem;
+          border-top: 1px solid rgba(252, 252, 252, 0.12);
+        }
+        .live-scorer-short-run__title {
+          padding-bottom: 0.6rem;
+          color: var(--text-muted);
+          font-size: 0.78rem;
+          font-weight: 850;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+        .live-scorer-short-run .inline-edit__field {
+          margin: 0;
+        }
+        .live-scorer-short-run .btn-ghost {
+          min-height: 2.7rem;
+          white-space: nowrap;
+        }
         .live-scorer-record-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2517,6 +2558,11 @@ function LiveScoringPage() {
         .live-scorer-extras-panel .catalog-card-grid {
           grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
         }
+        .live-scorer-dialog--bowler-change .live-scorer-dialog__actions {
+          margin-top: 1.5rem;
+          padding-top: 1rem;
+          border-top: 1px solid rgba(100, 116, 139, 0.22);
+        }
         .live-scorer-over-summary {
           margin: 0 0 1rem;
           overflow: hidden;
@@ -2775,6 +2821,16 @@ function LiveScoringPage() {
             min-height: 3rem !important;
             font-size: 1.05rem !important;
           }
+          .live-scorer-short-run {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .live-scorer-short-run__title,
+          .live-scorer-short-run .btn-ghost {
+            grid-column: 1 / -1;
+          }
+          .live-scorer-short-run__title {
+            padding-bottom: 0;
+          }
           .live-scorer-record-grid textarea.inline-edit__control {
             min-height: 3.5rem !important;
             height: 3.5rem;
@@ -2813,6 +2869,11 @@ function LiveScoringPage() {
           .live-scorer-sticky {
             top: 0.35rem;
             border-radius: 1rem;
+          }
+        }
+        @media (max-width: 520px) {
+          .live-scorer-short-run {
+            grid-template-columns: 1fr;
           }
         }
         @media (max-width: 640px) {
@@ -3503,6 +3564,45 @@ function LiveScoringPage() {
                   </button>
                 ))}
               </div>
+              <div className="live-scorer-short-run" aria-label="Record a short run">
+                <span className="live-scorer-short-run__title">Short run</span>
+                <label className="inline-edit__field">
+                  <span className="inline-edit__label">Ran</span>
+                  <select
+                    className="inline-edit__control"
+                    value={shortRunCompleted}
+                    onChange={(event) => {
+                      const completed = Number(event.target.value)
+                      setShortRunCompleted(completed)
+                      setShortRunScored((current) => Math.min(current, completed - 1))
+                    }}
+                  >
+                    {Array.from({ length: 10 }, (_, index) => index + 1).map((runs) => (
+                      <option key={runs} value={runs}>Ran {runs}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="inline-edit__field">
+                  <span className="inline-edit__label">Scored</span>
+                  <select
+                    className="inline-edit__control"
+                    value={shortRunScored}
+                    onChange={(event) => setShortRunScored(Number(event.target.value))}
+                  >
+                    {Array.from({ length: shortRunCompleted }, (_, runs) => (
+                      <option key={runs} value={runs}>Scored {runs}</option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={recordShortRun}
+                  disabled={ballMutation.isPending}
+                >
+                  Record short run
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gap: '0.75rem' }}>
@@ -3764,7 +3864,7 @@ function LiveScoringPage() {
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
               <h4 className="team-hub-section__title">MCC adjustments</h4>
-              <p className="muted">Dead ball, penalties, and short-run corrections do not behave like normal scoring balls.</p>
+              <p className="muted">Dead balls and penalties do not behave like normal scoring balls.</p>
             </div>
           </div>
           <div className="catalog-card-grid">
@@ -3817,22 +3917,6 @@ function LiveScoringPage() {
               disabled={ballMutation.isPending}
             >
               +5 fielding penalty
-            </button>
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() =>
-                submitBall({
-                  runsBatter: 1,
-                  completedRuns: 2,
-                  shortRuns: 1,
-                  strikeRuns: 1,
-                  dismissalText: 'One short run called',
-                })
-              }
-              disabled={ballMutation.isPending}
-            >
-              Short run: ran 2, score 1
             </button>
           </div>
         </div>

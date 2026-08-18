@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type {
   LeagueDto,
   MatchDto,
+  MatchSquadDto,
   PlayerDto,
   ScorerAssignmentDto,
   SeasonDto,
@@ -134,6 +135,11 @@ function MatchDetailPage() {
     queryFn: () => adminGet<MatchDto>(`/admin/matches/${mid}`),
     enabled: Number.isFinite(mid),
   })
+  const squadQ = useQuery({
+    queryKey: ['admin', 'matches', mid, 'squads'],
+    queryFn: () => adminGet<MatchSquadDto>(`/admin/matches/${mid}/squads`),
+    enabled: Number.isFinite(mid) && mode === 'result',
+  })
   const playersQ = useQuery({
     queryKey: ['admin', 'players'],
     queryFn: () => adminListAll<PlayerDto>('/admin/players'),
@@ -151,6 +157,15 @@ function MatchDetailPage() {
   })
 
   const match = matchesQ.data
+  const playingXiPlayerIds = useMemo(
+    () =>
+      (squadQ.data?.teams ?? []).flatMap((team) =>
+        team.players
+          .filter((player) => player.role === 'playing_xi')
+          .map((player) => player.player_id),
+      ),
+    [squadQ.data],
+  )
   const homeName = useMemo(
     () =>
       match
@@ -528,6 +543,7 @@ function MatchDetailPage() {
           homeLabel={homeName ?? `#${match.home_team_id}`}
           awayLabel={awayName ?? `#${match.away_team_id}`}
           players={playersQ.data ?? []}
+          playingXiPlayerIds={playingXiPlayerIds}
           onCancel={goView}
           onSaved={() => {
             void invalidateCompetitionDataQueries(queryClient).then(() =>

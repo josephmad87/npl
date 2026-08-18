@@ -1540,6 +1540,23 @@ def admin_set_match_result(
                 },
             )
 
+        playing_xi_ids = set(
+            db.scalars(
+                select(MatchDaySquadPlayer.player_id).where(
+                    MatchDaySquadPlayer.match_id == m.id,
+                    MatchDaySquadPlayer.role == "playing_xi",
+                ),
+            ).all(),
+        )
+        if p.id not in playing_xi_ids:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "validation",
+                    "message": "player_of_match_player_id must be in a participating team's playing XI",
+                },
+            )
+
     affected_player_ids = affected_player_ids_for_match(db, m.id)
     stats_in = body.player_stats
 

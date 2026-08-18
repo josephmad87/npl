@@ -7,7 +7,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { MatchDto, MatchPlayerStatDto, PlayerDto } from '@/lib/api-types'
 import { adminPost } from '@/lib/admin-client'
 import { invalidateCompetitionDataQueries } from '@/lib/invalidate-competition-data'
@@ -212,6 +212,7 @@ type MatchResultEditorProps = Readonly<{
   homeLabel: string
   awayLabel: string
   players: PlayerDto[]
+  playingXiPlayerIds: number[]
   onCancel: () => void
   onSaved: () => void
 }>
@@ -243,6 +244,7 @@ export function MatchResultEditor({
   homeLabel,
   awayLabel,
   players,
+  playingXiPlayerIds,
   onCancel,
   onSaved,
 }: MatchResultEditorProps) {
@@ -323,7 +325,20 @@ const [awayAllottedOvers, setAwayAllottedOvers] = useState(
     [players, match.home_team_id, match.away_team_id],
   )
 
-  const pomOptions = useMemo(() => rosterPlayers, [rosterPlayers])
+  const playingXiPlayerIdSet = useMemo(
+    () => new Set(playingXiPlayerIds),
+    [playingXiPlayerIds],
+  )
+  const pomOptions = useMemo(
+    () => rosterPlayers.filter((player) => playingXiPlayerIdSet.has(player.id)),
+    [playingXiPlayerIdSet, rosterPlayers],
+  )
+
+  useEffect(() => {
+    if (pomId && !playingXiPlayerIdSet.has(Number(pomId))) {
+      setPomId('')
+    }
+  }, [playingXiPlayerIdSet, pomId])
 
   const rosterForTeam = useCallback(
     (teamId: number) => rosterPlayers.filter((p) => p.team_id === teamId),
