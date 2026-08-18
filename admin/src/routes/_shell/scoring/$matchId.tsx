@@ -2780,18 +2780,20 @@ function LiveScoringPage() {
           gap: 0.2rem;
         }
         .live-scorer-ball-panel__over-summary-batter {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 0.5rem;
           font-size: 0.76rem;
         }
         .live-scorer-ball-panel__over-summary-batter span {
           white-space: nowrap;
         }
-        .live-scorer-ball-panel__over-summary-batter strong,
-        .live-scorer-ball-panel__over-summary-bowler strong {
+        .live-scorer-ball-panel__over-summary-batter strong {
           white-space: nowrap;
         }
-        .live-scorer-ball-panel__over-summary-bowler {
-          padding-top: 0.35rem;
-          border-top: 1px solid rgba(59, 130, 246, 0.25);
+        .live-scorer-ball-panel__over-summary-bowler-inline {
+          text-align: right;
           font-size: 0.74rem;
         }
         .live-scorer-dialog-backdrop {
@@ -4289,17 +4291,15 @@ function LiveScoringPage() {
                               <span>
                                 {playerName(playerById, batter.playerId)}* <strong>{batter.runs} ({batter.balls})</strong>
                               </span>
+                              {index === 0 && completedOverBowler ? (
+                                <strong className="live-scorer-ball-panel__over-summary-bowler-inline">
+                                  {playerName(playerById, completedOverBowler.playerId)}{' '}
+                                  {oversLabel(completedOverBowler.legalBalls)}–{completedOverBowler.maidens}–{completedOverBowler.runs}–{completedOverBowler.wickets}
+                                </strong>
+                              ) : null}
                             </div>
                           ))}
                         </div>
-                        {completedOverBowler ? (
-                          <div className="live-scorer-ball-panel__over-summary-bowler">
-                            <strong>{playerName(playerById, completedOverBowler.playerId)}</strong>
-                            <strong>
-                              {oversLabel(completedOverBowler.legalBalls)}–{completedOverBowler.maidens}–{completedOverBowler.runs}–{completedOverBowler.wickets}
-                            </strong>
-                          </div>
-                        ) : null}
                       </section>
                     ) : null}
                   </Fragment>
