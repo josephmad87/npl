@@ -2560,29 +2560,45 @@ function LiveScoringPage() {
           display: grid;
           gap: 0.45rem;
         }
-        .live-scorer-over-summary__batter,
-        .live-scorer-over-summary__bowler {
+        .live-scorer-over-summary__batter {
           display: flex;
           justify-content: space-between;
           gap: 0.75rem;
           color: #172554;
           font-size: 0.94rem;
         }
-        .live-scorer-over-summary__batter strong,
-        .live-scorer-over-summary__bowler strong {
+        .live-scorer-over-summary__batter strong {
           white-space: nowrap;
         }
         .live-scorer-over-summary__bowler {
-          flex-direction: column;
-          justify-content: center;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) repeat(4, minmax(1.6rem, auto));
+          align-items: center;
+          column-gap: 0.6rem;
+          row-gap: 0.45rem;
           border-left: 1px solid rgba(30, 64, 175, 0.22);
           padding-left: 1rem;
+          color: #172554;
         }
-        .live-scorer-over-summary__bowler small {
+        .live-scorer-over-summary__bowler-header {
           color: #475569;
           font-size: 0.72rem;
           font-weight: 800;
           letter-spacing: 0.08em;
+          text-align: center;
+        }
+        .live-scorer-over-summary__bowler-header:first-child {
+          text-align: left;
+        }
+        .live-scorer-over-summary__bowler-name {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .live-scorer-over-summary__bowler-figure {
+          text-align: center;
+          white-space: nowrap;
         }
         @media (max-width: 640px) {
           .live-scorer-over-summary__details { grid-template-columns: 1fr; }
@@ -4020,8 +4036,8 @@ function LiveScoringPage() {
                     </strong>
                   </div>
                   <div className="live-scorer-over-summary__meta">
-                    <span>Runs scored in the over: {completedOverSummary.overRuns}</span>
-                    <span>Wickets taken in the over: {completedOverSummary.overWickets}</span>
+                    <span>Runs: {completedOverSummary.overRuns}</span>
+                    <span>Wickets: {completedOverSummary.overWickets}</span>
                   </div>
                   <div className="live-scorer-over-summary__details">
                     <div className="live-scorer-over-summary__batters">
@@ -4033,10 +4049,25 @@ function LiveScoringPage() {
                       ))}
                     </div>
                     <div className="live-scorer-over-summary__bowler">
-                      <small>PREVIOUS BOWLER · O–M–R–W</small>
-                      <span>{playerName(playerById, completedOverSummary.bowler.playerId)}</span>
-                      <strong>
-                        {oversLabel(completedOverSummary.bowler.legalBalls)}–{completedOverSummary.bowler.maidens}–{completedOverSummary.bowler.runs}–{completedOverSummary.bowler.wickets}
+                      <span className="live-scorer-over-summary__bowler-header">BOWLER</span>
+                      <span className="live-scorer-over-summary__bowler-header">O</span>
+                      <span className="live-scorer-over-summary__bowler-header">M</span>
+                      <span className="live-scorer-over-summary__bowler-header">R</span>
+                      <span className="live-scorer-over-summary__bowler-header">W</span>
+                      <strong className="live-scorer-over-summary__bowler-name">
+                        {playerName(playerById, completedOverSummary.bowler.playerId)}
+                      </strong>
+                      <strong className="live-scorer-over-summary__bowler-figure">
+                        {oversLabel(completedOverSummary.bowler.legalBalls)}
+                      </strong>
+                      <strong className="live-scorer-over-summary__bowler-figure">
+                        {completedOverSummary.bowler.maidens}
+                      </strong>
+                      <strong className="live-scorer-over-summary__bowler-figure">
+                        {completedOverSummary.bowler.runs}
+                      </strong>
+                      <strong className="live-scorer-over-summary__bowler-figure">
+                        {completedOverSummary.bowler.wickets}
                       </strong>
                     </div>
                   </div>
