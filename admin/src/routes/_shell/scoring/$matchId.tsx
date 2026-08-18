@@ -334,6 +334,9 @@ function eventRunsTotal(event: LiveBallEventDto): number {
 }
 
 function bowlerRunsConceded(event: LiveBallEventDto): number {
+  if (event.extras_type === 'wide') {
+    return event.runs_batter + Math.min(1, event.runs_extras)
+  }
   if (event.extras_type === 'bye' || event.extras_type === 'leg_bye') {
     return event.runs_batter
   }
