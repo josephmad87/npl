@@ -3950,17 +3950,17 @@ def _match_overs_decimal(value: object | None) -> Decimal:
 
 
 def _bowler_runs_for_live_event(event: MatchBallEvent) -> int:
-    """Return runs charged to the bowler under NPL wide-scoring policy.
+    """Return runs charged to the bowler under the MCC Laws of Cricket.
 
-    The one-run wide penalty is charged to the bowler. Any additional runs
-    completed from the same wide remain in the batting team's total and extras,
-    but are not added to the bowler's individual figures.
+    Every run from a wide, including completed runs and boundary wides, is
+    debited to the bowler. No-ball penalties and bat runs are also charged,
+    while byes and leg-byes remain excluded from the bowler's figures.
     """
     extras_type = (event.extras_type or "").strip().lower()
     runs = int(event.runs_batter or 0)
 
     if extras_type == "wide":
-        runs += min(1, int(event.runs_extras or 0))
+        runs += int(event.runs_extras or 0)
     elif extras_type == "no_ball":
         runs += int(event.runs_extras or 0)
     elif extras_type in {"no_ball_bye", "no_ball_leg_bye"}:
