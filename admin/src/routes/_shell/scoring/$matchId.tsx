@@ -1425,6 +1425,10 @@ function LiveScoringPage() {
       strikeRuns: input.strikeRuns ?? input.runsBatter ?? 0,
     }
 
+    // Returning to normal ball controls after any delivery prevents the long
+    // extras list from trapping a scorer below the record-ball controls.
+    setExtrasOpen(false)
+
     if (!isOnline) {
       setPendingBallPayload(payload)
       try {
@@ -2088,6 +2092,28 @@ function LiveScoringPage() {
         .live-scorer-quick-actions .btn-ghost:disabled,
         .live-scorer-extras-panel .btn-ghost:disabled {
           opacity: 0.48;
+        }
+        .live-scorer-extras-panel__return {
+          position: sticky;
+          top: 0;
+          z-index: 2;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          margin: 0 -0.25rem 0.65rem;
+          padding: 0.5rem 0.25rem;
+          background: var(--bg);
+          border-bottom: 1px solid rgba(252, 252, 252, 0.12);
+        }
+        .live-scorer-extras-panel__return strong,
+        .live-scorer-extras-panel__return span {
+          display: block;
+        }
+        .live-scorer-extras-panel__return span {
+          margin-top: 0.1rem;
+          color: var(--text-muted);
+          font-size: 0.78rem;
         }
         .live-scorer-match-actions {
           margin-top: 2rem;
@@ -3328,6 +3354,19 @@ function LiveScoringPage() {
 
         {extrasOpen ? (
           <div className="live-scorer-extras-panel">
+        <div className="live-scorer-extras-panel__return">
+          <div>
+            <strong>Extras</strong>
+            <span>Return to the normal ball controls at any time.</span>
+          </div>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => setExtrasOpen(false)}
+          >
+            Back to ball scoring
+          </button>
+        </div>
         <div className="team-hub-section" style={{ marginTop: '1rem' }}>
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
