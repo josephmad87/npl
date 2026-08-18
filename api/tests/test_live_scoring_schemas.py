@@ -490,6 +490,38 @@ def test_no_ball_can_include_byes_and_run_out() -> None:
     _validate_live_ball_event(body)
 
 
+def test_no_ball_can_include_hit_ball_twice() -> None:
+    body = _wicket_ball(
+        extras_type="no_ball",
+        runs_extras=1,
+        is_legal_delivery=False,
+        wicket_type="hit_ball_twice",
+        wicket_player_id=10,
+        fielder_player_id=None,
+        wicket_end=None,
+    )
+
+    _validate_live_ball_event(body)
+
+
+def test_no_ball_rejects_hit_wicket() -> None:
+    body = _wicket_ball(
+        extras_type="no_ball",
+        runs_extras=1,
+        is_legal_delivery=False,
+        wicket_type="hit_wicket",
+        wicket_player_id=10,
+        fielder_player_id=None,
+        wicket_end=None,
+    )
+
+    with pytest.raises(HTTPException) as error:
+        _validate_live_ball_event(body)
+
+    assert error.value.status_code == 400
+    assert "hit the ball twice" in error.value.detail["message"]
+
+
 def test_live_ball_label_keeps_wicket_and_wide_visible() -> None:
     event = SimpleNamespace(
         is_dead_ball=False,

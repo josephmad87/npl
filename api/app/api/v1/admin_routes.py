@@ -2671,10 +2671,10 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
                 status_code=400,
                 detail={"code": "validation", "message": "After a Wide, the batter can only be out hit wicket, obstructing the field, run out, or stumped."},
             )
-        if extras_type in {"no_ball", "no_ball_bye", "no_ball_leg_bye"} and wicket_type not in {"hit_wicket", "obstructing_field", "run_out"}:
+        if extras_type in {"no_ball", "no_ball_bye", "no_ball_leg_bye"} and wicket_type not in {"hit_ball_twice", "obstructing_field", "run_out"}:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "After a No-ball, the batter cannot be out bowled, caught, LBW, or stumped."},
+                detail={"code": "validation", "message": "After a No-ball, the batter can only be out hit the ball twice, obstructing the field, or run out."},
             )
         if wicket_type == "run_out" and body.wicket_end is None:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "Run out requires the wicket end."})

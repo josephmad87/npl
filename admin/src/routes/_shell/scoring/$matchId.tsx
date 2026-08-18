@@ -162,7 +162,9 @@ const DISMISSAL_OPTIONS: DismissalOption[] = [
 ]
 
 const WIDE_DISMISSALS = new Set(['run_out', 'stumped', 'hit_wicket', 'obstructing_field'])
-const NO_BALL_DISMISSALS = new Set(['run_out', 'hit_wicket', 'obstructing_field'])
+// MCC Law 21.18: after a no-ball, only run out, obstructing the field and
+// hit the ball twice remain available. Hit wicket is not a valid dismissal.
+const NO_BALL_DISMISSALS = new Set(['run_out', 'hit_ball_twice', 'obstructing_field'])
 const COUNTED_WICKET_DISMISSALS = new Set([
   'bowled',
   'caught',
@@ -335,7 +337,9 @@ function eventRunsTotal(event: LiveBallEventDto): number {
 
 function bowlerRunsConceded(event: LiveBallEventDto): number {
   if (event.extras_type === 'wide') {
-    return event.runs_batter + Math.min(1, event.runs_extras)
+    // Every wide run, including completed runs and boundary wides, is charged
+    // to the bowler (MCC Law 22.7).
+    return event.runs_batter + event.runs_extras
   }
   if (event.extras_type === 'bye' || event.extras_type === 'leg_bye') {
     return event.runs_batter
@@ -344,6 +348,15 @@ function bowlerRunsConceded(event: LiveBallEventDto): number {
     return event.runs_batter + Math.min(1, event.runs_extras)
   }
   return event.runs_batter + event.runs_extras
+}
+
+function countsAsBatterBall(event: LiveBallEventDto): boolean {
+  if (event.is_dead_ball) return false
+  return event.is_legal_delivery || [
+    'no_ball',
+    'no_ball_bye',
+    'no_ball_leg_bye',
+  ].includes(event.extras_type ?? '')
 }
 
 function creditsBowlerWicket(event: LiveBallEventDto): boolean {
@@ -378,7 +391,7 @@ function endOfOverSummary(
     return {
       playerId,
       runs: playerEvents.reduce((total, event) => total + event.runs_batter, 0),
-      balls: playerEvents.filter((event) => event.is_legal_delivery && !event.is_dead_ball).length,
+      balls: playerEvents.filter(countsAsBatterBall).length,
     }
   }
   const figuresForBowler = (playerId: number): BowlerFigures => {
