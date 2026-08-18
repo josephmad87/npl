@@ -141,6 +141,19 @@ function eventToLiveBallInput(event: LiveBallEventDto): LiveBallEventInput {
   }
 }
 
+function withOverNote(existingNotes: string | null, overNote: string): string | null {
+  const retainedNotes = (existingNotes ?? '')
+    .split('\n')
+    .filter((line) => !line.startsWith('Over note: '))
+    .join('\n')
+    .trim()
+  const nextOverNote = overNote.trim()
+
+  return [retainedNotes, nextOverNote ? `Over note: ${nextOverNote}` : '']
+    .filter(Boolean)
+    .join('\n') || null
+}
+
 type DismissalOption = {
   value: string
   label: string
@@ -1358,6 +1371,21 @@ function LiveScoringPage() {
     onError: (error: Error) => setEditBallError(error.message),
   })
 
+  const saveOverNoteMutation = useMutation({
+    mutationFn: ({ event, note }: { event: LiveBallEventDto; note: string }) =>
+      adminPutJson<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live/balls/${event.id}`,
+        { ...eventToLiveBallInput(event), notes: withOverNote(event.notes, note) },
+      ),
+    onSuccess: async (state) => {
+      setActionError(null)
+      lastHydratedEventKeyRef.current = ''
+      queryClient.setQueryData(['admin', 'matches', mid, 'live'], state)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
+    },
+    onError: (error: Error) => setActionError(error.message),
+  })
+
   const continueOverMutation = useMutation({
     mutationFn: (event: LiveBallEventDto) =>
       adminPutJson<LiveScoreStateDto>(
@@ -1639,14 +1667,10 @@ function LiveScoringPage() {
     const overCompleteOverride = input.overCompleteOverride ?? (
       isLegalDelivery && umpireEndOverAfterNextBall ? true : null
     )
-    const willCompleteOver =
-      isLegalDelivery && !(input.isDeadBall ?? false) && (overCompleteOverride ?? nextBallNumber === 6)
     const ballComment = notes.trim()
-    const pendingOverNote = overNote.trim()
     const combinedNotes = [
       ballComment,
       umpireReplacementInOver ? 'Umpire-approved replacement bowler completing this over.' : '',
-      willCompleteOver && pendingOverNote ? `Over note: ${pendingOverNote}` : '',
     ]
       .filter(Boolean)
       .join('\n')
@@ -2030,7 +2054,7 @@ function LiveScoringPage() {
     setWicketOpen(true)
   }
 
-  const confirmNewOverBowler = () => {
+  const confirmNewOverBowler = async () => {
     if (!nextBowlerPlayerId) {
       setActionError('Choose the bowler for the new over.')
       return
@@ -2040,11 +2064,27 @@ function LiveScoringPage() {
       return
     }
 
+    const completedOverEvent = [...(liveQ.data?.events ?? [])]
+      .filter(
+        (event) =>
+          event.innings === innings &&
+          event.over_number === completedOverSummary?.over,
+      )
+      .sort((a, b) => b.sequence_number - a.sequence_number || b.id - a.id)[0]
+    if (completedOverEvent && overNote.trim()) {
+      try {
+        await saveOverNoteMutation.mutateAsync({ event: completedOverEvent, note: overNote })
+      } catch {
+        return
+      }
+    }
+
     setBowlerPlayerId(nextBowlerPlayerId)
     setBowlerChangeOpen(false)
     setCompletedOverSummary(null)
     setPreviousBowlerPlayerId(null)
     setNextBowlerPlayerId('')
+    setOverNote('')
     setActionError(null)
   }
 
@@ -2581,7 +2621,7 @@ function LiveScoringPage() {
           gap: 0.6rem;
           align-items: flex-start;
           margin: 1rem 0;
-          color: #111827;
+          color: #ffffff;
           font-weight: 800;
         }
         .live-scorer-final-confirm input {
@@ -3661,7 +3701,6 @@ function LiveScoringPage() {
           <div className="live-scorer-cockpit__card">
             <span className="live-scorer-cockpit__label">
               Over {overStripOverNumber + 1} · {overStripRuns} runs
-              {overNote.trim() ? ` · note pending: ${overNote.trim()}` : ''}
             </span>
             <div className="live-scorer-over-strip" aria-label="Current over balls">
               {overStripEvents.length > 0 ? (
@@ -3815,18 +3854,6 @@ function LiveScoringPage() {
                 </span>
               </label>
 
-              <div className="inline-edit__field" style={{ margin: 0 }}>
-                <span className="inline-edit__label">Over note</span>
-                <input
-                  className="inline-edit__control"
-                  value={overNote}
-                  onChange={(event) => setOverNote(event.target.value)}
-                  placeholder="Optional over note, for example: MAIDEN or WICKET MAIDEN"
-                />
-                <span className="muted" style={{ marginTop: '0.4rem' }}>
-                  This note is saved on the 6th legal ball of the over. Wides and no-balls do not close the over.
-                </span>
-              </div>
             </div>
           </div>
 
@@ -4384,6 +4411,20 @@ function LiveScoringPage() {
               ) : null}
 
               <label className="inline-edit__field">
+                <span className="inline-edit__label">Over note</span>
+                <input
+                  className="inline-edit__control"
+                  value={overNote}
+                  onChange={(event) => setOverNote(event.target.value)}
+                  placeholder="Optional note for this completed over"
+                  disabled={saveOverNoteMutation.isPending}
+                />
+                <span className="muted" style={{ marginTop: '0.4rem' }}>
+                  Saved with the final legal ball of the over when you start the new over.
+                </span>
+              </label>
+
+              <label className="inline-edit__field">
                 <span className="inline-edit__label">New bowler</span>
                 <select
                   className="inline-edit__control"
@@ -4415,9 +4456,9 @@ function LiveScoringPage() {
                   type="button"
                   className="btn-primary"
                   onClick={confirmNewOverBowler}
-                  disabled={!nextBowlerPlayerId || newOverBowlerOptions.length === 0}
+                  disabled={!nextBowlerPlayerId || newOverBowlerOptions.length === 0 || saveOverNoteMutation.isPending}
                 >
-                  Start new over
+                  {saveOverNoteMutation.isPending ? 'Saving note…' : 'Start new over'}
                 </button>
               </div>
             </section>
