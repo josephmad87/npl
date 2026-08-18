@@ -506,6 +506,7 @@ function LiveScoringPage() {
   const [activeScorerPanel, setActiveScorerPanel] = useState<ScorerPanel>('score')
   const [correctionSearch, setCorrectionSearch] = useState('')
   const [extrasOpen, setExtrasOpen] = useState(false)
+  const [extrasReturnPrompt, setExtrasReturnPrompt] = useState(false)
   const [finalReviewConfirmed, setFinalReviewConfirmed] = useState(false)
   const [bowlerChangeOpen, setBowlerChangeOpen] = useState(false)
   const [previousBowlerPlayerId, setPreviousBowlerPlayerId] = useState<number | null>(null)
@@ -522,6 +523,7 @@ function LiveScoringPage() {
   const selectionContextRef = useRef('')
   const lastHydratedEventKeyRef = useRef('')
   const hasHydratedInningsRef = useRef(false)
+  const extrasReturnPromptTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     const updateOnlineState = () => setIsOnline(navigator.onLine)
@@ -530,6 +532,14 @@ function LiveScoringPage() {
     return () => {
       globalThis.removeEventListener('online', updateOnlineState)
       globalThis.removeEventListener('offline', updateOnlineState)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (extrasReturnPromptTimerRef.current !== null) {
+        globalThis.clearTimeout(extrasReturnPromptTimerRef.current)
+      }
     }
   }, [])
 
@@ -1010,6 +1020,18 @@ function LiveScoringPage() {
       setBattersCrossed(false)
       setDismissalText('')
       setDismissalTextTouched(false)
+      if (payload.body.extras_type) {
+        setExtrasOpen(true)
+        setExtrasReturnPrompt(false)
+        if (extrasReturnPromptTimerRef.current !== null) {
+          globalThis.clearTimeout(extrasReturnPromptTimerRef.current)
+        }
+        extrasReturnPromptTimerRef.current = globalThis.setTimeout(() => {
+          setExtrasReturnPrompt(false)
+          extrasReturnPromptTimerRef.current = null
+        }, 5000)
+        requestAnimationFrame(() => setExtrasReturnPrompt(true))
+      }
       lastHydratedEventKeyRef.current = `${created.innings}:${created.sequence_number}:${created.updated_at}`
       if (!inningsEnded) {
         applyPostBallState(payload.body, payload.newBatterId ?? null, payload.strikeRuns ?? 0)
@@ -1425,9 +1447,9 @@ function LiveScoringPage() {
       strikeRuns: input.strikeRuns ?? input.runsBatter ?? 0,
     }
 
-    // Returning to normal ball controls after any delivery prevents the long
-    // extras list from trapping a scorer below the record-ball controls.
-    setExtrasOpen(false)
+    // Normal deliveries return to the score controls. After an extra, keep
+    // this panel open and highlight its return action after the save succeeds.
+    if (!input.extrasType) setExtrasOpen(false)
 
     if (!isOnline) {
       setPendingBallPayload(payload)
@@ -2114,6 +2136,23 @@ function LiveScoringPage() {
           margin-top: 0.1rem;
           color: var(--text-muted);
           font-size: 0.78rem;
+        }
+        .live-scorer-extras-panel__back,
+        .live-scorer-extras-panel__back:hover {
+          flex: 0 0 auto;
+          min-height: 2.8rem;
+          background: #15803d !important;
+          border-color: #15803d !important;
+          box-shadow: 0 0 0 2px rgba(134, 239, 172, 0.35);
+          color: #ffffff !important;
+          font-weight: 850;
+        }
+        .live-scorer-extras-panel__back.is-pulsing {
+          animation: live-scorer-return-pulse 0.8s ease-in-out 6;
+        }
+        @keyframes live-scorer-return-pulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(134, 239, 172, 0.35); }
+          50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(74, 222, 128, 0.6); }
         }
         .live-scorer-match-actions {
           margin-top: 2rem;
@@ -3361,8 +3400,11 @@ function LiveScoringPage() {
           </div>
           <button
             type="button"
-            className="btn-ghost"
-            onClick={() => setExtrasOpen(false)}
+            className={`btn-primary live-scorer-extras-panel__back${extrasReturnPrompt ? ' is-pulsing' : ''}`}
+            onClick={() => {
+              setExtrasReturnPrompt(false)
+              setExtrasOpen(false)
+            }}
           >
             Back to ball scoring
           </button>
