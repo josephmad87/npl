@@ -419,138 +419,140 @@ export function SiteHeader() {
             <Link to="/" className="site-brand site-brand--inline" aria-label="NPL home">
               <img src={nplLogoUrl} alt="NPL logo" />
             </Link>
-            <Link to="/">Home</Link>
+            <div className="main-nav__menu">
+              <Link to="/">Home</Link>
 
-            <div className="menu-item">
-              <Link to="/mens">Mens</Link>
-              <div className="dropdown">
-                <Link to="/mens/fixtures">Fixtures</Link>
-                <Link to="/mens/results">Results</Link>
-                <div className="dropdown-group">
-                  <span>Seasons</span>
-                  {mensSeasonLinks.map((season) => (
-                    <Link
-                      key={`mens-season-${season.id}`}
-                      to="/leagues/$leagueSlug/seasons/$seasonSlug"
-                      params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
-                    >
-                      {season.name}
-                    </Link>
-                  ))}
-                </div>
-                <div className="dropdown-group">
-                  <span>Teams</span>
-                  {mensNavTeams.map((team) => (
-                    <Link key={`mens-team-${team.id}`} to="/teams/$slug" params={{ slug: team.slug }}>
-                      {team.name}
-                    </Link>
-                  ))}
-                </div>
-                <div className="dropdown-group">
-                  <span>Leagues</span>
-                  {mensLeagues.map((league) => (
-                    <Link key={`mens-league-${league.id}`} to="/mens/seasons" search={{ leagueSlug: league.slug }}>
-                      {league.name}
-                    </Link>
-                  ))}
+              <div className="menu-item">
+                <Link to="/mens">Mens</Link>
+                <div className="dropdown">
+                  <Link to="/mens/fixtures">Fixtures</Link>
+                  <Link to="/mens/results">Results</Link>
+                  <div className="dropdown-group">
+                    <span>Seasons</span>
+                    {mensSeasonLinks.map((season) => (
+                      <Link
+                        key={`mens-season-${season.id}`}
+                        to="/leagues/$leagueSlug/seasons/$seasonSlug"
+                        params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
+                      >
+                        {season.name}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="dropdown-group">
+                    <span>Teams</span>
+                    {mensNavTeams.map((team) => (
+                      <Link key={`mens-team-${team.id}`} to="/teams/$slug" params={{ slug: team.slug }}>
+                        {team.name}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="dropdown-group">
+                    <span>Leagues</span>
+                    {mensLeagues.map((league) => (
+                      <Link key={`mens-league-${league.id}`} to="/mens/seasons" search={{ leagueSlug: league.slug }}>
+                        {league.name}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="menu-item">
-              <Link to="/women">Women</Link>
-              <div className="dropdown">
-                <Link to="/women/fixtures">Fixtures</Link>
-                <Link to="/women/results">Results</Link>
-                <div className="dropdown-group">
-                  <span>Seasons</span>
-                  {womenSeasonLinks.map((season) => (
-                    <Link
-                      key={`women-season-${season.id}`}
-                      to="/leagues/$leagueSlug/seasons/$seasonSlug"
-                      params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
-                    >
-                      {season.name}
-                    </Link>
-                  ))}
-                </div>
-                <div className="dropdown-group">
-                  <span>Teams</span>
-                  {womenNavTeams.map((team) => (
-                    <Link key={`women-team-${team.id}`} to="/teams/$slug" params={{ slug: team.slug }}>
-                      {team.name}
-                    </Link>
-                  ))}
-                </div>
-                <div className="dropdown-group">
-                  <span>Leagues</span>
-                  {womenLeagues.map((league) => (
-                    <Link key={`women-league-${league.id}`} to="/women/seasons" search={{ leagueSlug: league.slug }}>
-                      {league.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="menu-item">
-              <Link to="/youth">Youth</Link>
-              <div className="dropdown">
-                <Link to="/youth/fixtures">Fixtures</Link>
-                <Link to="/youth/results">Results</Link>
-                <div className="dropdown-group">
-                  <span>Seasons</span>
-                  {youthSeasonLinks.map((season) => (
-                    <Link
-                      key={`youth-season-${season.id}`}
-                      to="/leagues/$leagueSlug/seasons/$seasonSlug"
-                      params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
-                    >
-                      {season.name}
-                    </Link>
-                  ))}
-                </div>
-                <div className="dropdown-group">
-                  <span>Teams</span>
-                  {youthNavTeams.map((team) => (
-                    <Link key={`youth-team-${team.id}`} to="/teams/$slug" params={{ slug: team.slug }}>
-                      {team.name}
-                    </Link>
-                  ))}
-                </div>
-                <div className="dropdown-group">
-                  <span>Leagues</span>
-                  {youthLeagues.map((league) => (
-                    <Link key={`youth-league-${league.id}`} to="/youth/seasons" search={{ leagueSlug: league.slug }}>
-                      {league.name}
-                    </Link>
-                  ))}
+              <div className="menu-item">
+                <Link to="/women">Women</Link>
+                <div className="dropdown">
+                  <Link to="/women/fixtures">Fixtures</Link>
+                  <Link to="/women/results">Results</Link>
+                  <div className="dropdown-group">
+                    <span>Seasons</span>
+                    {womenSeasonLinks.map((season) => (
+                      <Link
+                        key={`women-season-${season.id}`}
+                        to="/leagues/$leagueSlug/seasons/$seasonSlug"
+                        params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
+                      >
+                        {season.name}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="dropdown-group">
+                    <span>Teams</span>
+                    {womenNavTeams.map((team) => (
+                      <Link key={`women-team-${team.id}`} to="/teams/$slug" params={{ slug: team.slug }}>
+                        {team.name}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="dropdown-group">
+                    <span>Leagues</span>
+                    {womenLeagues.map((league) => (
+                      <Link key={`women-league-${league.id}`} to="/women/seasons" search={{ leagueSlug: league.slug }}>
+                        {league.name}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
 
-                      <Link to="/news" search={{ q: '' }}>
-              News
-            </Link>
-
-            <Link to="/compare-teams">
-              Compare
-            </Link>
-
-            <div className="menu-item">
-              <Link to="/gallery">Gallery</Link>
-              <div className="dropdown">
-                <Link to="/gallery/images">Images</Link>
-                <Link to="/gallery/video">Video</Link>
+              <div className="menu-item">
+                <Link to="/youth">Youth</Link>
+                <div className="dropdown">
+                  <Link to="/youth/fixtures">Fixtures</Link>
+                  <Link to="/youth/results">Results</Link>
+                  <div className="dropdown-group">
+                    <span>Seasons</span>
+                    {youthSeasonLinks.map((season) => (
+                      <Link
+                        key={`youth-season-${season.id}`}
+                        to="/leagues/$leagueSlug/seasons/$seasonSlug"
+                        params={{ leagueSlug: season.leagueSlug, seasonSlug: season.slug }}
+                      >
+                        {season.name}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="dropdown-group">
+                    <span>Teams</span>
+                    {youthNavTeams.map((team) => (
+                      <Link key={`youth-team-${team.id}`} to="/teams/$slug" params={{ slug: team.slug }}>
+                        {team.name}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="dropdown-group">
+                    <span>Leagues</span>
+                    {youthLeagues.map((league) => (
+                      <Link key={`youth-league-${league.id}`} to="/youth/seasons" search={{ leagueSlug: league.slug }}>
+                        {league.name}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               </div>
+
+              <Link to="/news" search={{ q: '' }}>
+                News
+              </Link>
+
+              <Link to="/compare-teams">
+                Compare
+              </Link>
+
+              <div className="menu-item">
+                <Link to="/gallery">Gallery</Link>
+                <div className="dropdown">
+                  <Link to="/gallery/images">Images</Link>
+                  <Link to="/gallery/video">Video</Link>
+                </div>
+              </div>
+
+              <Link to="/merchandise" search={{ team_id: null }}>
+                Merch
+              </Link>
+
+              <Link to="/about-us">About</Link>
+              <Link to="/contact-us">Contact</Link>
             </div>
-
-            <Link to="/merchandise" search={{ team_id: null }}>
-              Merch
-            </Link>
-
-            <Link to="/about-us">About</Link>
-            <Link to="/contact-us">Contact</Link>
             <form
               className="site-header-desktop__search"
               role="search"
