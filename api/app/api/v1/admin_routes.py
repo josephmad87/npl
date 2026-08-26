@@ -61,6 +61,8 @@ from app.schemas.matches import (
     LiveScoreInningsSummaryOut,
     MatchLiveSetupIn,
     MatchBulkCancelIn,
+    PlayoffFixtureCreateIn,
+    PublishDraftFixturesIn,
     DisciplineCaseDecisionIn,
     DisciplineCaseCreateIn,
     DisciplineCaseOut,
@@ -493,6 +495,102 @@ def _assert_match_teams_in_season(db: Session, season_id: int | None, home_id: i
                 "message": "When a season has a roster, home and away teams must be in that roster.",
             },
         )
+
+
+def _season_standing_team_ids(db: Session, season_id: int) -> list[int]:
+    """Return the current table order for knockout seeding.
+
+    The points rules intentionally match the public long standings: win 4,
+    tie 3 and no result 2.  Points, wins and stable team id make the order
+    deterministic while a season is still in progress.
+    """
+    team_ids = _season_team_ids(db, season_id)
+    table = {team_id: {"points": 0, "wins": 0} for team_id in team_ids}
+    if not table:
+        return []
+
+    rows = db.execute(
+        select(Match, MatchResult)
+        .join(MatchResult, MatchResult.match_id == Match.id)
+        .where(Match.season_id == season_id, Match.status == "completed")
+    ).all()
+    for match, result in rows:
+        if match.home_team_id not in table or match.away_team_id not in table:
+            continue
+        outcome = (result.outcome or "").strip().lower()
+        if outcome == "win" and result.winning_team_id in table:
+            table[result.winning_team_id]["points"] += 4
+            table[result.winning_team_id]["wins"] += 1
+        elif outcome == "tie":
+            table[match.home_team_id]["points"] += 3
+            table[match.away_team_id]["points"] += 3
+        elif outcome == "no_result":
+            table[match.home_team_id]["points"] += 2
+            table[match.away_team_id]["points"] += 2
+
+    return sorted(
+        table,
+        key=lambda team_id: (-table[team_id]["points"], -table[team_id]["wins"], team_id),
+    )
+
+
+def _team_id_from_playoff_source(db: Session, season_id: int, source: str | None) -> int | None:
+    if not source:
+        return None
+    if source.startswith("standing:"):
+        try:
+            position = int(source.split(":", 1)[1])
+        except ValueError:
+            return None
+        standings = _season_standing_team_ids(db, season_id)
+        return standings[position - 1] if 0 < position <= len(standings) else None
+    if source.startswith("match:"):
+        _, raw_match_id, outcome = source.split(":", 2)
+        try:
+            source_match_id = int(raw_match_id)
+        except ValueError:
+            return None
+        source_match = db.scalar(
+            select(Match).options(joinedload(Match.result)).where(Match.id == source_match_id),
+        )
+        if source_match is None or source_match.result is None:
+            return None
+        winner = source_match.result.winning_team_id
+        if outcome == "winner":
+            return winner
+        if outcome == "loser" and winner in {source_match.home_team_id, source_match.away_team_id}:
+            return source_match.away_team_id if winner == source_match.home_team_id else source_match.home_team_id
+    return None
+
+
+def _sync_playoff_fixture_teams(db: Session, season_id: int | None) -> None:
+    if season_id is None:
+        return
+    fixtures = list(
+        db.scalars(
+            select(Match).where(
+                Match.season_id == season_id,
+                (Match.home_team_source.is_not(None) | Match.away_team_source.is_not(None)),
+            ),
+        ).all(),
+    )
+    for fixture in fixtures:
+        home_team_id = (
+            None
+            if (fixture.home_team_source or "").startswith("standing:")
+            else _team_id_from_playoff_source(db, season_id, fixture.home_team_source)
+        )
+        away_team_id = (
+            None
+            if (fixture.away_team_source or "").startswith("standing:")
+            else _team_id_from_playoff_source(db, season_id, fixture.away_team_source)
+        )
+        if home_team_id is not None:
+            fixture.home_team_id = home_team_id
+            fixture.home_team_placeholder = None
+        if away_team_id is not None:
+            fixture.away_team_id = away_team_id
+            fixture.away_team_placeholder = None
 
 
 _PLAYER_STATUSES = frozenset({"active", "inactive", "injured"})
@@ -1309,6 +1407,125 @@ def admin_create_match(
     return m  # type: ignore[return-value]
 
 
+@router.post("/matches/publish-drafts", response_model=dict)
+def admin_publish_draft_fixtures(
+    body: PublishDraftFixturesIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_competition_writer),
+) -> dict[str, int]:
+    if db.get(Season, body.season_id) is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Season not found"})
+    _sync_playoff_fixture_teams(db, body.season_id)
+    updated = db.query(Match).filter(
+        Match.season_id == body.season_id,
+        Match.is_published.is_(False),
+    ).update({Match.is_published: True}, synchronize_session=False)
+    db.commit()
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="publish_draft_fixtures",
+        entity_type="season",
+        entity_id=body.season_id,
+        summary=f"Published {updated} draft fixture(s)",
+    )
+    db.commit()
+    return {"published": int(updated)}
+
+
+@router.post("/seasons/{season_id}/playoff-fixtures", response_model=list[MatchDetailOut], status_code=status.HTTP_201_CREATED)
+def admin_create_playoff_fixtures(
+    season_id: int,
+    body: PlayoffFixtureCreateIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_competition_writer),
+) -> list[Match]:
+    if db.get(Season, season_id) is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Season not found"})
+    seeds = _season_standing_team_ids(db, season_id)
+    if len(seeds) < 4:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Add at least four teams to the season before creating the playoff bracket."},
+        )
+    existing = db.scalar(
+        select(Match.id).where(Match.season_id == season_id, Match.fixture_stage == "qualifier_1"),
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "conflict", "message": "A playoff bracket already exists for this season."},
+        )
+
+    common = {
+        "season_id": season_id,
+        "category": body.category.strip(),
+        "status": "scheduled",
+        "is_published": body.is_published,
+        "match_overs": body.match_overs,
+    }
+    qualifier_1 = Match(
+        **common,
+        title="Qualifier 1",
+        fixture_stage="qualifier_1",
+        home_team_id=seeds[0],
+        away_team_id=seeds[1],
+        home_team_source="standing:1",
+        away_team_source="standing:2",
+    )
+    eliminator = Match(
+        **common,
+        title="Eliminator",
+        fixture_stage="eliminator",
+        home_team_id=seeds[2],
+        away_team_id=seeds[3],
+        home_team_source="standing:3",
+        away_team_source="standing:4",
+    )
+    db.add_all([qualifier_1, eliminator])
+    db.flush()
+    qualifier_2 = Match(
+        **common,
+        title="Qualifier 2",
+        fixture_stage="qualifier_2",
+        home_team_id=seeds[0],
+        away_team_id=seeds[2],
+        home_team_source=f"match:{qualifier_1.id}:loser",
+        away_team_source=f"match:{eliminator.id}:winner",
+        home_team_placeholder="Loser Qualifier 1",
+        away_team_placeholder="Winner Eliminator",
+    )
+    db.add(qualifier_2)
+    db.flush()
+    final = Match(
+        **common,
+        title="Final",
+        fixture_stage="final",
+        home_team_id=seeds[0],
+        away_team_id=seeds[2],
+        home_team_source=f"match:{qualifier_1.id}:winner",
+        away_team_source=f"match:{qualifier_2.id}:winner",
+        home_team_placeholder="Winner Qualifier 1",
+        away_team_placeholder="Winner Qualifier 2",
+    )
+    db.add(final)
+    db.flush()
+    _sync_playoff_fixture_teams(db, season_id)
+    db.commit()
+
+    created = [qualifier_1, eliminator, qualifier_2, final]
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="create_playoff_fixtures",
+        entity_type="season",
+        entity_id=season_id,
+        summary="Created Qualifier 1, Eliminator, Qualifier 2 and Final fixtures",
+    )
+    db.commit()
+    return created
+
+
 @router.post("/matches/bulk-cancel")
 def admin_bulk_cancel_matches(
     body: MatchBulkCancelIn,
@@ -1649,6 +1866,7 @@ def admin_set_match_result(
 
     db.flush()
     recompute_player_career_stats(db, affected_player_ids)
+    _sync_playoff_fixture_teams(db, m.season_id)
 
     db.commit()
 
@@ -4527,6 +4745,7 @@ def _finalize_live_match_result(
             match.scorecard_finalized_at = datetime.now(timezone.utc)
     db.flush()
     recompute_player_career_stats(db, affected_player_ids)
+    _sync_playoff_fixture_teams(db, match.season_id)
 
 
 @router.post("/matches/{match_id}/live/reset-test", response_model=LiveScoreStateOut)

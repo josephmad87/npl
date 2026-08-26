@@ -18,6 +18,12 @@ class MatchBase(BaseModel):
     toss_info: str | None = None
     umpires: str | None = None
     status: str = "scheduled"
+    is_published: bool = True
+    fixture_stage: str | None = None
+    home_team_source: str | None = None
+    away_team_source: str | None = None
+    home_team_placeholder: str | None = None
+    away_team_placeholder: str | None = None
     description: str | None = None
     cover_image_url: str | None = None
 
@@ -38,6 +44,12 @@ class MatchUpdate(BaseModel):
     toss_info: str | None = None
     umpires: str | None = None
     status: str | None = None
+    is_published: bool | None = None
+    fixture_stage: str | None = None
+    home_team_source: str | None = None
+    away_team_source: str | None = None
+    home_team_placeholder: str | None = None
+    away_team_placeholder: str | None = None
     description: str | None = None
     cover_image_url: str | None = None
 
@@ -490,6 +502,12 @@ class MatchDetailOut(ORMModel):
     toss_info: str | None
     umpires: str | None
     status: str
+    is_published: bool = True
+    fixture_stage: str | None = None
+    home_team_source: str | None = None
+    away_team_source: str | None = None
+    home_team_placeholder: str | None = None
+    away_team_placeholder: str | None = None
     description: str | None
     cover_image_url: str | None
     scorecard_finalized_at: datetime | None = None
@@ -502,3 +520,13 @@ class MatchDetailOut(ORMModel):
     result: MatchResultOut | None
     player_stats: list[MatchPlayerStatOut] = Field(default_factory=list)
     season: SeasonBriefOut | None = None
+
+
+class PlayoffFixtureCreateIn(BaseModel):
+    category: str = Field(default="mens", min_length=1, max_length=32)
+    match_overs: Decimal = Field(default=Decimal("20.0"), gt=0, le=99)
+    is_published: bool = False
+
+
+class PublishDraftFixturesIn(BaseModel):
+    season_id: int = Field(ge=1)

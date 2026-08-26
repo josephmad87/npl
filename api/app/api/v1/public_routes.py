@@ -612,6 +612,7 @@ def list_fixtures(
             selectinload(Match.player_stats),
         )
         .where(Match.status.in_(FIXTURE_STATUSES))
+        .where(Match.is_published.is_(True))
         # A fixture still marked scheduled after its match date is a data issue,
         # not an upcoming game. Live and postponed matches remain visible.
         .where(
@@ -657,6 +658,7 @@ def list_results(
             selectinload(Match.player_stats),
         )
         .where(Match.status.in_(RESULT_STATUSES))
+        .where(Match.is_published.is_(True))
     )
     if season_id is not None:
         stmt = stmt.where(Match.season_id == season_id)
@@ -684,7 +686,7 @@ def get_match(match_id: int, db: Session = Depends(get_db)) -> MatchDetailOut:
             joinedload(Match.result),
             selectinload(Match.player_stats),
         )
-        .where(Match.id == match_id),
+        .where(Match.id == match_id, Match.is_published.is_(True)),
     )
     if m is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
@@ -1247,7 +1249,9 @@ def _public_live_score_state(db: Session, match: Match) -> LiveScoreStateOut:
 
 @router.get("/matches/{match_id}/live", response_model=LiveScoreStateOut)
 def public_live_score_state(match_id: int, db: Session = Depends(get_db)) -> LiveScoreStateOut:
-    match = db.get(Match, match_id)
+    match = db.scalar(
+        select(Match).where(Match.id == match_id, Match.is_published.is_(True)),
+    )
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
     return _public_live_score_state(db, match)

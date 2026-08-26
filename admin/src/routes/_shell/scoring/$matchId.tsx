@@ -2855,6 +2855,19 @@ function LiveScoringPage() {
         .live-scorer-extras-panel .catalog-card-grid {
           grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
         }
+        .live-scorer-extras-panel .live-scorer-byes-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .live-scorer-wicket-actions {
+          margin-top: 1.5rem;
+          padding-top: 1rem;
+          border-top: 1px solid rgba(100, 116, 139, 0.22);
+        }
+        @media (min-width: 768px) {
+          .live-scorer-extras-panel .live-scorer-byes-grid {
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+          }
+        }
         .live-scorer-dialog--bowler-change .live-scorer-dialog__actions {
           margin-top: 1.5rem;
           padding-top: 1rem;
@@ -4145,7 +4158,7 @@ function LiveScoringPage() {
               <p className="muted">These are legal deliveries unless the no-ball options above are used.</p>
             </div>
           </div>
-          <div className="catalog-card-grid">
+          <div className="catalog-card-grid live-scorer-byes-grid">
             {[1, 2, 3, 4].map((runs) => (
               <button
                 key={`bye-${runs}`}
@@ -4867,18 +4880,20 @@ function LiveScoringPage() {
 
             {actionError ? <p className="login-error">{actionError}</p> : null}
 
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={submitWicket}
-              disabled={ballMutation.isPending}
-            >
-              {ballMutation.isPending
-                ? 'Saving…'
-                : wicketIsRetirement
-                  ? 'Save retirement (no ball)'
-                  : 'Save wicket'}
-            </button>
+            <div className="live-scorer-wicket-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={submitWicket}
+                disabled={ballMutation.isPending}
+              >
+                {ballMutation.isPending
+                  ? 'Saving…'
+                  : wicketIsRetirement
+                    ? 'Save retirement (no ball)'
+                    : 'Save wicket'}
+              </button>
+            </div>
           </section>
           </div>
         ) : null}
