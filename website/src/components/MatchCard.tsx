@@ -16,6 +16,8 @@ import type { MatchLite, TeamLite } from '../lib/hooks'
 import nplLogoUrl from '../assets/logo.png'
 
 type MatchWithTeamExtras = MatchLite & {
+  title?: string | null
+  fixture_stage?: string | null
   home_name?: string | null
   away_name?: string | null
   home_team_placeholder?: string | null
@@ -91,6 +93,7 @@ function matchTeamLogo(
   const m = match as MatchWithTeamExtras
 
   if (side === 'home') {
+    if (m.home_team_placeholder) return null
     return (
       team?.logo_url ??
       m.home_team?.logo_url ??
@@ -100,6 +103,7 @@ function matchTeamLogo(
     )
   }
 
+  if (m.away_team_placeholder) return null
   return (
     team?.logo_url ??
     m.away_team?.logo_url ??
@@ -388,6 +392,7 @@ export function MatchCard({
     matchWithExtras.season?.name ??
     matchWithExtras.season_name ??
     competitionLine
+  const fixtureStage = matchWithExtras.title?.trim() ?? ''
 
   return (
     <a
@@ -416,6 +421,11 @@ export function MatchCard({
       </div>
 
       <div className="ui-match-card__body">
+        {fixtureStage ? (
+          <p className="ui-match-card__competition ui-match-card__competition--fixture">
+            {fixtureStage.toUpperCase()}
+          </p>
+        ) : null}
         <p className="ui-match-card__competition ui-match-card__competition--fixture">
           {(seasonLine || 'NPL fixture').toUpperCase()}
         </p>

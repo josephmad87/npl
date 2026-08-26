@@ -297,6 +297,12 @@ function MatchesPage() {
     { accessorKey: 'league_name', header: 'League' },
     { accessorKey: 'season_name', header: 'Season' },
     {
+      accessorKey: 'title',
+      header: 'Stage',
+      cell: ({ getValue }) =>
+        getValue() ? <strong>{String(getValue())}</strong> : <span className="muted">—</span>,
+    },
+    {
       accessorKey: 'home_name',
       header: 'Home',
       cell: ({ row }) => (
@@ -440,7 +446,11 @@ function MatchesPage() {
             className={`entity-thumb-card__badge-wrap${winner === 'home' ? ' entity-thumb-card__badge-wrap--winner' : ''}`}
             aria-label={winner === 'home' ? 'Winner' : undefined}
           >
-            <BadgeImage imageUrl={m.home_logo_url} alt="" size="lg" />
+            <BadgeImage
+              imageUrl={m.home_team_placeholder ? null : m.home_logo_url}
+              alt=""
+              size="lg"
+            />
             {winner === 'home' ? (
               <span
                 className="entity-thumb-card__winner-cup"
@@ -456,7 +466,11 @@ function MatchesPage() {
             className={`entity-thumb-card__badge-wrap${winner === 'away' ? ' entity-thumb-card__badge-wrap--winner' : ''}`}
             aria-label={winner === 'away' ? 'Winner' : undefined}
           >
-            <BadgeImage imageUrl={m.away_logo_url} alt="" size="lg" />
+            <BadgeImage
+              imageUrl={m.away_team_placeholder ? null : m.away_logo_url}
+              alt=""
+              size="lg"
+            />
             {winner === 'away' ? (
               <span
                 className="entity-thumb-card__winner-cup"
@@ -469,6 +483,7 @@ function MatchesPage() {
           </span>
         </div>
         <div className="entity-thumb-card__body">
+          {m.title ? <p className="entity-thumb-card__eyebrow">{m.title}</p> : null}
           <h3 className="entity-thumb-card__title">
             {m.home_name} vs {m.away_name}
           </h3>
