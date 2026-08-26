@@ -29,6 +29,12 @@ class Match(Base):
     toss_info: Mapped[str | None] = mapped_column(String(512))
     umpires: Mapped[str | None] = mapped_column(String(512))
     status: Mapped[str] = mapped_column(String(32), default="scheduled", nullable=False, index=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    fixture_stage: Mapped[str | None] = mapped_column(String(64), index=True)
+    home_team_source: Mapped[str | None] = mapped_column(String(128))
+    away_team_source: Mapped[str | None] = mapped_column(String(128))
+    home_team_placeholder: Mapped[str | None] = mapped_column(String(255))
+    away_team_placeholder: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     cover_image_url: Mapped[str | None] = mapped_column(String(512))
     match_overs: Mapped[Decimal] = mapped_column(

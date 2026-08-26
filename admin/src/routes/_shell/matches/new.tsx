@@ -48,6 +48,7 @@ function NewMatchPage() {
   const [matchDate, setMatchDate] = useState('')
   const [status, setStatus] =
     useState<(typeof STATUSES)[number]>('scheduled')
+  const [isPublished, setIsPublished] = useState(true)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
 
@@ -97,6 +98,7 @@ function NewMatchPage() {
         venue: venue.trim() || null,
         match_date: matchDate.trim() || null,
         status,
+        is_published: isPublished,
         cover_image_url: coverImageUrl?.trim() ?? null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
@@ -294,6 +296,20 @@ function NewMatchPage() {
                   </option>
                 ))}
               </select>
+            ),
+          },
+          {
+            id: 'is_published',
+            label: 'Website visibility',
+            control: (
+              <label className="inline-check">
+                <input
+                  type="checkbox"
+                  checked={isPublished}
+                  onChange={(e) => setIsPublished(e.target.checked)}
+                />
+                Publish this fixture on the website now
+              </label>
             ),
           },
         ]}

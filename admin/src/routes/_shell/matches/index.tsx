@@ -195,8 +195,8 @@ function MatchesPage() {
 
       return {
         ...m,
-        home_name: home?.name ?? `#${m.home_team_id}`,
-        away_name: away?.name ?? `#${m.away_team_id}`,
+        home_name: m.home_team_placeholder ?? home?.name ?? `#${m.home_team_id}`,
+        away_name: m.away_team_placeholder ?? away?.name ?? `#${m.away_team_id}`,
         home_logo_url: home?.logo_url ?? null,
         away_logo_url: away?.logo_url ?? null,
         when_display: formatWhen(m),
@@ -424,6 +424,39 @@ function MatchesPage() {
   }
 }
 
+  const publishDraftFixtures = async () => {
+    if (selectedSeasonId == null) {
+      alert('Choose a season first, then publish its draft fixtures.')
+      return
+    }
+    if (!confirm('Publish every draft fixture for this season on the public website?')) return
+    try {
+      await adminPost('/admin/matches/publish-drafts', { season_id: selectedSeasonId })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
+      await invalidateCompetitionDataQueries(queryClient)
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Could not publish draft fixtures')
+    }
+  }
+
+  const createPlayoffFixtures = async () => {
+    if (selectedSeasonId == null) {
+      alert('Choose the Men’s NPL T20 Blast 2026 season first.')
+      return
+    }
+    if (!confirm('Create draft Qualifier 1, Eliminator, Qualifier 2 and Final fixtures from the current long standings? You can add dates and venues before publishing.')) return
+    try {
+      await adminPost(`/admin/seasons/${selectedSeasonId}/playoff-fixtures`, {
+        category: 'mens',
+        match_overs: 20,
+        is_published: false,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Could not create playoff fixtures')
+    }
+  }
+
   const renderMatchCard = (m: MatchRow) => {
     const winner = matchWinnerSide(m)
     const scoreline = matchResultSummaryLine(m)
@@ -490,6 +523,7 @@ function MatchesPage() {
           </p>
         </div>
         <div className="entity-thumb-card__footer">
+          {m.is_published === false ? <StatusBadge status="draft" /> : null}
           <StatusBadge
             status={
               m.status as
@@ -513,10 +547,18 @@ function MatchesPage() {
         descriptionAsTooltip
         description="GET /admin/matches with team names resolved from GET /admin/teams."
         actions={
-          <Link to="/matches/new" className="btn-primary btn--with-icon">
-            <Plus size={18} strokeWidth={2} aria-hidden />
-            New fixture
-          </Link>
+          <>
+            <button type="button" className="btn-ghost" onClick={() => void createPlayoffFixtures()}>
+              Create T20 playoff drafts
+            </button>
+            <button type="button" className="btn-ghost" onClick={() => void publishDraftFixtures()}>
+              Publish drafts
+            </button>
+            <Link to="/matches/new" className="btn-primary btn--with-icon">
+              <Plus size={18} strokeWidth={2} aria-hidden />
+              New fixture
+            </Link>
+          </>
         }
       />
 

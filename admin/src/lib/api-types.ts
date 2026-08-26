@@ -200,6 +200,12 @@ export type MatchDto = {
   toss_info: string | null
   umpires: string | null
   status: string
+  is_published?: boolean
+  fixture_stage?: string | null
+  home_team_source?: string | null
+  away_team_source?: string | null
+  home_team_placeholder?: string | null
+  away_team_placeholder?: string | null
   description: string | null
   cover_image_url: string | null
   scorecard_finalized_at?: string | null

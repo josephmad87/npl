@@ -18,6 +18,8 @@ import nplLogoUrl from '../assets/logo.png'
 type MatchWithTeamExtras = MatchLite & {
   home_name?: string | null
   away_name?: string | null
+  home_team_placeholder?: string | null
+  away_team_placeholder?: string | null
   home_team_name?: string | null
   away_team_name?: string | null
   home_logo_url?: string | null
@@ -62,6 +64,7 @@ function matchTeamName(
 
   if (side === 'home') {
     return (
+      m.home_team_placeholder ??
       team?.name ??
       m.home_team?.name ??
       m.home_name ??
@@ -71,6 +74,7 @@ function matchTeamName(
   }
 
   return (
+    m.away_team_placeholder ??
     team?.name ??
     m.away_team?.name ??
     m.away_name ??
