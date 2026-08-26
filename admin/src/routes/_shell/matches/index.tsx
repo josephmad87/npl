@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Plus } from 'lucide-react'
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table'
 import type { LeagueDto, MatchDto, SeasonDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPost } from '@/lib/admin-client'
@@ -424,39 +423,6 @@ function MatchesPage() {
   }
 }
 
-  const publishDraftFixtures = async () => {
-    if (selectedSeasonId == null) {
-      alert('Choose a season first, then publish its draft fixtures.')
-      return
-    }
-    if (!confirm('Publish every draft fixture for this season on the public website?')) return
-    try {
-      await adminPost('/admin/matches/publish-drafts', { season_id: selectedSeasonId })
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
-      await invalidateCompetitionDataQueries(queryClient)
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Could not publish draft fixtures')
-    }
-  }
-
-  const createPlayoffFixtures = async () => {
-    if (selectedSeasonId == null) {
-      alert('Choose the Men’s NPL T20 Blast 2026 season first.')
-      return
-    }
-    if (!confirm('Create draft Qualifier 1, Eliminator, Qualifier 2 and Final fixtures from the current long standings? You can add dates and venues before publishing.')) return
-    try {
-      await adminPost(`/admin/seasons/${selectedSeasonId}/playoff-fixtures`, {
-        category: 'mens',
-        match_overs: 20,
-        is_published: false,
-      })
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : 'Could not create playoff fixtures')
-    }
-  }
-
   const renderMatchCard = (m: MatchRow) => {
     const winner = matchWinnerSide(m)
     const scoreline = matchResultSummaryLine(m)
@@ -547,18 +513,9 @@ function MatchesPage() {
         descriptionAsTooltip
         description="GET /admin/matches with team names resolved from GET /admin/teams."
         actions={
-          <>
-            <button type="button" className="btn-ghost" onClick={() => void createPlayoffFixtures()}>
-              Create T20 playoff drafts
-            </button>
-            <button type="button" className="btn-ghost" onClick={() => void publishDraftFixtures()}>
-              Publish drafts
-            </button>
-            <Link to="/matches/new" className="btn-primary btn--with-icon">
-              <Plus size={18} strokeWidth={2} aria-hidden />
-              New fixture
-            </Link>
-          </>
+          <Link to="/leagues" className="btn-primary">
+            Open a season to create fixtures
+          </Link>
         }
       />
 

@@ -829,11 +829,11 @@ function TeamDetailPage() {
             <h2 className="team-hub-section__title">Quick links</h2>
             <div className="team-hub-section__links">
               <Link
-                to="/matches/new"
+                to="/leagues"
                 className="btn-ghost btn--with-icon"
               >
                 <CalendarPlus size={18} strokeWidth={2} aria-hidden />
-                New fixture
+                Choose season to create fixture
               </Link>
               <Link
   to="/players/new"

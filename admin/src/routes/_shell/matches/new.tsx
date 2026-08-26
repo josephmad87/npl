@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { Plus, Trophy } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import type { LeagueDto, MatchDto, SeasonDto, TeamDto } from '@/lib/api-types'
+import type { MatchDto, SeasonDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPost } from '@/lib/admin-client'
 import type { CompetitionCategoryValue } from '@/lib/competitionCategories'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
@@ -11,7 +11,25 @@ import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
 import { PageHeader } from '@/components/PageHeader'
 
+type NewMatchRouteSearch = {
+  seasonId?: number | null
+}
+
+function parseNewMatchRouteSearch(
+  raw: Record<string, unknown>,
+): NewMatchRouteSearch {
+  const value = raw.seasonId
+  const seasonId =
+    typeof value === 'number' && Number.isFinite(value)
+      ? value
+      : typeof value === 'string' && value.trim() && Number.isFinite(Number(value))
+        ? Number(value)
+        : null
+  return { seasonId }
+}
+
 export const Route = createFileRoute('/_shell/matches/new')({
+  validateSearch: parseNewMatchRouteSearch,
   component: NewMatchPage,
 })
 
@@ -25,6 +43,7 @@ const STATUSES = [
 ] as const
 
 function NewMatchPage() {
+  const { seasonId: requestedSeasonId } = Route.useSearch()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const teamsQ = useQuery({
@@ -35,12 +54,6 @@ function NewMatchPage() {
     queryKey: ['admin', 'seasons', 'all'],
     queryFn: () => adminListAll<SeasonDto>('/admin/seasons'),
   })
-  const leaguesQ = useQuery({
-    queryKey: ['admin', 'leagues'],
-    queryFn: () => adminListAll<LeagueDto>('/admin/leagues'),
-  })
-
-  const [seasonId, setSeasonId] = useState<number | null>(null)
   const [category, setCategory] = useState<CompetitionCategoryValue>('mens')
   const [homeTeamId, setHomeTeamId] = useState<number | null>(null)
   const [awayTeamId, setAwayTeamId] = useState<number | null>(null)
@@ -54,24 +67,15 @@ function NewMatchPage() {
 
   const teamOptions = teamsQ.data ?? []
   const seasonOptions = seasonsQ.data ?? []
-  const leagueById = useMemo(() => {
-    const m = new Map<number, string>()
-    for (const l of leaguesQ.data ?? []) {
-      m.set(l.id, l.name)
-    }
-    return m
-  }, [leaguesQ.data])
-
-  const defaultSeasonId = seasonOptions[0]?.id ?? 0
-  const resolvedSeasonId = seasonId ?? defaultSeasonId
+  const selectedSeason = seasonOptions.find(
+    (season) => season.id === requestedSeasonId,
+  )
+  const resolvedSeasonId = selectedSeason?.id ?? 0
   const enrolledTeamOptions = useMemo(() => {
-    const selectedSeason = seasonOptions.find(
-      (season) => season.id === resolvedSeasonId,
-    )
     if (!selectedSeason) return []
     const enrolledTeamIds = new Set(selectedSeason.team_ids)
     return teamOptions.filter((team) => enrolledTeamIds.has(team.id))
-  }, [resolvedSeasonId, seasonOptions, teamOptions])
+  }, [selectedSeason, teamOptions])
   const defaultHome = enrolledTeamOptions[0]?.id ?? 0
   const defaultAway = enrolledTeamOptions[1]?.id ?? enrolledTeamOptions[0]?.id ?? 0
   const resolvedHome =
@@ -133,48 +137,55 @@ function NewMatchPage() {
     }
   }
 
-  if (teamsQ.isLoading || seasonsQ.isLoading || leaguesQ.isLoading) {
+  if (teamsQ.isLoading || seasonsQ.isLoading) {
     return <p className="muted">Loading…</p>
   }
-  if (teamsQ.isError || seasonsQ.isError || leaguesQ.isError) {
+  if (teamsQ.isError || seasonsQ.isError) {
     const msg =
       teamsQ.error?.message ??
       seasonsQ.error?.message ??
-      leaguesQ.error?.message ??
       'Error'
     return <p className="login-error">{msg}</p>
   }
-  if (teamOptions.length < 2) {
+  if (requestedSeasonId == null || !selectedSeason) {
     return (
       <>
         <PageHeader
-          title="New fixture"
+          title="Choose a season first"
           descriptionAsTooltip
-          description="POST /admin/matches"
+          description="Fixtures are created from a specific season page."
         />
-        <p className="login-error">Need at least two teams to schedule a match.</p>
-        <Link to="/teams/new" className="btn-primary btn--with-icon">
-          <Plus size={18} strokeWidth={2} aria-hidden />
-          New team
+        <p className="muted">
+          Open the required league and season, then use its <strong>New fixture</strong>{' '}
+          action.
+        </p>
+        <Link to="/leagues" className="btn-primary btn--with-icon">
+          <Trophy size={18} strokeWidth={2} aria-hidden />
+          Leagues and seasons
         </Link>
       </>
     )
   }
-  if (seasonOptions.length === 0) {
+  if (enrolledTeamOptions.length < 2) {
     return (
       <>
         <PageHeader
           title="New fixture"
           descriptionAsTooltip
-          description="POST /admin/matches"
+          description={`Fixtures for ${selectedSeason.name}`}
         />
         <p className="login-error">
-          Create a league and at least one season before scheduling matches.
+          Enroll at least two teams in this season before scheduling a fixture.
         </p>
-        <Link to="/leagues" className="btn-primary btn--with-icon">
-          <Trophy size={18} strokeWidth={2} aria-hidden />
-          Leagues
-        </Link>
+        <BackNavLink
+          to="/leagues/$leagueId/seasons/$seasonId"
+          params={{
+            leagueId: String(selectedSeason.league_id),
+            seasonId: String(selectedSeason.id),
+          }}
+        >
+          Back to season
+        </BackNavLink>
       </>
     )
   }
@@ -182,11 +193,19 @@ function NewMatchPage() {
   return (
     <>
       <PageHeader
-        title="New fixture"
+        title={`New fixture — ${selectedSeason.name}`}
         descriptionAsTooltip
-        description="POST /admin/matches — each match belongs to one season (and thus one league)."
+        description="POST /admin/matches — teams are restricted to this season roster."
         actions={
-          <BackNavLink to="/matches">Fixtures</BackNavLink>
+          <BackNavLink
+            to="/leagues/$leagueId/seasons/$seasonId"
+            params={{
+              leagueId: String(selectedSeason.league_id),
+              seasonId: String(selectedSeason.id),
+            }}
+          >
+            Back to season
+          </BackNavLink>
         }
       />
       <InlineEditForm
@@ -194,30 +213,6 @@ function NewMatchPage() {
         onCancel={() => void navigate({ to: '/matches' })}
         onSave={() => void save()}
         fields={[
-          {
-            id: 'season_id',
-            label: 'Season',
-            control: (
-              <select
-                id="season_id"
-                className="inline-edit__control"
-                value={resolvedSeasonId}
-                onChange={(e) => {
-                  setSeasonId(Number(e.target.value))
-                  setHomeTeamId(null)
-                  setAwayTeamId(null)
-                }}
-              >
-                {seasonOptions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {(leagueById.get(s.league_id) ?? `League ${s.league_id}`) +
-                      ' — ' +
-                      s.name}
-                  </option>
-                ))}
-              </select>
-            ),
-          },
           {
             id: 'category',
             label: 'Category',

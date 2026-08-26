@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { SquarePen } from 'lucide-react'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { CalendarPlus, SquarePen, Trophy } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { PlayerDto, SeasonDto } from '@/lib/api-types'
 import { adminListAll, adminPatch, adminPost } from '@/lib/admin-client'
+import { invalidateCompetitionDataQueries } from '@/lib/invalidate-competition-data'
 import { BackNavLink } from '@/components/BackNavLink'
 import { DetailFields } from '@/components/DetailFields'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -45,6 +46,8 @@ function SeasonDetailPage() {
   const [patch, setPatch] = useState<Partial<SeasonDto>>({})
   const [teamIdsText, setTeamIdsText] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [isCreatingPlayoffs, setIsCreatingPlayoffs] = useState(false)
+  const [isPublishingDrafts, setIsPublishingDrafts] = useState(false)
 
   const merged: SeasonDto | null =
     season ? { ...season, ...patch } : null
@@ -78,6 +81,48 @@ function SeasonDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['admin', 'players'] })
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'Roster maintenance failed')
+    }
+  }
+
+  const createPlayoffFixtures = async () => {
+    if (!season || isCreatingPlayoffs) return
+    if (
+      !confirm(
+        'Create draft Qualifier 1, Eliminator, Qualifier 2 and Final fixtures from the current long standings? You can add dates and venues before publishing.',
+      )
+    ) {
+      return
+    }
+    setIsCreatingPlayoffs(true)
+    try {
+      await adminPost(`/admin/seasons/${season.id}/playoff-fixtures`, {
+        category: 'mens',
+        match_overs: 20,
+        is_published: false,
+      })
+      await invalidateCompetitionDataQueries(queryClient)
+      alert('Draft playoff fixtures created. Add dates and venues, then publish them when approved.')
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Could not create playoff fixtures')
+    } finally {
+      setIsCreatingPlayoffs(false)
+    }
+  }
+
+  const publishDraftFixtures = async () => {
+    if (!season || isPublishingDrafts) return
+    if (!confirm(`Publish every draft fixture for ${season.name} on the public website?`)) {
+      return
+    }
+    setIsPublishingDrafts(true)
+    try {
+      await adminPost('/admin/matches/publish-drafts', { season_id: season.id })
+      await invalidateCompetitionDataQueries(queryClient)
+      alert('Draft fixtures published.')
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Could not publish draft fixtures')
+    } finally {
+      setIsPublishingDrafts(false)
     }
   }
 
@@ -177,14 +222,41 @@ function SeasonDetailPage() {
               Seasons
             </BackNavLink>
             {!isEditing ? (
-              <button
-                type="button"
-                className="btn-primary btn--with-icon"
-                onClick={beginEdit}
-              >
-                <SquarePen size={18} strokeWidth={2} aria-hidden />
-                Edit season
-              </button>
+              <>
+                <Link
+                  to="/matches/new"
+                  search={{ seasonId: season.id }}
+                  className="btn-primary btn--with-icon"
+                >
+                  <CalendarPlus size={18} strokeWidth={2} aria-hidden />
+                  New fixture
+                </Link>
+                <button
+                  type="button"
+                  className="btn-ghost btn--with-icon"
+                  onClick={() => void createPlayoffFixtures()}
+                  disabled={isCreatingPlayoffs}
+                >
+                  <Trophy size={18} strokeWidth={2} aria-hidden />
+                  {isCreatingPlayoffs ? 'Creating playoff drafts…' : 'Create T20 playoff drafts'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => void publishDraftFixtures()}
+                  disabled={isPublishingDrafts}
+                >
+                  {isPublishingDrafts ? 'Publishing drafts…' : 'Publish drafts'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost btn--with-icon"
+                  onClick={beginEdit}
+                >
+                  <SquarePen size={18} strokeWidth={2} aria-hidden />
+                  Edit season
+                </button>
+              </>
             ) : null}
           </>
         }
@@ -314,6 +386,22 @@ function SeasonDetailPage() {
           ]}
         />
       )}
+      {!isEditing ? (
+        <section className="team-hub-section" style={{ marginTop: '1.5rem' }}>
+          <h2 className="team-hub-section__title">Fixtures</h2>
+          <p className="muted">
+            Create all fixtures, draft playoffs and publication changes from this
+            season so the correct roster is always used.
+          </p>
+          <Link
+            to="/matches"
+            search={{ seasonId: season.id }}
+            className="btn-ghost"
+          >
+            View this season&apos;s fixtures
+          </Link>
+        </section>
+      ) : null}
       {!isEditing ? (
         <section className="team-hub-section" style={{ marginTop: '1.5rem' }}>
           <h2 className="team-hub-section__title">Roster maintenance</h2>
