@@ -62,17 +62,39 @@ function NewMatchPage() {
     return m
   }, [leaguesQ.data])
 
-  const defaultHome = teamOptions[0]?.id ?? 0
-  const defaultAway = teamOptions[1]?.id ?? teamOptions[0]?.id ?? 0
-  const resolvedHome = homeTeamId ?? defaultHome
-  const resolvedAway = awayTeamId ?? defaultAway
   const defaultSeasonId = seasonOptions[0]?.id ?? 0
   const resolvedSeasonId = seasonId ?? defaultSeasonId
+  const enrolledTeamOptions = useMemo(() => {
+    const selectedSeason = seasonOptions.find(
+      (season) => season.id === resolvedSeasonId,
+    )
+    if (!selectedSeason) return []
+    const enrolledTeamIds = new Set(selectedSeason.team_ids)
+    return teamOptions.filter((team) => enrolledTeamIds.has(team.id))
+  }, [resolvedSeasonId, seasonOptions, teamOptions])
+  const defaultHome = enrolledTeamOptions[0]?.id ?? 0
+  const defaultAway = enrolledTeamOptions[1]?.id ?? enrolledTeamOptions[0]?.id ?? 0
+  const resolvedHome =
+    homeTeamId != null &&
+    enrolledTeamOptions.some((team) => team.id === homeTeamId)
+    ? homeTeamId
+    : defaultHome
+  const resolvedAway =
+    awayTeamId != null &&
+    enrolledTeamOptions.some((team) => team.id === awayTeamId)
+    ? awayTeamId
+    : defaultAway
 
   const save = async () => {
     const cat = category.trim()
     if (!cat) {
       setSaveError('Category is required.')
+      return
+    }
+    if (enrolledTeamOptions.length < 2) {
+      setSaveError(
+        'Enroll at least two teams in the selected season before creating a fixture.',
+      )
       return
     }
     if (resolvedHome === resolvedAway) {
@@ -180,7 +202,11 @@ function NewMatchPage() {
                 id="season_id"
                 className="inline-edit__control"
                 value={resolvedSeasonId}
-                onChange={(e) => setSeasonId(Number(e.target.value))}
+                onChange={(e) => {
+                  setSeasonId(Number(e.target.value))
+                  setHomeTeamId(null)
+                  setAwayTeamId(null)
+                }}
               >
                 {seasonOptions.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -206,7 +232,7 @@ function NewMatchPage() {
           },
           {
             id: 'home_team_id',
-            label: 'Home team',
+            label: 'Home team (enrolled in season)',
             control: (
               <select
                 id="home_team_id"
@@ -214,7 +240,7 @@ function NewMatchPage() {
                 value={resolvedHome}
                 onChange={(e) => setHomeTeamId(Number(e.target.value))}
               >
-                {teamOptions.map((t) => (
+                {enrolledTeamOptions.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
                   </option>
@@ -224,7 +250,7 @@ function NewMatchPage() {
           },
           {
             id: 'away_team_id',
-            label: 'Away team',
+            label: 'Away team (enrolled in season)',
             control: (
               <select
                 id="away_team_id"
@@ -232,7 +258,7 @@ function NewMatchPage() {
                 value={resolvedAway}
                 onChange={(e) => setAwayTeamId(Number(e.target.value))}
               >
-                {teamOptions.map((t) => (
+                {enrolledTeamOptions.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
                   </option>
