@@ -373,10 +373,12 @@ function MatchDetailPage() {
     const away = teamsQ.data?.find((t) => t.id === match.away_team_id)
     return {
       ...match,
-      home_name: home?.name ?? `#${match.home_team_id}`,
-      away_name: away?.name ?? `#${match.away_team_id}`,
-      home_logo_url: home?.logo_url ?? null,
-      away_logo_url: away?.logo_url ?? null,
+      home_name:
+        match.home_team_placeholder ?? home?.name ?? `#${match.home_team_id}`,
+      away_name:
+        match.away_team_placeholder ?? away?.name ?? `#${match.away_team_id}`,
+      home_logo_url: match.home_team_placeholder ? null : home?.logo_url ?? null,
+      away_logo_url: match.away_team_placeholder ? null : away?.logo_url ?? null,
     }
   }, [match, teamsQ.data])
 

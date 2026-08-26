@@ -17,7 +17,13 @@ type MatchTableTeamCellProps = Readonly<{
 export function MatchTableTeamCell({ side, row }: MatchTableTeamCellProps) {
   const winner = matchWinnerSide(row)
   const isWinner = winner === side
-  const imageUrl = side === 'home' ? row.home_logo_url : row.away_logo_url
+  const placeholder =
+    side === 'home' ? row.home_team_placeholder : row.away_team_placeholder
+  const imageUrl = placeholder
+    ? null
+    : side === 'home'
+      ? row.home_logo_url
+      : row.away_logo_url
   const name = side === 'home' ? row.home_name : row.away_name
 
   return (

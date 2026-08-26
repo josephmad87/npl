@@ -518,7 +518,11 @@ def _season_standing_team_ids(db: Session, season_id: int) -> list[int]:
     rows = db.execute(
         select(Match, MatchResult)
         .join(MatchResult, MatchResult.match_id == Match.id)
-        .where(Match.season_id == season_id, Match.status == "completed")
+        .where(
+            Match.season_id == season_id,
+            Match.status == "completed",
+            Match.fixture_stage.is_(None),
+        )
     ).all()
     for match, result in rows:
         if match.home_team_id not in table or match.away_team_id not in table:
@@ -540,10 +544,28 @@ def _season_standing_team_ids(db: Session, season_id: int) -> list[int]:
     )
 
 
+def _regular_stage_is_complete(db: Session, season_id: int) -> bool:
+    """Only expose seeded playoff teams once the regular-season table is final."""
+    regular_fixtures = list(
+        db.scalars(
+            select(Match).where(
+                Match.season_id == season_id,
+                Match.fixture_stage.is_(None),
+            ),
+        ).all(),
+    )
+    return bool(regular_fixtures) and all(
+        fixture.status in {"completed", "abandoned", "cancelled"}
+        for fixture in regular_fixtures
+    )
+
+
 def _team_id_from_playoff_source(db: Session, season_id: int, source: str | None) -> int | None:
     if not source:
         return None
     if source.startswith("standing:"):
+        if not _regular_stage_is_complete(db, season_id):
+            return None
         try:
             position = int(source.split(":", 1)[1])
         except ValueError:
@@ -581,15 +603,15 @@ def _sync_playoff_fixture_teams(db: Session, season_id: int | None) -> None:
         ).all(),
     )
     for fixture in fixtures:
-        home_team_id = (
-            None
-            if (fixture.home_team_source or "").startswith("standing:")
-            else _team_id_from_playoff_source(db, season_id, fixture.home_team_source)
+        home_team_id = _team_id_from_playoff_source(
+            db,
+            season_id,
+            fixture.home_team_source,
         )
-        away_team_id = (
-            None
-            if (fixture.away_team_source or "").startswith("standing:")
-            else _team_id_from_playoff_source(db, season_id, fixture.away_team_source)
+        away_team_id = _team_id_from_playoff_source(
+            db,
+            season_id,
+            fixture.away_team_source,
         )
         if home_team_id is not None:
             fixture.home_team_id = home_team_id
@@ -1478,6 +1500,8 @@ def admin_create_playoff_fixtures(
         away_team_id=seeds[1],
         home_team_source="standing:1",
         away_team_source="standing:2",
+        home_team_placeholder="1st Place",
+        away_team_placeholder="2nd Place",
     )
     eliminator = Match(
         **common,
@@ -1487,6 +1511,8 @@ def admin_create_playoff_fixtures(
         away_team_id=seeds[3],
         home_team_source="standing:3",
         away_team_source="standing:4",
+        home_team_placeholder="3rd Place",
+        away_team_placeholder="4th Place",
     )
     db.add_all([qualifier_1, eliminator])
     db.flush()
