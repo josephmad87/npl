@@ -486,13 +486,19 @@ def _assert_match_teams_in_season(db: Session, season_id: int | None, home_id: i
         return
     allowed = set(_season_team_ids(db, season_id))
     if not allowed:
-        return
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "validation",
+                "message": "Enroll at least two teams in the season before creating fixtures.",
+            },
+        )
     if home_id not in allowed or away_id not in allowed:
         raise HTTPException(
             status_code=400,
             detail={
                 "code": "validation",
-                "message": "When a season has a roster, home and away teams must be in that roster.",
+                "message": "Home and away teams must be enrolled in the selected season.",
             },
         )
 

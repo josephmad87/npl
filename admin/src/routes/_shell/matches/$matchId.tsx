@@ -246,6 +246,19 @@ function MatchDetailPage() {
       setSaveError('Home and away teams must differ.')
       return
     }
+    const selectedSeason = merged.season_id
+      ? seasonOptions.find((season) => season.id === merged.season_id)
+      : null
+    if (selectedSeason) {
+      const enrolledTeamIds = new Set(selectedSeason.team_ids)
+      if (
+        !enrolledTeamIds.has(merged.home_team_id) ||
+        !enrolledTeamIds.has(merged.away_team_id)
+      ) {
+        setSaveError('Both fixture teams must be enrolled in the selected season.')
+        return
+      }
+    }
     if (merged.status === 'completed' && match.status !== 'completed') {
       setSaveError('Use Result & scorecard to mark a match completed.')
       return
@@ -381,6 +394,15 @@ function MatchDetailPage() {
     playersQ.error
   const teamOptions = teamsQ.data ?? []
   const seasonOptions = seasonsQ.data ?? []
+  const enrolledTeamOptions = useMemo(() => {
+    if (!merged?.season_id) return teamOptions
+    const selectedSeason = seasonOptions.find(
+      (season) => season.id === merged.season_id,
+    )
+    if (!selectedSeason) return []
+    const enrolledTeamIds = new Set(selectedSeason.team_ids)
+    return teamOptions.filter((team) => enrolledTeamIds.has(team.id))
+  }, [merged?.season_id, seasonOptions, teamOptions])
   const playerStats = useMemo(() => match?.player_stats ?? [], [match?.player_stats])
   const battingFirstTeamId = match?.result?.batting_first_team_id ?? null
   const inningsExtrasLine = useMemo(() => {
@@ -568,14 +590,29 @@ function MatchDetailPage() {
                   value={
                     merged.season_id != null ? String(merged.season_id) : ''
                   }
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const nextSeasonId = e.target.value
+                      ? Number(e.target.value)
+                      : null
+                    if (nextSeasonId == null) {
+                      setPatch((p) => ({ ...p, season_id: null }))
+                      return
+                    }
+                    const nextSeason = seasonOptions.find(
+                      (season) => season.id === nextSeasonId,
+                    )
+                    const enrolledTeamIds = new Set(nextSeason?.team_ids ?? [])
+                    const nextTeams = teamOptions.filter((team) =>
+                      enrolledTeamIds.has(team.id),
+                    )
                     setPatch((p) => ({
                       ...p,
-                      season_id: e.target.value
-                        ? Number(e.target.value)
-                        : null,
+                      season_id: nextSeasonId,
+                      home_team_id: nextTeams[0]?.id ?? p.home_team_id,
+                      away_team_id:
+                        nextTeams[1]?.id ?? nextTeams[0]?.id ?? p.away_team_id,
                     }))
-                  }
+                  }}
                 >
                   <option value="">— None —</option>
                   {seasonOptions.map((s) => (
@@ -602,7 +639,7 @@ function MatchDetailPage() {
             },
             {
               id: 'home_team_id',
-              label: 'Home team',
+              label: 'Home team (enrolled in season)',
               control: (
                 <select
                   id="home_team_id"
@@ -615,7 +652,7 @@ function MatchDetailPage() {
                     }))
                   }
                 >
-                  {teamOptions.map((t) => (
+                  {enrolledTeamOptions.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
                     </option>
@@ -625,7 +662,7 @@ function MatchDetailPage() {
             },
             {
               id: 'away_team_id',
-              label: 'Away team',
+              label: 'Away team (enrolled in season)',
               control: (
                 <select
                   id="away_team_id"
@@ -638,7 +675,7 @@ function MatchDetailPage() {
                     }))
                   }
                 >
-                  {teamOptions.map((t) => (
+                  {enrolledTeamOptions.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
                     </option>
