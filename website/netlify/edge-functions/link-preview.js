@@ -577,6 +577,32 @@ async function previewForMerchandise(request) {
   }
 }
 
+function merchandiseProductIdFromSegment(segment) {
+  const match = String(segment ?? '').match(/(?:^|-)(\d+)$/)
+  const productId = Number(match?.[1])
+  return Number.isSafeInteger(productId) && productId > 0 ? productId : null
+}
+
+async function previewForMerchandiseProduct(productId, request) {
+  const product = await fetchApi(`/public/merchandise/${encodeURIComponent(productId)}`)
+
+  if (!product) {
+    return previewForMerchandise(request)
+  }
+
+  const name = cleanText(product.name) || 'Official NPL Merchandise'
+  const description =
+    truncate(product.description) ||
+    `Shop ${name} from the National Premier League official merchandise collection.`
+
+  return {
+    title: name,
+    description,
+    image: absoluteUrl(product.image_url, request.url),
+    type: 'website',
+  }
+}
+
 async function buildPreview(request) {
   const url = new URL(request.url)
   const parts = url.pathname.split('/').filter(Boolean)
@@ -625,6 +651,13 @@ async function buildPreview(request) {
     }
   }
 
+  if (parts[0] === 'merchandise' && parts[1]) {
+    const productId = merchandiseProductIdFromSegment(parts[1])
+    if (productId) {
+      return previewForMerchandiseProduct(productId, request)
+    }
+  }
+
   if (parts[0] === 'merchandise') {
     return previewForMerchandise(request)
   }
@@ -643,6 +676,8 @@ async function buildPreview(request) {
 
 function metaTags(preview, request) {
   const url = new URL(request.url)
+  url.search = ''
+  url.hash = ''
   const title = preview.title.includes(SITE_NAME)
     ? preview.title
     : `${preview.title} | ${SITE_NAME}`
@@ -661,12 +696,14 @@ function metaTags(preview, request) {
 <meta property="og:title" content="${escapeHtml(title)}" />
 <meta property="og:description" content="${escapeHtml(description)}" />
 <meta property="og:image" content="${escapeHtml(image)}" />
+<meta property="og:image:alt" content="${escapeHtml(title)}" />
 <meta property="og:url" content="${escapeHtml(url.href)}" />
 
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="${escapeHtml(title)}" />
 <meta name="twitter:description" content="${escapeHtml(description)}" />
 <meta name="twitter:image" content="${escapeHtml(image)}" />
+<meta name="twitter:image:alt" content="${escapeHtml(title)}" />
 `.trim()
 }
 
