@@ -12,7 +12,10 @@ type MerchandiseProduct = {
   price_text: string
   image_url: string
   image_url_2: string
+  image_url_3: string
   sizes_text: string | null
+  team_id: number | null
+  team_ids: number[]
   status: string
   sort_order: number
 }
@@ -40,7 +43,7 @@ function sizeOptions(sizesText: string | null): string[] {
 
 
 function merchandiseImages(product: MerchandiseProduct): string[] {
-  return [product.image_url, product.image_url_2]
+  return [product.image_url, product.image_url_2, product.image_url_3]
     .map((url) => url?.trim())
     .filter((url): url is string => Boolean(url))
 }

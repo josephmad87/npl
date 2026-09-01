@@ -3525,6 +3525,43 @@ video.article-view__hero-img {
   gap: 0.5rem;
 }
 
+.merchandise-team-selector {
+  width: min(100%, 420px);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.85rem;
+  text-align: left;
+}
+
+.merchandise-team-selector__hint {
+  grid-column: 1 / -1;
+  margin: 0 0 0.1rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.merchandise-team-selector__option {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.merchandise-team-selector__option input {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+@media (max-width: 620px) {
+  .merchandise-team-selector {
+    grid-template-columns: 1fr;
+  }
+}
+
 .merchandise-admin-thumb {
   display: grid;
   place-items: center;

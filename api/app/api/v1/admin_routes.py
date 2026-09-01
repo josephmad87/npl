@@ -37,7 +37,7 @@ from app.models.match import (
     MatchScorecardEditRequest,
     MatchScorerAssignment,
 )
-from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
+from app.models.merchandise import MerchandiseOrder, MerchandiseProduct, MerchandiseProductTeam
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
 from app.models.site_page_content import SitePageContent
@@ -150,6 +150,57 @@ def _sponsor_out(sp: Sponsor, team_name: str | None) -> SponsorOut:
         created_at=sp.created_at,
     )
 
+
+def _validate_merchandise_team_ids(db: Session, team_ids: list[int]) -> list[int]:
+    unique_team_ids = list(dict.fromkeys(team_ids))
+    if not unique_team_ids:
+        return []
+
+    existing_team_ids = set(
+        db.scalars(select(Team.id).where(Team.id.in_(unique_team_ids))).all()
+    )
+    missing_team_ids = sorted(set(unique_team_ids) - existing_team_ids)
+    if missing_team_ids:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "validation",
+                "message": f"Team not found for team_ids: {', '.join(map(str, missing_team_ids))}.",
+            },
+        )
+    return unique_team_ids
+
+
+def _merchandise_team_ids_by_product(
+    db: Session,
+    product_ids: list[int],
+) -> dict[int, list[int]]:
+    if not product_ids:
+        return {}
+
+    team_ids_by_product = {product_id: [] for product_id in product_ids}
+    rows = db.execute(
+        select(MerchandiseProductTeam.product_id, MerchandiseProductTeam.team_id)
+        .where(MerchandiseProductTeam.product_id.in_(product_ids))
+        .order_by(MerchandiseProductTeam.product_id, MerchandiseProductTeam.team_id)
+    ).all()
+    for product_id, team_id in rows:
+        team_ids_by_product[product_id].append(team_id)
+    return team_ids_by_product
+
+
+def _merchandise_product_out(
+    product: MerchandiseProduct,
+    team_ids: list[int] | None = None,
+) -> MerchandiseProductOut:
+    resolved_team_ids = team_ids if team_ids is not None else []
+    if not resolved_team_ids and product.team_id is not None:
+        # Allows older data to be returned correctly before its migration runs.
+        resolved_team_ids = [product.team_id]
+    return MerchandiseProductOut.model_validate(product).model_copy(
+        update={"team_ids": resolved_team_ids},
+    )
+
 @router.get("/merchandise", response_model=dict)
 def admin_list_merchandise(
     db: Session = Depends(get_db),
@@ -174,8 +225,9 @@ def admin_list_merchandise(
         page_size=page_params.page_size,
     )
 
+    team_ids_by_product = _merchandise_team_ids_by_product(db, [row.id for row in rows])
     return to_paginated(
-        [MerchandiseProductOut.model_validate(r) for r in rows],
+        [_merchandise_product_out(row, team_ids_by_product.get(row.id)) for row in rows],
         total,
         page_params.page,
         page_params.page_size,
@@ -192,18 +244,20 @@ def admin_create_merchandise(
     db: Session = Depends(get_db),
     actor: User = Depends(require_content_writer),
 ) -> MerchandiseProductOut:
-    if body.team_id is not None and db.get(Team, body.team_id) is None:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "code": "validation",
-                "message": "Team not found for team_id.",
-            },
-        )
-
-    product = MerchandiseProduct(**body.model_dump())
+    requested_team_ids = [*body.team_ids]
+    if body.team_id is not None:
+        requested_team_ids.append(body.team_id)
+    team_ids = _validate_merchandise_team_ids(db, requested_team_ids)
+    product_data = body.model_dump(exclude={"team_ids"})
+    product_data["team_id"] = team_ids[0] if team_ids else None
+    product = MerchandiseProduct(**product_data)
 
     db.add(product)
+    db.flush()
+    db.add_all(
+        MerchandiseProductTeam(product_id=product.id, team_id=team_id)
+        for team_id in team_ids
+    )
     db.commit()
     db.refresh(product)
 
@@ -217,7 +271,7 @@ def admin_create_merchandise(
     )
     db.commit()
 
-    return MerchandiseProductOut.model_validate(product)
+    return _merchandise_product_out(product, team_ids)
 
 
 @router.get("/merchandise/orders", response_model=dict)
@@ -322,7 +376,10 @@ def admin_get_merchandise(
             },
         )
 
-    return MerchandiseProductOut.model_validate(product)
+    return _merchandise_product_out(
+        product,
+        _merchandise_team_ids_by_product(db, [product.id]).get(product.id),
+    )
 
 
 @router.patch(
@@ -347,6 +404,26 @@ def admin_update_merchandise(
         )
 
     patch = body.model_dump(exclude_unset=True)
+    team_ids_provided = "team_ids" in patch
+    team_id_provided = "team_id" in patch
+    if team_ids_provided or team_id_provided:
+        requested_team_ids = list(patch.pop("team_ids", []) or [])
+        legacy_team_id = patch.pop("team_id", None)
+        if team_id_provided and legacy_team_id is not None:
+            requested_team_ids.append(legacy_team_id)
+        team_ids = _validate_merchandise_team_ids(db, requested_team_ids)
+        product.team_id = team_ids[0] if team_ids else None
+        db.execute(
+            delete(MerchandiseProductTeam).where(
+                MerchandiseProductTeam.product_id == product.id,
+            ),
+        )
+        db.add_all(
+            MerchandiseProductTeam(product_id=product.id, team_id=team_id)
+            for team_id in team_ids
+        )
+    else:
+        team_ids = _merchandise_team_ids_by_product(db, [product.id]).get(product.id)
 
     for k, v in patch.items():
         setattr(product, k, v)
@@ -364,7 +441,7 @@ def admin_update_merchandise(
     )
     db.commit()
 
-    return MerchandiseProductOut.model_validate(product)
+    return _merchandise_product_out(product, team_ids)
 
 
 @router.delete(

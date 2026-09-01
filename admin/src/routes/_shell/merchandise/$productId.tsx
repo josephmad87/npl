@@ -45,6 +45,7 @@ function EditMerchandisePage() {
   const [priceText, setPriceText] = useState('')
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageUrl2, setImageUrl2] = useState<string | null>(null)
+  const [imageUrl3, setImageUrl3] = useState<string | null>(null)
   const [sizesText, setSizesText] = useState('')
   const [status, setStatus] = useState('active')
   const [sortOrder, setSortOrder] = useState('0')
@@ -52,7 +53,7 @@ function EditMerchandisePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [category, setCategory] = useState('Shirts')
   const [audience, setAudience] = useState('Unisex')
-  const [teamId, setTeamId] = useState('')
+  const [teamIds, setTeamIds] = useState<number[]>([])
   
  useEffect(() => {
   if (!product) return
@@ -62,13 +63,28 @@ function EditMerchandisePage() {
   setPriceText(product.price_text)
   setImageUrl(product.image_url || null)
   setImageUrl2(product.image_url_2 || null)
+  setImageUrl3(product.image_url_3 || null)
   setSizesText(product.sizes_text ?? '')
   setCategory(product.category || 'Other')
   setAudience(product.audience || 'Unisex')
-  setTeamId(product.team_id ? String(product.team_id) : '')
+  setTeamIds(
+    product.team_ids?.length > 0
+      ? product.team_ids
+      : product.team_id
+        ? [product.team_id]
+        : [],
+  )
   setStatus(product.status)
   setSortOrder(String(product.sort_order))
 }, [product])
+
+  const toggleTeam = (teamId: number) => {
+    setTeamIds((current) =>
+      current.includes(teamId)
+        ? current.filter((id) => id !== teamId)
+        : [...current, teamId],
+    )
+  }
 
   const save = async () => {
     if (isSaving || !product) return
@@ -92,10 +108,11 @@ function EditMerchandisePage() {
           price_text: priceText.trim(),
           image_url: (imageUrl ?? '').trim(),
           image_url_2: (imageUrl2 ?? '').trim(),
+          image_url_3: (imageUrl3 ?? '').trim(),
           sizes_text: sizesText.trim() || null,
           category,
           audience,
-          team_id: teamId ? Number(teamId) : null,
+          team_ids: teamIds,
           status,
           sort_order: Number(sortOrder) || 0,
         },
@@ -114,11 +131,18 @@ function EditMerchandisePage() {
       setPriceText(updated.price_text)
       setImageUrl(updated.image_url || null)
       setImageUrl2(updated.image_url_2 || null)
+      setImageUrl3(updated.image_url_3 || null)
       setSizesText(updated.sizes_text ?? '')
       setStatus(updated.status)
       setCategory(updated.category || 'Other')
       setAudience(updated.audience || 'Unisex')
-      setTeamId(updated.team_id ? String(updated.team_id) : '')
+      setTeamIds(
+        updated.team_ids?.length > 0
+          ? updated.team_ids
+          : updated.team_id
+            ? [updated.team_id]
+            : [],
+      )
       setSortOrder(String(updated.sort_order))
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Save failed')
@@ -216,6 +240,20 @@ function EditMerchandisePage() {
     />
   ),
 },
+{
+  id: 'image_url_3',
+  label: 'Third image optional',
+  control: (
+    <MediaUrlField
+      id="image_url_3"
+      value={imageUrl3}
+      onChange={setImageUrl3}
+      disabled={isSaving}
+      uploadKind="merchandise"
+      accept="image/*"
+    />
+  ),
+},
           
           {
             id: 'sizes_text',
@@ -266,21 +304,25 @@ function EditMerchandisePage() {
             ),
           },
           {
-            id: 'team_id',
-            label: 'Team optional',
+            id: 'team_ids',
+            label: 'Teams optional',
             control: (
-              <select
-                value={teamId}
-                onChange={(e) => setTeamId(e.target.value)}
-                disabled={isSaving || teamsQ.isLoading}
-              >
-                <option value="">No team / general merchandise</option>
+              <div id="team_ids" className="merchandise-team-selector">
+                <p className="merchandise-team-selector__hint">
+                  Leave all unchecked for general merchandise.
+                </p>
                 {(teamsQ.data ?? []).map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
+                  <label key={team.id} className="merchandise-team-selector__option">
+                    <input
+                      type="checkbox"
+                      checked={teamIds.includes(team.id)}
+                      onChange={() => toggleTeam(team.id)}
+                      disabled={isSaving || teamsQ.isLoading}
+                    />
+                    <span>{team.name}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
             ),
           },
 

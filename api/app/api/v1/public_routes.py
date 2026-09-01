@@ -21,7 +21,7 @@ from app.models.match import (
     MatchDaySquadPlayer,
     MatchPlayerStat,
 )
-from app.models.merchandise import MerchandiseOrder, MerchandiseProduct
+from app.models.merchandise import MerchandiseOrder, MerchandiseProduct, MerchandiseProductTeam
 from app.models.player import Player
 from app.models.site_page_content import SitePageContent
 from app.models.sponsor import Sponsor
@@ -1072,7 +1072,17 @@ def list_public_merchandise(
     )
 
     if team_id is not None:
-        stmt = stmt.where(MerchandiseProduct.team_id == team_id)
+        # Keep the legacy column fallback while existing databases migrate.
+        stmt = stmt.where(
+            or_(
+                MerchandiseProduct.team_id == team_id,
+                MerchandiseProduct.id.in_(
+                    select(MerchandiseProductTeam.product_id).where(
+                        MerchandiseProductTeam.team_id == team_id,
+                    ),
+                ),
+            ),
+        )
 
     if category:
         stmt = stmt.where(MerchandiseProduct.category == category)
@@ -1088,7 +1098,23 @@ def list_public_merchandise(
         page=page_params.page,
         page_size=page_params.page_size,
     )
-    items = [MerchandiseProductOut.model_validate(r) for r in rows]
+    product_ids = [row.id for row in rows]
+    product_team_rows = db.execute(
+        select(MerchandiseProductTeam.product_id, MerchandiseProductTeam.team_id).where(
+            MerchandiseProductTeam.product_id.in_(product_ids),
+        ),
+    ).all() if product_ids else []
+    team_ids_by_product = {product_id: [] for product_id in product_ids}
+    for product_id, product_team_id in product_team_rows:
+        team_ids_by_product[product_id].append(product_team_id)
+    items = [
+        MerchandiseProductOut.model_validate(row).model_copy(
+            update={
+                "team_ids": team_ids_by_product[row.id] or ([row.team_id] if row.team_id is not None else []),
+            },
+        )
+        for row in rows
+    ]
     return to_paginated(
         items,
         total,
