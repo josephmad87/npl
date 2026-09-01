@@ -17,6 +17,7 @@ import { type MatchLite, useTeamsMap } from './lib/hooks'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { sortFixturesByDateAsc } from './lib/sortFixtures'
 import { SponsorMarquee } from './components/SponsorMarquee'
+import { merchandiseProductPath, merchandiseProductSegment } from './lib/merchandise'
 import {
   ballsToOversLabel,
   computeSeasonStandings,
@@ -216,8 +217,7 @@ function TeamMerchandiseCard({
     <article className="team-merchandise-card">
       <Link
         to="/merchandise/$productId"
-        params={{ productId: String(product.id) }}
-        search={{ order: false }}
+        params={{ productId: merchandiseProductSegment(product) }}
         className="team-merchandise-card__media"
         aria-label={`View ${product.name}`}
       >
@@ -239,7 +239,7 @@ function TeamMerchandiseCard({
         </p>
 
         <h3>
-          <Link to="/merchandise/$productId" params={{ productId: String(product.id) }} search={{ order: false }}>
+          <Link to="/merchandise/$productId" params={{ productId: merchandiseProductSegment(product) }}>
             {product.name}
           </Link>
         </h3>
@@ -256,14 +256,9 @@ function TeamMerchandiseCard({
           </p>
         ) : null}
 
-        <Link
-          to="/merchandise/$productId"
-          params={{ productId: String(product.id) }}
-          search={{ order: true }}
-          className="team-merchandise-card__link"
-        >
+        <a href={`${merchandiseProductPath(product)}#order`} className="team-merchandise-card__link">
           Buy
-        </Link>
+        </a>
       </div>
     </article>
   )

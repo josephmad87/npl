@@ -1,25 +1,68 @@
-import { Link, useParams, useSearch } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import nplLogoUrl from './assets/logo.png'
 import { MerchandiseQuickOrderModal } from './components/MerchandiseQuickOrderModal'
-import { merchandiseImages, type MerchandiseProduct } from './lib/merchandise'
+import {
+  merchandiseImages,
+  merchandiseProductIdFromSegment,
+  type MerchandiseProduct,
+} from './lib/merchandise'
 import { fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 export default function MerchandiseProductPage() {
   const { productId } = useParams({ from: '/merchandise/$productId' })
-  const { order } = useSearch({ from: '/merchandise/$productId' })
-  const numericProductId = Number(productId)
+  const numericProductId = merchandiseProductIdFromSegment(productId)
   const productQ = useQuery({
     queryKey: ['public-merchandise-product', numericProductId],
     queryFn: () => fetchJson<MerchandiseProduct>(`/public/merchandise/${numericProductId}`),
-    enabled: Number.isFinite(numericProductId),
+    enabled: numericProductId !== null,
     retry: 1,
   })
   const product = productQ.data
   const images = useMemo(() => (product ? merchandiseImages(product) : []), [product])
   const [activeImage, setActiveImage] = useState(0)
-  const [isOrdering, setIsOrdering] = useState(order)
+  const [isOrdering, setIsOrdering] = useState(
+    () => window.location.hash === '#order',
+  )
+
+  useEffect(() => {
+    if (!product) return
+    const previousTitle = document.title
+    const description = product.description?.replace(/\s+/g, ' ').trim()
+    document.title = `${product.name} | NPL Zimbabwe`
+
+    let descriptionTag = document.querySelector('meta[name="description"]')
+    const createdDescriptionTag = !descriptionTag
+    if (!descriptionTag) {
+      descriptionTag = document.createElement('meta')
+      descriptionTag.setAttribute('name', 'description')
+      document.head.append(descriptionTag)
+    }
+    const previousDescription = descriptionTag.getAttribute('content')
+    descriptionTag.setAttribute(
+      'content',
+      description?.slice(0, 160) || `Buy ${product.name} from NPL Zimbabwe.`,
+    )
+
+    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null
+    const createdCanonical = !canonical
+    if (!canonical) {
+      canonical = document.createElement('link')
+      canonical.rel = 'canonical'
+      document.head.append(canonical)
+    }
+    const previousCanonical = canonical.href
+    canonical.href = `${window.location.origin}${window.location.pathname}`
+
+    return () => {
+      document.title = previousTitle
+      if (createdDescriptionTag) descriptionTag?.remove()
+      else descriptionTag?.setAttribute('content', previousDescription ?? '')
+      if (createdCanonical) canonical?.remove()
+      else if (canonical) canonical.href = previousCanonical
+    }
+  }, [product])
 
   if (productQ.isLoading) return <main className="container"><p className="muted">Loading product…</p></main>
   if (productQ.isError || !product) return <main className="container"><p className="form-error">This product is no longer available.</p><Link to="/merchandise" search={{ team_id: null }}>Back to merchandise</Link></main>
