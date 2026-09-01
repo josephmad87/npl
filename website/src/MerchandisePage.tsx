@@ -7,6 +7,7 @@ import { PageHero } from './components/PageHero'
 import {
   merchandiseExcerpt,
   merchandiseImages,
+  merchandiseProductSegment,
   type MerchandiseProduct,
 } from './lib/merchandise'
 import { fetchAllPaginatedList, resolveMediaUrl } from './lib/publicApi'
@@ -61,11 +62,11 @@ export default function MerchandisePage() {
           <div className="merchandise-grid">
             {activeProducts.map((product) => (
               <article key={product.id} className="merchandise-card">
-                <Link to="/merchandise/$productId" params={{ productId: String(product.id) }} search={{ order: false }} className="merchandise-card__media" aria-label={`View ${product.name}`}>
+                <Link to="/merchandise/$productId" params={{ productId: merchandiseProductSegment(product) }} className="merchandise-card__media" aria-label={`View ${product.name}`}>
                   <MerchandiseCardImage product={product} />
                 </Link>
                 <div className="merchandise-card__body">
-                  <h2><Link to="/merchandise/$productId" params={{ productId: String(product.id) }} search={{ order: false }}>{product.name}</Link></h2>
+                  <h2><Link to="/merchandise/$productId" params={{ productId: merchandiseProductSegment(product) }}>{product.name}</Link></h2>
                   {product.price_text.trim() ? <p className="merchandise-card__price">{product.price_text}</p> : null}
                   {merchandiseExcerpt(product.description) ? <p className="muted">{merchandiseExcerpt(product.description)}</p> : null}
                   {product.sizes_text?.trim() ? <p className="merchandise-card__sizes"><strong>Sizes:</strong> {product.sizes_text}</p> : null}

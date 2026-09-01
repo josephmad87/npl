@@ -32,3 +32,28 @@ export function merchandiseExcerpt(description: string | null, limit = 150): str
   if (normalized.length <= limit) return normalized
   return `${normalized.slice(0, limit).trimEnd()}…`
 }
+
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[’']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+export function merchandiseProductSegment(product: Pick<MerchandiseProduct, 'id' | 'name'>): string {
+  return `${slugify(product.name) || 'product'}-${product.id}`
+}
+
+export function merchandiseProductPath(product: Pick<MerchandiseProduct, 'id' | 'name'>): string {
+  return `/merchandise/${merchandiseProductSegment(product)}`
+}
+
+export function merchandiseProductIdFromSegment(segment: string): number | null {
+  const matched = segment.match(/(?:^|-)(\d+)$/)
+  if (!matched) return null
+  const id = Number(matched[1])
+  return Number.isSafeInteger(id) && id > 0 ? id : null
+}

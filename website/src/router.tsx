@@ -220,9 +220,6 @@ const merchandiseProductRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/merchandise/$productId',
   component: MerchandiseProductPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    order: search.order === true || search.order === 'true',
-  }),
 })
 
 const galleryVideoRoute = createRoute({
