@@ -107,6 +107,26 @@ async function fetchApi(path) {
   }
 }
 
+async function fetchAllApi(path) {
+  const separator = path.includes('?') ? '&' : '?'
+  const firstPage = await fetchApi(`${path}${separator}page=1&page_size=100`)
+  const items = listItems(firstPage)
+  const total = Number(firstPage?.total)
+  const pageCount = Number.isFinite(total) ? Math.ceil(total / 100) : 1
+
+  if (pageCount <= 1) {
+    return items
+  }
+
+  const pages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) =>
+      fetchApi(`${path}${separator}page=${index + 2}&page_size=100`),
+    ),
+  )
+
+  return [...items, ...pages.flatMap((page) => listItems(page))]
+}
+
 function defaultPreview(request) {
   return {
     title: SITE_NAME,
@@ -141,15 +161,7 @@ async function fetchAllTeams() {
     return teamNameCache
   }
 
-  const data =
-    (await fetchApi('/public/teams?page=1&page_size=1000')) ||
-    (await fetchApi('/public/teams'))
-
-  const teams = Array.isArray(data)
-    ? data
-    : Array.isArray(data?.items)
-      ? data.items
-      : []
+  const teams = await fetchAllApi('/public/teams')
 
   teamNameCache = teams
   return teams
@@ -309,40 +321,38 @@ async function sitemapResponse(request) {
     '/support',
     '/account-deletion',
   ]
-  const [teamsData, playersData, newsData, leaguesData, merchandiseData, fixturesData, resultsData] =
+  const [teams, players, articles, leagues, products, fixtures, results] =
     await Promise.all([
-      fetchApi('/public/teams?page=1&page_size=1000'),
-      fetchApi('/public/players?page=1&page_size=1000'),
-      fetchApi('/public/news?page=1&page_size=1000'),
-      fetchApi('/public/leagues?page=1&page_size=1000'),
-      fetchApi('/public/merchandise?page=1&page_size=1000'),
-      fetchApi('/public/fixtures?page=1&page_size=1000'),
-      fetchApi('/public/results?page=1&page_size=1000'),
+      fetchAllApi('/public/teams'),
+      fetchAllApi('/public/players'),
+      fetchAllApi('/public/news'),
+      fetchAllApi('/public/leagues'),
+      fetchAllApi('/public/merchandise'),
+      fetchAllApi('/public/fixtures'),
+      fetchAllApi('/public/results'),
     ])
 
   const paths = new Set(staticPaths)
-  const teams = listItems(teamsData)
-  const leagues = listItems(leaguesData)
 
   for (const team of teams) {
     if (seoSlug(team.slug)) paths.add(`/teams/${encodeURIComponent(team.slug)}`)
   }
-  for (const player of listItems(playersData)) {
+  for (const player of players) {
     if (seoSlug(player.slug)) paths.add(`/players/${encodeURIComponent(player.slug)}`)
   }
-  for (const article of listItems(newsData)) {
+  for (const article of articles) {
     if (seoSlug(article.slug)) paths.add(`/news/${encodeURIComponent(article.slug)}`)
   }
   for (const league of leagues) {
     if (seoSlug(league.slug)) paths.add(`/leagues/${encodeURIComponent(league.slug)}`)
   }
-  for (const product of listItems(merchandiseData)) {
+  for (const product of products) {
     if (product.id) {
       const segment = `${seoSlug(product.name) || 'product'}-${product.id}`
       paths.add(`/merchandise/${encodeURIComponent(segment)}`)
     }
   }
-  for (const match of [...listItems(fixturesData), ...listItems(resultsData)]) {
+  for (const match of [...fixtures, ...results]) {
     const homeName = cleanText(match.home_name || match.home_team_name)
     const awayName = cleanText(match.away_name || match.away_team_name)
     const path = matchSeoPath(match, homeName, awayName)
@@ -352,12 +362,12 @@ async function sitemapResponse(request) {
   const leaguesWithSlugs = leagues.filter((league) => seoSlug(league.slug))
   const seasonLists = await Promise.all(
     leaguesWithSlugs.map((league) =>
-      fetchApi(`/public/leagues/${encodeURIComponent(league.slug)}/seasons?page=1&page_size=1000`),
+      fetchAllApi(`/public/leagues/${encodeURIComponent(league.slug)}/seasons`),
     ),
   )
   for (let index = 0; index < leaguesWithSlugs.length; index += 1) {
     const league = leaguesWithSlugs[index]
-    for (const season of listItems(seasonLists[index])) {
+    for (const season of seasonLists[index]) {
       if (seoSlug(season.slug)) {
         paths.add(`/leagues/${encodeURIComponent(league.slug)}/seasons/${encodeURIComponent(season.slug)}`)
       }
