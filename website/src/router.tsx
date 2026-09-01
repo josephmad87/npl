@@ -34,6 +34,7 @@ import { LeagueDetailPage, SeasonDetailPage, TeamDetailPage } from './EntityDeta
 import NewsArticlePage from './NewsArticlePage'
 import { RootLayout } from './RootLayout'
 import MerchandisePage from './MerchandisePage'
+import MerchandiseProductPage from './MerchandiseProductPage'
 import {
   AccountDeletionPage,
   PrivacyPage,
@@ -215,6 +216,15 @@ const merchandiseRoute = createRoute({
   },
 })
 
+const merchandiseProductRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/merchandise/$productId',
+  component: MerchandiseProductPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    order: search.order === true || search.order === 'true',
+  }),
+})
+
 const galleryVideoRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/gallery/video',
@@ -329,6 +339,7 @@ const routeTree = rootRoute.addChildren([
   searchRoute,
   galleryRoute,
   merchandiseRoute,
+  merchandiseProductRoute,
   galleryImagesRoute,
   galleryVideoRoute,
   aboutUsRoute,
