@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://npl.co.zw/sitemap.xml

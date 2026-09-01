@@ -32,6 +32,15 @@ function cleanText(value, fallback = '') {
     .trim()
 }
 
+function seoSlug(value) {
+  return cleanText(value)
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[’']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 function cleanTeamName(value) {
   return cleanText(value)
 }
@@ -183,6 +192,189 @@ async function merchandiseSeoRedirect(request) {
   }
 
   return url
+}
+
+function matchSeoPath(match, homeName, awayName) {
+  const leagueSlug =
+    seoSlug(match.season?.league?.slug) ||
+    seoSlug(match.league_slug) ||
+    seoSlug(match.season?.league?.name) ||
+    seoSlug(match.league_name)
+  const seasonSlug =
+    seoSlug(match.season?.slug) ||
+    seoSlug(match.season_slug) ||
+    seoSlug(match.season?.name) ||
+    seoSlug(match.season_name)
+  const teamsSlug = `${seoSlug(homeName)}-vs-${seoSlug(awayName)}`
+
+  if (!leagueSlug || !seasonSlug || !teamsSlug || !match.id) {
+    return null
+  }
+
+  return `/leagues/${leagueSlug}/seasons/${seasonSlug}/matches/${match.id}/${teamsSlug}`
+}
+
+async function legacySeoRedirect(request) {
+  const merchandiseRedirect = await merchandiseSeoRedirect(request)
+  if (merchandiseRedirect) {
+    return merchandiseRedirect
+  }
+
+  const url = new URL(request.url)
+
+  if (url.pathname === '/ladies' || url.pathname.startsWith('/ladies/')) {
+    url.pathname = url.pathname.replace(/^\/ladies(?=\/|$)/, '/women')
+    return url
+  }
+
+  const categorySeasonMatch = url.pathname.match(/^\/(mens|women|youth)\/seasons$/)
+  const leagueSlug = cleanText(url.searchParams.get('leagueSlug'))
+  if (categorySeasonMatch && leagueSlug) {
+    url.pathname = `/leagues/${encodeURIComponent(leagueSlug)}`
+    url.searchParams.delete('leagueSlug')
+    return url
+  }
+
+  const matchId = url.pathname.match(/^\/matches\/(\d+)$/)?.[1]
+  if (matchId) {
+    const match = await fetchApi(`/public/matches/${encodeURIComponent(matchId)}`)
+    if (match) {
+      const { homeName, awayName } = await resolvedMatchTeamNames(match)
+      const path = matchSeoPath(match, homeName, awayName)
+      if (path) {
+        url.pathname = path
+        return url
+      }
+    }
+  }
+
+  if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
+    url.pathname = url.pathname.replace(/\/+$/, '')
+    return url
+  }
+
+  return null
+}
+
+function listItems(data) {
+  if (Array.isArray(data)) return data
+  return Array.isArray(data?.items) ? data.items : []
+}
+
+function xmlEscape(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;')
+}
+
+function sitemapUrl(origin, path) {
+  return `<url><loc>${xmlEscape(new URL(path, origin).toString())}</loc></url>`
+}
+
+async function sitemapResponse(request) {
+  const origin = new URL(request.url).origin
+  const staticPaths = [
+    '/',
+    '/mens',
+    '/mens/fixtures',
+    '/mens/results',
+    '/mens/seasons',
+    '/mens/teams',
+    '/women',
+    '/women/fixtures',
+    '/women/results',
+    '/women/seasons',
+    '/women/teams',
+    '/youth',
+    '/youth/fixtures',
+    '/youth/results',
+    '/youth/seasons',
+    '/youth/teams',
+    '/fixtures',
+    '/results',
+    '/live',
+    '/news',
+    '/gallery',
+    '/gallery/images',
+    '/gallery/video',
+    '/merchandise',
+    '/compare-teams',
+    '/about-us',
+    '/contact-us',
+    '/privacy',
+    '/terms',
+    '/support',
+    '/account-deletion',
+  ]
+  const [teamsData, playersData, newsData, leaguesData, merchandiseData, fixturesData, resultsData] =
+    await Promise.all([
+      fetchApi('/public/teams?page=1&page_size=1000'),
+      fetchApi('/public/players?page=1&page_size=1000'),
+      fetchApi('/public/news?page=1&page_size=1000'),
+      fetchApi('/public/leagues?page=1&page_size=1000'),
+      fetchApi('/public/merchandise?page=1&page_size=1000'),
+      fetchApi('/public/fixtures?page=1&page_size=1000'),
+      fetchApi('/public/results?page=1&page_size=1000'),
+    ])
+
+  const paths = new Set(staticPaths)
+  const teams = listItems(teamsData)
+  const leagues = listItems(leaguesData)
+
+  for (const team of teams) {
+    if (seoSlug(team.slug)) paths.add(`/teams/${encodeURIComponent(team.slug)}`)
+  }
+  for (const player of listItems(playersData)) {
+    if (seoSlug(player.slug)) paths.add(`/players/${encodeURIComponent(player.slug)}`)
+  }
+  for (const article of listItems(newsData)) {
+    if (seoSlug(article.slug)) paths.add(`/news/${encodeURIComponent(article.slug)}`)
+  }
+  for (const league of leagues) {
+    if (seoSlug(league.slug)) paths.add(`/leagues/${encodeURIComponent(league.slug)}`)
+  }
+  for (const product of listItems(merchandiseData)) {
+    if (product.id) {
+      const segment = `${seoSlug(product.name) || 'product'}-${product.id}`
+      paths.add(`/merchandise/${encodeURIComponent(segment)}`)
+    }
+  }
+  for (const match of [...listItems(fixturesData), ...listItems(resultsData)]) {
+    const homeName = cleanText(match.home_name || match.home_team_name)
+    const awayName = cleanText(match.away_name || match.away_team_name)
+    const path = matchSeoPath(match, homeName, awayName)
+    if (path) paths.add(path)
+  }
+
+  const leaguesWithSlugs = leagues.filter((league) => seoSlug(league.slug))
+  const seasonLists = await Promise.all(
+    leaguesWithSlugs.map((league) =>
+      fetchApi(`/public/leagues/${encodeURIComponent(league.slug)}/seasons?page=1&page_size=1000`),
+    ),
+  )
+  for (let index = 0; index < leaguesWithSlugs.length; index += 1) {
+    const league = leaguesWithSlugs[index]
+    for (const season of listItems(seasonLists[index])) {
+      if (seoSlug(season.slug)) {
+        paths.add(`/leagues/${encodeURIComponent(league.slug)}/seasons/${encodeURIComponent(season.slug)}`)
+      }
+    }
+  }
+
+  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${[...paths]
+    .sort()
+    .map((path) => sitemapUrl(origin, path))
+    .join('\n')}\n</urlset>`
+
+  return new Response(body, {
+    headers: {
+      'content-type': 'application/xml; charset=UTF-8',
+      'cache-control': 'public, max-age=3600',
+    },
+  })
 }
 
 function namesFromInningsText(match) {
@@ -721,6 +913,10 @@ async function buildPreview(request) {
 
 function metaTags(preview, request) {
   const url = new URL(request.url)
+  const isInternalSearch =
+    url.pathname === '/search' ||
+    (url.pathname === '/news' && url.searchParams.has('q'))
+  const robots = isInternalSearch ? 'noindex,follow' : 'index,follow'
   url.search = ''
   url.hash = ''
   const title = preview.title.includes(SITE_NAME)
@@ -735,6 +931,7 @@ function metaTags(preview, request) {
   return `
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}" />
+<meta name="robots" content="${robots}" />
 <link rel="canonical" href="${escapeHtml(url.href)}" />
 
 <meta property="og:site_name" content="${escapeHtml(SITE_NAME)}" />
@@ -757,6 +954,7 @@ function injectMeta(html, preview, request) {
   const cleaned = html
     .replace(/<title>[\s\S]*?<\/title>/gi, '')
     .replace(/<meta\s+name=["']description["'][^>]*>\s*/gi, '')
+    .replace(/<meta\s+name=["']robots["'][^>]*>\s*/gi, '')
     .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+(property|name)=["']og:[^"']+["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+(property|name)=["']twitter:[^"']+["'][^>]*>\s*/gi, '')
@@ -769,7 +967,13 @@ function injectMeta(html, preview, request) {
 }
 
 export default async function handler(request, context) {
-  const redirectUrl = await merchandiseSeoRedirect(request)
+  const url = new URL(request.url)
+
+  if (url.pathname === '/sitemap.xml') {
+    return sitemapResponse(request)
+  }
+
+  const redirectUrl = await legacySeoRedirect(request)
   if (redirectUrl) {
     return Response.redirect(redirectUrl.toString(), 301)
   }

@@ -298,7 +298,7 @@ export function SiteHeader() {
                   ))}
                   <p className="site-header-mobile__group-label">Leagues</p>
                   {mensLeagues.map((league) => (
-                    <Link key={`m-drawer-league-${league.id}`} to="/mens/seasons" search={{ leagueSlug: league.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                    <Link key={`m-drawer-league-${league.id}`} to="/leagues/$slug" params={{ slug: league.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {league.name}
                     </Link>
                   ))}
@@ -343,7 +343,7 @@ export function SiteHeader() {
                   ))}
                   <p className="site-header-mobile__group-label">Leagues</p>
                   {womenLeagues.map((league) => (
-                    <Link key={`w-drawer-league-${league.id}`} to="/women/seasons" search={{ leagueSlug: league.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                    <Link key={`w-drawer-league-${league.id}`} to="/leagues/$slug" params={{ slug: league.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {league.name}
                     </Link>
                   ))}
@@ -388,7 +388,7 @@ export function SiteHeader() {
                   ))}
                   <p className="site-header-mobile__group-label">Leagues</p>
                   {youthLeagues.map((league) => (
-                    <Link key={`y-drawer-league-${league.id}`} to="/youth/seasons" search={{ leagueSlug: league.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
+                    <Link key={`y-drawer-league-${league.id}`} to="/leagues/$slug" params={{ slug: league.slug }} className="site-header-mobile__drawer-link" onClick={closeMobileNav}>
                       {league.name}
                     </Link>
                   ))}
@@ -448,7 +448,7 @@ export function SiteHeader() {
                 <div className="dropdown-group">
                   <span>Leagues</span>
                   {mensLeagues.map((league) => (
-                    <Link key={`mens-league-${league.id}`} to="/mens/seasons" search={{ leagueSlug: league.slug }}>
+                    <Link key={`mens-league-${league.id}`} to="/leagues/$slug" params={{ slug: league.slug }}>
                       {league.name}
                     </Link>
                   ))}
@@ -484,7 +484,7 @@ export function SiteHeader() {
                 <div className="dropdown-group">
                   <span>Leagues</span>
                   {womenLeagues.map((league) => (
-                    <Link key={`women-league-${league.id}`} to="/women/seasons" search={{ leagueSlug: league.slug }}>
+                    <Link key={`women-league-${league.id}`} to="/leagues/$slug" params={{ slug: league.slug }}>
                       {league.name}
                     </Link>
                   ))}
@@ -520,7 +520,7 @@ export function SiteHeader() {
                 <div className="dropdown-group">
                   <span>Leagues</span>
                   {youthLeagues.map((league) => (
-                    <Link key={`youth-league-${league.id}`} to="/youth/seasons" search={{ leagueSlug: league.slug }}>
+                    <Link key={`youth-league-${league.id}`} to="/leagues/$slug" params={{ slug: league.slug }}>
                       {league.name}
                     </Link>
                   ))}
