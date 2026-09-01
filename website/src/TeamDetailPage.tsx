@@ -778,8 +778,8 @@ useEffect(() => {
       <h3>Team shop</h3>
 
       <Link
-        to="/merchandise"
-        search={{ team_id: data.id }}
+        to="/merchandise/teams/$teamSlug"
+        params={{ teamSlug: data.slug }}
         className="team-merchandise-strip__link"
       >
         View all

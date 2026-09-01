@@ -1319,7 +1319,7 @@ function CompareTeamsPageImpl() {
                                     {teamAOutcome}
                                   </span>
                                 ) : null}
-                                <Link to="/matches/$matchId" params={{ matchId: String(match.id) }}>
+                                <Link to={matchSeoPath(match)}>
                                   Match centre
                                 </Link>
                               </div>

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import { fetchJson, resolveMediaUrl } from '../lib/publicApi'
+import { matchSeoPath } from '../lib/matchUrls'
 import type { LiveScoreState, LiveInningsSummary } from './LiveScorePanel'
 
 type TeamLookup = Record<
@@ -22,6 +22,20 @@ type LiveMatchLite = {
   venue?: string | null
   home_team_id: number
   away_team_id: number
+  home_name?: string | null
+  away_name?: string | null
+  season_slug?: string | null
+  league_slug?: string | null
+  season_name?: string | null
+  league_name?: string | null
+  season?: {
+    slug?: string | null
+    name?: string | null
+    league?: {
+      slug?: string | null
+      name?: string | null
+    } | null
+  } | null
 }
 
 function latestSummary(state: LiveScoreState | undefined): LiveInningsSummary | null {
@@ -87,6 +101,15 @@ export function LiveMatchCard({
   const homeName = home?.name ?? `Team ${match.home_team_id}`
   const awayName = away?.name ?? `Team ${match.away_team_id}`
   const summary = latestSummary(liveQ.data)
+  const hasSeoContext = Boolean(
+    match.season?.slug ||
+      match.season?.league?.slug ||
+      match.season_slug ||
+      match.league_slug,
+  )
+  const matchHref = hasSeoContext
+    ? matchSeoPath({ ...match, home_name: homeName, away_name: awayName })
+    : `/matches/${match.id}`
 
   const battingTeamName = useMemo(() => {
     if (!summary) return null
@@ -96,9 +119,8 @@ export function LiveMatchCard({
   }, [awayName, homeName, match.away_team_id, match.home_team_id, summary])
 
   return (
-    <Link
-      to="/matches/$matchId"
-      params={{ matchId: String(match.id) }}
+    <a
+      href={matchHref}
       className={`live-match-card${compact ? ' live-match-card--compact' : ''}`}
     >
       <div className="live-match-card__topline">
@@ -130,6 +152,6 @@ export function LiveMatchCard({
       ) : null}
 
       <p className="live-match-card__venue">{match.venue || 'Venue TBC'}</p>
-    </Link>
+    </a>
   )
 }
