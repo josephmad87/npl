@@ -78,8 +78,6 @@ type PublicSponsor = {
   id: number
   name: string
   image_url: string
-  image_url_2: string
-  image_url_3: string
   link_url: string | null
   team_id: number | null
   team_name: string | null
@@ -90,6 +88,8 @@ type PublicMerchandiseProduct = {
   description: string | null
   price_text: string
   image_url: string
+  image_url_2: string
+  image_url_3: string
   sizes_text: string | null
   category: string
   audience: string
@@ -205,10 +205,8 @@ function StaffCard({
 
 function TeamMerchandiseCard({
   product,
-  teamId,
 }: Readonly<{
   product: PublicMerchandiseProduct
-  teamId: number
 }>) {
   const resolvedImage = product.image_url?.trim()
     ? resolveMediaUrl(product.image_url)
@@ -216,7 +214,13 @@ function TeamMerchandiseCard({
 
   return (
     <article className="team-merchandise-card">
-      <div className="team-merchandise-card__media">
+      <Link
+        to="/merchandise/$productId"
+        params={{ productId: String(product.id) }}
+        search={{ order: false }}
+        className="team-merchandise-card__media"
+        aria-label={`View ${product.name}`}
+      >
         {resolvedImage ? (
           <img
             src={resolvedImage}
@@ -227,14 +231,18 @@ function TeamMerchandiseCard({
         ) : (
           <SiteLogoPlaceholder />
         )}
-      </div>
+      </Link>
 
       <div className="team-merchandise-card__body">
         <p className="team-merchandise-card__meta">
           {product.category} · {product.audience}
         </p>
 
-        <h3>{product.name}</h3>
+        <h3>
+          <Link to="/merchandise/$productId" params={{ productId: String(product.id) }} search={{ order: false }}>
+            {product.name}
+          </Link>
+        </h3>
 
         {product.price_text.trim() ? (
           <p className="team-merchandise-card__price">
@@ -249,11 +257,12 @@ function TeamMerchandiseCard({
         ) : null}
 
         <Link
-          to="/merchandise"
-          search={{ team_id: teamId }}
+          to="/merchandise/$productId"
+          params={{ productId: String(product.id) }}
+          search={{ order: true }}
           className="team-merchandise-card__link"
         >
-          Shop
+          Buy
         </Link>
       </div>
     </article>
@@ -791,7 +800,6 @@ useEffect(() => {
           <TeamMerchandiseCard
             key={`${product.id}-${idx}`}
             product={product}
-            teamId={data.id}
           />
         ))}
       </div>
@@ -1159,7 +1167,6 @@ useEffect(() => {
           <TeamMerchandiseCard
             key={product.id}
             product={product}
-            teamId={data.id}
           />
         ))}
       </div>

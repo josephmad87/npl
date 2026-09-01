@@ -448,7 +448,7 @@ def admin_update_merchandise(
     "/merchandise/{product_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def admin_archive_merchandise(
+def admin_delete_merchandise(
     product_id: int,
     db: Session = Depends(get_db),
     actor: User = Depends(require_content_writer),
@@ -464,16 +464,18 @@ def admin_archive_merchandise(
             },
         )
 
-    product.status = "inactive"
+    product_name = product.name
+    deleted_product_id = product.id
+    db.delete(product)
     db.commit()
 
     write_audit(
         db,
         actor_user_id=actor.id,
-        action="archive",
+        action="delete",
         entity_type="merchandise_product",
-        entity_id=product.id,
-        summary=product.name,
+        entity_id=deleted_product_id,
+        summary=product_name,
     )
     db.commit()
 

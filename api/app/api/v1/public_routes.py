@@ -1123,6 +1123,32 @@ def list_public_merchandise(
     ).model_dump()
 
 
+@router.get("/merchandise/{product_id}", response_model=MerchandiseProductOut)
+def get_public_merchandise_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+) -> MerchandiseProductOut:
+    product = db.scalar(
+        select(MerchandiseProduct).where(
+            MerchandiseProduct.id == product_id,
+            MerchandiseProduct.status == "active",
+        ),
+    )
+    if product is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Merchandise product not found"})
+
+    team_ids = list(
+        db.scalars(
+            select(MerchandiseProductTeam.team_id).where(
+                MerchandiseProductTeam.product_id == product.id,
+            ),
+        ).all(),
+    )
+    return MerchandiseProductOut.model_validate(product).model_copy(
+        update={"team_ids": team_ids or ([product.team_id] if product.team_id is not None else [])},
+    )
+
+
 @router.post(
     "/merchandise/orders",
     response_model=MerchandiseOrderOut,

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router'
+import { Trash2 } from 'lucide-react'
 import type { MerchandiseProductDto } from '@/lib/api-types'
-import { adminGet, adminListAll, adminPatch } from '@/lib/admin-client'
+import { adminDelete, adminGet, adminListAll, adminPatch } from '@/lib/admin-client'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
@@ -51,6 +52,7 @@ function EditMerchandisePage() {
   const [sortOrder, setSortOrder] = useState('0')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [category, setCategory] = useState('Shirts')
   const [audience, setAudience] = useState('Unisex')
   const [teamIds, setTeamIds] = useState<number[]>([])
@@ -84,6 +86,24 @@ function EditMerchandisePage() {
         ? current.filter((id) => id !== teamId)
         : [...current, teamId],
     )
+  }
+
+  const removeProduct = async () => {
+    if (!product || isDeleting) return
+    const confirmed = globalThis.confirm(
+      `Delete "${product.name}"? Existing order records will be kept, but this product cannot be restored.`,
+    )
+    if (!confirmed) return
+    setIsDeleting(true)
+    setSaveError(null)
+    try {
+      await adminDelete(`/admin/merchandise/${product.id}`)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'merchandise'] })
+      void navigate({ to: '/merchandise' })
+    } catch (error: unknown) {
+      setSaveError(error instanceof Error ? error.message : 'Delete failed')
+      setIsDeleting(false)
+    }
   }
 
   const save = async () => {
@@ -164,7 +184,15 @@ function EditMerchandisePage() {
      <PageHeader
           title={product.name}
           description="Edit merchandise product details."
-          actions={<BackNavLink to="/merchandise">Merchandise</BackNavLink>}
+          actions={
+            <>
+              <BackNavLink to="/merchandise">Merchandise</BackNavLink>
+              <button type="button" className="btn-danger btn--with-icon" onClick={() => void removeProduct()} disabled={isSaving || isDeleting}>
+                <Trash2 size={18} strokeWidth={2} aria-hidden />
+                {isDeleting ? 'Deleting…' : 'Delete product'}
+              </button>
+            </>
+          }
     />
 
       <InlineEditForm
