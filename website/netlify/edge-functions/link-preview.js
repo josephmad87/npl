@@ -161,6 +161,30 @@ async function fetchTeamNameById(teamId) {
   return cleanTeamName(team?.name) || null
 }
 
+async function merchandiseSeoRedirect(request) {
+  const url = new URL(request.url)
+
+  if (url.pathname !== '/merchandise' || !url.searchParams.has('team_id')) {
+    return null
+  }
+
+  const rawTeamId = url.searchParams.get('team_id')
+  url.searchParams.delete('team_id')
+
+  if (!rawTeamId || rawTeamId === 'null') {
+    return url
+  }
+
+  const team = await fetchTeamById(rawTeamId)
+  const teamSlug = cleanText(team?.slug)
+
+  if (teamSlug) {
+    url.pathname = `/merchandise/teams/${encodeURIComponent(teamSlug)}`
+  }
+
+  return url
+}
+
 function namesFromInningsText(match) {
   const text =
     match.result?.innings_breakdown ||
@@ -603,6 +627,23 @@ async function previewForMerchandiseProduct(productId, request) {
   }
 }
 
+async function previewForTeamMerchandise(teamSlug, request) {
+  const team = await fetchApi(`/public/teams/${encodeURIComponent(teamSlug)}`)
+
+  if (!team) {
+    return previewForMerchandise(request)
+  }
+
+  const teamName = cleanText(team.name) || 'NPL Team'
+
+  return {
+    title: `${teamName} Merchandise`,
+    description: `Shop official ${teamName} supporter merchandise from the National Premier League.`,
+    image: absoluteUrl(team.logo_url, request.url),
+    type: 'website',
+  }
+}
+
 async function buildPreview(request) {
   const url = new URL(request.url)
   const parts = url.pathname.split('/').filter(Boolean)
@@ -651,6 +692,10 @@ async function buildPreview(request) {
     }
   }
 
+  if (parts[0] === 'merchandise' && parts[1] === 'teams' && parts[2]) {
+    return previewForTeamMerchandise(parts[2], request)
+  }
+
   if (parts[0] === 'merchandise' && parts[1]) {
     const productId = merchandiseProductIdFromSegment(parts[1])
     if (productId) {
@@ -690,6 +735,7 @@ function metaTags(preview, request) {
   return `
 <title>${escapeHtml(title)}</title>
 <meta name="description" content="${escapeHtml(description)}" />
+<link rel="canonical" href="${escapeHtml(url.href)}" />
 
 <meta property="og:site_name" content="${escapeHtml(SITE_NAME)}" />
 <meta property="og:type" content="${escapeHtml(type)}" />
@@ -711,6 +757,7 @@ function injectMeta(html, preview, request) {
   const cleaned = html
     .replace(/<title>[\s\S]*?<\/title>/gi, '')
     .replace(/<meta\s+name=["']description["'][^>]*>\s*/gi, '')
+    .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+(property|name)=["']og:[^"']+["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+(property|name)=["']twitter:[^"']+["'][^>]*>\s*/gi, '')
 
@@ -722,6 +769,11 @@ function injectMeta(html, preview, request) {
 }
 
 export default async function handler(request, context) {
+  const redirectUrl = await merchandiseSeoRedirect(request)
+  if (redirectUrl) {
+    return Response.redirect(redirectUrl.toString(), 301)
+  }
+
   const response = await context.next()
   const contentType = response.headers.get('content-type') || ''
 

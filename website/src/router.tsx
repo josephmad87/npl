@@ -34,6 +34,7 @@ import { LeagueDetailPage, SeasonDetailPage, TeamDetailPage } from './EntityDeta
 import NewsArticlePage from './NewsArticlePage'
 import { RootLayout } from './RootLayout'
 import MerchandisePage from './MerchandisePage'
+import { TeamMerchandisePage } from './MerchandisePage'
 import MerchandiseProductPage from './MerchandiseProductPage'
 import {
   AccountDeletionPage,
@@ -212,7 +213,7 @@ const merchandiseRoute = createRoute({
       return { team_id: Number(rawTeamId) }
     }
 
-    return { team_id: null }
+    return {}
   },
 })
 
@@ -220,6 +221,12 @@ const merchandiseProductRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/merchandise/$productId',
   component: MerchandiseProductPage,
+})
+
+const teamMerchandiseRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/merchandise/teams/$teamSlug',
+  component: TeamMerchandisePage,
 })
 
 const galleryVideoRoute = createRoute({
@@ -337,6 +344,7 @@ const routeTree = rootRoute.addChildren([
   galleryRoute,
   merchandiseRoute,
   merchandiseProductRoute,
+  teamMerchandiseRoute,
   galleryImagesRoute,
   galleryVideoRoute,
   aboutUsRoute,

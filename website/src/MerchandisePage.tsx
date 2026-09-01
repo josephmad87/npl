@@ -1,4 +1,4 @@
-import { Link, useSearch } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import nplLogoUrl from './assets/logo.png'
@@ -10,7 +10,13 @@ import {
   merchandiseProductSegment,
   type MerchandiseProduct,
 } from './lib/merchandise'
-import { fetchAllPaginatedList, resolveMediaUrl } from './lib/publicApi'
+import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+
+type MerchandiseTeam = {
+  id: number
+  name: string
+  slug: string
+}
 
 function MerchandiseCardImage({ product }: Readonly<{ product: MerchandiseProduct }>) {
   const mainImage = merchandiseImages(product)[0]
@@ -24,8 +30,13 @@ function MerchandiseCardImage({ product }: Readonly<{ product: MerchandiseProduc
   )
 }
 
-export default function MerchandisePage() {
-  const { team_id: teamId } = useSearch({ from: '/merchandise' })
+function MerchandiseCatalog({
+  teamId,
+  teamName,
+}: Readonly<{
+  teamId?: number
+  teamName?: string
+}>) {
   const { data: products = [], isLoading, isError } = useQuery({
     queryKey: ['public-merchandise', teamId ?? 'all'],
     queryFn: () =>
@@ -46,8 +57,8 @@ export default function MerchandisePage() {
   return (
     <>
       <PageHero
-        title={teamId ? 'Team Merchandise' : 'Official NPL Merchandise'}
-        subtitle={teamId ? 'Shop merchandise linked to this team.' : 'Shop official National Premier League supporter gear, jerseys, caps and fan merchandise.'}
+        title={teamName ? `${teamName} merchandise` : 'Official NPL Merchandise'}
+        subtitle={teamId ? 'Shop merchandise linked to this team.' : undefined}
         variant="siteLogo"
         fallbackMode="none"
       />
@@ -80,4 +91,27 @@ export default function MerchandisePage() {
       {orderProduct ? <MerchandiseQuickOrderModal product={orderProduct} onClose={() => setOrderProduct(null)} /> : null}
     </>
   )
+}
+
+export default function MerchandisePage() {
+  return <MerchandiseCatalog />
+}
+
+export function TeamMerchandisePage() {
+  const { teamSlug } = useParams({ from: '/merchandise/teams/$teamSlug' })
+  const teamQ = useQuery({
+    queryKey: ['team-merchandise-page', teamSlug],
+    queryFn: () => fetchJson<MerchandiseTeam>(`/public/teams/${teamSlug}`),
+    retry: 1,
+  })
+
+  if (teamQ.isLoading) {
+    return <main className="container"><p className="muted">Loading team merchandise…</p></main>
+  }
+
+  if (teamQ.isError || !teamQ.data) {
+    return <main className="container"><p className="form-error">Could not load merchandise for this team.</p></main>
+  }
+
+  return <MerchandiseCatalog teamId={teamQ.data.id} teamName={teamQ.data.name} />
 }

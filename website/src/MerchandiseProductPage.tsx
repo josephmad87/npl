@@ -65,13 +65,13 @@ export default function MerchandiseProductPage() {
   }, [product])
 
   if (productQ.isLoading) return <main className="container"><p className="muted">Loading product…</p></main>
-  if (productQ.isError || !product) return <main className="container"><p className="form-error">This product is no longer available.</p><Link to="/merchandise" search={{ team_id: null }}>Back to merchandise</Link></main>
+  if (productQ.isError || !product) return <main className="container"><p className="form-error">This product is no longer available.</p><Link to="/merchandise">Back to merchandise</Link></main>
 
   const activeImageUrl = images[activeImage] ?? images[0] ?? null
   return (
     <main className="container">
       <section className="merchandise-product-page">
-        <Link to="/merchandise" search={{ team_id: null }} className="merchandise-product-page__back">← Back to merchandise</Link>
+        <Link to="/merchandise" className="merchandise-product-page__back">← Back to merchandise</Link>
         <div className="merchandise-product-page__layout">
           <div className="merchandise-product-page__gallery">
             <div className="merchandise-product-page__main-image">

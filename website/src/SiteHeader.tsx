@@ -240,7 +240,6 @@ export function SiteHeader() {
               </Link>
               <Link
                 to="/merchandise"
-                search={{ team_id: null }}
                 className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top"
                 onClick={closeMobileNav}
               >
@@ -545,7 +544,7 @@ export function SiteHeader() {
               </div>
             </div>
 
-            <Link to="/merchandise" search={{ team_id: null }}>
+            <Link to="/merchandise">
               Merch
             </Link>
 

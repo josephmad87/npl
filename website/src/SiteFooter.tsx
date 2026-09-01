@@ -48,7 +48,7 @@ export function SiteFooter() {
               News
             </Link>
             <Link to="/gallery">Gallery</Link>
-            <Link to="/merchandise" search={{ team_id: null }}>
+            <Link to="/merchandise">
   Merchandise
 </Link>
           </nav>
