@@ -41,6 +41,7 @@ function MerchandisePage() {
         r.category,
         r.audience,
         String(r.team_id ?? ''),
+        r.team_ids.join(' '),
         r.status,
         String(r.sort_order),
       ]

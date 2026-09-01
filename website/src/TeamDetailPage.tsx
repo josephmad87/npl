@@ -78,6 +78,8 @@ type PublicSponsor = {
   id: number
   name: string
   image_url: string
+  image_url_2: string
+  image_url_3: string
   link_url: string | null
   team_id: number | null
   team_name: string | null
@@ -92,6 +94,7 @@ type PublicMerchandiseProduct = {
   category: string
   audience: string
   team_id: number | null
+  team_ids: number[]
   status: string
   sort_order: number
 }

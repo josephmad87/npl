@@ -394,10 +394,12 @@ export type MerchandiseProductDto = {
   price_text: string
   image_url: string
   image_url_2: string
+  image_url_3: string
   sizes_text: string | null
   category: string
   audience: string
   team_id: number | null
+  team_ids: number[]
   status: string
   sort_order: number
   created_at: string

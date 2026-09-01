@@ -9,11 +9,13 @@ class MerchandiseProductCreate(BaseModel):
     price_text: str = Field(default="", max_length=64)
     image_url: str = Field(default="", max_length=1024)
     image_url_2: str = ""
+    image_url_3: str = ""
     sizes_text: str | None = Field(default=None, max_length=255)
     status: str = Field(default="active", max_length=32)
     category: str = Field(default="Other", max_length=64)
     audience: str = Field(default="Unisex", max_length=64)
     team_id: int | None = None
+    team_ids: list[int] = Field(default_factory=list)
     sort_order: int = 0
 
 
@@ -23,11 +25,13 @@ class MerchandiseProductUpdate(BaseModel):
     price_text: str | None = Field(default=None, max_length=64)
     image_url: str | None = Field(default=None, max_length=1024)
     image_url_2: str | None = None
+    image_url_3: str | None = None
     sizes_text: str | None = Field(default=None, max_length=255)
     status: str | None = Field(default=None, max_length=32)
     category: str | None = Field(default=None, max_length=64)
     audience: str | None = Field(default=None, max_length=64)
     team_id: int | None = None
+    team_ids: list[int] | None = None
     sort_order: int | None = None
 
 
@@ -38,10 +42,12 @@ class MerchandiseProductOut(BaseModel):
     price_text: str
     image_url: str
     image_url_2: str
+    image_url_3: str
     sizes_text: str | None
     category: str
     audience: str
     team_id: int | None
+    team_ids: list[int] = Field(default_factory=list)
     status: str
     sort_order: int
     created_at: datetime
