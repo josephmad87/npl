@@ -20,9 +20,9 @@ def main() -> None:
         return
 
     email = os.environ.get("SEED_ADMIN_EMAIL", "admin@npl.local").strip()
-    password = os.environ.get("SEED_ADMIN_PASSWORD", "changeme")
-    if not email or not password:
-        print("SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD must be non-empty", file=sys.stderr)
+    password = os.environ.get("SEED_ADMIN_PASSWORD", "change-me-dev-only")
+    if not email or len(password) < 12:
+        print("SEED_ADMIN_EMAIL must be set and SEED_ADMIN_PASSWORD must contain at least 12 characters", file=sys.stderr)
         sys.exit(1)
 
     db: Session = SessionLocal()

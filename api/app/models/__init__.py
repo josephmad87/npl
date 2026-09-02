@@ -13,13 +13,31 @@ from app.models.match import (
     MatchResult,
     MatchScorecardEditRequest,
     MatchScorerAssignment,
+    MatchScoringSession,
+)
+from app.models.merchandise import (
+    MerchandiseOrder,
+    MerchandiseOrderStatusEvent,
+    MerchandiseProduct,
+    MerchandiseProductTeam,
+    MerchandiseProductVariant,
 )
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
 from app.models.site_page_content import SitePageContent
+from app.models.seo_redirect import SeoRedirect
 from app.models.sponsor import Sponsor
 from app.models.team import Team
 from app.models.user import User
+from app.models.supporter import (
+    FanEngagementEvent,
+    FanNotification,
+    FanPushDevice,
+    SupporterAccount,
+    SupporterConsentEvent,
+    SupporterPlayerFollow,
+    SupporterTeamFollow,
+)
 
 __all__ = [
     "AboutContent",
@@ -36,12 +54,26 @@ __all__ = [
     "MatchResult",
     "MatchScorecardEditRequest",
     "MatchScorerAssignment",
+    "MatchScoringSession",
+    "MerchandiseOrder",
+    "MerchandiseOrderStatusEvent",
+    "MerchandiseProduct",
+    "MerchandiseProductTeam",
+    "MerchandiseProductVariant",
     "PlatformSettings",
     "Player",
     "SitePageContent",
+    "SeoRedirect",
     "Season",
     "Sponsor",
     "SeasonTeam",
     "Team",
     "User",
+    "FanEngagementEvent",
+    "FanNotification",
+    "FanPushDevice",
+    "SupporterAccount",
+    "SupporterConsentEvent",
+    "SupporterPlayerFollow",
+    "SupporterTeamFollow",
 ]

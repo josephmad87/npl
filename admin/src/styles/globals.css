@@ -1,21 +1,23 @@
+@import '@npl/ui/tokens.css';
+
 :root {
   color-scheme: dark;
 
   /* Primary palette (NPL brand spec) */
-  --color-rust-orange: #bf4927;
-  --color-marigold: #e58b1b;
-  --color-deep-maroon: #200001;
-  --color-grey: #4b4c4c;
-  --color-white: #fcfcfc;
+  --color-rust-orange: var(--npl-brand-500);
+  --color-marigold: var(--npl-gold-500);
+  --color-deep-maroon: var(--npl-brand-950);
+  --color-grey: var(--npl-neutral-600);
+  --color-white: var(--npl-neutral-50);
 
   /* Semantic aliases (legacy names used in components) */
   --color-persian-indigo: var(--color-deep-maroon);
-  --color-pixie-powder: #3a0a0c;
+  --color-pixie-powder: var(--npl-brand-900);
   --color-majorelle-blue: var(--color-rust-orange);
   --color-orange-red: var(--color-rust-orange);
   --color-deep-saffron: var(--color-marigold);
   --color-maize: var(--color-marigold);
-  --color-upsdell-red: #8f3218;
+  --color-upsdell-red: var(--npl-error-700);
 
   /* Surfaces — deep maroon family */
   --bg-deep: var(--color-deep-maroon);
@@ -23,8 +25,8 @@
   --bg-elevated: #3d0a0c;
   --bg-muted: #4a1214;
   --border: rgba(252, 252, 252, 0.1);
-  --text: var(--color-white);
-  --text-muted: color-mix(in srgb, var(--color-grey) 55%, var(--color-white) 45%);
+  --text: var(--npl-text-inverse);
+  --text-muted: var(--npl-text-muted-inverse);
 
   --accent: var(--color-rust-orange);
   --accent-soft: rgba(191, 73, 39, 0.2);
@@ -32,16 +34,16 @@
   --brand-violet: var(--color-rust-orange);
   --brand-violet-soft: rgba(191, 73, 39, 0.35);
 
-  --danger: #d45a3a;
+  --danger: var(--npl-error-600);
   --danger-deep: var(--color-upsdell-red);
-  --success: #5cb88a;
+  --success: #73d3a0;
   --warning: var(--color-marigold);
 
-  --radius: 10px;
-  --font-sans: 'Google Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius: var(--npl-radius-md);
+  --font-sans: var(--npl-font-sans);
   --font-display: var(--font-sans);
   --font-body: var(--font-sans);
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  --shadow: var(--npl-shadow-3);
 }
 
 *,
@@ -155,6 +157,10 @@ button {
   transition:
     width 0.2s ease,
     transform 0.22s ease;
+}
+
+.app-shell__sidebar-close {
+  display: none;
 }
 
 .app-shell--sidebar-collapsed .app-shell__sidebar {
@@ -430,6 +436,10 @@ button {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.app-shell__content:focus {
+  outline: 0;
 }
 
 .app-shell__loading-overlay {
@@ -1075,7 +1085,6 @@ button {
   color: var(--accent-mid);
   border-color: rgba(191, 73, 39, 0.45);
   background: rgba(191, 73, 39, 0.08);
-  outline: none;
 }
 
 .section-hint-tip__icon {
@@ -1638,6 +1647,27 @@ button {
 }
 
 @media (max-width: 900px) {
+  .app-shell__sidebar-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: var(--npl-space-3);
+    right: var(--npl-space-3);
+    z-index: 1;
+    width: var(--npl-control-min);
+    min-height: var(--npl-control-min);
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--npl-radius-md);
+    background: var(--bg-muted);
+    color: var(--text);
+  }
+
+  .app-shell__brand {
+    padding-right: 3.25rem;
+  }
+
   .catalog-page-toolbar {
     justify-content: flex-start;
     flex-wrap: wrap;
@@ -2186,6 +2216,12 @@ button.entity-thumb-card {
   overflow-x: auto;
 }
 
+.table-wrap.npl-table-region,
+.table-scroll.npl-table-region {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 table.data-table {
   width: 100%;
   border-collapse: collapse;
@@ -2254,6 +2290,29 @@ table.data-table tbody tr.data-table__row--clickable {
 
 table.data-table tbody tr.data-table__row--clickable:hover {
   background: rgba(191, 73, 39, 0.08);
+}
+
+.data-table__open-col {
+  width: 1%;
+  white-space: nowrap !important;
+}
+
+.data-table__open-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  min-height: var(--npl-control-min);
+  border: 1px solid var(--border);
+  border-radius: var(--npl-radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text);
+  padding: 0.35rem 0.65rem;
+  font-weight: 700;
+}
+
+.data-table__open-button:hover {
+  border-color: var(--accent-mid);
 }
 
 .detail-panel {
@@ -2741,7 +2800,7 @@ table.data-table button.sort {
 .rich-text-editor__content .ProseMirror {
   min-height: 22rem;
   padding: 1rem 1.15rem 1.5rem;
-  outline: none;
+  outline: 3px solid transparent;
   color: var(--text);
   font-size: 0.98rem;
   line-height: 1.65;
@@ -2858,7 +2917,6 @@ table.data-table button.sort {
 .site-page-tabs button:focus-visible {
   color: var(--text);
   border-color: var(--border);
-  outline: none;
 }
 
 .site-page-tabs button.is-active {
@@ -3555,6 +3613,30 @@ video.article-view__hero-img {
   flex: 0 0 auto;
   accent-color: var(--accent);
 }
+
+.merchandise-variant-editor { display: grid; gap: 1rem; width: min(100%, 72rem); }
+.merchandise-variant-editor__row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; padding: 1rem; border: 1px solid var(--border, rgba(255,255,255,.18)); border-radius: .8rem; }
+.merchandise-variant-editor__row legend { padding: 0 .4rem; font-weight: 800; }
+.merchandise-variant-editor__row label { display: grid; gap: .35rem; }
+.merchandise-variant-editor__check { align-content: center; grid-template-columns: auto 1fr !important; }
+.fan-report { display: grid; gap: 1.5rem; }
+.fan-report__filters label { display: grid; gap: .35rem; }
+.fan-report__metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 1rem; }
+.fan-report__metric, .fan-report__ranking { padding: 1rem; border: 1px solid var(--border, rgba(255,255,255,.18)); border-radius: .8rem; background: rgba(255,255,255,.04); }
+.fan-report__metric { display: grid; gap: .35rem; }
+.fan-report__metric span { color: var(--muted, #b4adb0); }
+.fan-report__metric strong { font-size: 1.65rem; }
+.fan-report__rankings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.fan-report__ranking ol { display: grid; gap: .65rem; padding-left: 1.4rem; }
+.fan-report__ranking li { padding-left: .25rem; }
+.fan-report__ranking li span { display: inline-block; width: calc(100% - 3rem); }
+@media (max-width: 850px) { .merchandise-variant-editor__row, .fan-report__rankings { grid-template-columns: 1fr; } }
+.order-fulfilment { position: relative; }
+.order-fulfilment summary { cursor: pointer; font-weight: 800; }
+.order-fulfilment__panel { position: absolute; z-index: 20; right: 0; width: min(28rem, 80vw); display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; padding: 1rem; border: 1px solid var(--border, rgba(255,255,255,.2)); border-radius: .8rem; background: #260307; box-shadow: 0 1rem 3rem rgba(0,0,0,.35); }
+.order-fulfilment__panel label { display: grid; gap: .3rem; }
+.order-fulfilment__panel textarea, .order-fulfilment__panel .form-error, .order-fulfilment__panel button { grid-column: 1 / -1; }
+@media (max-width: 650px) { .order-fulfilment__panel { grid-template-columns: 1fr; } }
 
 @media (max-width: 620px) {
   .merchandise-team-selector {

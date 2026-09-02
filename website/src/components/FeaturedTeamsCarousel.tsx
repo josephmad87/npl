@@ -1,9 +1,11 @@
 import { useCallback, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
+import { preferredScrollBehavior } from '@npl/ui/accessibility'
 import { SectionHeader } from './SectionHeader'
 import { SiteLogoPlaceholder } from './SiteLogoPlaceholder'
 import type { TeamLite } from '../lib/hooks'
 import { resolveMediaUrl } from '../lib/publicApi'
+import { ResponsiveImage } from './ResponsiveImage'
 
 export function FeaturedTeamsCarousel({
   teams,
@@ -22,7 +24,7 @@ export function FeaturedTeamsCarousel({
     const card = el.querySelector<HTMLElement>('.featured-teams-carousel__card')
     const gap = 16
     const step = card ? card.offsetWidth + gap : Math.min(el.clientWidth * 0.5, 240)
-    el.scrollBy({ left: direction * step, behavior: 'smooth' })
+    el.scrollBy({ left: direction * step, behavior: preferredScrollBehavior() })
   }, [])
 
   if (teams.length === 0) return null
@@ -55,7 +57,13 @@ export function FeaturedTeamsCarousel({
               aria-label={team.name}
             >
               {image ? (
-                <img src={image} alt="" />
+                <ResponsiveImage
+                  src={image}
+                  alt=""
+                  widths={[240, 360, 480]}
+                  sizes="240px"
+                  fallbackWidth={360}
+                />
               ) : (
                 <SiteLogoPlaceholder className="featured-teams-carousel__placeholder" />
               )}

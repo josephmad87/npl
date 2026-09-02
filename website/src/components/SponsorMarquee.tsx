@@ -1,3 +1,5 @@
+import { ResponsiveImage } from './ResponsiveImage'
+
 type Sponsor = {
   id: number
   name: string
@@ -35,11 +37,13 @@ export function SponsorMarquee({
         <div className="sponsor-marquee__track">
           {marqueeSponsors.map((s, index) => {
             const logo = (
-              <img
+              <ResponsiveImage
                 src={s.image_url}
                 alt={s.name}
                 className="sponsor-marquee__logo"
-                loading="lazy"
+                widths={[160, 240, 320]}
+                sizes="160px"
+                fallbackWidth={240}
               />
             )
 

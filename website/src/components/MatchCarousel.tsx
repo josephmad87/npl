@@ -1,4 +1,5 @@
 import { useCallback, useRef, type ReactNode } from 'react'
+import { preferredScrollBehavior } from '@npl/ui/accessibility'
 import { SectionHeader } from './SectionHeader'
 import { MatchCard } from './MatchCard'
 import type { MatchLite, TeamLite } from '../lib/hooks'
@@ -30,7 +31,7 @@ export function MatchCarousel({
     const cell = el.querySelector<HTMLElement>('.match-carousel__cell')
     const gap = 16
     const step = cell ? cell.offsetWidth + gap : Math.min(el.clientWidth * 0.88, 320)
-    el.scrollBy({ left: direction * step, behavior: 'smooth' })
+    el.scrollBy({ left: direction * step, behavior: preferredScrollBehavior() })
   }, [])
 
   if (matches.length === 0) return null

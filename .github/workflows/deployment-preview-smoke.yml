@@ -1,0 +1,27 @@
+name: Deployment preview smoke
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: Netlify deployment-preview URL
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+      startsWith(github.event.deployment_status.environment_url, 'https://'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deployment preview
+        env:
+          PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.preview_url || github.event.deployment_status.environment_url }}
+        run: python3 ops/smoke_check.py --site-url "$PREVIEW_URL" --attempts 5 --retry-delay 3

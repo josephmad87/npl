@@ -835,19 +835,23 @@ if (
         <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Innings">
           <button
             type="button"
+            id="result-scorecard-tab-1"
             className={`dashboard-match-panel__tab${inningsTab === 1 ? ' is-active' : ''}`}
             onClick={() => setInningsTab(1)}
             role="tab"
             aria-selected={inningsTab === 1}
+            aria-controls="result-scorecard-panel-1"
           >
             1st innings
           </button>
           <button
             type="button"
+            id="result-scorecard-tab-2"
             className={`dashboard-match-panel__tab${inningsTab === 2 ? ' is-active' : ''}`}
             onClick={() => setInningsTab(2)}
             role="tab"
             aria-selected={inningsTab === 2}
+            aria-controls="result-scorecard-panel-2"
           >
             2nd innings
           </button>
@@ -855,7 +859,13 @@ if (
         {!inningsSides ? (
           <p className="muted">Select which team batted first above.</p>
         ) : (
-          <div className="innings-scorecard-panels">
+          <div
+            className="innings-scorecard-panels"
+            id={`result-scorecard-panel-${inningsTab}`}
+            role="tabpanel"
+            aria-labelledby={`result-scorecard-tab-${inningsTab}`}
+            tabIndex={0}
+          >
             <section className="innings-scorecard-panels__section">
               <div className="match-result-editor__section-head">
                 <h3 className="innings-scorecard-panels__h">

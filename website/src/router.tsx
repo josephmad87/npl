@@ -1,50 +1,74 @@
-import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router'
-import App from './App'
 import {
-  AboutUsPage,
-  CompareTeamsPage,
-  ContactUsPage,
-  FixturesPage,
-  LiveScoresPage,
-  GalleryImagesPage,
-  GalleryPage,
-  GalleryVideoPage,
-  MensFixturesPage,
-  MensPage,
-  MensResultsPage,
-  MensSeasonsPage,
-  MensTeamsPage,
-  NewsPage,
-  SearchResultsPage,
-  ResultsPage,
-  WomenFixturesPage,
-  WomenPage,
-  WomenResultsPage,
-  WomenSeasonsPage,
-  WomenTeamsPage,
-  YouthFixturesPage,
-  YouthPage,
-  YouthResultsPage,
-  YouthSeasonsPage,
-  YouthTeamsPage,
-} from './MenuPages'
-import MatchDetailPage from './MatchDetailPage'
-import PlayerDetailPage from './PlayerDetailPage'
-import { LeagueDetailPage, SeasonDetailPage, TeamDetailPage } from './EntityDetailPages'
-import NewsArticlePage from './NewsArticlePage'
+  createRootRoute,
+  createRoute,
+  createRouter,
+  lazyRouteComponent,
+  redirect,
+} from '@tanstack/react-router'
 import { RootLayout } from './RootLayout'
-import MerchandisePage from './MerchandisePage'
-import { TeamMerchandisePage } from './MerchandisePage'
-import MerchandiseProductPage from './MerchandiseProductPage'
-import {
-  AccountDeletionPage,
-  PrivacyPage,
-  SupportPage,
-  TermsPage,
-} from './LegalSupportPages'
+import { NotFoundPage } from './NotFoundPage'
+
+const App = lazyRouteComponent(() => import('./App'))
+const MatchDetailPage = lazyRouteComponent(() => import('./MatchDetailPage'))
+const PlayerDetailPage = lazyRouteComponent(() => import('./PlayerDetailPage'))
+const NewsArticlePage = lazyRouteComponent(() => import('./NewsArticlePage'))
+const MerchandisePage = lazyRouteComponent(() => import('./MerchandisePage'))
+const TeamMerchandisePage = lazyRouteComponent(
+  () => import('./MerchandisePage'),
+  'TeamMerchandisePage',
+)
+const MerchandiseProductPage = lazyRouteComponent(() => import('./MerchandiseProductPage'))
+const MerchandiseOrderTrackingPage = lazyRouteComponent(() => import('./MerchandiseOrderTrackingPage'))
+const SupporterAccountPage = lazyRouteComponent(() => import('./SupporterAccountPage'))
+
+const menuPage = <TKey extends keyof typeof import('./MenuPages')>(exportName: TKey) =>
+  lazyRouteComponent(() => import('./MenuPages'), exportName)
+const entityPage = <TKey extends keyof typeof import('./EntityDetailPages')>(exportName: TKey) =>
+  lazyRouteComponent(() => import('./EntityDetailPages'), exportName)
+const legalPage = <TKey extends keyof typeof import('./LegalSupportPages')>(exportName: TKey) =>
+  lazyRouteComponent(() => import('./LegalSupportPages'), exportName)
+
+const AboutUsPage = menuPage('AboutUsPage')
+const CompareTeamsPage = menuPage('CompareTeamsPage')
+const ContactUsPage = menuPage('ContactUsPage')
+const FixturesPage = menuPage('FixturesPage')
+const LiveScoresPage = menuPage('LiveScoresPage')
+const GalleryImagesPage = menuPage('GalleryImagesPage')
+const GalleryPage = menuPage('GalleryPage')
+const GalleryVideoPage = menuPage('GalleryVideoPage')
+const MensFixturesPage = menuPage('MensFixturesPage')
+const MensPage = menuPage('MensPage')
+const MensResultsPage = menuPage('MensResultsPage')
+const MensSeasonsPage = menuPage('MensSeasonsPage')
+const MensTeamsPage = menuPage('MensTeamsPage')
+const NewsPage = menuPage('NewsPage')
+const SearchResultsPage = menuPage('SearchResultsPage')
+const ResultsPage = menuPage('ResultsPage')
+const WomenFixturesPage = menuPage('WomenFixturesPage')
+const WomenPage = menuPage('WomenPage')
+const WomenResultsPage = menuPage('WomenResultsPage')
+const WomenSeasonsPage = menuPage('WomenSeasonsPage')
+const WomenTeamsPage = menuPage('WomenTeamsPage')
+const YouthFixturesPage = menuPage('YouthFixturesPage')
+const YouthPage = menuPage('YouthPage')
+const YouthResultsPage = menuPage('YouthResultsPage')
+const YouthSeasonsPage = menuPage('YouthSeasonsPage')
+const YouthTeamsPage = menuPage('YouthTeamsPage')
+const LeagueDetailPage = entityPage('LeagueDetailPage')
+const SeasonDetailPage = entityPage('SeasonDetailPage')
+const TeamDetailPage = entityPage('TeamDetailPage')
+const AccountDeletionPage = legalPage('AccountDeletionPage')
+const PrivacyPage = legalPage('PrivacyPage')
+const SupportPage = legalPage('SupportPage')
+const TermsPage = legalPage('TermsPage')
+const CompetitionInformationPage = legalPage('CompetitionInformationPage')
+const SafeguardingPage = legalPage('SafeguardingPage')
+const ScorecardCorrectionsPage = legalPage('ScorecardCorrectionsPage')
+const SupporterInformationPage = legalPage('SupporterInformationPage')
 
 const rootRoute = createRootRoute({
   component: RootLayout,
+  notFoundComponent: NotFoundPage,
 })
 
 const indexRoute = createRoute({
@@ -223,6 +247,21 @@ const merchandiseProductRoute = createRoute({
   component: MerchandiseProductPage,
 })
 
+const merchandiseOrderTrackingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/merchandise/orders/$orderNumber',
+  component: MerchandiseOrderTrackingPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    token: typeof search.token === 'string' ? search.token : '',
+  }),
+})
+
+const supporterAccountRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/my-npl',
+  component: SupporterAccountPage,
+})
+
 const teamMerchandiseRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/merchandise/teams/$teamSlug',
@@ -263,6 +302,26 @@ const accountDeletionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/account-deletion',
   component: AccountDeletionPage,
+})
+const competitionInformationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/competition',
+  component: CompetitionInformationPage,
+})
+const safeguardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/safeguarding',
+  component: SafeguardingPage,
+})
+const scorecardCorrectionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/scorecard-corrections',
+  component: ScorecardCorrectionsPage,
+})
+const supporterInformationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/supporters',
+  component: SupporterInformationPage,
 })
 const teamDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -344,7 +403,9 @@ const routeTree = rootRoute.addChildren([
   galleryRoute,
   merchandiseRoute,
   merchandiseProductRoute,
+  merchandiseOrderTrackingRoute,
   teamMerchandiseRoute,
+  supporterAccountRoute,
   galleryImagesRoute,
   galleryVideoRoute,
   aboutUsRoute,
@@ -353,6 +414,10 @@ const routeTree = rootRoute.addChildren([
   termsRoute,
   supportRoute,
   accountDeletionRoute,
+  competitionInformationRoute,
+  safeguardingRoute,
+  scorecardCorrectionsRoute,
+  supporterInformationRoute,
   teamDetailRoute,
   leagueDetailRoute,
   seasonDetailRoute,

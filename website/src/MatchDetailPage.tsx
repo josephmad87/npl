@@ -1,13 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
-import nplLogoUrl from './assets/logo.png'
+import { preferredScrollBehavior } from '@npl/ui/accessibility'
+import nplLogoUrl from './assets/logo-optimized.png'
 import { ErrorNotice } from './components/ErrorNotice'
 import { publicDisplayMatchStatus } from './lib/matchStatus'
 import { InningsScorecardPanels } from './components/InningsScorecardPanels'
 import { SocialShareButtons } from './components/SocialShareButtons'
 import { LiveScorePanel } from './components/LiveScorePanel'
 import { Spinner } from './components/Spinner'
+import { Breadcrumbs } from './components/Breadcrumbs'
+import { SeoHead } from './components/SeoHead'
 import { getInningsSides, oversFieldToBalls, type InningsNumber } from './lib/cricket'
 import { formatCategoryLabel, formatMatchDate } from './lib/formatters'
 import { type MatchLite, useTeamsMap } from './lib/hooks'
@@ -16,7 +19,9 @@ import {
   matchWinnerSide,
 } from './lib/match-result'
 import { formatExtrasBreakdown } from './lib/match-extras'
-import { fetchAllPaginatedList, fetchJson, postJson, resolveMediaUrl } from './lib/publicApi'
+import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { matchSeoPath } from './lib/matchUrls'
+import { supporterFetch, useSupporterSession } from './lib/supporterApi'
 
 type MatchResultDetail = {
   winning_team_id: number | null
@@ -154,23 +159,6 @@ function formatMatchReportContent(report: string | null | undefined): {
     headline: 'Match Report',
     paragraphs: blocks,
   }
-}
-
-function getFanVoterKey(): string {
-  if (typeof window === 'undefined') return ''
-
-  const storageKey = 'npl_fan_player_vote_key'
-  const existing = window.localStorage.getItem(storageKey)
-
-  if (existing) return existing
-
-  const next =
-    globalThis.crypto?.randomUUID?.() ??
-    `${Date.now()}-${Math.random().toString(36).slice(2)}`
-
-  window.localStorage.setItem(storageKey, next)
-
-  return next
 }
 
 function formatTopPerformerStrikeRate(runs: number, balls: number): string {
@@ -577,11 +565,11 @@ export default function MatchDetailPage() {
   const { map: teamsMap } = useTeamsMap()
   const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<number | null>(null)
-  const [matchupHomePlayerId, setMatchupHomePlayerId] = useState('')
-  const [matchupAwayPlayerId, setMatchupAwayPlayerId] = useState('')
+  const [requestedMatchupHomePlayerId, setMatchupHomePlayerId] = useState('')
+  const [requestedMatchupAwayPlayerId, setMatchupAwayPlayerId] = useState('')
 
-  const [fanVoterKey] = useState(getFanVoterKey)
-  const [selectedFanPlayerId, setSelectedFanPlayerId] = useState('')
+  const supporterSession = useSupporterSession()
+  const [selectedFanPlayerIdOverride, setSelectedFanPlayerId] = useState('')
   const [fanVoteSubmitting, setFanVoteSubmitting] = useState(false)
   const [fanVoteError, setFanVoteError] = useState<string | null>(null)
 
@@ -706,29 +694,17 @@ export default function MatchDetailPage() {
     }
   }, [awayName, data, homeName, playerById, playerStats])
 
-  useEffect(() => {
-    if (!matchupHomePlayerId) return
+  const matchupHomePlayerId = playerMatchupOptions.home.some(
+    (option) => String(option.stat.player_id) === requestedMatchupHomePlayerId,
+  )
+    ? requestedMatchupHomePlayerId
+    : ''
 
-    const currentExists = playerMatchupOptions.home.some(
-      (option) => String(option.stat.player_id) === matchupHomePlayerId,
-    )
-
-    if (!currentExists) {
-      setMatchupHomePlayerId('')
-    }
-  }, [matchupHomePlayerId, playerMatchupOptions.home])
-
-  useEffect(() => {
-    if (!matchupAwayPlayerId) return
-
-    const currentExists = playerMatchupOptions.away.some(
-      (option) => String(option.stat.player_id) === matchupAwayPlayerId,
-    )
-
-    if (!currentExists) {
-      setMatchupAwayPlayerId('')
-    }
-  }, [matchupAwayPlayerId, playerMatchupOptions.away])
+  const matchupAwayPlayerId = playerMatchupOptions.away.some(
+    (option) => String(option.stat.player_id) === requestedMatchupAwayPlayerId,
+  )
+    ? requestedMatchupAwayPlayerId
+    : ''
 
   const selectedHomeMatchup = useMemo(
     () =>
@@ -816,35 +792,29 @@ export default function MatchDetailPage() {
     data?.status === 'completed' && data.result != null && playerStats.length > 0
 
   const fanVoteQ = useQuery({
-    queryKey: ['fan-player-vote', matchId, fanVoterKey],
+    queryKey: ['fan-player-vote', matchId, Boolean(supporterSession)],
     queryFn: () =>
-      fetchJson<FanPlayerVoteSummary>(
-        `/public/matches/${matchId}/fan-player-vote?voter_key=${encodeURIComponent(
-          fanVoterKey,
-        )}`,
-      ),
-    enabled: Boolean(matchId && fanVoterKey && canShowFanPlayerVote),
+      supporterFetch<FanPlayerVoteSummary>(`/public/matches/${matchId}/fan-player-vote`),
+    enabled: Boolean(matchId && canShowFanPlayerVote),
     retry: 1,
   })
 
-  useEffect(() => {
-    const picked = fanVoteQ.data?.voter_player_id
-
-    if (picked != null) {
-      setSelectedFanPlayerId(String(picked))
-    }
-  }, [fanVoteQ.data?.voter_player_id])
+  const selectedFanPlayerId =
+    selectedFanPlayerIdOverride ||
+    (fanVoteQ.data?.voter_player_id != null
+      ? String(fanVoteQ.data.voter_player_id)
+      : '')
 
   const submitFanVote = async () => {
-    if (!matchId || !selectedFanPlayerId || !fanVoterKey) return
+    if (!matchId || !selectedFanPlayerId || !supporterSession) return
 
     setFanVoteSubmitting(true)
     setFanVoteError(null)
 
     try {
-      await postJson(`/public/matches/${matchId}/fan-player-vote`, {
-        player_id: Number(selectedFanPlayerId),
-        voter_key: fanVoterKey,
+      await supporterFetch(`/public/matches/${matchId}/fan-player-vote`, {
+        method: 'POST',
+        body: JSON.stringify({ player_id: Number(selectedFanPlayerId) }),
       })
 
       await fanVoteQ.refetch()
@@ -889,7 +859,7 @@ export default function MatchDetailPage() {
     window.setTimeout(() => {
       document
         .getElementById('match-scorecard-title')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        ?.scrollIntoView({ behavior: preferredScrollBehavior(), block: 'start' })
     }, 50)
   }
 
@@ -904,7 +874,7 @@ export default function MatchDetailPage() {
     window.setTimeout(() => {
       document
         .getElementById('match-scorecard-title')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        ?.scrollIntoView({ behavior: preferredScrollBehavior(), block: 'start' })
     }, 50)
   }
 
@@ -933,6 +903,34 @@ export default function MatchDetailPage() {
 
   return (
     <>
+      <SeoHead
+        title={title}
+        description={descriptionLine || `${title} match centre and scorecard.`}
+        canonicalPath={matchSeoPath({
+          ...data,
+          home_name: homeName,
+          away_name: awayName,
+        })}
+        image={resolveMediaUrl(home?.logo_url || away?.logo_url)}
+        breadcrumbs={[
+          { name: 'Home', path: '/' },
+          { name: data.status === 'completed' ? 'Results' : 'Fixtures', path: data.status === 'completed' ? '/results' : '/fixtures' },
+          { name: title, path: matchSeoPath({ ...data, home_name: homeName, away_name: awayName }) },
+        ]}
+        structuredData={{
+          '@context': 'https://schema.org',
+          '@type': 'SportsEvent',
+          name: title,
+          sport: 'Cricket',
+          startDate: data.start_time || data.match_date || undefined,
+          location: data.venue ? { '@type': 'Place', name: data.venue } : undefined,
+          competitor: [
+            { '@type': 'SportsTeam', name: homeName },
+            { '@type': 'SportsTeam', name: awayName },
+          ],
+          description: descriptionLine || undefined,
+        }}
+      />
       <header className="match-centre-hero" aria-label="Match summary">
         <div className="match-centre-hero__badges">
           <MatchCentreHeroLogo
@@ -951,6 +949,13 @@ export default function MatchDetailPage() {
       </header>
 
       <main className="container">
+        <Breadcrumbs
+          items={[
+            { name: 'Home', path: '/' },
+            { name: data.status === 'completed' ? 'Results' : 'Fixtures', path: data.status === 'completed' ? '/results' : '/fixtures' },
+            { name: title, path: matchSeoPath({ ...data, home_name: homeName, away_name: awayName }) },
+          ]}
+        />
         <section className="menu-page match-centre">
           <div className="match-centre-share-row match-centre-share-row--top">
             <SocialShareButtons title={title} text={shareText} />
@@ -1353,6 +1358,7 @@ export default function MatchDetailPage() {
                             value={choice.player_id}
                             checked={selectedFanPlayerId === String(choice.player_id)}
                             onChange={(event) => setSelectedFanPlayerId(event.target.value)}
+                            disabled={!supporterSession}
                           />
 
                           <span className="match-centre-fan-pom__choice-body">
@@ -1376,17 +1382,19 @@ export default function MatchDetailPage() {
                   </div>
 
                   <div className="match-centre-fan-pom__actions">
-                    <button
-                      type="button"
-                      disabled={!selectedFanPlayerId || fanVoteSubmitting}
-                      onClick={() => void submitFanVote()}
-                    >
-                      {fanVoteSubmitting
-                        ? 'Saving…'
-                        : fanVoteQ.data.voter_player_id
-                          ? 'Update vote'
-                          : 'Submit vote'}
-                    </button>
+                    {supporterSession ? (
+                      <button
+                        type="button"
+                        disabled={!selectedFanPlayerId || fanVoteSubmitting}
+                        onClick={() => void submitFanVote()}
+                      >
+                        {fanVoteSubmitting
+                          ? 'Saving…'
+                          : fanVoteQ.data.voter_player_id
+                            ? 'Update vote'
+                            : 'Submit vote'}
+                      </button>
+                    ) : <Link to="/my-npl" className="match-centre-fan-pom__signin">Sign in to vote</Link>}
 
                     {fanVoteQ.data.voter_player_id ? (
                       <p>Thanks — your fan vote has been counted.</p>
@@ -1417,20 +1425,24 @@ export default function MatchDetailPage() {
               >
                 <button
                   type="button"
+                  id="scorecard-tab-1"
                   className={scorecardInnings === 1 ? 'is-active' : ''}
                   onClick={() => setScorecardInnings(1)}
                   role="tab"
                   aria-selected={scorecardInnings === 1}
+                  aria-controls="scorecard-panel-1"
                 >
                   1st innings
                 </button>
 
                 <button
                   type="button"
+                  id="scorecard-tab-2"
                   className={scorecardInnings === 2 ? 'is-active' : ''}
                   onClick={() => setScorecardInnings(2)}
                   role="tab"
                   aria-selected={scorecardInnings === 2}
+                  aria-controls="scorecard-panel-2"
                 >
                   2nd innings
                 </button>
@@ -1441,23 +1453,30 @@ export default function MatchDetailPage() {
               <p className="match-centre-muted">Loading player names…</p>
             ) : null}
 
-            {playerStats.length > 0 ? (
-              <InningsScorecardPanels
-                innings={scorecardInnings}
-                battingFirstTeamId={battingFirstTeamId}
-                homeTeamId={data.home_team_id}
-                awayTeamId={data.away_team_id}
-                homeLabel={homeName}
-                awayLabel={awayName}
-                stats={playerStats}
-                playerName={(id) => playerById.get(id) ?? `#${id}`}
-                playerHref={(id) => playerHrefById.get(id) ?? null}
-                extrasLine={inningsExtrasLine}
-                highlightedPlayerId={highlightedPlayerId}
-              />
-            ) : (
-              <p className="match-centre-muted">No per-player rows yet.</p>
-            )}
+            <div
+              id={`scorecard-panel-${scorecardInnings}`}
+              role="tabpanel"
+              aria-labelledby={`scorecard-tab-${scorecardInnings}`}
+              tabIndex={0}
+            >
+              {playerStats.length > 0 ? (
+                <InningsScorecardPanels
+                  innings={scorecardInnings}
+                  battingFirstTeamId={battingFirstTeamId}
+                  homeTeamId={data.home_team_id}
+                  awayTeamId={data.away_team_id}
+                  homeLabel={homeName}
+                  awayLabel={awayName}
+                  stats={playerStats}
+                  playerName={(id) => playerById.get(id) ?? `#${id}`}
+                  playerHref={(id) => playerHrefById.get(id) ?? null}
+                  extrasLine={inningsExtrasLine}
+                  highlightedPlayerId={highlightedPlayerId}
+                />
+              ) : (
+                <p className="match-centre-muted">No per-player rows yet.</p>
+              )}
+            </div>
           </section>
 
           {matchReportContent ? (

@@ -4,6 +4,10 @@ type MatchUrlInput = {
   away_name?: string | null
   home_team_name?: string | null
   away_team_name?: string | null
+  home_team_id?: number | null
+  away_team_id?: number | null
+  home_team?: { name?: string | null } | null
+  away_team?: { name?: string | null } | null
   season?: {
     slug?: string | null
     name?: string | null
@@ -48,12 +52,14 @@ export function matchSeoPath(match: MatchUrlInput): string {
   const homeName =
     match.home_name ??
     match.home_team_name ??
-    'home'
+    match.home_team?.name ??
+    `team-${match.home_team_id ?? 'home'}`
 
   const awayName =
     match.away_name ??
     match.away_team_name ??
-    'away'
+    match.away_team?.name ??
+    `team-${match.away_team_id ?? 'away'}`
 
   const teamsSlug = `${slugify(homeName)}-vs-${slugify(awayName)}`
 

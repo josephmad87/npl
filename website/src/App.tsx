@@ -7,21 +7,12 @@ import { MatchCarousel } from './components/MatchCarousel'
 import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
 import { NplTvSection } from './components/NplTvSection'
+import { ResponsiveImage } from './components/ResponsiveImage'
 import { SponsorMarquee } from './components/SponsorMarquee'
-import {
-  useLatestResults,
-  useRecentNews,
-  useTeamsMap,
-  useUpcomingFixtures,
-} from './lib/hooks'
+import type { ArticleLite, MatchLite, TeamLite } from './lib/hooks'
 import { formatCategoryLabel } from './lib/formatters'
 import { matchSeoPath } from './lib/matchUrls'
-import {
-  extractList,
-  fetchAllPaginatedList,
-  fetchJson,
-  resolveMediaUrl,
-} from './lib/publicApi'
+import { fetchJson, resolveMediaUrl } from './lib/publicApi'
 
 type GalleryItem = GalleryLightboxItem
 
@@ -32,6 +23,19 @@ type PublicSponsor = {
   link_url: string | null
   team_id: number | null
   team_name: string | null
+}
+
+type HomepagePayload = {
+  generated_at: string
+  news: ArticleLite[]
+  fixtures: MatchLite[]
+  results: MatchLite[]
+  teams: TeamLite[]
+  spotlight_teams: HomeSpotlightTeam[]
+  spotlight_players: HomeSpotlightPlayer[]
+  spotlight_player_appearances: HomePlayerAppearance[]
+  gallery: GalleryItem[]
+  sponsors: PublicSponsor[]
 }
 
 type HomeFixtureTab = 'matchday' | 'upcoming' | 'results'
@@ -141,6 +145,12 @@ type HomeLiveCardText = {
 }
 
 const SPOTLIGHT_ROTATION_MS = 15 * 60 * 1000
+const EMPTY_NEWS: ArticleLite[] = []
+const EMPTY_MATCHES: MatchLite[] = []
+const EMPTY_SPOTLIGHT_TEAMS: HomeSpotlightTeam[] = []
+const EMPTY_SPOTLIGHT_PLAYERS: HomeSpotlightPlayer[] = []
+const EMPTY_GALLERY: GalleryItem[] = []
+const EMPTY_SPONSORS: PublicSponsor[] = []
 
 function localTodayKey(): string {
   const today = new Date()
@@ -570,13 +580,30 @@ function bowlingAppearanceLine(
 
 function App() {
   const {
-    data: newsArticles = [],
+    data: homepage,
     isLoading: isNewsLoading,
     isError: isNewsError,
-  } = useRecentNews(8)
-  const { data: upcomingFixtures = [] } = useUpcomingFixtures(undefined, 80)
-  const { data: latestResults = [] } = useLatestResults(undefined, 80)
-  const { map: teamsMap } = useTeamsMap()
+  } = useQuery({
+    queryKey: ['homepage'],
+    queryFn: () => fetchJson<HomepagePayload>('/public/homepage'),
+    staleTime: 60_000,
+    retry: 1,
+  })
+  const newsArticles = homepage?.news ?? EMPTY_NEWS
+  const upcomingFixtures = homepage?.fixtures ?? EMPTY_MATCHES
+  const latestResults = homepage?.results ?? EMPTY_MATCHES
+  const spotlightTeams = homepage?.spotlight_teams ?? EMPTY_SPOTLIGHT_TEAMS
+  const spotlightPlayers = homepage?.spotlight_players ?? EMPTY_SPOTLIGHT_PLAYERS
+  const gallery = homepage?.gallery ?? EMPTY_GALLERY
+  const sponsors = homepage?.sponsors ?? EMPTY_SPONSORS
+  const teamsMap = useMemo(
+    () =>
+      Object.fromEntries((homepage?.teams ?? []).map((team) => [team.id, team])) as Record<
+        number,
+        TeamLite
+      >,
+    [homepage?.teams],
+  )
 
   const liveFixtureIds = useMemo(
     () =>
@@ -611,51 +638,12 @@ function App() {
     retry: 1,
   })
 
-  const { data: spotlightTeams = [] } = useQuery({
-    queryKey: ['home-team-spotlight-teams'],
-    queryFn: async () =>
-      fetchAllPaginatedList<HomeSpotlightTeam>(
-        (page) => `/public/teams?page=${page}&page_size=100`,
-      ),
-    retry: 1,
-  })
-
-  const { data: spotlightPlayers = [] } = useQuery({
-    queryKey: ['home-player-spotlight-players'],
-    queryFn: async () =>
-      fetchAllPaginatedList<HomeSpotlightPlayer>(
-        (page) => `/public/players?page=${page}&page_size=100`,
-      ),
-    retry: 1,
-  })
-
-  const { data: gallery = [] } = useQuery({
-    queryKey: ['home-gallery'],
-    queryFn: async () =>
-      extractList<GalleryItem>(
-        await fetchJson<unknown>('/public/gallery?page=1&page_size=6'),
-      ),
-    retry: 1,
-  })
-
-  const { data: sponsors = [] } = useQuery({
-    queryKey: ['home-sponsors'],
-    queryFn: async () =>
-      fetchAllPaginatedList<PublicSponsor>(
-        (page) => `/public/sponsors?page=${page}&page_size=24`,
-      ),
-    retry: 1,
-  })
-
   const homepageSponsors = sponsors.filter((sponsor) => sponsor.team_id == null)
 
   const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
   const [galleryWindowIndex, setGalleryWindowIndex] = useState(0)
   const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
-  const [skippedSpotlightPlayerIds, setSkippedSpotlightPlayerIds] = useState<
-  Set<number>
->(() => new Set())
   const [fixtureTab, setFixtureTab] = useState<HomeFixtureTab>('matchday')
   const [fixtureCategory, setFixtureCategory] =
     useState<HomeFixtureCategory>('all')
@@ -826,14 +814,10 @@ const selectedSpotlightTeam = useMemo(() => {
   const playerSpotlightSlot = spotlightSlot
 
   const selectedSpotlightPlayer = useMemo(() => {
-  const candidates = activeSpotlightPlayers.filter(
-    (player) => !skippedSpotlightPlayerIds.has(player.id),
-  )
+  if (activeSpotlightPlayers.length === 0) return null
 
-  if (candidates.length === 0) return null
-
-  return candidates[playerSpotlightSlot % candidates.length]
-}, [activeSpotlightPlayers, playerSpotlightSlot, skippedSpotlightPlayerIds])
+  return activeSpotlightPlayers[playerSpotlightSlot % activeSpotlightPlayers.length]
+}, [activeSpotlightPlayers, playerSpotlightSlot])
 
   const spotlightPlayerTeam = selectedSpotlightPlayer
     ? sortedSpotlightTeams.find((team) => team.id === selectedSpotlightPlayer.team_id) ??
@@ -851,25 +835,12 @@ const selectedSpotlightTeam = useMemo(() => {
     ? resolveMediaUrl(selectedSpotlightPlayer.profile_photo_url)
     : null
 
-  const spotlightPlayerAppearancesQ = useQuery({
-    queryKey: [
-      'home-player-spotlight-appearances',
-      selectedSpotlightPlayer?.slug ?? 'none',
-    ],
-    queryFn: () =>
-      fetchJson<HomePlayerAppearance[]>(
-        `/public/players/${selectedSpotlightPlayer?.slug}/match-appearances`,
-      ),
-    enabled: Boolean(selectedSpotlightPlayer?.slug),
-    retry: 1,
-  })
-
   const spotlightPlayerAppearances = useMemo(
     () =>
-      [...(spotlightPlayerAppearancesQ.data ?? [])].sort(
+      [...(homepage?.spotlight_player_appearances ?? [])].sort(
         (a, b) => appearanceDateValue(b) - appearanceDateValue(a),
       ),
-    [spotlightPlayerAppearancesQ.data],
+    [homepage?.spotlight_player_appearances],
   )
 
   const spotlightRecentAppearance = spotlightPlayerAppearances[0]
@@ -917,37 +888,6 @@ const selectedSpotlightTeam = useMemo(() => {
   }, [])
 
   useEffect(() => {
-  setSkippedSpotlightPlayerIds(new Set())
-}, [playerSpotlightSlot, activeSpotlightPlayers.length])
-
-useEffect(() => {
-  if (!selectedSpotlightPlayer) return
-  if (spotlightPlayerAppearancesQ.isLoading || spotlightPlayerAppearancesQ.isFetching) {
-    return
-  }
-
-  const appearances = spotlightPlayerAppearancesQ.data ?? []
-
-  if (appearances.length > 0) return
-  if (activeSpotlightPlayers.length <= skippedSpotlightPlayerIds.size + 1) return
-
-  setSkippedSpotlightPlayerIds((current) => {
-    if (current.has(selectedSpotlightPlayer.id)) return current
-
-    const next = new Set(current)
-    next.add(selectedSpotlightPlayer.id)
-    return next
-  })
-}, [
-  activeSpotlightPlayers.length,
-  selectedSpotlightPlayer,
-  skippedSpotlightPlayerIds.size,
-  spotlightPlayerAppearancesQ.data,
-  spotlightPlayerAppearancesQ.isFetching,
-  spotlightPlayerAppearancesQ.isLoading,
-])
-
-  useEffect(() => {
     if (heroSlides.length < 2) return
 
     const timer = globalThis.setInterval(() => {
@@ -977,6 +917,7 @@ useEffect(() => {
   
   const currentSlideIndex =
     heroSlides.length > 0 ? activeSlideIndex % heroSlides.length : 0
+  const activeHeroSlide = heroSlides[currentSlideIndex]
   
   return (
     <main className="container">
@@ -985,47 +926,42 @@ useEffect(() => {
           <article className="hero-slide hero-slide--loading is-active" aria-busy="true">
             <div className="hero-slide-overlay">
               <p className="hero-slide-eyebrow">Latest News</p>
-              <h2>Loading latest news…</h2>
+              <h1>Loading latest news…</h1>
             </div>
           </article>
-        ) : heroSlides.length > 0 ? (
+        ) : activeHeroSlide ? (
           <>
-            {heroSlides.map((slide, index) => {
-              const isActive = index === currentSlideIndex
+            <article key={activeHeroSlide.id} className="hero-slide is-active">
+              {activeHeroSlide.heroImage ? (
+                <ResponsiveImage
+                  src={activeHeroSlide.heroImage}
+                  alt={activeHeroSlide.title}
+                  widths={[480, 768, 1024, 1280, 1600, 1920]}
+                  sizes="100vw"
+                  fallbackWidth={1600}
+                  priority
+                />
+              ) : null}
 
-  
+              <div className="hero-slide-overlay">
+                <p className="hero-slide-eyebrow">Latest News</p>
+                <h1>{activeHeroSlide.title}</h1>
+                <p>
+                  {activeHeroSlide.excerpt ??
+                    'Catch up on the latest match analysis and updates.'}
+                </p>
 
-              return (
-                <article
-                  key={slide.id}
-                  className={`hero-slide${isActive ? ' is-active' : ''}`}
-                  aria-hidden={!isActive}
-                >
-                  {slide.heroImage ? (
-                    <img src={slide.heroImage} alt={slide.title} />
-                  ) : null}
-
-                  <div className="hero-slide-overlay">
-                    <p className="hero-slide-eyebrow">Latest News</p>
-                    <h2>{slide.title}</h2>
-                    <p>
-                      {slide.excerpt ??
-                        'Catch up on the latest match analysis and updates.'}
-                    </p>
-
-                    {slide.slug ? (
-                      <Link
-                        to="/news/$slug"
-                        params={{ slug: slide.slug }}
-                        className="hero-readmore-btn"
-                      >
-                        Read More
-                      </Link>
-                    ) : null}
-                  </div>
-                </article>
-              )
-            })}
+                {activeHeroSlide.slug ? (
+                  <Link
+                    to="/news/$slug"
+                    params={{ slug: activeHeroSlide.slug }}
+                    className="hero-readmore-btn"
+                  >
+                    Read More
+                  </Link>
+                ) : null}
+              </div>
+            </article>
 
             {heroSlides.length > 1 ? (
               <div className="hero-carousel-dots" aria-hidden="true">
@@ -1048,7 +984,7 @@ useEffect(() => {
           <article className="hero-slide is-active">
             <div className="hero-slide-overlay">
               <p className="hero-slide-eyebrow">Latest News</p>
-              <h2>{isNewsError ? 'Latest news is temporarily unavailable' : 'No published news yet'}</h2>
+              <h1>{isNewsError ? 'Latest news is temporarily unavailable' : 'No published news yet'}</h1>
               <p>
                 {isNewsError
                   ? 'Please refresh the page or try again shortly.'
@@ -1210,7 +1146,13 @@ useEffect(() => {
             <div className="home-team-spotlight__identity">
               <div className="home-team-spotlight__badge">
                 {spotlightLogo ? (
-                  <img src={spotlightLogo} alt="" loading="lazy" decoding="async" />
+                  <ResponsiveImage
+                    src={spotlightLogo}
+                    alt=""
+                    widths={[96, 160, 240]}
+                    sizes="96px"
+                    fallbackWidth={160}
+                  />
                 ) : (
                   <span>{teamInitials(selectedSpotlightTeam.name)}</span>
                 )}
@@ -1300,11 +1242,12 @@ useEffect(() => {
         <section className="home-section home-player-spotlight">
           <div className="home-player-spotlight__media">
             {spotlightPlayerPhoto ? (
-              <img
+              <ResponsiveImage
                 src={spotlightPlayerPhoto}
                 alt=""
-                loading="lazy"
-                decoding="async"
+                widths={[320, 480, 640, 800]}
+                sizes="(max-width: 760px) 100vw, 40vw"
+                fallbackWidth={640}
               />
             ) : (
               <span>{teamInitials(selectedSpotlightPlayer.full_name)}</span>
@@ -1386,7 +1329,13 @@ useEffect(() => {
           onClick={() => setGalleryActive(item)}
           aria-label={`Open gallery image: ${item.title}`}
         >
-          <img src={imageUrl} alt="" loading="lazy" decoding="async" />
+          <ResponsiveImage
+            src={imageUrl}
+            alt=""
+            widths={[320, 480, 640, 800]}
+            sizes="(max-width: 700px) 100vw, 50vw"
+            fallbackWidth={640}
+          />
         </button>
       )
     })}

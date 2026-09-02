@@ -5,7 +5,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { routeTree } from './routeTree.gen'
 import type { AppRouterContext } from './routes/__root'
+import { initErrorMonitoring } from './lib/observability'
+import { installAccessibilityRuntime } from '@npl/ui/accessibility'
 import './styles/globals.css'
+
+initErrorMonitoring()
+installAccessibilityRuntime()
 
 const queryClient = new QueryClient({
   defaultOptions: {

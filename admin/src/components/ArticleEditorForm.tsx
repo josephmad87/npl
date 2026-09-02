@@ -35,6 +35,16 @@ function tagsToInput(tags: string[] | null | undefined): string {
   return (tags ?? []).join(', ')
 }
 
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[’']/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 function emptyArticleValues(): ArticleEditorValues {
   return {
     title: '',
@@ -112,6 +122,13 @@ export function ArticleEditorForm({
   const [seoDescription, setSeoDescription] = useState(
     initial.seo_description ?? '',
   )
+  const editorialChecks = [
+    { label: 'A listing excerpt', ready: excerpt.trim().length > 0 },
+    { label: 'A featured image', ready: featuredImageUrl.trim().length > 0 },
+    { label: 'An SEO title', ready: seoTitle.trim().length > 0 },
+    { label: 'A meta description', ready: seoDescription.trim().length > 0 },
+    { label: 'At least one internal-search tag', ready: parseTagsInput(tagsInput) !== null },
+  ]
 
   const handleSubmit = () => {
     const t = title.trim()
@@ -231,6 +248,14 @@ export function ArticleEditorForm({
             onChange={(e) => setSlug(e.target.value)}
             autoComplete="off"
           />
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => setSlug(slugify(title))}
+            disabled={!title.trim() || isSubmitting}
+          >
+            Generate slug from title
+          </button>
           <label className="article-editor__label" htmlFor="article-author">
             Author name
           </label>
@@ -310,7 +335,11 @@ export function ArticleEditorForm({
             value={seoTitle}
             onChange={(e) => setSeoTitle(e.target.value)}
             autoComplete="off"
+            aria-describedby="article-seo-title-count"
           />
+          <p id="article-seo-title-count" className="muted article-editor__hint">
+            {seoTitle.length}/60 characters recommended
+          </p>
           <label
             className="article-editor__label"
             htmlFor="article-seo-description"
@@ -323,7 +352,20 @@ export function ArticleEditorForm({
             value={seoDescription}
             onChange={(e) => setSeoDescription(e.target.value)}
             rows={3}
+            aria-describedby="article-seo-description-count"
           />
+          <p id="article-seo-description-count" className="muted article-editor__hint">
+            {seoDescription.length}/160 characters recommended
+          </p>
+          <h3>Publication checklist</h3>
+          <ul className="article-editor__seo-checklist">
+            {editorialChecks.map((check) => (
+              <li key={check.label}>
+                <span aria-hidden>{check.ready ? '✓' : '○'}</span>{' '}
+                {check.label}
+              </li>
+            ))}
+          </ul>
         </div>
       </aside>
 

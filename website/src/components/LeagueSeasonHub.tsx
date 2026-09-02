@@ -8,6 +8,8 @@ import { MatchCard } from './MatchCard'
 import { PageHero } from './PageHero'
 import { SectionHeader } from './SectionHeader'
 import { Spinner } from './Spinner'
+import { Breadcrumbs } from './Breadcrumbs'
+import { SeoHead } from './SeoHead'
 import { formatCategoryLabel } from '../lib/formatters'
 import {
   computeSeasonStandings,
@@ -16,7 +18,7 @@ import {
   sortStandingsDesc,
 } from '../lib/leagueSeasonAggregates'
 import { type LeagueLite, type MatchLite, useTeamsMap } from '../lib/hooks'
-import { extractList, fetchAllPaginatedList, fetchJson } from '../lib/publicApi'
+import { extractList, fetchAllPaginatedList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
 
 type LeagueDetail = {
   id: number
@@ -201,6 +203,7 @@ export function LeagueSeasonHub({
     }
     return seasons[0]?.slug ?? ''
   }, [seasons, selectedSeasonSlug, seasonSlugFromRoute])
+  const activeSeason = seasons.find((season) => season.slug === activeSeasonSlug) ?? null
 
   const leaguesListQ = useQuery({
     queryKey: ['league-picker', data?.category ?? 'all'],
@@ -283,6 +286,39 @@ export function LeagueSeasonHub({
 
   return (
     <>
+      {data ? (
+        <SeoHead
+          title={activeSeason ? `${activeSeason.name} | ${data.name}` : data.name}
+          description={
+            data.description ||
+            `${activeSeason?.name || data.name} fixtures, results, standings and player statistics.`
+          }
+          canonicalPath={
+            activeSeason && seasonSlugFromRoute
+              ? `/leagues/${data.slug}/seasons/${activeSeason.slug}`
+              : `/leagues/${data.slug}`
+          }
+          image={resolveMediaUrl(data.banner_url || data.logo_url)}
+          breadcrumbs={[
+            { name: 'Home', path: '/' },
+            { name: 'Competition information', path: '/competition' },
+            { name: data.name, path: `/leagues/${data.slug}` },
+            ...(activeSeason && seasonSlugFromRoute
+              ? [{
+                  name: activeSeason.name,
+                  path: `/leagues/${data.slug}/seasons/${activeSeason.slug}`,
+                }]
+              : []),
+          ]}
+          structuredData={{
+            '@context': 'https://schema.org',
+            '@type': activeSeason ? 'CollectionPage' : 'SportsOrganization',
+            name: activeSeason?.name || data.name,
+            description: data.description || undefined,
+            sport: 'Cricket',
+          }}
+        />
+      ) : null}
       {data && seasons.length > 0 ? (
         <LeagueHeroBar
           seasons={seasons}
@@ -309,6 +345,21 @@ export function LeagueSeasonHub({
         />
       ) : null}
       <main className="container">
+        {data ? (
+          <Breadcrumbs
+            items={[
+              { name: 'Home', path: '/' },
+              { name: 'Competition information', path: '/competition' },
+              { name: data.name, path: `/leagues/${data.slug}` },
+              ...(activeSeason && seasonSlugFromRoute
+                ? [{
+                    name: activeSeason.name,
+                    path: `/leagues/${data.slug}/seasons/${activeSeason.slug}`,
+                  }]
+                : []),
+            ]}
+          />
+        ) : null}
         <section className="menu-page">
           {isLoading ? <Spinner label="Loading league..." /> : null}
           {isError ? <ErrorNotice message="Could not load league details." /> : null}
@@ -320,6 +371,12 @@ export function LeagueSeasonHub({
                 </p>
               ) : null}
 
+              <div
+                id={seasons.length > 0 ? `league-panel-${section}` : undefined}
+                role={seasons.length > 0 ? 'tabpanel' : undefined}
+                aria-labelledby={seasons.length > 0 ? `league-tab-${section}` : undefined}
+                tabIndex={seasons.length > 0 ? 0 : undefined}
+              >
               {seasons.length === 0 ? (
                 <EmptyState title="No seasons in this league yet" />
               ) : seasonDetailQ.isError ? (
@@ -461,6 +518,7 @@ export function LeagueSeasonHub({
                   />
                 </div>
               )}
+              </div>
             </>
           ) : null}
         </section>

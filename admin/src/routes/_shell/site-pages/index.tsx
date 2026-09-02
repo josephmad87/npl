@@ -49,6 +49,26 @@ const PAGE_OPTIONS: Array<{
     label: 'Account deletion',
     publicPath: '/account-deletion',
   },
+  {
+    slug: 'competition',
+    label: 'Competition',
+    publicPath: '/competition',
+  },
+  {
+    slug: 'safeguarding',
+    label: 'Safeguarding',
+    publicPath: '/safeguarding',
+  },
+  {
+    slug: 'scorecard-corrections',
+    label: 'Corrections',
+    publicPath: '/scorecard-corrections',
+  },
+  {
+    slug: 'supporters',
+    label: 'Supporters',
+    publicPath: '/supporters',
+  },
 ]
 
 function makeSectionId(heading: string, sections: SitePageSectionDto[]): string {
@@ -326,7 +346,7 @@ function SitePagesAdminPage() {
             maxLength={80}
           />
           <span className="settings-form__hint">
-            Leave blank on support or account-deletion pages if no date should appear.
+            Leave blank when the page does not need an effective date.
           </span>
         </label>
 
@@ -410,8 +430,8 @@ function SitePagesAdminPage() {
   return (
     <>
       <PageHeader
-        title="Policy & support pages"
-        description="Super-admin-only content management for the four public legal and support routes."
+        title="Policy, support & information pages"
+        description="Super-admin-only content management for the eight public policy, competition, safeguarding and supporter routes."
         actions={
           <a
             className="btn-ghost btn--with-icon"

@@ -7,6 +7,10 @@ import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
 import { PageHeader } from '@/components/PageHeader'
+import {
+  MerchandiseVariantEditor,
+  type MerchandiseVariantDraft,
+} from '@/components/MerchandiseVariantEditor'
 
 const MERCHANDISE_CATEGORIES = ['Shirts', 'Bottoms', 'Caps', 'Other']
 const MERCHANDISE_AUDIENCES = ['Kids', 'Adults', 'Ladies', 'Mens', 'Unisex']
@@ -40,6 +44,7 @@ function NewMerchandisePage() {
   const [sizesText, setSizesText] = useState('')
   const [status, setStatus] = useState('active')
   const [sortOrder, setSortOrder] = useState('0')
+  const [variants, setVariants] = useState<MerchandiseVariantDraft[]>([])
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -81,6 +86,7 @@ function NewMerchandisePage() {
       team_ids: teamIds,
       status,
       sort_order: Number(sortOrder) || 0,
+      variants,
   },
 )
 
@@ -163,7 +169,7 @@ void navigate({
       onChange={setImageUrl}
       disabled={isSaving}
       uploadKind="merchandise"
-      accept="image/*"
+      accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
     />
   ),
 },
@@ -177,7 +183,7 @@ void navigate({
       onChange={setImageUrl2}
       disabled={isSaving}
       uploadKind="merchandise"
-      accept="image/*"
+      accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
     />
   ),
 },
@@ -191,7 +197,7 @@ void navigate({
       onChange={setImageUrl3}
       disabled={isSaving}
       uploadKind="merchandise"
-      accept="image/*"
+      accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
     />
   ),
 },
@@ -210,6 +216,13 @@ void navigate({
                 maxLength={255}
                 placeholder="e.g. S, M, L, XL"
               />
+            ),
+          },
+          {
+            id: 'variants',
+            label: 'Product options and stock',
+            control: (
+              <MerchandiseVariantEditor value={variants} onChange={setVariants} disabled={isSaving} />
             ),
           },
           {

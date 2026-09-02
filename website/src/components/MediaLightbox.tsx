@@ -50,6 +50,7 @@ export function MediaLightbox({ open, onClose, title, ariaLabel, children }: Med
           <button
             type="button"
             className="media-lightbox__close"
+            data-dialog-close
             onClick={(e) => {
               e.stopPropagation()
               onClose()

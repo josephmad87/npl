@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from math import ceil
+from typing import Annotated
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from decimal import Decimal
@@ -17,6 +19,7 @@ from app.api.deps import (
     require_super_admin,
 )
 from app.api.pagination import PageParams, paginate_select, to_paginated
+from app.core.config import get_settings
 from app.core.security import hash_password
 from app.db.session import get_db
 from app.models.about_content import AboutContent
@@ -29,6 +32,7 @@ from app.models.league import League, Season, SeasonTeam
 from app.models.match import (
     DisciplineCase,
     DisciplineSanction,
+    FanPlayerMatchVote,
     Match,
     MatchBallEvent,
     MatchDaySquadPlayer,
@@ -36,13 +40,27 @@ from app.models.match import (
     MatchResult,
     MatchScorecardEditRequest,
     MatchScorerAssignment,
+    MatchScoringSession,
 )
-from app.models.merchandise import MerchandiseOrder, MerchandiseProduct, MerchandiseProductTeam
+from app.models.merchandise import (
+    MerchandiseOrder,
+    MerchandiseOrderStatusEvent,
+    MerchandiseProduct,
+    MerchandiseProductTeam,
+    MerchandiseProductVariant,
+)
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
 from app.models.site_page_content import SitePageContent
 from app.models.team import Team
 from app.models.user import User
+from app.models.supporter import (
+    FanEngagementEvent,
+    FanNotification,
+    SupporterAccount,
+    SupporterPlayerFollow,
+    SupporterTeamFollow,
+)
 from app.schemas.about_content import AboutContentBody, AboutContentOut
 from app.schemas.contact_message import ContactMessageOut, ContactMessageUpdate
 from app.schemas.articles import ArticleCreate, ArticleOut, ArticleUpdate
@@ -67,13 +85,14 @@ from app.schemas.matches import (
     DisciplineCaseCreateIn,
     DisciplineCaseOut,
     DisciplineIncidentIn,
-    DisciplineSanctionOut,
     MatchCreate,
     MatchDetailOut,
     MatchResultIn,
     ScorecardEditRequestDecisionIn,
     ScorecardEditRequestIn,
     ScorecardEditRequestOut,
+    ScoringSessionAcquireIn,
+    ScoringSessionOut,
     MatchScorerAssignmentIn,
     MatchScorerAssignmentOut,
     MatchSquadOut,
@@ -87,8 +106,10 @@ from app.schemas.merchandise import (
     MerchandiseOrderUpdate,
     MerchandiseProductCreate,
     MerchandiseProductOut,
+    MerchandiseProductVariantOut,
     MerchandiseProductUpdate,
 )
+from app.schemas.supporters import FanEngagementReportOut
 from app.schemas.media_upload import MediaUploadOut
 from app.schemas.platform_settings import PlatformSettingsOut, PlatformSettingsPatch
 from app.schemas.site_page_content import SitePageBody, SitePageOut, SitePageSlug
@@ -120,9 +141,127 @@ from app.services.player_stats import (
     recompute_player_career_stats,
 )
 from app.services.site_pages import default_site_page_body
+from app.services.seo_redirects import record_seo_redirect
 from app.services.uploads import build_media_public_url, save_upload_file
+from app.services.fan_notifications import dispatch_fan_notifications, queue_fan_match_notifications
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _bounded_report_dates(
+    from_date: datetime | None,
+    to_date: datetime | None,
+) -> tuple[datetime, datetime]:
+    end = to_date or datetime.now(timezone.utc)
+    start = from_date or end - timedelta(days=30)
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=timezone.utc)
+    if start >= end or end - start > timedelta(days=366):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "invalid_range", "message": "Choose a report range between one minute and 366 days."},
+        )
+    return start, end
+
+
+@router.get("/fan-engagement/report", response_model=FanEngagementReportOut)
+def admin_fan_engagement_report(
+    from_date: datetime | None = Query(default=None),
+    to_date: datetime | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> FanEngagementReportOut:
+    start, end = _bounded_report_dates(from_date, to_date)
+
+    def count(model, field, *conditions) -> int:
+        return int(
+            db.scalar(select(func.count()).select_from(model).where(field >= start, field < end, *conditions)) or 0
+        )
+
+    supporter_accounts = count(SupporterAccount, SupporterAccount.created_at)
+    marketing_opt_ins = count(
+        SupporterAccount, SupporterAccount.created_at, SupporterAccount.marketing_consent.is_(True)
+    )
+    push_opt_ins = count(SupporterAccount, SupporterAccount.created_at, SupporterAccount.push_consent.is_(True))
+    team_follows = count(SupporterTeamFollow, SupporterTeamFollow.created_at)
+    player_follows = count(SupporterPlayerFollow, SupporterPlayerFollow.created_at)
+    votes = count(FanPlayerMatchVote, FanPlayerMatchVote.created_at, FanPlayerMatchVote.supporter_id.is_not(None))
+    notifications_queued = count(FanNotification, FanNotification.created_at)
+    notifications_sent = count(FanNotification, FanNotification.created_at, FanNotification.sent_at.is_not(None))
+    notification_opens = count(
+        FanEngagementEvent,
+        FanEngagementEvent.occurred_at,
+        FanEngagementEvent.event_type == "notification_open",
+    )
+    product_views = count(
+        FanEngagementEvent,
+        FanEngagementEvent.occurred_at,
+        FanEngagementEvent.event_type == "product_view",
+    )
+    orders_submitted = count(MerchandiseOrder, MerchandiseOrder.created_at)
+    orders_fulfilled = count(
+        MerchandiseOrder,
+        MerchandiseOrder.created_at,
+        MerchandiseOrder.status == "fulfilled",
+    )
+
+    top_team_rows = db.execute(
+        select(Team.name, func.count(SupporterTeamFollow.id).label("follows"))
+        .join(SupporterTeamFollow, SupporterTeamFollow.team_id == Team.id)
+        .where(SupporterTeamFollow.created_at >= start, SupporterTeamFollow.created_at < end)
+        .group_by(Team.id, Team.name)
+        .order_by(func.count(SupporterTeamFollow.id).desc(), Team.name)
+        .limit(10)
+    ).all()
+    top_player_rows = db.execute(
+        select(Player.full_name, func.count(SupporterPlayerFollow.id).label("follows"))
+        .join(SupporterPlayerFollow, SupporterPlayerFollow.player_id == Player.id)
+        .where(SupporterPlayerFollow.created_at >= start, SupporterPlayerFollow.created_at < end)
+        .group_by(Player.id, Player.full_name)
+        .order_by(func.count(SupporterPlayerFollow.id).desc(), Player.full_name)
+        .limit(10)
+    ).all()
+    top_product_rows = db.execute(
+        select(MerchandiseProduct.name, func.count(MerchandiseOrder.id).label("orders"))
+        .join(MerchandiseOrder, MerchandiseOrder.product_id == MerchandiseProduct.id)
+        .where(MerchandiseOrder.created_at >= start, MerchandiseOrder.created_at < end)
+        .group_by(MerchandiseProduct.id, MerchandiseProduct.name)
+        .order_by(func.count(MerchandiseOrder.id).desc(), MerchandiseProduct.name)
+        .limit(10)
+    ).all()
+    conversion = round((orders_submitted / product_views) * 100, 2) if product_views else 0.0
+    return FanEngagementReportOut(
+        from_date=start,
+        to_date=end,
+        supporter_accounts=supporter_accounts,
+        marketing_opt_ins=marketing_opt_ins,
+        push_opt_ins=push_opt_ins,
+        team_follows=team_follows,
+        player_follows=player_follows,
+        votes=votes,
+        notifications_queued=notifications_queued,
+        notifications_sent=notifications_sent,
+        notification_opens=notification_opens,
+        product_views=product_views,
+        orders_submitted=orders_submitted,
+        orders_fulfilled=orders_fulfilled,
+        order_conversion_rate=conversion,
+        top_followed_teams=[{"name": name, "follows": follows} for name, follows in top_team_rows],
+        top_followed_players=[{"name": name, "follows": follows} for name, follows in top_player_rows],
+        top_products=[{"name": name, "orders": orders} for name, orders in top_product_rows],
+    )
+
+
+@router.post("/fan-engagement/notifications/process", response_model=dict)
+def admin_process_fan_notifications(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+) -> dict:
+    queued = queue_fan_match_notifications(db)
+    sent, failed = dispatch_fan_notifications(db, get_settings())
+    return {"queued": queued, "sent": sent, "failed": failed}
 
 
 def _normalize_sponsor_link_url(link_url: str | None) -> str | None:
@@ -192,14 +331,75 @@ def _merchandise_team_ids_by_product(
 def _merchandise_product_out(
     product: MerchandiseProduct,
     team_ids: list[int] | None = None,
+    variants: list[MerchandiseProductVariant] | None = None,
 ) -> MerchandiseProductOut:
     resolved_team_ids = team_ids if team_ids is not None else []
     if not resolved_team_ids and product.team_id is not None:
         # Allows older data to be returned correctly before its migration runs.
         resolved_team_ids = [product.team_id]
     return MerchandiseProductOut.model_validate(product).model_copy(
-        update={"team_ids": resolved_team_ids},
+        update={
+            "team_ids": resolved_team_ids,
+            "variants": [MerchandiseProductVariantOut.model_validate(row) for row in (variants or [])],
+        },
     )
+
+
+def _merchandise_variants_by_product(
+    db: Session,
+    product_ids: list[int],
+) -> dict[int, list[MerchandiseProductVariant]]:
+    grouped: dict[int, list[MerchandiseProductVariant]] = {product_id: [] for product_id in product_ids}
+    if not product_ids:
+        return grouped
+    rows = db.scalars(
+        select(MerchandiseProductVariant)
+        .where(MerchandiseProductVariant.product_id.in_(product_ids))
+        .order_by(MerchandiseProductVariant.product_id, MerchandiseProductVariant.sort_order, MerchandiseProductVariant.id)
+    ).all()
+    for row in rows:
+        grouped[row.product_id].append(row)
+    return grouped
+
+
+def _replace_merchandise_variants(
+    db: Session,
+    product_id: int,
+    variants: list,
+) -> list[MerchandiseProductVariant]:
+    skus = [variant.sku.strip().upper() for variant in variants]
+    if len(skus) != len(set(skus)):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "duplicate_sku", "message": "Each product option must have a unique SKU."},
+        )
+    existing_rows = list(
+        db.scalars(
+            select(MerchandiseProductVariant).where(MerchandiseProductVariant.product_id == product_id)
+        ).all()
+    )
+    existing_by_sku = {row.sku.upper(): row for row in existing_rows}
+    rows: list[MerchandiseProductVariant] = []
+    for variant in variants:
+        data = {
+            **variant.model_dump(),
+            "sku": variant.sku.strip().upper(),
+            "label": variant.label.strip(),
+            "currency": variant.currency.strip().upper(),
+        }
+        row = existing_by_sku.pop(data["sku"], None)
+        if row is None:
+            row = MerchandiseProductVariant(product_id=product_id, **data)
+            db.add(row)
+        else:
+            for field, value in data.items():
+                setattr(row, field, value)
+        rows.append(row)
+    # Preserve variants referenced by historical orders, but hide any removed option.
+    for removed in existing_by_sku.values():
+        removed.status = "inactive"
+    db.flush()
+    return rows
 
 @router.get("/merchandise", response_model=dict)
 def admin_list_merchandise(
@@ -225,9 +425,14 @@ def admin_list_merchandise(
         page_size=page_params.page_size,
     )
 
-    team_ids_by_product = _merchandise_team_ids_by_product(db, [row.id for row in rows])
+    product_ids = [row.id for row in rows]
+    team_ids_by_product = _merchandise_team_ids_by_product(db, product_ids)
+    variants_by_product = _merchandise_variants_by_product(db, product_ids)
     return to_paginated(
-        [_merchandise_product_out(row, team_ids_by_product.get(row.id)) for row in rows],
+        [
+            _merchandise_product_out(row, team_ids_by_product.get(row.id), variants_by_product.get(row.id))
+            for row in rows
+        ],
         total,
         page_params.page,
         page_params.page_size,
@@ -248,7 +453,7 @@ def admin_create_merchandise(
     if body.team_id is not None:
         requested_team_ids.append(body.team_id)
     team_ids = _validate_merchandise_team_ids(db, requested_team_ids)
-    product_data = body.model_dump(exclude={"team_ids"})
+    product_data = body.model_dump(exclude={"team_ids", "variants"})
     product_data["team_id"] = team_ids[0] if team_ids else None
     product = MerchandiseProduct(**product_data)
 
@@ -258,6 +463,7 @@ def admin_create_merchandise(
         MerchandiseProductTeam(product_id=product.id, team_id=team_id)
         for team_id in team_ids
     )
+    variants = _replace_merchandise_variants(db, product.id, body.variants)
     db.commit()
     db.refresh(product)
 
@@ -271,7 +477,7 @@ def admin_create_merchandise(
     )
     db.commit()
 
-    return _merchandise_product_out(product, team_ids)
+    return _merchandise_product_out(product, team_ids, variants)
 
 
 @router.get("/merchandise/orders", response_model=dict)
@@ -325,6 +531,25 @@ def admin_update_merchandise_order(
         )
 
     patch = body.model_dump(exclude_unset=True)
+    public_message = patch.pop("public_message", None)
+    previous_status = order.status
+
+    requested_status = patch.get("status")
+    if (
+        requested_status is not None
+        and previous_status in {"fulfilled", "cancelled"}
+        and requested_status != previous_status
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "terminal_order_status",
+                "message": (
+                    f"A {previous_status} order cannot be reopened. "
+                    "Create a replacement order if further fulfilment is required."
+                ),
+            },
+        )
 
     if "team_id" in patch and patch["team_id"] is not None:
         if db.get(Team, patch["team_id"]) is None:
@@ -335,10 +560,22 @@ def admin_update_merchandise_order(
                     "message": "Team not found for team_id.",
                 },
             )
-    
-
     for k, v in patch.items():
         setattr(order, k, v)
+
+    if "status" in patch or public_message:
+        db.add(
+            MerchandiseOrderStatusEvent(
+                order_id=order.id,
+                status=order.status,
+                public_message=public_message,
+                created_by_user_id=actor.id,
+            )
+        )
+    if previous_status != "cancelled" and order.status == "cancelled" and order.variant_id is not None:
+        variant = db.get(MerchandiseProductVariant, order.variant_id)
+        if variant is not None and variant.stock_quantity is not None:
+            variant.stock_quantity += order.quantity
 
     db.commit()
     db.refresh(order)
@@ -379,6 +616,7 @@ def admin_get_merchandise(
     return _merchandise_product_out(
         product,
         _merchandise_team_ids_by_product(db, [product.id]).get(product.id),
+        _merchandise_variants_by_product(db, [product.id]).get(product.id),
     )
 
 
@@ -404,6 +642,7 @@ def admin_update_merchandise(
         )
 
     patch = body.model_dump(exclude_unset=True)
+    variants_patch = patch.pop("variants", None)
     team_ids_provided = "team_ids" in patch
     team_id_provided = "team_id" in patch
     if team_ids_provided or team_id_provided:
@@ -428,6 +667,11 @@ def admin_update_merchandise(
     for k, v in patch.items():
         setattr(product, k, v)
 
+    if variants_patch is not None:
+        variants = _replace_merchandise_variants(db, product.id, variants_patch)
+    else:
+        variants = _merchandise_variants_by_product(db, [product.id]).get(product.id, [])
+
     db.commit()
     db.refresh(product)
 
@@ -441,7 +685,7 @@ def admin_update_merchandise(
     )
     db.commit()
 
-    return _merchandise_product_out(product, team_ids)
+    return _merchandise_product_out(product, team_ids, variants)
 
 
 @router.delete(
@@ -996,6 +1240,7 @@ def admin_update_team(
     team = db.get(Team, team_id)
     if team is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Team not found"})
+    previous_slug = team.slug
     data = body.model_dump(exclude_unset=True)
     if "captain_player_id" in data:
         pid = data.pop("captain_player_id")
@@ -1013,6 +1258,12 @@ def admin_update_team(
             team.captain = pl.full_name
     for k, v in data.items():
         setattr(team, k, v)
+    if team.slug != previous_slug:
+        record_seo_redirect(
+            db,
+            source_path=f"/teams/{previous_slug}",
+            target_path=f"/teams/{team.slug}",
+        )
     try:
         db.commit()
     except IntegrityError:
@@ -1183,6 +1434,7 @@ def admin_update_player(
     if player is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Player not found"})
     previous_team_id = player.team_id
+    previous_slug = player.slug
     payload = body.model_dump(exclude_unset=True)
     if "team_id" in payload and payload["team_id"] is not None and db.get(Team, payload["team_id"]) is None:
         raise HTTPException(status_code=400, detail={"code": "validation", "message": "Invalid team_id"})
@@ -1194,6 +1446,12 @@ def admin_update_player(
             old_team.captain = None
     for k, v in payload.items():
         setattr(player, k, v)
+    if player.slug != previous_slug:
+        record_seo_redirect(
+            db,
+            source_path=f"/players/{previous_slug}",
+            target_path=f"/players/{player.slug}",
+        )
     try:
         db.commit()
     except IntegrityError:
@@ -1310,9 +1568,22 @@ def admin_update_league(
     league = db.get(League, league_id)
     if league is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "League not found"})
+    previous_slug = league.slug
     payload = body.model_dump(exclude_unset=True)
     for k, v in payload.items():
         setattr(league, k, v)
+    if league.slug != previous_slug:
+        record_seo_redirect(
+            db,
+            source_path=f"/leagues/{previous_slug}",
+            target_path=f"/leagues/{league.slug}",
+        )
+        for season in db.scalars(select(Season).where(Season.league_id == league.id)).all():
+            record_seo_redirect(
+                db,
+                source_path=f"/leagues/{previous_slug}/seasons/{season.slug}",
+                target_path=f"/leagues/{league.slug}/seasons/{season.slug}",
+            )
     try:
         db.commit()
     except IntegrityError:
@@ -1394,12 +1665,20 @@ def admin_update_season(
     season = db.get(Season, season_id)
     if season is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Season not found"})
+    previous_slug = season.slug
+    league = db.get(League, season.league_id)
     payload = body.model_dump(exclude_unset=True)
     team_ids = payload.pop("team_ids", None)
     for k, v in payload.items():
         setattr(season, k, v)
     if team_ids is not None:
         _set_season_teams(db, season.id, team_ids)
+    if league is not None and season.slug != previous_slug:
+        record_seo_redirect(
+            db,
+            source_path=f"/leagues/{league.slug}/seasons/{previous_slug}",
+            target_path=f"/leagues/{league.slug}/seasons/{season.slug}",
+        )
     try:
         db.commit()
     except IntegrityError:
@@ -2050,9 +2329,16 @@ def admin_update_news(
     article = db.get(Article, article_id)
     if article is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Article not found"})
+    previous_slug = article.slug
     payload = body.model_dump(exclude_unset=True)
     for k, v in payload.items():
         setattr(article, k, v)
+    if article.slug != previous_slug:
+        record_seo_redirect(
+            db,
+            source_path=f"/news/{previous_slug}",
+            target_path=f"/news/{article.slug}",
+        )
     if payload.get("status") == "published" and article.published_at is None:
         article.published_at = datetime.now(timezone.utc)
     try:
@@ -2566,6 +2852,10 @@ def _assert_can_score_match(db: Session, match_id: int, actor: User) -> None:
 
 SCORECARD_LOCK_DELAY = timedelta(minutes=120)
 SCORECARD_EDIT_ACCESS_WINDOW = timedelta(minutes=120)
+SCORING_SESSION_LEASE = timedelta(seconds=90)
+
+ScoreVersionHeader = Annotated[int | None, Header(alias="X-Score-Version", ge=0)]
+ScoringSessionHeader = Annotated[str | None, Header(alias="X-Scoring-Session", min_length=16, max_length=64)]
 
 
 def _as_utc(value: datetime | None) -> datetime | None:
@@ -2655,6 +2945,165 @@ def _assert_can_edit_score_match(
                 "scorecard_locks_at": access["scorecard_locks_at"],
             },
         )
+
+
+def _lock_score_match(db: Session, match_id: int) -> Match:
+    """Serialize all score mutations on the match row for this transaction."""
+    match = db.scalar(
+        select(Match)
+        .where(Match.id == match_id)
+        .with_for_update(),
+    )
+    if match is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Match not found"},
+        )
+    return match
+
+
+def _score_version(match: Match) -> int:
+    # ``getattr`` keeps legacy/in-memory fixtures compatible while the schema
+    # migration supplies the column for real database rows.
+    return int(getattr(match, "scoring_version", 0) or 0)
+
+
+def _assert_score_version(match: Match, expected_version: int | None) -> None:
+    current_version = _score_version(match)
+    if expected_version is None:
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail={
+                "code": "score_version_required",
+                "message": "Refresh the scorecard before saving this change.",
+                "current_version": current_version,
+            },
+        )
+    if expected_version != current_version:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "score_version_conflict",
+                "message": "The scorecard changed on another device. Refresh before continuing.",
+                "expected_version": expected_version,
+                "current_version": current_version,
+            },
+        )
+
+
+def _active_scoring_session(
+    db: Session,
+    match_id: int,
+    *,
+    lock: bool = False,
+) -> MatchScoringSession | None:
+    statement = (
+        select(MatchScoringSession)
+        .where(
+            MatchScoringSession.match_id == match_id,
+            MatchScoringSession.status == "active",
+        )
+        .order_by(MatchScoringSession.id.desc())
+    )
+    if lock:
+        statement = statement.with_for_update()
+    return db.scalar(statement)
+
+
+def _session_out(
+    db: Session,
+    row: MatchScoringSession,
+    actor: User,
+    *,
+    include_token: bool = False,
+) -> ScoringSessionOut:
+    owner = db.get(User, row.owner_user_id)
+    owner_name = (
+        (owner.full_name or owner.email)
+        if owner is not None
+        else f"User {row.owner_user_id}"
+    )
+    is_owner = row.owner_user_id == actor.id
+    return ScoringSessionOut(
+        id=row.id,
+        match_id=row.match_id,
+        owner_user_id=row.owner_user_id,
+        owner_name=owner_name,
+        device_id=row.device_id,
+        device_label=row.device_label,
+        status=row.status,
+        acquired_at=row.acquired_at,
+        last_seen_at=row.last_seen_at,
+        expires_at=row.expires_at,
+        is_owner=is_owner,
+        session_token=row.session_token if include_token and is_owner else None,
+    )
+
+
+def _expire_session_if_needed(
+    row: MatchScoringSession | None,
+    now: datetime,
+) -> MatchScoringSession | None:
+    if row is None:
+        return None
+    expires_at = _as_utc(row.expires_at)
+    if expires_at is not None and expires_at <= now:
+        row.status = "expired"
+        row.ended_at = now
+        return None
+    return row
+
+
+def _assert_scoring_session(
+    db: Session,
+    match: Match,
+    actor: User,
+    session_token: str | None,
+) -> MatchScoringSession:
+    if not session_token:
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail={
+                "code": "scoring_session_required",
+                "message": "Acquire this match's scoring session before making changes.",
+            },
+        )
+
+    now = datetime.now(timezone.utc)
+    row = _expire_session_if_needed(
+        _active_scoring_session(db, match.id, lock=True),
+        now,
+    )
+    if row is None or row.session_token != session_token or row.owner_user_id != actor.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "scoring_session_conflict",
+                "message": "Another scorer session owns this match. Refresh or take over the session.",
+            },
+        )
+    row.last_seen_at = now
+    row.expires_at = now + SCORING_SESSION_LEASE
+    return row
+
+
+def _begin_scoring_write(
+    db: Session,
+    match_id: int,
+    actor: User,
+    session_token: str | None,
+    expected_version: int | None,
+) -> Match:
+    match = _lock_score_match(db, match_id)
+    _assert_can_edit_score_match(db, match, actor)
+    _assert_scoring_session(db, match, actor, session_token)
+    _assert_score_version(match, expected_version)
+    return match
+
+
+def _advance_score_version(match: Match) -> int:
+    match.scoring_version = _score_version(match) + 1
+    return match.scoring_version
 
 
 def _match_detail_for_actor(
@@ -2844,8 +3293,14 @@ def _live_overs_label_for_events(events: list[MatchBallEvent]) -> str:
     return f"{completed_overs}.{balls_in_current_over}"
 
 
-def _live_event_out(event: MatchBallEvent) -> LiveBallEventOut:
-    return LiveBallEventOut.model_validate(event)
+def _live_event_out(
+    event: MatchBallEvent,
+    *,
+    score_version: int | None = None,
+) -> LiveBallEventOut:
+    return LiveBallEventOut.model_validate(event).model_copy(
+        update={"score_version": score_version},
+    )
 
 
 def _validate_live_ball_event(body: LiveBallEventIn) -> None:
@@ -3312,10 +3767,35 @@ def _live_score_state(
         current_innings=current_innings,
         summaries=summaries,
         events=[_live_event_out(event) for event in events],
+        scoring_version=_score_version(match),
+        scorecard_reconciled_version=int(
+            getattr(match, "scorecard_reconciled_version", 0) or 0
+        ),
+        scorecard_reconciled_at=getattr(match, "scorecard_reconciled_at", None),
+        scorecard_reconciliation_status=(
+            getattr(match, "scorecard_reconciliation_status", "in_sync")
+            if int(getattr(match, "scorecard_reconciled_version", 0) or 0)
+            == _score_version(match)
+            else "out_of_sync"
+        ),
     )
     if actor is None:
         return state
-    return state.model_copy(update=_scorecard_access(db, match, actor))
+    active_session = _active_scoring_session(db, match.id)
+    if active_session is not None:
+        expires_at = _as_utc(active_session.expires_at)
+        if expires_at is None or expires_at <= datetime.now(timezone.utc):
+            active_session = None
+    return state.model_copy(
+        update={
+            **_scorecard_access(db, match, actor),
+            "scoring_session": (
+                _session_out(db, active_session, actor)
+                if active_session is not None
+                else None
+            ),
+        },
+    )
 
 
 def _assignment_out(row: MatchScorerAssignment) -> MatchScorerAssignmentOut:
@@ -3801,13 +4281,18 @@ def admin_match_day_squad(
 def admin_save_match_day_squad(
     match_id: int,
     body: MatchSquadSaveIn,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> MatchSquadOut:
-    match = db.get(Match, match_id)
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_edit_score_match(db, match, actor)
+    match = _begin_scoring_write(
+        db,
+        match_id,
+        actor,
+        scoring_session_token,
+        score_version,
+    )
 
     allowed_team_ids = {match.home_team_id, match.away_team_id}
     seen_players: set[int] = set()
@@ -3885,8 +4370,8 @@ def admin_save_match_day_squad(
                 created_by_user_id=actor.id,
             ),
         )
-    db.commit()
-
+    _advance_score_version(match)
+    _reconcile_live_scorecard(db, match)
     write_audit(
         db,
         actor_user_id=actor.id,
@@ -3898,6 +4383,160 @@ def admin_save_match_day_squad(
     db.commit()
 
     return _match_squad_out(db, match)
+
+
+@router.get(
+    "/matches/{match_id}/live/session",
+    response_model=ScoringSessionOut | None,
+)
+def admin_current_scoring_session(
+    match_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> ScoringSessionOut | None:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Match not found"},
+        )
+    _assert_can_score_match(db, match_id, actor)
+    row = _active_scoring_session(db, match_id)
+    if row is None:
+        return None
+    expires_at = _as_utc(row.expires_at)
+    if expires_at is not None and expires_at <= datetime.now(timezone.utc):
+        return None
+    return _session_out(db, row, actor)
+
+
+@router.post(
+    "/matches/{match_id}/live/session",
+    response_model=ScoringSessionOut,
+)
+def admin_acquire_scoring_session(
+    match_id: int,
+    body: ScoringSessionAcquireIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> ScoringSessionOut:
+    match = _lock_score_match(db, match_id)
+    _assert_can_edit_score_match(db, match, actor)
+    now = datetime.now(timezone.utc)
+    active = _expire_session_if_needed(
+        _active_scoring_session(db, match_id, lock=True),
+        now,
+    )
+
+    if active is not None:
+        same_device = (
+            active.owner_user_id == actor.id
+            and active.device_id == body.device_id
+        )
+        if same_device:
+            active.last_seen_at = now
+            active.expires_at = now + SCORING_SESSION_LEASE
+            db.commit()
+            db.refresh(active)
+            return _session_out(db, active, actor, include_token=True)
+
+        if not body.force_takeover:
+            current = _session_out(db, active, actor)
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "scoring_session_owned",
+                    "message": (
+                        f"{current.owner_name} is currently scoring this match "
+                        f"on {current.device_label or 'another device'}."
+                    ),
+                    "owner_name": current.owner_name,
+                    "device_label": current.device_label,
+                    "expires_at": current.expires_at,
+                },
+            )
+
+        active.status = "taken_over"
+        active.ended_at = now
+        active.ended_by_user_id = actor.id
+        active.takeover_reason = (body.takeover_reason or "").strip()
+
+    row = MatchScoringSession(
+        match_id=match_id,
+        owner_user_id=actor.id,
+        session_token=uuid4().hex,
+        device_id=body.device_id,
+        device_label=(body.device_label or "").strip() or None,
+        status="active",
+        acquired_at=now,
+        last_seen_at=now,
+        expires_at=now + SCORING_SESSION_LEASE,
+        takeover_reason=(body.takeover_reason or "").strip() or None,
+    )
+    db.add(row)
+    db.flush()
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="takeover_scoring_session" if active is not None else "acquire_scoring_session",
+        entity_type="match",
+        entity_id=match_id,
+        summary=(
+            f"Took over scoring session for match {match_id}: {body.takeover_reason}"
+            if active is not None
+            else f"Acquired scoring session for match {match_id}"
+        ),
+    )
+    db.commit()
+    db.refresh(row)
+    return _session_out(db, row, actor, include_token=True)
+
+
+@router.post(
+    "/matches/{match_id}/live/session/heartbeat",
+    response_model=ScoringSessionOut,
+)
+def admin_heartbeat_scoring_session(
+    match_id: int,
+    scoring_session_token: ScoringSessionHeader = None,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> ScoringSessionOut:
+    match = _lock_score_match(db, match_id)
+    _assert_can_edit_score_match(db, match, actor)
+    row = _assert_scoring_session(db, match, actor, scoring_session_token)
+    db.commit()
+    db.refresh(row)
+    return _session_out(db, row, actor, include_token=True)
+
+
+@router.delete(
+    "/matches/{match_id}/live/session",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def admin_release_scoring_session(
+    match_id: int,
+    scoring_session_token: ScoringSessionHeader = None,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> None:
+    match = _lock_score_match(db, match_id)
+    _assert_can_score_match(db, match_id, actor)
+    row = _assert_scoring_session(db, match, actor, scoring_session_token)
+    now = datetime.now(timezone.utc)
+    row.status = "released"
+    row.ended_at = now
+    row.ended_by_user_id = actor.id
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="release_scoring_session",
+        entity_type="match",
+        entity_id=match_id,
+        summary=f"Released scoring session for match {match_id}",
+    )
+    db.commit()
+    return None
 
 
 @router.get("/matches/{match_id}/live", response_model=LiveScoreStateOut)
@@ -3917,13 +4556,18 @@ def admin_live_score_state(
 def admin_save_live_match_setup(
     match_id: int,
     body: MatchLiveSetupIn,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> Match:
-    match = db.get(Match, match_id)
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_edit_score_match(db, match, actor)
+    match = _begin_scoring_write(
+        db,
+        match_id,
+        actor,
+        scoring_session_token,
+        score_version,
+    )
     _assert_live_team_ids(match, body.toss_winner_team_id, body.batting_first_team_id)
 
     bowling_first_team_id = match.away_team_id if body.batting_first_team_id == match.home_team_id else match.home_team_id
@@ -3955,9 +4599,8 @@ def admin_save_live_match_setup(
     ]
     match.umpires = ", ".join([name for name in umpire_names if name]) or None
 
-    db.commit()
-    db.refresh(match)
-
+    _advance_score_version(match)
+    _reconcile_live_scorecard(db, match)
     write_audit(
         db,
         actor_user_id=actor.id,
@@ -3967,6 +4610,7 @@ def admin_save_live_match_setup(
         summary=f"Saved live match setup for match {match_id}",
     )
     db.commit()
+    db.refresh(match)
     return match
 
 
@@ -3974,22 +4618,26 @@ def admin_save_live_match_setup(
 def admin_save_live_match_conditions(
     match_id: int,
     body: LiveMatchConditionsIn,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> LiveScoreStateOut:
-    match = db.get(Match, match_id)
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_edit_score_match(db, match, actor)
+    match = _begin_scoring_write(
+        db,
+        match_id,
+        actor,
+        scoring_session_token,
+        score_version,
+    )
 
     clear_dls = body.clear_dls or body.match_overs is None or body.match_overs == 0
     if clear_dls:
         match.dls_team1_resource_percentage = None
         match.dls_team2_resource_percentage = None
         match.revised_target_runs = None
-        db.commit()
-        db.refresh(match)
-
+        _advance_score_version(match)
+        _reconcile_live_scorecard(db, match)
         write_audit(
             db,
             actor_user_id=actor.id,
@@ -3999,6 +4647,7 @@ def admin_save_live_match_conditions(
             summary=f"Cleared ICC DLS Standard conditions for match {match_id}",
         )
         db.commit()
+        db.refresh(match)
         return _live_score_state(db, match, actor)
 
     assert body.match_overs is not None
@@ -4085,9 +4734,8 @@ def admin_save_live_match_conditions(
         )
 
     match.match_overs = body.match_overs
-    db.commit()
-    db.refresh(match)
-
+    _advance_score_version(match)
+    _reconcile_live_scorecard(db, match)
     write_audit(
         db,
         actor_user_id=actor.id,
@@ -4101,6 +4749,7 @@ def admin_save_live_match_conditions(
         ),
     )
     db.commit()
+    db.refresh(match)
     return _live_score_state(db, match, actor)
 
 
@@ -4108,17 +4757,24 @@ def admin_save_live_match_conditions(
 def admin_start_live_score(
     match_id: int,
     body: LiveScoreStartIn,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> LiveScoreStateOut:
-    match = db.get(Match, match_id)
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_edit_score_match(db, match, actor)
+    match = _begin_scoring_write(
+        db,
+        match_id,
+        actor,
+        scoring_session_token,
+        score_version,
+    )
     _assert_live_team_ids(match, body.batting_team_id, body.bowling_team_id)
 
     if match.status != "completed":
         match.status = "live"
+    _advance_score_version(match)
+    _reconcile_live_scorecard(db, match)
     db.commit()
     db.refresh(match)
     return _live_score_state(db, match, actor)
@@ -4128,13 +4784,14 @@ def admin_start_live_score(
 def admin_create_live_ball(
     match_id: int,
     body: LiveBallEventIn,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> LiveBallEventOut:
-    match = db.get(Match, match_id)
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    match = _lock_score_match(db, match_id)
     _assert_can_edit_score_match(db, match, actor)
+    _assert_scoring_session(db, match, actor, scoring_session_token)
 
     # A network timeout can occur after the server has committed the ball. A
     # scorer retry with the same token must return the existing delivery rather
@@ -4147,7 +4804,9 @@ def admin_create_live_ball(
             ),
         )
         if existing is not None:
-            return _live_event_out(existing)
+            return _live_event_out(existing, score_version=_score_version(match))
+
+    _assert_score_version(match, score_version)
 
     _assert_live_ball_payload(db, match, body)
 
@@ -4167,25 +4826,32 @@ def admin_create_live_ball(
     db.flush()
     _renumber_live_events(db, match_id)
     db.flush()
+    _advance_score_version(match)
     if was_completed:
         _finalize_live_match_result(db, match, actor, match.match_overs)
     else:
         match.status = "live"
+        _reconcile_live_scorecard(db, match)
     db.commit()
     db.refresh(event)
-    return _live_event_out(event)
+    return _live_event_out(event, score_version=_score_version(match))
 
 
 @router.delete("/matches/{match_id}/live/balls/last", response_model=LiveScoreStateOut)
 def admin_delete_last_live_ball(
     match_id: int,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> LiveScoreStateOut:
-    match = db.get(Match, match_id)
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_edit_score_match(db, match, actor)
+    match = _begin_scoring_write(
+        db,
+        match_id,
+        actor,
+        scoring_session_token,
+        score_version,
+    )
 
     was_completed = match.status == "completed" and match.result is not None
     event = db.scalar(
@@ -4199,8 +4865,11 @@ def admin_delete_last_live_ball(
         db.delete(event)
         db.flush()
         _renumber_live_events(db, match_id)
+        _advance_score_version(match)
         if was_completed:
             _finalize_live_match_result(db, match, actor, match.match_overs)
+        else:
+            _reconcile_live_scorecard(db, match)
         write_audit(
             db,
             actor_user_id=actor.id,
@@ -4221,17 +4890,18 @@ def admin_update_live_ball(
     match_id: int,
     event_id: int,
     body: LiveBallEventIn,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> LiveScoreStateOut:
-    match = db.scalar(
-        select(Match)
-        .options(joinedload(Match.result), selectinload(Match.player_stats))
-        .where(Match.id == match_id),
+    match = _begin_scoring_write(
+        db,
+        match_id,
+        actor,
+        scoring_session_token,
+        score_version,
     )
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_edit_score_match(db, match, actor)
 
     event = db.get(MatchBallEvent, event_id)
     if event is None or event.match_id != match_id:
@@ -4248,9 +4918,12 @@ def admin_update_live_ball(
         setattr(event, field, value)
 
     _renumber_live_events(db, match_id)
+    _advance_score_version(match)
 
     if match.status == "completed" and match.result is not None:
         _finalize_live_match_result(db, match, actor, match.match_overs)
+    else:
+        _reconcile_live_scorecard(db, match)
 
     write_audit(
         db,
@@ -4269,17 +4942,18 @@ def admin_update_live_ball(
 def admin_delete_live_ball(
     match_id: int,
     event_id: int,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> LiveScoreStateOut:
-    match = db.scalar(
-        select(Match)
-        .options(joinedload(Match.result), selectinload(Match.player_stats))
-        .where(Match.id == match_id),
+    match = _begin_scoring_write(
+        db,
+        match_id,
+        actor,
+        scoring_session_token,
+        score_version,
     )
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_edit_score_match(db, match, actor)
 
     event = db.get(MatchBallEvent, event_id)
     if event is None or event.match_id != match_id:
@@ -4288,9 +4962,12 @@ def admin_delete_live_ball(
     db.delete(event)
     db.flush()
     _renumber_live_events(db, match_id)
+    _advance_score_version(match)
 
     if match.status == "completed" and match.result is not None:
         _finalize_live_match_result(db, match, actor, match.match_overs)
+    else:
+        _reconcile_live_scorecard(db, match)
 
     write_audit(
         db,
@@ -4855,13 +5532,77 @@ def _finalize_live_match_result(
         if match.scorecard_finalized_at is None:
             match.scorecard_finalized_at = datetime.now(timezone.utc)
     db.flush()
+    if not preserve_result:
+        recompute_player_career_stats(db, affected_player_ids)
+        _sync_playoff_fixture_teams(db, match.season_id)
+    match.scorecard_reconciled_version = _score_version(match)
+    match.scorecard_reconciled_at = datetime.now(timezone.utc)
+    match.scorecard_reconciliation_status = "in_sync"
+
+
+def _reconcile_live_scorecard(db: Session, match: Match) -> None:
+    """Rebuild the materialized scorecard from the authoritative ball ledger."""
+    has_events = db.scalar(
+        select(MatchBallEvent.id)
+        .where(MatchBallEvent.match_id == match.id)
+        .limit(1),
+    )
+    if has_events is not None:
+        _finalize_live_match_result(
+            db,
+            match,
+            None,
+            match.match_overs,
+            preserve_result=True,
+        )
+        return
+
+    affected_player_ids = affected_player_ids_for_match(db, match.id)
+    db.execute(delete(MatchPlayerStat).where(MatchPlayerStat.match_id == match.id))
     recompute_player_career_stats(db, affected_player_ids)
-    _sync_playoff_fixture_teams(db, match.season_id)
+    match.scorecard_reconciled_version = _score_version(match)
+    match.scorecard_reconciled_at = datetime.now(timezone.utc)
+    match.scorecard_reconciliation_status = "in_sync"
+
+
+@router.post("/matches/{match_id}/live/reconcile", response_model=LiveScoreStateOut)
+def admin_reconcile_live_scorecard(
+    match_id: int,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> LiveScoreStateOut:
+    match = _begin_scoring_write(
+        db,
+        match_id,
+        actor,
+        scoring_session_token,
+        score_version,
+    )
+    _advance_score_version(match)
+    if match.status == "completed" and match.result is not None:
+        _finalize_live_match_result(db, match, actor, match.match_overs)
+    else:
+        _reconcile_live_scorecard(db, match)
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="reconcile_live_scorecard",
+        entity_type="match",
+        entity_id=match_id,
+        summary=f"Reconciled scorecard and player statistics for match {match_id}",
+    )
+    db.commit()
+    db.refresh(match)
+    return _live_score_state(db, match, actor)
 
 
 @router.post("/matches/{match_id}/live/reset-test", response_model=LiveScoreStateOut)
 def admin_reset_live_test_match(
     match_id: int,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
     db: Session = Depends(get_db),
     actor: User = Depends(require_super_admin),
 ) -> LiveScoreStateOut:
@@ -4870,13 +5611,13 @@ def admin_reset_live_test_match(
     This removes all data captured during live scoring and recomputes affected
     player career totals so test runs do not affect player stats or standings.
     """
-    match = db.scalar(
-        select(Match)
-        .options(joinedload(Match.result), selectinload(Match.player_stats))
-        .where(Match.id == match_id),
+    match = _begin_scoring_write(
+        db,
+        match_id,
+        actor,
+        scoring_session_token,
+        score_version,
     )
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
 
     affected_player_ids = affected_player_ids_for_match(db, match_id)
     affected_player_ids.update(
@@ -4929,6 +5670,14 @@ def admin_reset_live_test_match(
     match.dls_team1_resource_percentage = None
     match.dls_team2_resource_percentage = None
     match.scorecard_finalized_at = None
+    _advance_score_version(match)
+    _reconcile_live_scorecard(db, match)
+
+    active_session = _active_scoring_session(db, match_id, lock=True)
+    if active_session is not None:
+        active_session.status = "released"
+        active_session.ended_at = datetime.now(timezone.utc)
+        active_session.ended_by_user_id = actor.id
 
     if affected_player_ids:
         recompute_player_career_stats(db, affected_player_ids)
@@ -4950,17 +5699,19 @@ def admin_reset_live_test_match(
 def admin_complete_live_score(
     match_id: int,
     body: LiveScoreCompleteIn,
+    score_version: ScoreVersionHeader = None,
+    scoring_session_token: ScoringSessionHeader = None,
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> LiveScoreStateOut:
-    match = db.scalar(
-        select(Match)
-        .options(joinedload(Match.result), selectinload(Match.player_stats))
-        .where(Match.id == match_id),
+    match = _begin_scoring_write(
+        db,
+        match_id,
+        actor,
+        scoring_session_token,
+        score_version,
     )
-    if match is None:
-        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_edit_score_match(db, match, actor)
+    _advance_score_version(match)
 
     if body.status == "completed":
         _finalize_live_match_result(db, match, actor, body.match_overs)
@@ -4975,6 +5726,7 @@ def admin_complete_live_score(
     else:
         match.status = body.status
         match.scorecard_finalized_at = None
+        _reconcile_live_scorecard(db, match)
         write_audit(
             db,
             actor_user_id=actor.id,
@@ -4983,6 +5735,12 @@ def admin_complete_live_score(
             entity_id=match_id,
             summary=f"Set live score status to {body.status} for match {match_id}",
         )
+
+    active_session = _active_scoring_session(db, match_id, lock=True)
+    if active_session is not None:
+        active_session.status = "released"
+        active_session.ended_at = datetime.now(timezone.utc)
+        active_session.ended_by_user_id = actor.id
 
     db.commit()
     db.refresh(match)

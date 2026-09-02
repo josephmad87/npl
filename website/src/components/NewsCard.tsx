@@ -3,13 +3,20 @@ import { SiteLogoPlaceholder } from './SiteLogoPlaceholder'
 import { formatCategoryLabel, formatMatchDate } from '../lib/formatters'
 import { resolveMediaUrl } from '../lib/publicApi'
 import type { ArticleLite } from '../lib/hooks'
+import { ResponsiveImage } from './ResponsiveImage'
 
 export function NewsCard({ article }: { article: ArticleLite }) {
   const image = resolveMediaUrl(article.featured_image_url)
   return (
     <Link to="/news/$slug" params={{ slug: article.slug }} className="ui-news-card">
       {image ? (
-        <img src={image} alt={article.title} />
+        <ResponsiveImage
+          src={image}
+          alt={article.title}
+          widths={[320, 480, 640]}
+          sizes="(max-width: 700px) 100vw, 33vw"
+          fallbackWidth={480}
+        />
       ) : (
         <SiteLogoPlaceholder className="ui-news-card-placeholder" />
       )}

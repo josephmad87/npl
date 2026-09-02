@@ -310,8 +310,10 @@ function DashboardHome() {
             >
               <button
                 type="button"
+                id="dashboard-matches-tab-fixtures"
                 role="tab"
                 aria-selected={showingFixtures}
+                aria-controls="dashboard-matches-panel-fixtures"
                 className={`dashboard-match-panel__tab${
                   showingFixtures ? ' is-active' : ''
                 }`}
@@ -321,8 +323,10 @@ function DashboardHome() {
               </button>
               <button
                 type="button"
+                id="dashboard-matches-tab-results"
                 role="tab"
                 aria-selected={!showingFixtures}
+                aria-controls="dashboard-matches-panel-results"
                 className={`dashboard-match-panel__tab${
                   !showingFixtures ? ' is-active' : ''
                 }`}
@@ -331,6 +335,12 @@ function DashboardHome() {
                 Results
               </button>
             </div>
+            <div
+              id={`dashboard-matches-panel-${matchTab}`}
+              role="tabpanel"
+              aria-labelledby={`dashboard-matches-tab-${matchTab}`}
+              tabIndex={0}
+            >
             <div className="team-hub-section-head">
               <div className="team-hub-section-head__lead">
                 <h2 className="team-hub-section__title">
@@ -374,6 +384,7 @@ function DashboardHome() {
                 })
               }
             />
+            </div>
           </section>
         ) : null}
       </>

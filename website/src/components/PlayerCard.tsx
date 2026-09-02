@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { playerPlaceholderSrc, resolvePlayerPhotoSrc } from '../lib/playerPhotoSrc'
+import { ResponsiveImage } from './ResponsiveImage'
 
 type PlayerLite = {
   id: number
@@ -25,12 +26,13 @@ export function PlayerCard({
             Captain
           </span>
         ) : null}
-        <img
+        <ResponsiveImage
           className="ui-player-card__photo"
           src={resolvePlayerPhotoSrc(player.profile_photo_url)}
           alt={player.full_name}
-          loading="lazy"
-          decoding="async"
+          widths={[240, 360, 480]}
+          sizes="(max-width: 700px) 50vw, 240px"
+          fallbackWidth={360}
           onError={(e) => {
             e.currentTarget.onerror = null
             e.currentTarget.src = playerPlaceholderSrc

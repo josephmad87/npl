@@ -5,6 +5,9 @@ import { useMemo } from 'react'
 import { ErrorNotice } from './components/ErrorNotice'
 import { SectionHeader } from './components/SectionHeader'
 import { Spinner } from './components/Spinner'
+import { Breadcrumbs } from './components/Breadcrumbs'
+import { SeoHead } from './components/SeoHead'
+import { FollowButton } from './components/FollowButton'
 import { formatCategoryLabel } from './lib/formatters'
 import { useTeamsMap } from './lib/hooks'
 import { playerPlaceholderSrc, resolvePlayerPhotoSrc } from './lib/playerPhotoSrc'
@@ -344,9 +347,44 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
 
   
   const teamLogoSrc = team?.logo_url ? resolveMediaUrl(team.logo_url) : null
+  const breadcrumbs = data
+    ? [
+        { name: 'Home', path: '/' },
+        ...(team
+          ? [{ name: team.name, path: `/teams/${team.slug}` }]
+          : []),
+        { name: data.full_name, path: `/players/${data.slug}` },
+      ]
+    : []
 
   return (
     <main className="container">
+      {data ? (
+        <>
+          <SeoHead
+            title={data.full_name}
+            description={
+              [data.role, team?.name, data.batting_style, data.bowling_style]
+                .filter(Boolean)
+                .join(' · ') || `${data.full_name} player profile on NPL Zimbabwe.`
+            }
+            canonicalPath={`/players/${data.slug}`}
+            image={resolveMediaUrl(data.profile_photo_url)}
+            breadcrumbs={breadcrumbs}
+            structuredData={{
+              '@context': 'https://schema.org',
+              '@type': 'Person',
+              name: data.full_name,
+              image: resolveMediaUrl(data.profile_photo_url) || undefined,
+              nationality: data.nationality || undefined,
+              affiliation: team
+                ? { '@type': 'SportsTeam', name: team.name }
+                : undefined,
+            }}
+          />
+          <Breadcrumbs items={breadcrumbs} />
+        </>
+      ) : null}
       <section className="menu-page player-public-page">
         <div className="player-public-toolbar">
           {team ? (
@@ -395,6 +433,7 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                   {data.role ? ` · ${data.role}` : ''}
                   {data.jersey_number != null ? ` · #${data.jersey_number}` : ''}
                 </p>
+                <FollowButton kind="player" entityId={data.id} name={data.full_name} />
                 <div className="player-public-row">
                   <span className="player-public-row__label">Team</span>
                   <span className="player-public-row__value">

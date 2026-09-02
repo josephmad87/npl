@@ -394,8 +394,8 @@ function MatchDetailPage() {
     seasonsQ.error ??
     leaguesQ.error ??
     playersQ.error
-  const teamOptions = teamsQ.data ?? []
-  const seasonOptions = seasonsQ.data ?? []
+  const teamOptions = useMemo(() => teamsQ.data ?? [], [teamsQ.data])
+  const seasonOptions = useMemo(() => seasonsQ.data ?? [], [seasonsQ.data])
   const enrolledTeamOptions = useMemo(() => {
     if (!merged?.season_id) return teamOptions
     const selectedSeason = seasonOptions.find(
@@ -548,6 +548,7 @@ function MatchDetailPage() {
                 </Link>
                 <button
                   type="button"
+                  id="match-scorecard-tab-1"
                   className="btn-ghost btn--with-icon"
                   onClick={beginEdit}
                 >
@@ -1147,39 +1148,50 @@ function MatchDetailPage() {
               <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Scorecard innings">
                 <button
                   type="button"
+                  id="match-scorecard-tab-1"
                   className={`dashboard-match-panel__tab${scorecardInnings === 1 ? ' is-active' : ''}`}
                   onClick={() => setScorecardInnings(1)}
                   role="tab"
                   aria-selected={scorecardInnings === 1}
+                  aria-controls="match-scorecard-panel-1"
                 >
                   1st innings
                 </button>
                 <button
                   type="button"
+                  id="match-scorecard-tab-2"
                   className={`dashboard-match-panel__tab${scorecardInnings === 2 ? ' is-active' : ''}`}
                   onClick={() => setScorecardInnings(2)}
                   role="tab"
                   aria-selected={scorecardInnings === 2}
+                  aria-controls="match-scorecard-panel-2"
                 >
                   2nd innings
                 </button>
               </div>
             </div>
-            {playerStats.length > 0 ? (
-              <InningsScorecardPanels
-                innings={scorecardInnings}
-                battingFirstTeamId={battingFirstTeamId}
-                homeTeamId={match.home_team_id}
-                awayTeamId={match.away_team_id}
-                homeLabel={homeName ?? 'Home'}
-                awayLabel={awayName ?? 'Away'}
-                stats={playerStats}
-                playerName={(id) => playerById.get(id) ?? `#${id}`}
-                extrasLine={inningsExtrasLine}
-              />
-            ) : (
-              <p className="muted">No per-player rows yet.</p>
-            )}
+            <div
+              id={`match-scorecard-panel-${scorecardInnings}`}
+              role="tabpanel"
+              aria-labelledby={`match-scorecard-tab-${scorecardInnings}`}
+              tabIndex={0}
+            >
+              {playerStats.length > 0 ? (
+                <InningsScorecardPanels
+                  innings={scorecardInnings}
+                  battingFirstTeamId={battingFirstTeamId}
+                  homeTeamId={match.home_team_id}
+                  awayTeamId={match.away_team_id}
+                  homeLabel={homeName ?? 'Home'}
+                  awayLabel={awayName ?? 'Away'}
+                  stats={playerStats}
+                  playerName={(id) => playerById.get(id) ?? `#${id}`}
+                  extrasLine={inningsExtrasLine}
+                />
+              ) : (
+                <p className="muted">No per-player rows yet.</p>
+              )}
+            </div>
           </section>
         </>
       )}

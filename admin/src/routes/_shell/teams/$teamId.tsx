@@ -394,6 +394,7 @@ function TeamDetailPage() {
             {!isEditing ? (
               <button
                 type="button"
+                id="team-admin-tab-profile"
                 className="btn-primary btn--with-icon"
                 onClick={beginEdit}
               >
@@ -850,51 +851,68 @@ function TeamDetailPage() {
             <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Team detail sections">
               <button
                 type="button"
+                id="team-admin-tab-profile"
                 className={`dashboard-match-panel__tab${activeTab === 'profile' ? ' is-active' : ''}`}
                 onClick={() => setActiveTab('profile')}
                 role="tab"
                 aria-selected={activeTab === 'profile'}
+                aria-controls="team-admin-panel-profile"
               >
                 Team profile
               </button>
               <button
                 type="button"
+                id="team-admin-tab-rosters"
                 className={`dashboard-match-panel__tab${activeTab === 'rosters' ? ' is-active' : ''}`}
                 onClick={() => setActiveTab('rosters')}
                 role="tab"
                 aria-selected={activeTab === 'rosters'}
+                aria-controls="team-admin-panel-rosters"
               >
                 Leagues & season rosters
               </button>
               <button
                 type="button"
+                id="team-admin-tab-fixtures"
                 className={`dashboard-match-panel__tab${activeTab === 'fixtures' ? ' is-active' : ''}`}
                 onClick={() => setActiveTab('fixtures')}
                 role="tab"
                 aria-selected={activeTab === 'fixtures'}
+                aria-controls="team-admin-panel-fixtures"
               >
                 Fixtures & results
               </button>
               <button
                 type="button"
+                id="team-admin-tab-completed"
                 className={`dashboard-match-panel__tab${activeTab === 'completed' ? ' is-active' : ''}`}
                 onClick={() => setActiveTab('completed')}
                 role="tab"
                 aria-selected={activeTab === 'completed'}
+                aria-controls="team-admin-panel-completed"
               >
                 Completed results ({completedMatches.length})
               </button>
               <button
                 type="button"
+                id="team-admin-tab-players"
                 className={`dashboard-match-panel__tab${activeTab === 'players' ? ' is-active' : ''}`}
                 onClick={() => setActiveTab('players')}
                 role="tab"
                 aria-selected={activeTab === 'players'}
+                aria-controls="team-admin-panel-players"
               >
                 Players ({players.length})
               </button>
             </div>
           </section>
+
+          <div
+            id={`team-admin-panel-${activeTab}`}
+            role="tabpanel"
+            aria-labelledby={`team-admin-tab-${activeTab}`}
+            tabIndex={0}
+          >
 
           {activeTab === 'profile' ? (
             <section className="team-hub-section">
@@ -1511,6 +1529,7 @@ function TeamDetailPage() {
             )}
             </section>
           ) : null}
+          </div>
         </>
       )}
     </>

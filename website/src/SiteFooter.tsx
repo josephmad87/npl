@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import nplLogoUrl from './assets/logo.png'
+import nplLogoUrl from './assets/logo-optimized.png'
 import { fetchJson } from './lib/publicApi'
 
 type FooterAboutContent = {
@@ -48,9 +48,7 @@ export function SiteFooter() {
               News
             </Link>
             <Link to="/gallery">Gallery</Link>
-            <Link to="/merchandise">
-  Merchandise
-</Link>
+            <Link to="/merchandise">Merchandise</Link>
           </nav>
         </div>
 
@@ -97,6 +95,10 @@ export function SiteFooter() {
           <nav className="site-footer-col" aria-label="About and support">
             <h3>About &amp; support</h3>
             <Link to="/about-us">About us</Link>
+            <Link to="/competition">Competition information</Link>
+            <Link to="/supporters">Supporter information</Link>
+            <Link to="/safeguarding">Safeguarding</Link>
+            <Link to="/scorecard-corrections">Scorecard corrections</Link>
             <Link to="/contact-us">Contact us</Link>
             <Link to="/support">Support</Link>
             <Link to="/account-deletion">Delete account</Link>

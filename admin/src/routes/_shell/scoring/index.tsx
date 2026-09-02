@@ -365,8 +365,10 @@ function ScoringDashboardPage() {
       <div className="scoring-dashboard-tabs" role="tablist" aria-label="Scorer matches">
         <button
           type="button"
+          id="scoring-tab-assigned"
           role="tab"
           aria-selected={activeTab === 'assigned'}
+          aria-controls="scoring-panel-assigned"
           className={`scoring-dashboard-tab${activeTab === 'assigned' ? ' is-active' : ''}`}
           onClick={() => setActiveTab('assigned')}
         >
@@ -374,14 +376,23 @@ function ScoringDashboardPage() {
         </button>
         <button
           type="button"
+          id="scoring-tab-completed"
           role="tab"
           aria-selected={activeTab === 'completed'}
+          aria-controls="scoring-panel-completed"
           className={`scoring-dashboard-tab${activeTab === 'completed' ? ' is-active' : ''}`}
           onClick={() => setActiveTab('completed')}
         >
           Completed matches ({completedRows.length})
         </button>
       </div>
+
+      <div
+        id={`scoring-panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`scoring-tab-${activeTab}`}
+        tabIndex={0}
+      >
 
       {matchesQ.isLoading ? <p className="muted">Loading matches…</p> : null}
       {matchesQ.isError ? <p className="login-error">{matchesQ.error.message}</p> : null}
@@ -536,6 +547,7 @@ function ScoringDashboardPage() {
           })}
         </div>
       ) : null}
+      </div>
     </>
   )
 }

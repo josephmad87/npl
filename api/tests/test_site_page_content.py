@@ -19,6 +19,10 @@ EXPECTED_SLUGS = {
     "terms",
     "support",
     "account-deletion",
+    "competition",
+    "safeguarding",
+    "scorecard-corrections",
+    "supporters",
 }
 
 
@@ -124,6 +128,18 @@ def test_public_page_endpoint_returns_default_content() -> None:
     payload = response.json()
     assert payload["slug"] == "privacy"
     assert payload["title"] == "Privacy Policy"
+    assert payload["sections"]
+
+
+def test_public_information_page_endpoint_returns_default_content() -> None:
+    client = TestClient(make_test_app(FakeSession()))
+
+    response = client.get("/api/v1/public/site-pages/safeguarding")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["slug"] == "safeguarding"
+    assert payload["title"] == "Safeguarding"
     assert payload["sections"]
 
 

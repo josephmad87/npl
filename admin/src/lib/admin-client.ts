@@ -109,8 +109,13 @@ export async function adminGet<T>(path: string): Promise<T> {
   return adminApiFetch<T>(path)
 }
 
-export async function adminPost<T>(path: string, body: unknown): Promise<T> {
+export async function adminPost<T>(
+  path: string,
+  body: unknown,
+  init: RequestInit = {},
+): Promise<T> {
   return adminApiFetch<T>(path, {
+    ...init,
     method: 'POST',
     body: JSON.stringify(body),
   })
@@ -123,15 +128,20 @@ export async function adminPatch<T>(path: string, body: unknown): Promise<T> {
   })
 }
 
-export async function adminPut<T>(path: string, body: unknown): Promise<T> {
+export async function adminPut<T>(
+  path: string,
+  body: unknown,
+  init: RequestInit = {},
+): Promise<T> {
   return adminApiFetch<T>(path, {
+    ...init,
     method: 'PUT',
     body: JSON.stringify(body),
   })
 }
 
-export async function adminDelete(path: string): Promise<void> {
-  await adminApiFetch<unknown>(path, { method: 'DELETE' })
+export async function adminDelete(path: string, init: RequestInit = {}): Promise<void> {
+  await adminApiFetch<unknown>(path, { ...init, method: 'DELETE' })
 }
 
 export async function adminUploadMedia(

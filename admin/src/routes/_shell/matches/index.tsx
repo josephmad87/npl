@@ -538,7 +538,7 @@ function MatchesPage() {
         <div className="catalog-browse">
           <div
             className="dashboard-match-panel__tabs"
-            role="tablist"
+            role="group"
             aria-label="Fixture status"
           >
             {STATUS_TABS.map((tab) => (
@@ -546,8 +546,7 @@ function MatchesPage() {
                 key={tab.id}
                 type="button"
                 className={`dashboard-match-panel__tab${statusTab === tab.id ? ' is-active' : ''}`}
-                role="tab"
-                aria-selected={statusTab === tab.id}
+                aria-pressed={statusTab === tab.id}
                 onClick={() =>
                   updateListSearch({
                     statusTab: tab.id,

@@ -78,7 +78,7 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
                 "body_html": (
                     "<p>You may request access, correction, deletion, or another "
                     "privacy action where applicable. You can request fan-account "
-                    "deletion from the <a href=\"/account-deletion\">account-deletion "
+                    'deletion from the <a href="/account-deletion">account-deletion '
                     "page</a>. We may verify your identity before completing a "
                     "request.</p>"
                 ),
@@ -106,8 +106,8 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
                 "id": "contact-us",
                 "heading": "9. Contact us",
                 "body_html": (
-                    "<p>Use the <a href=\"/support\">support page</a> or "
-                    "<a href=\"/contact-us\">contact form</a> for privacy requests, "
+                    '<p>Use the <a href="/support">support page</a> or '
+                    '<a href="/contact-us">contact form</a> for privacy requests, '
                     "questions, or complaints.</p>"
                 ),
             },
@@ -115,10 +115,7 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
     },
     "terms": {
         "title": "Terms of Use",
-        "subtitle": (
-            "The rules that apply when using NPL Zimbabwe websites, apps, and "
-            "digital services."
-        ),
+        "subtitle": ("The rules that apply when using NPL Zimbabwe websites, apps, and digital services."),
         "effective_date": "23 July 2026",
         "intro_html": (
             "<p>These terms govern access to npl.co.zw, NPL - Zimbabwe mobile "
@@ -219,8 +216,8 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
                 "id": "contact-us",
                 "heading": "10. Contact us",
                 "body_html": (
-                    "<p>Use the <a href=\"/support\">support page</a> or "
-                    "<a href=\"/contact-us\">contact form</a> for questions about "
+                    '<p>Use the <a href="/support">support page</a> or '
+                    '<a href="/contact-us">contact form</a> for questions about '
                     "these terms.</p>"
                 ),
             },
@@ -228,10 +225,7 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
     },
     "support": {
         "title": "Support",
-        "subtitle": (
-            "Help with NPL Zimbabwe scores, accounts, notifications, scoring, and "
-            "website services."
-        ),
+        "subtitle": ("Help with NPL Zimbabwe scores, accounts, notifications, scoring, and website services."),
         "effective_date": "",
         "intro_html": (
             "<p>Use the guidance below for common issues. If you still need "
@@ -245,7 +239,7 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
                 "body_html": (
                     "<p>Report incorrect match information with the match, innings, "
                     "over or player, the information shown, and the correction you "
-                    "believe is needed.</p><p><a href=\"/contact-us\">Report a score "
+                    'believe is needed.</p><p><a href="/contact-us">Report a score '
                     "issue</a></p>"
                 ),
             },
@@ -288,8 +282,8 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
                 "id": "privacy-choices",
                 "heading": "Privacy and account choices",
                 "body_html": (
-                    "<p>Read the <a href=\"/privacy\">privacy policy</a> or use the "
-                    "<a href=\"/account-deletion\">account-deletion page</a> to "
+                    '<p>Read the <a href="/privacy">privacy policy</a> or use the '
+                    '<a href="/account-deletion">account-deletion page</a> to '
                     "submit a request.</p>"
                 ),
             },
@@ -308,10 +302,7 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
     },
     "account-deletion": {
         "title": "Account Deletion",
-        "subtitle": (
-            "Request deletion of an NPL - Zimbabwe fan account and associated "
-            "personal information."
-        ),
+        "subtitle": ("Request deletion of an NPL - Zimbabwe fan account and associated personal information."),
         "effective_date": "",
         "intro_html": (
             "<p>You can ask NPL Zimbabwe to delete your fan account. This page "
@@ -365,6 +356,300 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
                     "<p>Account deletion is permanent. If you only want to stop "
                     "match alerts, turn off notifications in the app or your device "
                     "settings instead.</p>"
+                ),
+            },
+        ],
+    },
+    "competition": {
+        "title": "Competition Information",
+        "subtitle": (
+            "A practical guide to NPL Zimbabwe competitions, fixtures, standings, results, and official decisions."
+        ),
+        "effective_date": "",
+        "intro_html": (
+            "<p>Use this page as a starting point for NPL Zimbabwe competition "
+            "information. Published competition regulations, notices, and official "
+            "decisions remain authoritative if they differ from a website summary.</p>"
+        ),
+        "sections": [
+            {
+                "id": "competitions-and-seasons",
+                "heading": "Competitions and seasons",
+                "body_html": (
+                    "<p>Competition hubs bring together enrolled teams, fixtures, "
+                    "results, standings, and season information. Visit the "
+                    '<a href="/mens">men\'s</a>, <a href="/women">women\'s</a>, '
+                    'or <a href="/youth">youth</a> hub to explore the current '
+                    "competitions.</p>"
+                ),
+            },
+            {
+                "id": "fixtures-and-results",
+                "heading": "Fixtures and results",
+                "body_html": (
+                    "<p>Fixture dates, venues, and start times can change. Check the "
+                    '<a href="/fixtures">fixtures page</a> before travelling. '
+                    "Completed and officially updated matches appear on the "
+                    '<a href="/results">results page</a>.</p>'
+                ),
+            },
+            {
+                "id": "standings-and-net-run-rate",
+                "heading": "Standings and net run rate",
+                "body_html": (
+                    "<p>Standings are generated from recorded match results and any "
+                    "approved competition adjustments. Points, positions, and net run "
+                    "rate can change after a scorecard correction or official "
+                    "decision. Matches excluded from net run rate by an official "
+                    "decision are not included in that calculation.</p>"
+                ),
+            },
+            {
+                "id": "playoffs-and-qualification",
+                "heading": "Playoffs and qualification",
+                "body_html": (
+                    "<p>Placeholder playoff fixtures show qualification positions "
+                    "until a team is mathematically confirmed. Teams and club marks "
+                    "are populated as qualification and preceding playoff results "
+                    "become official.</p>"
+                ),
+            },
+            {
+                "id": "official-decisions",
+                "heading": "Official decisions",
+                "body_html": (
+                    "<p>Disciplinary findings, abandoned-match determinations, points "
+                    "adjustments, eligibility rulings, and other official decisions "
+                    "may alter the result or standings. The published decision and "
+                    "competition regulations govern the final outcome.</p>"
+                ),
+            },
+            {
+                "id": "questions-and-corrections",
+                "heading": "Questions and corrections",
+                "body_html": (
+                    '<p>Read the <a href="/scorecard-corrections">scorecard '
+                    "correction process</a> before reporting a score issue. For other "
+                    'competition questions, use the <a href="/support">support '
+                    "page</a>.</p>"
+                ),
+            },
+        ],
+    },
+    "safeguarding": {
+        "title": "Safeguarding",
+        "subtitle": ("How players, officials, volunteers, families, and supporters can raise a safeguarding concern."),
+        "effective_date": "",
+        "intro_html": (
+            "<p>NPL Zimbabwe wants cricket to be safe, respectful, and inclusive. "
+            "Safeguarding concerns should be taken seriously and shared through an "
+            "appropriate confidential channel.</p>"
+        ),
+        "sections": [
+            {
+                "id": "urgent-danger",
+                "heading": "If someone is in immediate danger",
+                "body_html": (
+                    "<p>Contact the emergency services or the appropriate local "
+                    "authority first. Do not wait for a website response where urgent "
+                    "action is needed. After immediate safety has been addressed, "
+                    "notify an authorised NPL or club safeguarding contact.</p>"
+                ),
+            },
+            {
+                "id": "what-to-report",
+                "heading": "What to report",
+                "body_html": (
+                    "<p>A concern may involve a child or adult at risk, harassment, "
+                    "abuse, bullying, discrimination, unsafe conduct, inappropriate "
+                    "communication, retaliation, or a failure to follow safeguarding "
+                    "requirements.</p>"
+                ),
+            },
+            {
+                "id": "how-to-report",
+                "heading": "How to report a concern",
+                "body_html": (
+                    '<p>Use the <a href="/contact-us">contact form</a> and clearly '
+                    "label the message “SAFEGUARDING”. Include only the information "
+                    "needed to identify the concern, when and where it happened, who "
+                    "may be at risk, and a safe way to contact you. Do not upload or "
+                    "circulate sensitive evidence publicly.</p>"
+                ),
+            },
+            {
+                "id": "what-happens-next",
+                "heading": "What happens next",
+                "body_html": (
+                    "<p>An authorised person will assess the report, consider immediate "
+                    "safety, preserve appropriate confidentiality, and refer the matter "
+                    "to the relevant authority or competition process where required. "
+                    "Information is shared only where there is a legitimate need.</p>"
+                ),
+            },
+            {
+                "id": "privacy-and-records",
+                "heading": "Privacy and records",
+                "body_html": (
+                    "<p>Safeguarding records may be retained where needed to protect "
+                    "people, meet legal or regulatory duties, or manage a complaint. "
+                    'Read the <a href="/privacy">privacy policy</a> for general '
+                    "information about personal data.</p>"
+                ),
+            },
+            {
+                "id": "conduct-at-cricket",
+                "heading": "Safe conduct at cricket",
+                "body_html": (
+                    "<p>Follow venue rules, respect personal boundaries, use "
+                    "appropriate communication, obtain the required consent for images "
+                    "or recordings, and challenge unsafe or discriminatory behaviour "
+                    "through the proper channel.</p>"
+                ),
+            },
+        ],
+    },
+    "scorecard-corrections": {
+        "title": "Scorecard Corrections",
+        "subtitle": ("How live scores, completed scorecards, player statistics, and standings are corrected."),
+        "effective_date": "",
+        "intro_html": (
+            "<p>Live scores are provisional. Corrections are controlled and audited "
+            "so that the public scorecard and official competition records remain "
+            "consistent.</p>"
+        ),
+        "sections": [
+            {
+                "id": "during-the-match",
+                "heading": "Corrections during a match",
+                "body_html": (
+                    "<p>The assigned scorer can correct a delivery while the scoring "
+                    "session is active. The correction should preserve the delivery "
+                    "sequence and reconcile the innings total, batter figures, bowler "
+                    "figures, extras, wickets, and commentary.</p>"
+                ),
+            },
+            {
+                "id": "after-finalisation",
+                "heading": "After finalisation",
+                "body_html": (
+                    "<p>A completed scorecard remains editable by an authorised scorer "
+                    "for up to 120 minutes after finalisation. When that period ends, "
+                    "the scorecard is locked and a super administrator must approve "
+                    "any further correction.</p>"
+                ),
+            },
+            {
+                "id": "request-a-correction",
+                "heading": "Request a correction",
+                "body_html": (
+                    '<p>Use the <a href="/contact-us">contact form</a> and label the '
+                    "message “SCORECARD CORRECTION”. Include the match, innings, over "
+                    "and ball, player, current entry, requested correction, reason, "
+                    "and any reliable supporting record.</p>"
+                ),
+            },
+            {
+                "id": "approval-and-audit",
+                "heading": "Approval and audit trail",
+                "body_html": (
+                    "<p>Approved post-lock corrections record who requested, approved, "
+                    "and applied the change. A request can be declined where the "
+                    "evidence is insufficient or the requested change conflicts with "
+                    "an official decision.</p>"
+                ),
+            },
+            {
+                "id": "downstream-updates",
+                "heading": "Statistics and standings updates",
+                "body_html": (
+                    "<p>After an approved correction, NPL may recalculate player and "
+                    "team statistics, match summaries, standings, and net run rate. "
+                    "Team totals are not changed when only an individual attribution "
+                    "is being corrected.</p>"
+                ),
+            },
+            {
+                "id": "official-decisions",
+                "heading": "Official competition decisions",
+                "body_html": (
+                    "<p>An official determination can supersede a scorecard result or "
+                    'standings treatment. See <a href="/competition">competition '
+                    "information</a> for how these decisions are reflected.</p>"
+                ),
+            },
+        ],
+    },
+    "supporters": {
+        "title": "Supporter Information",
+        "subtitle": ("Follow NPL Zimbabwe teams, players, fixtures, results, and match-day updates."),
+        "effective_date": "",
+        "intro_html": (
+            "<p>This guide helps supporters find official competition information, "
+            "manage fan preferences, and enjoy NPL cricket responsibly.</p>"
+        ),
+        "sections": [
+            {
+                "id": "follow-the-competition",
+                "heading": "Follow the competition",
+                "body_html": (
+                    '<p>Use the <a href="/fixtures">fixtures</a>, '
+                    '<a href="/live">live scores</a>, '
+                    '<a href="/results">results</a>, and '
+                    '<a href="/news">news</a> pages to follow the season. Team '
+                    "and player pages bring related information together.</p>"
+                ),
+            },
+            {
+                "id": "accounts-and-favourites",
+                "heading": "Fan accounts and favourites",
+                "body_html": (
+                    "<p>Registered supporters can select supported or followed teams "
+                    "and favourite players where that feature is available. Keep your "
+                    "account email current and never share a password or verification "
+                    "code.</p>"
+                ),
+            },
+            {
+                "id": "match-reminders",
+                "heading": "Match reminders and results",
+                "body_html": (
+                    "<p>When notifications are enabled, reminders may be sent around "
+                    "24 hours and one hour before a followed team's scheduled start, "
+                    "with result updates after the match. Late fixture changes, device "
+                    "settings, or connectivity can affect delivery, so always check "
+                    "the latest fixture.</p>"
+                ),
+            },
+            {
+                "id": "match-day-conduct",
+                "heading": "Match-day conduct",
+                "body_html": (
+                    "<p>Respect players, officials, volunteers, other supporters, and "
+                    "venue rules. Do not enter restricted areas or publish abusive, "
+                    "discriminatory, or unsafe content. Read the "
+                    '<a href="/safeguarding">safeguarding page</a> if you need to '
+                    "raise a concern.</p>"
+                ),
+            },
+            {
+                "id": "merchandise",
+                "heading": "Merchandise",
+                "body_html": (
+                    "<p>Browse available supporter products in the "
+                    '<a href="/merchandise">merchandise shop</a>. A quick order is '
+                    "an enquiry until availability, price, size, payment, and "
+                    "collection or delivery are confirmed.</p>"
+                ),
+            },
+            {
+                "id": "support-and-privacy",
+                "heading": "Support and privacy",
+                "body_html": (
+                    '<p>Visit <a href="/support">support</a> for help, read the '
+                    '<a href="/privacy">privacy policy</a>, or use the '
+                    '<a href="/account-deletion">account-deletion page</a> for an '
+                    "account request.</p>"
                 ),
             },
         ],

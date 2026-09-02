@@ -26,17 +26,43 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL (e.g. postgresql+psycopg2://postgres:...@db:5432/npl)}
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-production}
+      APP_RELEASE: ${APP_RELEASE:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       RUN_MIGRATIONS: ${RUN_MIGRATIONS:-1}
       # Persist uploads (logos, gallery, etc.) across image rebuilds (named volume → /data/media).
       MEDIA_ROOT: /data/media
       # Browser-reachable API origin for stored media URLs (no trailing slash), e.g. https://api.example.com
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      FAN_PUSH_GATEWAY_URL: ${FAN_PUSH_GATEWAY_URL:-}
+      FAN_PUSH_GATEWAY_TOKEN: ${FAN_PUSH_GATEWAY_TOKEN:-}
     volumes:
       - npl_api_media:/data/media
     depends_on:
       db:
         condition: service_healthy
+
+  fan-notifications:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["sh", "-c", "while true; do python scripts/process_fan_notifications.py; sleep 600; done"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY}
+      APP_ENVIRONMENT: ${APP_ENVIRONMENT:-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      RUN_MIGRATIONS: "0"
+      FAN_PUSH_GATEWAY_URL: ${FAN_PUSH_GATEWAY_URL:-}
+      FAN_PUSH_GATEWAY_TOKEN: ${FAN_PUSH_GATEWAY_TOKEN:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
 
   admin:
     build:

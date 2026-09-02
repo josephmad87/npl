@@ -16,11 +16,19 @@ from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse, UserMe
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# A real bcrypt hash keeps unknown-user and wrong-password login work comparable,
+# reducing account-enumeration timing differences.
+DUMMY_PASSWORD_HASH = "$2b$12$VJp5D0ojQ2kQiN1lCyUG0.qHHQ0WWCOmc5GWzqVJibhdMb4RiAGMK"
+
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     user = db.scalar(select(User).where(User.email == body.email))
-    if user is None or not verify_password(body.password, user.hashed_password):
+    password_matches = verify_password(
+        body.password,
+        user.hashed_password if user is not None else DUMMY_PASSWORD_HASH,
+    )
+    if user is None or not password_matches:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "invalid_credentials", "message": "Incorrect email or password"},

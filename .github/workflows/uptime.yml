@@ -1,0 +1,31 @@
+name: NPL uptime
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npl-uptime
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public, admin, and API services
+        env:
+          PUBLIC_URL: ${{ vars.NPL_PUBLIC_URL || 'https://npl.co.zw' }}
+          ADMIN_URL: ${{ vars.NPL_ADMIN_URL || 'https://admin.npl.co.zw' }}
+          API_URL: ${{ vars.NPL_API_URL || 'https://npl-dbd64439b135.herokuapp.com' }}
+        run: >-
+          python3 ops/smoke_check.py
+          --public-url "$PUBLIC_URL"
+          --admin-url "$ADMIN_URL"
+          --api-url "$API_URL"
+          --attempts 3
+          --retry-delay 5

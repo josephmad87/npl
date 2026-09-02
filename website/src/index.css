@@ -1,24 +1,26 @@
+@import '@npl/ui/tokens.css';
+
 :root {
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: var(--npl-font-sans);
   line-height: 1.5;
   font-weight: 400;
   color: #fcfcfc;
   background-color: #200001;
   /* Primary palette (NPL brand spec) */
-  --color-rust-orange: #bf4927;
-  --color-marigold: #e58b1b;
-  --color-deep-maroon: #200001;
-  --color-grey: #4b4c4c;
+  --color-rust-orange: var(--npl-brand-500);
+  --color-marigold: var(--npl-gold-500);
+  --color-deep-maroon: var(--npl-brand-950);
+  --color-grey: var(--npl-neutral-600);
   --color-primary: var(--color-deep-maroon);
-  --color-primary-alt: #3a0a0c;
+  --color-primary-alt: var(--npl-brand-900);
   --color-accent: var(--color-rust-orange);
   --color-highlight: var(--color-rust-orange);
   --color-highlight-soft: var(--color-marigold);
-  --color-surface: #fcfcfc;
+  --color-surface: var(--npl-surface-page);
   --color-secondary: var(--color-marigold);
-  --color-danger: #8f3218;
-  --color-text: var(--color-deep-maroon);
-  --color-muted: var(--color-grey);
+  --color-danger: var(--npl-error-700);
+  --color-text: var(--npl-text);
+  --color-muted: var(--npl-text-muted);
   --color-border: color-mix(in srgb, var(--color-grey) 28%, var(--color-surface) 72%);
   /* Must match `.nav-row` + `.site-brand--inline` so hero text can align with header logo */
   --header-content-max: 1200px;
@@ -48,6 +50,13 @@ body {
     );
 }
 
+html {
+  scroll-padding-top: 6rem;
+}
+
 a {
   color: var(--color-highlight);
+}
+:where(.responsive-picture) {
+  display: contents;
 }

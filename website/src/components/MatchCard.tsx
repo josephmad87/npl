@@ -13,7 +13,8 @@ import {
 } from '../lib/match-result'
 import { resolveMediaUrl } from '../lib/publicApi'
 import type { MatchLite, TeamLite } from '../lib/hooks'
-import nplLogoUrl from '../assets/logo.png'
+import nplLogoUrl from '../assets/logo-optimized.png'
+import { ResponsiveImage } from './ResponsiveImage'
 
 type MatchWithTeamExtras = MatchLite & {
   title?: string | null
@@ -135,12 +136,13 @@ function TeamLogoBadge({
         .filter(Boolean)
         .join(' ')}
     >
-      <img
+      <ResponsiveImage
         src={src}
         alt=""
-        loading="lazy"
-        decoding="async"
         className="ui-match-card__logo"
+        widths={[64, 96, 128]}
+        sizes="64px"
+        fallbackWidth={96}
         onError={() => setSrc(nplLogoUrl)}
       />
 

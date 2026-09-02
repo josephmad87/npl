@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { CloudUpload, LockKeyhole, Pencil, RotateCcw, Save, Undo2, Wifi, WifiOff, X } from 'lucide-react'
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   LiveBallEventDto,
   LiveBallEventInput,
@@ -14,6 +14,7 @@ import type {
   MatchSquadSaveInput,
   Paginated,
   PlayerDto,
+  ScoringSessionDto,
   ScorecardEditRequestDto,
   TeamDto,
 } from '@/lib/api-types'
@@ -23,6 +24,15 @@ import { getSession } from '@/lib/session'
 import { oversFieldToBalls } from '@/lib/cricket'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
+import {
+  enqueueScoringBall,
+  loadScoringOutbox,
+  markScoringAttempt,
+  removeScoringBall,
+  saveScoringOutbox,
+  type QueuedBallPayload,
+  type ScoringOutboxEntry,
+} from '@/lib/scoring-outbox'
 
 export const Route = createFileRoute('/_shell/scoring/$matchId')({
   component: LiveScoringPage,
@@ -35,11 +45,7 @@ type ScoringTeam = {
 
 type PlayerRoleMap = Record<number, MatchSquadRole | ''>
 
-type BallSubmitPayload = {
-  body: LiveBallEventInput
-  newBatterId?: number | null
-  strikeRuns?: number
-}
+type BallSubmitPayload = QueuedBallPayload
 
 type BowlerFigures = {
   playerId: number
@@ -68,8 +74,25 @@ function newClientEventId(): string {
   return `ball-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`
 }
 
-function pendingBallStorageKey(matchId: number): string {
-  return `npl:scorer:pending-ball:${matchId}`
+function scoringDeviceId(): string {
+  const key = 'npl:scorer:device-id:v1'
+  try {
+    // sessionStorage survives reloads but is isolated per tab, so two open
+    // scoring screens cannot silently share one ownership lease.
+    const current = globalThis.sessionStorage.getItem(key)
+    if (current) return current
+    const created = newClientEventId()
+    globalThis.sessionStorage.setItem(key, created)
+    return created
+  } catch {
+    return newClientEventId()
+  }
+}
+
+function scoringDeviceLabel(): string {
+  if (typeof navigator === 'undefined') return 'Scoring device'
+  const platform = navigator.platform || 'Browser'
+  return `${platform} · ${navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Web'}`
 }
 
 type WicketEnd = 'striker' | 'non_striker'
@@ -221,19 +244,20 @@ function adminAccessToken(): string | undefined {
   return session?.accessToken ?? session?.access_token ?? session?.token
 }
 
-async function adminDeleteJson<T>(path: string): Promise<T> {
+async function adminDeleteJson<T>(path: string, headers?: HeadersInit): Promise<T> {
   return apiFetch<T>(path, {
     method: 'DELETE',
     accessToken: adminAccessToken(),
+    headers,
   })
 }
 
-async function adminPutJson<T>(path: string, body: unknown): Promise<T> {
+async function adminPutJson<T>(path: string, body: unknown, headers?: HeadersInit): Promise<T> {
   return apiFetch<T>(path, {
     method: 'PUT',
     accessToken: adminAccessToken(),
     body: JSON.stringify(body),
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
   })
 }
 
@@ -572,6 +596,102 @@ function selectionAfterEvent(event: LiveBallEventDto) {
   }
 }
 
+function appendOptimisticBall(
+  state: LiveScoreStateDto,
+  payload: BallSubmitPayload,
+  ordinal: number,
+): LiveScoreStateDto {
+  const body = payload.body
+  const clientEventId = body.client_event_id ?? null
+  if (
+    clientEventId &&
+    state.events.some((event) => event.client_event_id === clientEventId)
+  ) {
+    return state
+  }
+
+  const now = new Date().toISOString()
+  const event: LiveBallEventDto = {
+    id: -(Date.now() + ordinal + 1),
+    match_id: state.match_id,
+    innings: body.innings,
+    over_number: body.over_number,
+    ball_number: body.ball_number,
+    batting_team_id: body.batting_team_id,
+    bowling_team_id: body.bowling_team_id,
+    striker_player_id: body.striker_player_id,
+    non_striker_player_id: body.non_striker_player_id ?? null,
+    bowler_player_id: body.bowler_player_id,
+    runs_batter: body.runs_batter ?? 0,
+    runs_extras: body.runs_extras ?? 0,
+    extras_type: body.extras_type ?? null,
+    is_legal_delivery: body.is_legal_delivery ?? true,
+    completed_runs: body.completed_runs ?? body.runs_batter ?? 0,
+    boundary_runs: body.boundary_runs ?? 0,
+    boundary_type: body.boundary_type ?? null,
+    penalty_runs_batting: body.penalty_runs_batting ?? 0,
+    penalty_runs_fielding: body.penalty_runs_fielding ?? 0,
+    short_runs: body.short_runs ?? 0,
+    leg_bye_attempted: body.leg_bye_attempted ?? false,
+    over_complete_override: body.over_complete_override ?? null,
+    is_dead_ball: body.is_dead_ball ?? false,
+    wicket_type: body.wicket_type ?? null,
+    wicket_player_id: body.wicket_player_id ?? null,
+    fielder_player_id: body.fielder_player_id ?? null,
+    replacement_player_id: body.replacement_player_id ?? null,
+    wicket_end: body.wicket_end ?? null,
+    batters_crossed: body.batters_crossed ?? false,
+    dismissal_text: body.dismissal_text ?? null,
+    notes: body.notes ?? null,
+    client_event_id: clientEventId,
+    sequence_number:
+      Math.max(0, ...state.events.map((candidate) => candidate.sequence_number)) + 1,
+    created_by_user_id: null,
+    created_at: now,
+    updated_at: now,
+    score_version: null,
+  }
+  const events = [...state.events, event]
+  const existingSummary = state.summaries.find(
+    (summary) => summary.innings === event.innings,
+  )
+  const legalBalls =
+    (existingSummary?.legal_balls ?? 0) + (event.is_legal_delivery ? 1 : 0)
+  const runs =
+    (existingSummary?.runs ?? 0) +
+    event.runs_batter +
+    event.runs_extras +
+    event.penalty_runs_batting
+  const wickets =
+    (existingSummary?.wickets ?? 0) +
+    (dismissalCountsAsWicket(event.wicket_type) ? 1 : 0)
+  const next = nextDeliveryPosition(events, event.innings)
+  const summary = {
+    innings: event.innings,
+    batting_team_id: event.batting_team_id,
+    bowling_team_id: event.bowling_team_id,
+    runs,
+    wickets,
+    legal_balls: legalBalls,
+    overs_label: next.ball === 1 ? `${next.over}.0` : `${next.over}.${next.ball - 1}`,
+    last_six: [...(existingSummary?.last_six ?? []), liveEventLabel(event)].slice(-6),
+    last_event: event,
+  }
+  const summaries = existingSummary
+    ? state.summaries.map((candidate) =>
+        candidate.innings === event.innings ? summary : candidate,
+      )
+    : [...state.summaries, summary].sort((a, b) => a.innings - b.innings)
+
+  return {
+    ...state,
+    status: state.status === 'completed' ? state.status : 'live',
+    current_innings: event.innings,
+    events,
+    summaries,
+  }
+}
+
 function suggestedDismissal(
   wicketType: string,
   bowlerName: string,
@@ -609,6 +729,23 @@ function LiveScoringPage() {
   const currentSession = getSession() as { role?: string } | null | undefined
   const canResetTestMatch = currentSession?.role === 'super_admin'
   const isScorer = currentSession?.role === 'scorer'
+  const deviceId = useMemo(() => scoringDeviceId(), [])
+  const deviceLabel = useMemo(() => scoringDeviceLabel(), [])
+  const [deliveryOutbox, setDeliveryOutbox] = useState<ScoringOutboxEntry[]>(
+    () => loadScoringOutbox(mid),
+  )
+  const outboxRef = useRef(deliveryOutbox)
+
+  useEffect(() => {
+    const next = loadScoringOutbox(mid)
+    outboxRef.current = next
+    setDeliveryOutbox(next)
+  }, [mid])
+
+  useEffect(() => {
+    outboxRef.current = deliveryOutbox
+    saveScoringOutbox(mid, deliveryOutbox)
+  }, [deliveryOutbox, mid])
 
   const matchesQ = useQuery({
     queryKey: ['admin', 'scorer', 'matches'],
@@ -629,8 +766,20 @@ function LiveScoringPage() {
     queryKey: ['admin', 'matches', mid, 'live'],
     queryFn: () => adminGet<LiveScoreStateDto>(`/admin/matches/${mid}/live`),
     enabled: Number.isFinite(mid),
-    refetchInterval: 10000,
+    refetchInterval: () => (outboxRef.current.length > 0 ? false : 10000),
     retry: 1,
+  })
+
+  const scoringSessionQ = useQuery({
+    queryKey: ['admin', 'matches', mid, 'scoring-session', deviceId],
+    queryFn: () =>
+      adminPost<ScoringSessionDto>(`/admin/matches/${mid}/live/session`, {
+        device_id: deviceId,
+        device_label: deviceLabel,
+      }),
+    enabled: Number.isFinite(mid),
+    refetchInterval: 30000,
+    retry: false,
   })
 
   const squadQ = useQuery({
@@ -726,12 +875,14 @@ function LiveScoringPage() {
     typeof navigator === 'undefined' ? true : navigator.onLine,
   )
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
-  const [pendingBallPayload, setPendingBallPayload] = useState<BallSubmitPayload | null>(null)
+  const [outboxFlushing, setOutboxFlushing] = useState(false)
+  const outboxFlushingRef = useRef(false)
   const [requestEditOpen, setRequestEditOpen] = useState(false)
   const [requestEditReason, setRequestEditReason] = useState('')
   const selectionContextRef = useRef('')
   const lastHydratedEventKeyRef = useRef('')
   const hasHydratedInningsRef = useRef(false)
+  const reconciliationAttemptedVersionRef = useRef<number | null>(null)
 
   useEffect(() => {
     const updateOnlineState = () => setIsOnline(navigator.onLine)
@@ -744,16 +895,32 @@ function LiveScoringPage() {
   }, [])
 
   useEffect(() => {
-    try {
-      const stored = globalThis.sessionStorage.getItem(pendingBallStorageKey(mid))
-      if (!stored) return
-      const parsed = JSON.parse(stored) as BallSubmitPayload
-      if (parsed?.body?.client_event_id) setPendingBallPayload(parsed)
-    } catch {
-      // A corrupt recovery draft must never stop the scorer from continuing.
-      globalThis.sessionStorage.removeItem(pendingBallStorageKey(mid))
+    if (!liveQ.data || deliveryOutbox.length === 0) return
+    queryClient.setQueryData<LiveScoreStateDto>(
+      ['admin', 'matches', mid, 'live'],
+      (current) =>
+        deliveryOutbox.reduce(
+          (state, entry, index) => appendOptimisticBall(state, entry.payload, index),
+          current ?? liveQ.data,
+        ),
+    )
+  }, [deliveryOutbox, liveQ.data, mid, queryClient])
+
+  const scoringWriteHeaders = (version?: number): HeadersInit => {
+    if (outboxRef.current.length > 0) {
+      throw new Error(
+        'Sync the queued deliveries before changing setup, conditions, corrections, or match status.',
+      )
     }
-  }, [mid])
+    const token = scoringSessionQ.data?.session_token
+    if (!token) {
+      throw new Error('This device does not own the scoring session yet.')
+    }
+    return {
+      'X-Score-Version': String(version ?? liveQ.data?.scoring_version ?? 0),
+      'X-Scoring-Session': token,
+    }
+  }
 
   const matchTeams = useMemo<ScoringTeam[]>(() => {
     if (!match) return []
@@ -1082,14 +1249,22 @@ function LiveScoringPage() {
         umpire_2: umpire2.trim() || null,
         reserve_umpire: reserveUmpire.trim() || null,
       }
-      return adminPutJson<MatchDto>(`/admin/matches/${mid}/live/setup`, body)
+      return adminPutJson<MatchDto>(
+        `/admin/matches/${mid}/live/setup`,
+        body,
+        scoringWriteHeaders(),
+      )
     },
     onSuccess: async (savedMatch) => {
       setActionError(null)
       setRevisedMatchOvers(String(savedMatch.match_overs))
       setConditionsDirty(false)
       setActiveScorerPanel('squads')
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'matches', mid, 'scoring-session', deviceId],
+      })
     },
     onError: (error: Error) => setActionError(error.message),
   })
@@ -1110,6 +1285,7 @@ function LiveScoringPage() {
       return adminPutJson<LiveScoreStateDto>(
         `/admin/matches/${mid}/live/conditions`,
         body,
+        scoringWriteHeaders(),
       )
     },
     onSuccess: async (state) => {
@@ -1145,13 +1321,18 @@ function LiveScoringPage() {
         }),
       }
 
-      return adminPutJson<MatchSquadDto>(`/admin/matches/${mid}/squads`, body)
+      return adminPutJson<MatchSquadDto>(
+        `/admin/matches/${mid}/squads`,
+        body,
+        scoringWriteHeaders(),
+      )
     },
     onSuccess: async () => {
       setActionError(null)
       setSquadDirty(false)
       setActiveScorerPanel('score')
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'squads'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
     },
     onError: (error: Error) => setActionError(error.message),
   })
@@ -1162,10 +1343,14 @@ function LiveScoringPage() {
         throw new Error('Choose batting and bowling teams first.')
       }
 
-      return adminPost<LiveScoreStateDto>(`/admin/matches/${mid}/live/start`, {
-        batting_team_id: battingTeamId,
-        bowling_team_id: bowlingTeamId,
-      })
+      return adminPost<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live/start`,
+        {
+          batting_team_id: battingTeamId,
+          bowling_team_id: bowlingTeamId,
+        },
+        { headers: scoringWriteHeaders() },
+      )
     },
     onSuccess: async () => {
       setActionError(null)
@@ -1250,83 +1435,118 @@ function LiveScoringPage() {
     setActiveScorerPanel('score')
   }
 
-  const ballMutation = useMutation({
-    mutationFn: (payload: BallSubmitPayload) =>
-      adminPost<LiveBallEventDto>(`/admin/matches/${mid}/live/balls`, payload.body),
-    onSuccess: async (created, payload) => {
-      const inningsEnded =
-        dismissalCountsAsWicket(payload.body.wicket_type) &&
-        (currentSummary?.wickets ?? 0) >= 9
+  const applyAcceptedBallUi = (
+    created: LiveBallEventDto,
+    payload: BallSubmitPayload,
+    savedToServer: boolean,
+  ) => {
+    const inningsEnded =
+      dismissalCountsAsWicket(payload.body.wicket_type) &&
+      (currentSummary?.wickets ?? 0) >= 9
 
-      setActionError(null)
-      setLastSavedAt(new Date())
-      setPendingBallPayload(null)
-      globalThis.sessionStorage.removeItem(pendingBallStorageKey(mid))
-      setNotes('')
+    if (savedToServer) setLastSavedAt(new Date())
+    setNotes('')
+    if (
+      payload.body.is_legal_delivery !== false &&
+      !payload.body.is_dead_ball &&
+      (payload.body.over_complete_override ??
+        created.over_complete_override ??
+        created.ball_number === 6)
+    ) {
+      setOverNote('')
+    }
+    setWicketOpen(false)
+    setWicketDeliveryType('legal')
+    setFielderPlayerId('')
+    setNewBatterPlayerId('')
+    setWicketEnd('striker')
+    setWicketRunsCompleted(0)
+    setWicketRunCredit('bat')
+    setBattersCrossed(false)
+    setDismissalText('')
+    setDismissalTextTouched(false)
+    setExtrasOpen(false)
+    if (payload.body.is_legal_delivery !== false) {
+      setUmpireEndOverAfterNextBall(false)
+      setUmpireReplacementInOver(false)
+    }
+    lastHydratedEventKeyRef.current = `${created.innings}:${created.sequence_number}:${created.updated_at}`
+    if (!inningsEnded) {
+      applyPostBallState(
+        payload.body,
+        payload.newBatterId ?? null,
+        payload.strikeRuns ?? 0,
+      )
       if (
         payload.body.is_legal_delivery !== false &&
         !payload.body.is_dead_ball &&
-        (payload.body.over_complete_override ?? created.over_complete_override ?? created.ball_number === 6)
+        (payload.body.over_complete_override ??
+          created.over_complete_override ??
+          created.ball_number === 6)
       ) {
-        setOverNote('')
+        setCompletedOverSummary(
+          endOfOverSummary(liveQ.data?.events ?? [], created),
+        )
+        setPreviousBowlerPlayerId(payload.body.bowler_player_id)
+        setNextBowlerPlayerId('')
+        setBowlerChangeOpen(true)
       }
-      setWicketOpen(false)
-      setWicketDeliveryType('legal')
-      setFielderPlayerId('')
-      setNewBatterPlayerId('')
-      setWicketEnd('striker')
-      setWicketRunsCompleted(0)
-      setWicketRunCredit('bat')
-      setBattersCrossed(false)
-      setDismissalText('')
-      setDismissalTextTouched(false)
-      setExtrasOpen(false)
-      if (payload.body.is_legal_delivery !== false) {
-        setUmpireEndOverAfterNextBall(false)
-        setUmpireReplacementInOver(false)
-      }
-      lastHydratedEventKeyRef.current = `${created.innings}:${created.sequence_number}:${created.updated_at}`
-      if (!inningsEnded) {
-        applyPostBallState(payload.body, payload.newBatterId ?? null, payload.strikeRuns ?? 0)
-        if (
-          payload.body.is_legal_delivery !== false &&
-          !payload.body.is_dead_ball &&
-          (payload.body.over_complete_override ?? created.over_complete_override ?? created.ball_number === 6)
-        ) {
-          setCompletedOverSummary(
-            endOfOverSummary(liveQ.data?.events ?? [], created),
-          )
-          setPreviousBowlerPlayerId(payload.body.bowler_player_id)
-          setNextBowlerPlayerId('')
-          setBowlerChangeOpen(true)
-        }
-      }
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
+    }
 
-      if (inningsEnded) {
-        if (payload.body.innings === 1) {
-          moveToSecondInnings()
-        } else {
-          setActiveScorerPanel('review')
-        }
-      }
+    if (inningsEnded) {
+      if (payload.body.innings === 1) moveToSecondInnings()
+      else setActiveScorerPanel('review')
+    }
+  }
+
+  const queueBallForDelivery = (payload: BallSubmitPayload, error: string | null) => {
+    const next = enqueueScoringBall(outboxRef.current, mid, payload, error)
+    outboxRef.current = next
+    saveScoringOutbox(mid, next)
+    setDeliveryOutbox(next)
+    const current = queryClient.getQueryData<LiveScoreStateDto>([
+      'admin',
+      'matches',
+      mid,
+      'live',
+    ])
+    if (!current) return
+    const updated = appendOptimisticBall(current, payload, next.length)
+    queryClient.setQueryData(['admin', 'matches', mid, 'live'], updated)
+    const optimisticEvent = updated.events.at(-1)
+    if (optimisticEvent) applyAcceptedBallUi(optimisticEvent, payload, false)
+  }
+
+  const ballMutation = useMutation({
+    mutationFn: (payload: BallSubmitPayload) =>
+      adminPost<LiveBallEventDto>(
+        `/admin/matches/${mid}/live/balls`,
+        payload.body,
+        { headers: scoringWriteHeaders() },
+      ),
+    onSuccess: async (created, payload) => {
+      setActionError(null)
+      applyAcceptedBallUi(created, payload, true)
+      queryClient.setQueryData<LiveScoreStateDto>(
+        ['admin', 'matches', mid, 'live'],
+        (current) =>
+          current
+            ? {
+                ...current,
+                scoring_version: created.score_version ?? current.scoring_version,
+              }
+            : current,
+      )
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
     },
     onError: (error: Error, payload) => {
       if (error instanceof ApiError && error.status < 500) {
         setActionError(error.message)
         return
       }
-      setPendingBallPayload(payload)
-      try {
-        globalThis.sessionStorage.setItem(
-          pendingBallStorageKey(mid),
-          JSON.stringify(payload),
-        )
-      } catch {
-        // The retry still remains available for this browser session.
-      }
+      queueBallForDelivery(payload, error.message)
       setActionError(
-        `Ball not saved yet: ${error.message}. It has been kept here so you can retry safely.`,
+        `Connection interrupted: the ball is safely queued on this device and will sync automatically. ${error.message}`,
       )
     },
   })
@@ -1338,6 +1558,7 @@ function LiveScoringPage() {
       )[0] ?? null
       const state = await adminDeleteJson<LiveScoreStateDto>(
         `/admin/matches/${mid}/live/balls/last`,
+        scoringWriteHeaders(),
       )
       return { state, undoneEvent: state.undone_event ?? undoneEvent }
     },
@@ -1383,6 +1604,7 @@ function LiveScoringPage() {
       adminPutJson<LiveScoreStateDto>(
         `/admin/matches/${mid}/live/balls/${payload.eventId}`,
         payload.body,
+        scoringWriteHeaders(),
       ),
     onSuccess: async (state) => {
       setActionError(null)
@@ -1401,6 +1623,7 @@ function LiveScoringPage() {
       adminPutJson<LiveScoreStateDto>(
         `/admin/matches/${mid}/live/balls/${event.id}`,
         { ...eventToLiveBallInput(event), notes: withOverNote(event.notes, note) },
+        scoringWriteHeaders(),
       ),
     onSuccess: async (state) => {
       setActionError(null)
@@ -1416,6 +1639,7 @@ function LiveScoringPage() {
       adminPutJson<LiveScoreStateDto>(
         `/admin/matches/${mid}/live/balls/${event.id}`,
         { ...eventToLiveBallInput(event), over_complete_override: false },
+        scoringWriteHeaders(),
       ),
     onSuccess: async (state) => {
       setActionError(null)
@@ -1433,7 +1657,10 @@ function LiveScoringPage() {
 
   const deleteBallMutation = useMutation({
     mutationFn: (eventId: number) =>
-      adminDeleteJson<LiveScoreStateDto>(`/admin/matches/${mid}/live/balls/${eventId}`),
+      adminDeleteJson<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live/balls/${eventId}`,
+        scoringWriteHeaders(),
+      ),
     onSuccess: async (state) => {
       setActionError(null)
       setEditBallError(null)
@@ -1448,10 +1675,14 @@ function LiveScoringPage() {
 
   const completeMutation = useMutation({
     mutationFn: (status: 'completed' | 'abandoned' | 'cancelled') =>
-      adminPost<LiveScoreStateDto>(`/admin/matches/${mid}/live/complete`, {
-        status,
-        match_overs: matchOvers,
-      }),
+      adminPost<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live/complete`,
+        {
+          status,
+          match_overs: matchOvers,
+        },
+        { headers: scoringWriteHeaders() },
+      ),
     onSuccess: async (state) => {
       setActionError(null)
       setFinalReviewConfirmed(false)
@@ -1466,13 +1697,21 @@ function LiveScoringPage() {
       )
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'matches', mid, 'scoring-session', deviceId],
+      })
     },
     onError: (error: Error) => setActionError(error.message),
   })
 
 
   const resetTestMutation = useMutation({
-    mutationFn: () => adminPost<LiveScoreStateDto>(`/admin/matches/${mid}/live/reset-test`, {}),
+    mutationFn: () =>
+      adminPost<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live/reset-test`,
+        {},
+        { headers: scoringWriteHeaders() },
+      ),
     onSuccess: async () => {
       setActionError(null)
       setEditingBall(null)
@@ -1503,9 +1742,46 @@ function LiveScoringPage() {
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'squads'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'scorer', 'matches'] })
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'matches', mid, 'scoring-session', deviceId],
+      })
     },
     onError: (error: Error) => setActionError(error.message),
   })
+
+  const reconcileScorecardMutation = useMutation({
+    mutationFn: () =>
+      adminPost<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live/reconcile`,
+        {},
+        { headers: scoringWriteHeaders() },
+      ),
+    onSuccess: (state) => {
+      setActionError(null)
+      queryClient.setQueryData(['admin', 'matches', mid, 'live'], state)
+    },
+    onError: (error: Error) =>
+      setActionError(`Automatic scorecard reconciliation failed: ${error.message}`),
+  })
+
+  useEffect(() => {
+    const state = liveQ.data
+    if (
+      state?.scorecard_reconciliation_status !== 'out_of_sync' ||
+      !scoringSessionQ.data?.session_token ||
+      deliveryOutbox.length > 0 ||
+      reconciliationAttemptedVersionRef.current === state?.scoring_version
+    ) {
+      return
+    }
+    reconciliationAttemptedVersionRef.current = state.scoring_version
+    reconcileScorecardMutation.mutate()
+  }, [
+    deliveryOutbox.length,
+    liveQ.data,
+    reconcileScorecardMutation,
+    scoringSessionQ.data?.session_token,
+  ])
 
   const requestEditAccessMutation = useMutation({
     mutationFn: (reason: string) =>
@@ -1527,16 +1803,116 @@ function LiveScoringPage() {
     onError: (error: Error) => setActionError(error.message),
   })
 
+  const takeoverSessionMutation = useMutation({
+    mutationFn: (reason: string) =>
+      adminPost<ScoringSessionDto>(`/admin/matches/${mid}/live/session`, {
+        device_id: deviceId,
+        device_label: deviceLabel,
+        force_takeover: true,
+        takeover_reason: reason,
+      }),
+    onSuccess: async (session) => {
+      setActionError(null)
+      queryClient.setQueryData(
+        ['admin', 'matches', mid, 'scoring-session', deviceId],
+        session,
+      )
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'matches', mid, 'live'],
+      })
+    },
+    onError: (error: Error) => setActionError(error.message),
+  })
+
+  const flushDeliveryOutbox = useCallback(async () => {
+    const token = scoringSessionQ.data?.session_token
+    if (!isOnline || !token || outboxRef.current.length === 0 || outboxFlushingRef.current) {
+      return
+    }
+
+    outboxFlushingRef.current = true
+    setOutboxFlushing(true)
+    try {
+      const authoritative = await adminGet<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live`,
+      )
+      let version = authoritative.scoring_version
+      const queuedAtStart = [...outboxRef.current]
+
+      for (const entry of queuedAtStart) {
+        try {
+          const saved = await adminPost<LiveBallEventDto>(
+            `/admin/matches/${mid}/live/balls`,
+            entry.payload.body,
+            {
+              headers: {
+                'X-Score-Version': String(version),
+                'X-Scoring-Session': token,
+              },
+            },
+          )
+          version = saved.score_version ?? version + 1
+          const remaining = removeScoringBall(outboxRef.current, entry.id)
+          outboxRef.current = remaining
+          saveScoringOutbox(mid, remaining)
+          setDeliveryOutbox(remaining)
+          setLastSavedAt(new Date())
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to sync delivery.'
+          const pending = markScoringAttempt(outboxRef.current, entry.id, message)
+          outboxRef.current = pending
+          saveScoringOutbox(mid, pending)
+          setDeliveryOutbox(pending)
+          setActionError(
+            error instanceof ApiError && (error.status === 409 || error.status === 428)
+              ? `Scoring paused: ${message} Resolve session ownership before retrying the queued deliveries.`
+              : `Queued deliveries remain safe on this device. Sync stopped: ${message}`,
+          )
+          break
+        }
+      }
+    } catch (error) {
+      setActionError(
+        `Queued deliveries remain safe on this device. Reconnection check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      )
+    } finally {
+      outboxFlushingRef.current = false
+      setOutboxFlushing(false)
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'matches', mid, 'live'],
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'scorer', 'matches'],
+      })
+    }
+  }, [isOnline, mid, queryClient, scoringSessionQ.data?.session_token])
+
+  useEffect(() => {
+    if (isOnline && deliveryOutbox.length > 0 && scoringSessionQ.data?.session_token) {
+      void flushDeliveryOutbox()
+    }
+  }, [
+    deliveryOutbox.length,
+    flushDeliveryOutbox,
+    isOnline,
+    scoringSessionQ.data?.session_token,
+  ])
+
   const scorecardReadOnly =
     Boolean(liveQ.data?.scorecard_locked) &&
     liveQ.data?.can_edit_scorecard === false
-  const retryPendingBall = () => {
-    if (!pendingBallPayload) return
-    if (!isOnline) {
-      setActionError('You are offline. Reconnect before retrying the saved ball.')
+  const scoringSessionConflict =
+    scoringSessionQ.error instanceof ApiError && scoringSessionQ.error.status === 409
+  const requestScoringTakeover = () => {
+    const reason = window.prompt(
+      'Why are you taking over this scoring session? The reason is saved in the audit log.',
+    )
+    if (reason == null) return
+    if (reason.trim().length < 5) {
+      setActionError('Enter a takeover reason of at least 5 characters.')
       return
     }
-    void ballMutation.mutate(pendingBallPayload)
+    void takeoverSessionMutation.mutate(reason.trim())
   }
   const matchFinalized =
     liveQ.data?.status === 'completed' || match?.status === 'completed'
@@ -1661,8 +2037,12 @@ function LiveScoringPage() {
     },
     newBatterId?: number | null,
   ) => {
-    if (pendingBallPayload) {
-      setActionError('A previous ball is waiting to be saved. Retry it before recording another delivery.')
+    if (isOnline && !scoringSessionQ.data?.session_token) {
+      setActionError(
+        scoringSessionQ.error instanceof ApiError && scoringSessionQ.error.status === 409
+          ? 'This match is being scored on another device. Take over the session before recording.'
+          : 'Connecting this scoring device. Please wait a moment and try again.',
+      )
       return
     }
 
@@ -1742,17 +2122,13 @@ function LiveScoringPage() {
       strikeRuns: input.strikeRuns ?? input.runsBatter ?? 0,
     }
 
-    if (!isOnline) {
-      setPendingBallPayload(payload)
-      try {
-        globalThis.sessionStorage.setItem(
-          pendingBallStorageKey(mid),
-          JSON.stringify(payload),
-        )
-      } catch {
-        // The scorer can still retry the ball while this page stays open.
-      }
-      setActionError('You are offline. This ball is waiting on this device and can be retried after reconnecting.')
+    if (!isOnline || outboxRef.current.length > 0) {
+      queueBallForDelivery(payload, isOnline ? null : 'Device offline')
+      setActionError(
+        isOnline
+          ? 'This ball is queued behind earlier deliveries and will sync in order.'
+          : 'Offline: this ball is saved on this device. You can keep scoring and it will sync after reconnection.',
+      )
       return
     }
 
@@ -3180,10 +3556,20 @@ function LiveScoringPage() {
         }
         @media (max-width: 520px) {
           .live-scorer-short-run {
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .live-scorer-short-run__title,
+          .live-scorer-short-run .btn-ghost {
+            grid-column: 1 / -1;
           }
         }
         @media (max-width: 640px) {
+          .live-scorer-page {
+            gap: 0.75rem;
+          }
+          .live-scorer-sticky {
+            position: static;
+          }
           .live-scorer-sticky__top {
             grid-template-columns: 1fr;
           }
@@ -3213,6 +3599,28 @@ function LiveScoringPage() {
           .live-scorer-page .catalog-toolbar .btn-ghost {
             flex: 1 1 135px;
             justify-content: center;
+          }
+          .live-scorer-quick-actions {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .live-scorer-dialog-backdrop {
+            align-items: end;
+            padding: 0;
+          }
+          .live-scorer-dialog {
+            width: 100%;
+            max-height: 94dvh;
+            border-radius: 1.1rem 1.1rem 0 0;
+          }
+          .live-scorer-over-summary__headline,
+          .live-scorer-ball-panel__over-summary-head,
+          .live-scorer-ball-panel__over-summary-bowler {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+          .live-scorer-ball-panel__over-summary-head strong,
+          .live-scorer-ball-panel__over-summary-bowler-inline {
+            text-align: left;
           }
         }
       `}</style>
@@ -3286,8 +3694,35 @@ function LiveScoringPage() {
         </aside>
       ) : null}
 
+      {scoringSessionConflict ? (
+        <aside className="live-scorer-lock-banner" aria-live="assertive">
+          <div>
+            <strong className="live-scorer-lock-banner__title">
+              <LockKeyhole size={19} aria-hidden />
+              Scoring session owned elsewhere
+            </strong>
+            <p className="muted">
+              {liveQ.data?.scoring_session
+                ? `${liveQ.data.scoring_session.owner_name} is scoring on ${liveQ.data.scoring_session.device_label ?? 'another device'}.`
+                : scoringSessionQ.error instanceof Error
+                  ? scoringSessionQ.error.message
+                  : 'Another scoring session currently owns this match.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-primary btn--with-icon"
+            disabled={takeoverSessionMutation.isPending}
+            onClick={requestScoringTakeover}
+          >
+            <LockKeyhole size={18} aria-hidden />
+            {takeoverSessionMutation.isPending ? 'Taking over…' : 'Take over scoring'}
+          </button>
+        </aside>
+      ) : null}
+
       <aside
-        className={`live-scorer-sync-banner${!isOnline ? ' live-scorer-sync-banner--offline' : pendingBallPayload ? ' live-scorer-sync-banner--retry' : ''}`}
+        className={`live-scorer-sync-banner${!isOnline ? ' live-scorer-sync-banner--offline' : deliveryOutbox.length > 0 ? ' live-scorer-sync-banner--retry' : ''}`}
         aria-live="polite"
       >
         <div className="live-scorer-sync-banner__copy">
@@ -3295,33 +3730,33 @@ function LiveScoringPage() {
           <div>
             <strong>
               {!isOnline
-                ? 'Offline — scoring is paused'
-                : pendingBallPayload
-                  ? 'One ball is waiting to be saved'
-                  : ballMutation.isPending
+                ? `Offline — ${deliveryOutbox.length} ${deliveryOutbox.length === 1 ? 'ball' : 'balls'} safely queued`
+                : deliveryOutbox.length > 0
+                  ? `${deliveryOutbox.length} ${deliveryOutbox.length === 1 ? 'ball is' : 'balls are'} syncing`
+                  : ballMutation.isPending || outboxFlushing
                     ? 'Saving ball…'
                     : 'Live score is connected'}
             </strong>
             <p className="muted">
               {!isOnline
-                ? 'New balls are held safely on this device until you reconnect.'
-                : pendingBallPayload
-                  ? 'Retry is safe: the same delivery cannot be added twice.'
+                ? 'Keep scoring normally. Deliveries are stored durably on this device and upload in order after reconnection.'
+                : deliveryOutbox.length > 0
+                  ? 'Safe retry IDs prevent a delivery from being added twice.'
                   : lastSavedAt
                     ? `Last ball saved at ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`
                     : 'Each recorded ball is saved to the match centre immediately.'}
             </p>
           </div>
         </div>
-        {pendingBallPayload ? (
+        {deliveryOutbox.length > 0 ? (
           <button
             type="button"
             className="btn-primary btn--with-icon"
-            disabled={!isOnline || ballMutation.isPending}
-            onClick={retryPendingBall}
+            disabled={!isOnline || outboxFlushing || !scoringSessionQ.data?.session_token}
+            onClick={() => void flushDeliveryOutbox()}
           >
             <CloudUpload size={18} aria-hidden />
-            {ballMutation.isPending ? 'Saving…' : 'Retry saved ball'}
+            {outboxFlushing ? 'Syncing…' : `Sync ${deliveryOutbox.length} queued`}
           </button>
         ) : null}
       </aside>
@@ -3367,9 +3802,12 @@ function LiveScoringPage() {
             <button
               key={panel.id}
               type="button"
+              id={`scorer-tab-${panel.id}`}
+              role="tab"
               className={`live-scorer-tab${effectiveScorerPanel === panel.id ? ' is-active' : ''}${panel.isComplete ? ' is-complete' : ''}`}
               onClick={() => setActiveScorerPanel(panel.id)}
-              aria-pressed={effectiveScorerPanel === panel.id}
+              aria-selected={effectiveScorerPanel === panel.id}
+              aria-controls={`scorer-panel-${panel.id}`}
             >
               <strong>{panel.label}</strong>
               <span>{panel.hint}</span>
@@ -3380,6 +3818,14 @@ function LiveScoringPage() {
         {squadQ.isError ? <p className="login-error">{squadQ.error.message}</p> : null}
         {actionError ? <p className="login-error">{actionError}</p> : null}
       </section>
+
+      <div
+        id={`scorer-panel-${effectiveScorerPanel}`}
+        role="tabpanel"
+        aria-labelledby={`scorer-tab-${effectiveScorerPanel}`}
+        tabIndex={0}
+        className="live-scorer-tabpanel"
+      >
 
       {effectiveScorerPanel === 'setup' ? (
       <section className="team-hub-section">
@@ -3698,6 +4144,10 @@ function LiveScoringPage() {
         <div className="dashboard-match-panel__tabs" role="tablist" aria-label="Innings">
           <button
             type="button"
+            id="scorer-innings-tab-1"
+            role="tab"
+            aria-selected={innings === 1}
+            aria-controls="scorer-innings-panel-1"
             className={`dashboard-match-panel__tab${innings === 1 ? ' is-active' : ''}`}
             onClick={() => setInnings(1)}
           >
@@ -3705,6 +4155,10 @@ function LiveScoringPage() {
           </button>
           <button
             type="button"
+            id="scorer-innings-tab-2"
+            role="tab"
+            aria-selected={innings === 2}
+            aria-controls="scorer-innings-panel-2"
             className={`dashboard-match-panel__tab${innings === 2 ? ' is-active' : ''}`}
             onClick={() => setInnings(2)}
           >
@@ -3712,7 +4166,13 @@ function LiveScoringPage() {
           </button>
         </div>
 
-        <div className="live-scorer-workspace">
+        <div
+          className="live-scorer-workspace"
+          id={`scorer-innings-panel-${innings}`}
+          role="tabpanel"
+          aria-labelledby={`scorer-innings-tab-${innings}`}
+          tabIndex={0}
+        >
         <div className="live-scorer-workspace__controls">
         <div className="inline-edit__grid">
           <label className="inline-edit__field">
@@ -4029,6 +4489,7 @@ function LiveScoringPage() {
                 <button
                   type="button"
                   className="btn-ghost live-scorer-dialog__close"
+                  data-dialog-close
                   onClick={() => setExtrasOpen(false)}
                   aria-label="Close extras"
                 >
@@ -4052,6 +4513,7 @@ function LiveScoringPage() {
                   key={`wide-${completedRuns}`}
                   type="button"
                   className="btn-ghost"
+                  data-dialog-initial-focus={completedRuns === 0 ? true : undefined}
                   onClick={() =>
                     submitBall({
                       runsExtras: totalWides,
@@ -4465,6 +4927,7 @@ function LiveScoringPage() {
                 <button
                   type="button"
                   className="btn-ghost"
+                  data-dialog-close
                   onClick={() => setRequestEditOpen(false)}
                   disabled={requestEditAccessMutation.isPending}
                 >
@@ -4632,6 +5095,7 @@ function LiveScoringPage() {
               <button
                 type="button"
                 className="btn-ghost live-scorer-dialog__close"
+                data-dialog-close
                 onClick={closeWicketDetails}
                 aria-label="Close wicket details"
               >
@@ -4644,6 +5108,7 @@ function LiveScoringPage() {
                 <span className="inline-edit__label">1. Delivery</span>
                 <select
                   className="inline-edit__control"
+                  data-dialog-initial-focus
                   value={wicketDeliveryType}
                   onChange={(event) => {
                     const nextDelivery = event.target.value as WicketDeliveryType
@@ -4673,6 +5138,7 @@ function LiveScoringPage() {
                 <span className="inline-edit__label">2. Player out</span>
                 <select
                   className="inline-edit__control"
+                  data-dialog-initial-focus={wicketIsRetirement ? true : undefined}
                   value={wicketPlayerId || eligibleWicketPlayers[0]?.id || ''}
                   onChange={(event) => setWicketPlayerId(Number(event.target.value))}
                 >
@@ -5563,6 +6029,7 @@ function LiveScoringPage() {
         )}
       </section>
       ) : null}
+      </div>
     </div>
   )
 }

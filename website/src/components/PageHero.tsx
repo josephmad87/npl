@@ -1,47 +1,26 @@
 import { useQuery } from '@tanstack/react-query'
-import siteLogoUrl from '../assets/logo.png'
-import { extractList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
-
-type HeroGalleryItem = {
-  file_url?: string | null
-  thumbnail_url?: string | null
-}
-
-type HeroNewsItem = {
-  featured_image_url?: string | null
-}
+import siteLogoUrl from '../assets/logo-optimized.png'
+import { fetchJson, resolveMediaUrl } from '../lib/publicApi'
+import { ResponsiveImage } from './ResponsiveImage'
 
 function useRandomHeroImage(enabled: boolean) {
-  const { data: images = [] } = useQuery({
+  const { data: image = null } = useQuery({
     queryKey: ['hero-random-image-pool'],
     queryFn: async () => {
-      const [galleryPayload, newsPayload] = await Promise.all([
-        fetchJson<unknown>('/public/gallery?page=1&page_size=30'),
-        fetchJson<unknown>('/public/news?page=1&page_size=30'),
-      ])
-
-      const gallery = extractList<HeroGalleryItem>(galleryPayload)
-      const news = extractList<HeroNewsItem>(newsPayload)
-
-      const pool = [
-        ...gallery
-          .map((item) => resolveMediaUrl(item.thumbnail_url ?? item.file_url))
-          .filter((url): url is string => Boolean(url)),
-        ...news
-          .map((item) => resolveMediaUrl(item.featured_image_url))
-          .filter((url): url is string => Boolean(url)),
-      ]
-
-      return [...new Set(pool)]
+      const payload = await fetchJson<{ images: string[] }>('/public/hero-images')
+      const images = payload.images
+        .map((url) => resolveMediaUrl(url))
+        .filter((url): url is string => Boolean(url))
+      if (images.length === 0) return null
+      const idx = Math.floor(Math.random() * images.length)
+      return images[idx] ?? null
     },
     staleTime: 1000 * 60 * 10,
     retry: 1,
     enabled,
   })
 
-  if (images.length === 0) return null
-  const idx = Math.floor(Math.random() * images.length)
-  return images[idx] ?? null
+  return image
 }
 
 export function PageHero({
@@ -91,11 +70,25 @@ export function PageHero({
   return (
     <section className={rootClass}>
       {coverSrc ? (
-        <img src={coverSrc} alt={title} />
+        <ResponsiveImage
+          src={coverSrc}
+          alt=""
+          widths={[480, 768, 1024, 1280, 1600]}
+          sizes="100vw"
+          fallbackWidth={1280}
+          priority
+        />
       ) : null}
       {showSiteLogoMark ? (
         <div className="ui-page-hero__brand-mark">
-          <img src={siteLogoUrl} alt="NPL logo" />
+          <ResponsiveImage
+            src={siteLogoUrl}
+            alt=""
+            widths={[320, 480, 720]}
+            sizes="(max-width: 700px) 70vw, 420px"
+            fallbackWidth={480}
+            priority
+          />
         </div>
       ) : null}
       <div

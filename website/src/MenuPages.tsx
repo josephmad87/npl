@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState, useSearch } from '@tanstack/react-router'
-import nplLogoUrl from './assets/logo.png'
+import nplLogoUrl from './assets/logo-optimized.png'
 import { EmptyState } from './components/EmptyState'
 import { ErrorNotice } from './components/ErrorNotice'
 import { LeagueSeasonHub } from './components/LeagueSeasonHub'
@@ -142,7 +142,7 @@ function FixturesPageContent({ category }: { category?: string }) {
   )
 }
 
-function ResultsPageContent({ category }: { category?: string }) {
+function ResultsPageContentStateful({ category }: { category?: string }) {
   const endpoint = '/public/results'
   const { data = [], isLoading, isError } = useQuery({
     queryKey: [endpoint, 'all-pages', category ?? 'all'],
@@ -169,9 +169,9 @@ function ResultsPageContent({ category }: { category?: string }) {
       : 'Completed match results and scorelines across all competitions.'
   }, [category])
 
-  const [selectedYear, setSelectedYear] = useState('all')
-  const [selectedLeague, setSelectedLeague] = useState('all')
-  const [resultsPageIndex, setResultsPageIndex] = useState(0)
+  const [requestedYear, setSelectedYear] = useState('all')
+  const [requestedLeague, setSelectedLeague] = useState('all')
+  const [requestedResultsPageIndex, setResultsPageIndex] = useState(0)
 
   const yearTabs = useMemo(() => {
     const years = Array.from(new Set(data.map(resultYearLabel)))
@@ -181,6 +181,11 @@ function ResultsPageContent({ category }: { category?: string }) {
       return Number(b) - Number(a)
     })
   }, [data])
+
+  const selectedYear =
+    requestedYear === 'all' || yearTabs.includes(requestedYear)
+      ? requestedYear
+      : 'all'
 
   const leagueTabs = useMemo(() => {
     const source =
@@ -192,6 +197,11 @@ function ResultsPageContent({ category }: { category?: string }) {
       a.localeCompare(b),
     )
   }, [data, selectedYear])
+
+  const selectedLeague =
+    requestedLeague === 'all' || leagueTabs.includes(requestedLeague)
+      ? requestedLeague
+      : 'all'
 
   const filteredResults = useMemo(() => {
     return data.filter((match) => {
@@ -212,6 +222,11 @@ function ResultsPageContent({ category }: { category?: string }) {
     Math.ceil(filteredResults.length / RESULTS_PAGE_SIZE),
   )
 
+  const resultsPageIndex = Math.min(
+    requestedResultsPageIndex,
+    Math.max(0, resultsPageCount - 1),
+  )
+
   const resultsPageStart = resultsPageIndex * RESULTS_PAGE_SIZE
 
   const pagedResults = filteredResults.slice(
@@ -221,28 +236,6 @@ function ResultsPageContent({ category }: { category?: string }) {
 
   const canGoPreviousResults = resultsPageIndex > 0
   const canGoNextResults = resultsPageIndex < resultsPageCount - 1
-
-  useEffect(() => {
-    if (selectedYear !== 'all' && !yearTabs.includes(selectedYear)) {
-      setSelectedYear('all')
-    }
-  }, [selectedYear, yearTabs])
-
-  useEffect(() => {
-    if (selectedLeague !== 'all' && !leagueTabs.includes(selectedLeague)) {
-      setSelectedLeague('all')
-    }
-  }, [selectedLeague, leagueTabs])
-
-  useEffect(() => {
-    setResultsPageIndex(0)
-  }, [selectedYear, selectedLeague, category])
-
-  useEffect(() => {
-    setResultsPageIndex((current) =>
-      Math.min(current, Math.max(0, resultsPageCount - 1)),
-    )
-  }, [resultsPageCount])
 
   return (
     <>
@@ -274,19 +267,19 @@ function ResultsPageContent({ category }: { category?: string }) {
 
                   <div
                     className="results-tabs__list"
-                    role="tablist"
+                    role="group"
                     aria-label="Years"
                   >
                     <button
                       type="button"
-                      role="tab"
-                      aria-selected={selectedYear === 'all'}
+                      aria-pressed={selectedYear === 'all'}
                       className={`results-tabs__btn${
                         selectedYear === 'all' ? ' is-active' : ''
                       }`}
                       onClick={() => {
                         setSelectedYear('all')
                         setSelectedLeague('all')
+                        setResultsPageIndex(0)
                       }}
                     >
                       All
@@ -296,14 +289,14 @@ function ResultsPageContent({ category }: { category?: string }) {
                       <button
                         key={year}
                         type="button"
-                        role="tab"
-                        aria-selected={selectedYear === year}
+                        aria-pressed={selectedYear === year}
                         className={`results-tabs__btn${
                           selectedYear === year ? ' is-active' : ''
                         }`}
                         onClick={() => {
                           setSelectedYear(year)
                           setSelectedLeague('all')
+                          setResultsPageIndex(0)
                         }}
                       >
                         {year}
@@ -317,17 +310,19 @@ function ResultsPageContent({ category }: { category?: string }) {
 
                   <div
                     className="results-tabs__list"
-                    role="tablist"
+                    role="group"
                     aria-label="Leagues"
                   >
                     <button
                       type="button"
-                      role="tab"
-                      aria-selected={selectedLeague === 'all'}
+                      aria-pressed={selectedLeague === 'all'}
                       className={`results-tabs__btn${
                         selectedLeague === 'all' ? ' is-active' : ''
                       }`}
-                      onClick={() => setSelectedLeague('all')}
+                      onClick={() => {
+                        setSelectedLeague('all')
+                        setResultsPageIndex(0)
+                      }}
                     >
                       All
                     </button>
@@ -336,12 +331,14 @@ function ResultsPageContent({ category }: { category?: string }) {
                       <button
                         key={league}
                         type="button"
-                        role="tab"
-                        aria-selected={selectedLeague === league}
+                        aria-pressed={selectedLeague === league}
                         className={`results-tabs__btn${
                           selectedLeague === league ? ' is-active' : ''
                         }`}
-                        onClick={() => setSelectedLeague(league)}
+                        onClick={() => {
+                          setSelectedLeague(league)
+                          setResultsPageIndex(0)
+                        }}
                       >
                         {league}
                       </button>
@@ -421,6 +418,15 @@ function ResultsPageContent({ category }: { category?: string }) {
         </section>
       </main>
     </>
+  )
+}
+
+function ResultsPageContent({ category }: { category?: string }) {
+  return (
+    <ResultsPageContentStateful
+      key={category ?? 'all'}
+      category={category}
+    />
   )
 }
 
@@ -794,8 +800,10 @@ function SearchResultsPageImpl() {
                   <button
                     key={tab.id}
                     type="button"
+                    id={`search-tab-${tab.id}`}
                     role="tab"
                     aria-selected={activeFilter === tab.id}
+                    aria-controls={`search-panel-${tab.id}`}
                     className={`search-page__tab${activeFilter === tab.id ? ' is-active' : ''}`}
                     onClick={() => {
                       void navigate({
@@ -811,11 +819,17 @@ function SearchResultsPageImpl() {
                   </button>
                 ))}
               </div>
-              {filteredResults.length === 0 ? (
-                <EmptyState title="No results in this filter" />
-              ) : null}
-              <div className="search-page__results" role="list" aria-label="Search results">
-                {filteredResults.map((item) => (
+              <div
+                id={`search-panel-${activeFilter}`}
+                role="tabpanel"
+                aria-labelledby={`search-tab-${activeFilter}`}
+                tabIndex={0}
+              >
+                {filteredResults.length === 0 ? (
+                  <EmptyState title="No results in this filter" />
+                ) : null}
+                <div className="search-page__results" role="list" aria-label="Search results">
+                  {filteredResults.map((item) => (
                   <article key={item.key} className="search-page__result" role="listitem">
                   {item.kind === 'news' ? (
                     <Link to="/news/$slug" params={{ slug: item.slug! }} className="search-page__title">
@@ -845,7 +859,8 @@ function SearchResultsPageImpl() {
                   <p className="search-page__meta">{item.kind.toUpperCase()}</p>
                   <p className="search-page__snippet">{item.snippet}</p>
                   </article>
-                ))}
+                  ))}
+                </div>
               </div>
             </>
           ) : null}
@@ -1086,29 +1101,19 @@ function CompareTeamsPageImpl() {
     retry: 1,
   })
 
-  const [teamAId, setTeamAId] = useState('')
-  const [teamBId, setTeamBId] = useState('')
+  const [requestedTeamAId, setTeamAId] = useState('')
+  const [requestedTeamBId, setTeamBId] = useState('')
 
-  useEffect(() => {
-    if (teams.length === 0) return
-
-    const currentTeamExists = teams.some((team) => String(team.id) === teamAId)
-
-    if (!teamAId || !currentTeamExists) {
-      setTeamAId(String(teams[0].id))
-    }
-  }, [teamAId, teams])
-
-  useEffect(() => {
-    if (teams.length < 2) return
-
-    const currentTeamExists = teams.some((team) => String(team.id) === teamBId)
-    const fallback = teams.find((team) => String(team.id) !== teamAId)
-
-    if (!teamBId || !currentTeamExists || teamBId === teamAId) {
-      setTeamBId(fallback ? String(fallback.id) : '')
-    }
-  }, [teamAId, teamBId, teams])
+  const teamAId = teams.some((team) => String(team.id) === requestedTeamAId)
+    ? requestedTeamAId
+    : String(teams[0]?.id ?? '')
+  const firstOtherTeam = teams.find((team) => String(team.id) !== teamAId)
+  const teamBId = teams.some(
+    (team) =>
+      String(team.id) === requestedTeamBId && requestedTeamBId !== teamAId,
+  )
+    ? requestedTeamBId
+    : String(firstOtherTeam?.id ?? '')
 
   const selectedTeamA = teams.find((team) => String(team.id) === teamAId) ?? null
   const selectedTeamB = teams.find((team) => String(team.id) === teamBId) ?? null

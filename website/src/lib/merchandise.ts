@@ -11,6 +11,23 @@ export type MerchandiseProduct = {
   team_ids: number[]
   status: string
   sort_order: number
+  variants: MerchandiseProductVariant[]
+}
+
+export type MerchandiseProductVariant = {
+  id: number
+  product_id: number
+  sku: string
+  label: string
+  size: string | null
+  colour: string | null
+  price_text: string
+  price_minor: number | null
+  currency: string
+  stock_quantity: number | null
+  allow_backorder: boolean
+  status: 'active' | 'inactive'
+  sort_order: number
 }
 
 export function sizeOptions(sizesText: string | null): string[] {
