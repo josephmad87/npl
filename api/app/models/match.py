@@ -184,6 +184,11 @@ class FanPlayerMatchVote(Base):
             "voter_key",
             name="uq_fan_player_match_votes_match_voter",
         ),
+        UniqueConstraint(
+            "match_id",
+            "supporter_id",
+            name="uq_fan_player_match_votes_match_supporter",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

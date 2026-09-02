@@ -43,7 +43,6 @@ def upgrade() -> None:
         created_at,
         updated_at,
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("email"),
     )
     op.create_index("ix_supporter_accounts_email", "supporter_accounts", ["email"], unique=True)
     op.create_index("ix_supporter_accounts_is_active", "supporter_accounts", ["is_active"])
@@ -107,7 +106,6 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["supporter_id"], ["supporter_accounts.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("device_token_hash"),
     )
     op.create_index("ix_fan_push_devices_supporter_id", "fan_push_devices", ["supporter_id"])
     op.create_index("ix_fan_push_devices_device_token_hash", "fan_push_devices", ["device_token_hash"], unique=True)
@@ -133,7 +131,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["match_id"], ["matches.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["supporter_id"], ["supporter_accounts.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("idempotency_key"),
     )
     for column in ("supporter_id", "match_id", "event_type", "scheduled_for", "status", "idempotency_key"):
         op.create_index(f"ix_fan_notifications_{column}", "fan_notifications", [column], unique=column == "idempotency_key")
@@ -226,7 +223,6 @@ def upgrade() -> None:
     op.create_foreign_key(
         "fk_merchandise_orders_variant", "merchandise_orders", "merchandise_product_variants", ["variant_id"], ["id"], ondelete="SET NULL"
     )
-    op.create_unique_constraint("uq_merchandise_orders_order_number", "merchandise_orders", ["order_number"])
     op.create_index("ix_merchandise_orders_supporter_id", "merchandise_orders", ["supporter_id"])
     op.create_index("ix_merchandise_orders_variant_id", "merchandise_orders", ["variant_id"])
     op.create_index("ix_merchandise_orders_order_number", "merchandise_orders", ["order_number"], unique=True)
@@ -255,7 +251,6 @@ def downgrade() -> None:
         "ix_merchandise_orders_supporter_id",
     ):
         op.drop_index(index_name, table_name="merchandise_orders")
-    op.drop_constraint("uq_merchandise_orders_order_number", "merchandise_orders", type_="unique")
     op.drop_constraint("fk_merchandise_orders_variant", "merchandise_orders", type_="foreignkey")
     op.drop_constraint("fk_merchandise_orders_supporter", "merchandise_orders", type_="foreignkey")
     for column in (
