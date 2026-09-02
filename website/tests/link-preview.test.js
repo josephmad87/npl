@@ -4,7 +4,7 @@ import test from 'node:test'
 import handler, {
   hasKnownRouteShape,
   matchSeoPath,
-} from './link-preview.js'
+} from '../netlify/edge-functions/link-preview.js'
 
 const match = {
   id: 42,
