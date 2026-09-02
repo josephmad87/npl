@@ -1,9 +1,10 @@
 import { Link, useParams } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import nplLogoUrl from './assets/logo.png'
+import nplLogoUrl from './assets/logo-optimized.png'
 import { MerchandiseQuickOrderModal } from './components/MerchandiseQuickOrderModal'
 import { PageHero } from './components/PageHero'
+import { ResponsiveImage } from './components/ResponsiveImage'
 import {
   merchandiseExcerpt,
   merchandiseImages,
@@ -21,11 +22,12 @@ type MerchandiseTeam = {
 function MerchandiseCardImage({ product }: Readonly<{ product: MerchandiseProduct }>) {
   const mainImage = merchandiseImages(product)[0]
   return (
-    <img
+    <ResponsiveImage
       src={mainImage ? resolveMediaUrl(mainImage) ?? nplLogoUrl : nplLogoUrl}
       alt={product.name}
-      loading="lazy"
-      decoding="async"
+      widths={[320, 480, 640, 800]}
+      sizes="(max-width: 700px) 100vw, 33vw"
+      fallbackWidth={640}
     />
   )
 }
@@ -88,7 +90,7 @@ function MerchandiseCatalog({
           </div>
         </section>
       </main>
-      {orderProduct ? <MerchandiseQuickOrderModal product={orderProduct} onClose={() => setOrderProduct(null)} /> : null}
+      {orderProduct ? <MerchandiseQuickOrderModal key={orderProduct.id} product={orderProduct} onClose={() => setOrderProduct(null)} /> : null}
     </>
   )
 }

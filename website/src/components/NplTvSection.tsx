@@ -1,4 +1,6 @@
-import { useEffect } from 'react'
+import { useState } from 'react'
+import siteLogoUrl from '../assets/logo-optimized.png'
+import { ResponsiveImage } from './ResponsiveImage'
 
 const YOUTUBE_CHANNEL_URL = 'https://www.youtube.com/@nplzimbabwe'
 const X_PROFILE_URL = 'https://x.com/nplzimbabwe'
@@ -7,21 +9,7 @@ const YOUTUBE_EMBED_URL =
   'https://www.youtube.com/embed/videoseries?list=UUZK0q-HMFz_OnmJi3u5mpiw&rel=0'
 
 export function NplTvSection() {
-  useEffect(() => {
-    const existingScript = document.querySelector<HTMLScriptElement>(
-      'script[src="https://elfsightcdn.com/platform.js"]',
-    )
-
-    if (existingScript) {
-      return
-    }
-
-    const script = document.createElement('script')
-    script.src = 'https://elfsightcdn.com/platform.js'
-    script.async = true
-
-    document.body.appendChild(script)
-  }, [])
+  const [isPlaying, setIsPlaying] = useState(false)
 
   return (
     <section className="home-section npl-tv-section" aria-labelledby="npl-tv-title">
@@ -45,13 +33,32 @@ export function NplTvSection() {
           </div>
 
           <div className="npl-tv-video">
-            <iframe
-              src={YOUTUBE_EMBED_URL}
-              title="NPL TV YouTube player"
-              loading="lazy"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-            />
+            {isPlaying ? (
+              <iframe
+                src={`${YOUTUBE_EMBED_URL}&autoplay=1`}
+                title="NPL TV YouTube player"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            ) : (
+              <button
+                type="button"
+                className="npl-tv-video__preview"
+                onClick={() => setIsPlaying(true)}
+                aria-label="Load and play NPL TV from YouTube"
+              >
+                <ResponsiveImage
+                  src={siteLogoUrl}
+                  alt=""
+                  widths={[320, 480, 720]}
+                  sizes="(max-width: 900px) 100vw, 60vw"
+                  fallbackWidth={720}
+                />
+                <span className="npl-tv-video__play" aria-hidden="true">▶</span>
+                <strong>Click to play NPL TV</strong>
+                <small>YouTube loads only after you choose to play.</small>
+              </button>
+            )}
           </div>
         </article>
 
@@ -66,11 +73,12 @@ export function NplTvSection() {
             </a>
           </div>
 
-          <div className="npl-tv-elfsight">
-            <div
-              className="elfsight-app-78fc0cb4-0a99-433d-9e17-f3b641a46c96"
-              data-elfsight-app-lazy=""
-            />
+          <div className="npl-tv-social-fallback">
+            <p className="npl-tv-social-fallback__handle">@nplzimbabwe</p>
+            <p>Match updates, league news and announcements from the official NPL Zimbabwe account.</p>
+            <a href={X_PROFILE_URL} target="_blank" rel="noreferrer">
+              Follow NPL Zimbabwe on X
+            </a>
           </div>
         </article>
       </div>

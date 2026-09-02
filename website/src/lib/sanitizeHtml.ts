@@ -1,36 +1,24 @@
-/**
- * Browser-side hardening for super-admin-authored rich HTML.
- * Removes executable elements, inline handlers, and JavaScript URLs.
- */
+import DOMPurify from 'dompurify'
+
 export function sanitizeHtml(html: string): string {
   const raw = html.trim()
-  if (!raw) return ''
-  if (typeof document === 'undefined') return raw
+  if (!raw || typeof window === 'undefined') return ''
 
-  try {
-    const doc = new DOMParser().parseFromString(raw, 'text/html')
-    doc
-      .querySelectorAll(
-        'script,iframe,object,embed,link[rel="import"],meta[http-equiv="refresh"]',
-      )
-      .forEach((element) => element.remove())
-
-    doc.querySelectorAll('*').forEach((element) => {
-      for (const attribute of element.attributes) {
-        const name = attribute.name.toLowerCase()
-        const value = attribute.value.trim().toLowerCase()
-        if (
-          name.startsWith('on') ||
-          ((name === 'href' || name === 'src') &&
-            value.startsWith('javascript:'))
-        ) {
-          element.removeAttribute(attribute.name)
-        }
-      }
-    })
-
-    return doc.body.innerHTML
-  } catch {
-    return ''
-  }
+  return DOMPurify.sanitize(raw, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: [
+      'style',
+      'form',
+      'input',
+      'button',
+      'textarea',
+      'select',
+      'option',
+      'svg',
+      'math',
+      'template',
+    ],
+    FORBID_ATTR: ['style', 'srcset'],
+    ALLOW_DATA_ATTR: false,
+  })
 }

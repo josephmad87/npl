@@ -23,7 +23,7 @@ class TeamSeasonRecordOut(BaseModel):
 
 class TeamBase(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    slug: str = Field(min_length=1, max_length=255)
+    slug: str = Field(min_length=1, max_length=255, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
     category: str = Field(min_length=1, max_length=32)
     short_name: str | None = Field(default=None, max_length=64)
     logo_url: str | None = None
@@ -54,7 +54,12 @@ class TeamCreate(TeamBase):
 
 class TeamUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    slug: str | None = Field(default=None, min_length=1, max_length=255)
+    slug: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    )
     category: str | None = Field(default=None, min_length=1, max_length=32)
     short_name: str | None = None
     logo_url: str | None = None

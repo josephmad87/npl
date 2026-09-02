@@ -2,6 +2,8 @@
 
 ## Zimbabwe Cricket National Premier League (NPL) Digital Platform
 
+Operational staging, monitoring, backup and release controls are documented in [`ops/README.md`](ops/README.md). These controls are designed to keep staging isolated from production and to make every release verifiable before deployment.
+
 ## 1. Introduction
 
 ### 1.1 Purpose
@@ -1082,4 +1084,3 @@ After this SRS, the following documents should be created:
 8. Deployment and DevOps Specification
 9. QA Test Plan
 10. Cursor prompt pack for backend, website, and admin app generation
-

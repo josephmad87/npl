@@ -1,11 +1,16 @@
 from collections import defaultdict
 from datetime import date, datetime, timezone
+from hashlib import sha256
+import hmac
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import Select, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased, joinedload, selectinload
 
 from app.api.pagination import PageParams, paginate_select, to_paginated
+from app.api.deps import get_current_supporter, get_optional_supporter
 from app.db.session import get_db
 from app.models.about_content import AboutContent
 from app.models.contact_message import ContactMessage
@@ -21,15 +26,35 @@ from app.models.match import (
     MatchDaySquadPlayer,
     MatchPlayerStat,
 )
-from app.models.merchandise import MerchandiseOrder, MerchandiseProduct, MerchandiseProductTeam
+from app.models.merchandise import (
+    MerchandiseOrder,
+    MerchandiseOrderStatusEvent,
+    MerchandiseProduct,
+    MerchandiseProductTeam,
+    MerchandiseProductVariant,
+)
 from app.models.player import Player
 from app.models.site_page_content import SitePageContent
+from app.models.seo_redirect import SeoRedirect
 from app.models.sponsor import Sponsor
 from app.models.team import Team
+from app.models.supporter import SupporterAccount
 from app.schemas.about_content import AboutContentBody, AboutContentOut
 from app.schemas.contact_message import ContactMessageCreate, ContactMessageOut
 from app.schemas.articles import ArticleOut
 from app.schemas.gallery import GalleryItemOut
+from app.schemas.homepage import (
+    HomepageArticleOut,
+    HomepageGalleryOut,
+    HomepageMatchOut,
+    HomepageOut,
+    HomepagePlayerOut,
+    HomepageSponsorOut,
+    HomepageTeamOut,
+    NavigationLeagueOut,
+    NavigationOut,
+    NavigationSeasonOut,
+)
 from app.schemas.leagues import LeagueDetailPublicOut, LeagueOut
 from app.schemas.matches import (
     FanPlayerMatchVoteChoiceOut,
@@ -46,8 +71,11 @@ from app.schemas.matches import (
 )
 from app.schemas.merchandise import (
     MerchandiseOrderCreate,
-    MerchandiseOrderOut,
+    MerchandiseOrderCreateOut,
+    MerchandiseOrderStatusEventOut,
+    MerchandiseOrderTrackingOut,
     MerchandiseProductOut,
+    MerchandiseProductVariantOut,
 )
 from app.schemas.players import PlayerMatchAppearanceOut, PlayerOut
 from app.schemas.seasons import SeasonPublicOut, SeasonSummaryOut
@@ -56,11 +84,44 @@ from app.schemas.sponsor import SponsorOut
 from app.schemas.teams import TeamOut, TeamSeasonRecordOut
 from app.services.dls import dls_g50_for_category, dls_par_score
 from app.services.site_pages import default_site_page_body
+from app.services.seo_redirects import normalise_public_path
 
 router = APIRouter(prefix="/public", tags=["public"])
 
 FIXTURE_STATUSES = ("scheduled", "live", "postponed")
 RESULT_STATUSES = ("completed",)
+
+
+@router.get("/seo/redirect", response_model=dict)
+def resolve_public_seo_redirect(
+    path: str = Query(min_length=1, max_length=2048),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        source_path = normalise_public_path(path)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "validation", "message": str(exc)},
+        ) from exc
+
+    redirect_row = db.scalar(
+        select(SeoRedirect).where(
+            SeoRedirect.source_path == source_path,
+            SeoRedirect.is_active.is_(True),
+        ),
+    )
+    if redirect_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "not_found", "message": "Redirect not found"},
+        )
+    return {
+        "source_path": redirect_row.source_path,
+        "target_path": redirect_row.target_path,
+        "status_code": 301,
+        "updated_at": redirect_row.updated_at,
+    }
 
 
 def _cricket_overs_label(value: object | None) -> str:
@@ -279,6 +340,183 @@ def _published_article_filter(stmt: Select) -> Select:
     return stmt.where(Article.status == "published").where(
         or_(Article.published_at.is_(None), Article.published_at <= now),
     )
+
+
+@router.get("/homepage", response_model=HomepageOut)
+def get_homepage(db: Session = Depends(get_db)) -> HomepageOut:
+    """One compact, cacheable payload for the public homepage.
+
+    The previous homepage downloaded several paginated admin-shaped resources,
+    including complete team/player records and match scorecards. This endpoint
+    returns only fields rendered above or near the homepage fold.
+    """
+    now = datetime.now(timezone.utc)
+
+    news = list(
+        db.scalars(
+            _published_article_filter(select(Article))
+            .order_by(Article.published_at.desc().nullslast(), Article.created_at.desc())
+            .limit(8),
+        ).all(),
+    )
+    match_options = (
+        joinedload(Match.season).joinedload(Season.league),
+        joinedload(Match.result),
+    )
+    fixtures = list(
+        db.scalars(
+            select(Match)
+            .options(*match_options)
+            .where(
+                Match.status.in_(FIXTURE_STATUSES),
+                Match.is_published.is_(True),
+                or_(
+                    Match.status != "scheduled",
+                    Match.match_date.is_(None),
+                    Match.match_date >= date.today(),
+                ),
+            )
+            .order_by(Match.match_date.asc().nullslast(), Match.id)
+            .limit(80),
+        ).unique().all(),
+    )
+    results = list(
+        db.scalars(
+            select(Match)
+            .options(*match_options)
+            .where(Match.status.in_(RESULT_STATUSES), Match.is_published.is_(True))
+            .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
+            .limit(80),
+        ).unique().all(),
+    )
+
+    teams = list(db.scalars(select(Team).order_by(Team.name)).all())
+    active_teams = [team for team in teams if team.status == "active"]
+    played_team_ids = {
+        team_id
+        for match in results
+        for team_id in (match.home_team_id, match.away_team_id)
+    }
+    spotlight_candidates = [team for team in active_teams if team.id in played_team_ids] or active_teams
+    spotlight_slot = int(now.timestamp() // (15 * 60))
+    spotlight_team = (
+        spotlight_candidates[spotlight_slot % len(spotlight_candidates)]
+        if spotlight_candidates
+        else None
+    )
+
+    spotlight_player = None
+    if spotlight_team is not None:
+        player_candidates = list(
+            db.scalars(
+                select(Player)
+                .where(Player.team_id == spotlight_team.id, Player.status == "active")
+                .order_by(Player.full_name, Player.id),
+            ).all(),
+        )
+        if player_candidates:
+            spotlight_player = player_candidates[spotlight_slot % len(player_candidates)]
+
+    gallery = list(
+        db.scalars(
+            select(GalleryItem)
+            .where(GalleryItem.status == "published")
+            .order_by(GalleryItem.created_at.desc())
+            .limit(6),
+        ).all(),
+    )
+    sponsor_rows = list(
+        db.execute(
+            select(Sponsor, Team.name)
+            .outerjoin(Team, Sponsor.team_id == Team.id)
+            .where(Sponsor.team_id.is_(None))
+            .order_by(Sponsor.name, Sponsor.id)
+            .limit(24),
+        ).all(),
+    )
+
+    return HomepageOut(
+        generated_at=now,
+        news=[HomepageArticleOut.model_validate(row) for row in news],
+        fixtures=[HomepageMatchOut.model_validate(row) for row in fixtures],
+        results=[HomepageMatchOut.model_validate(row) for row in results],
+        teams=[HomepageTeamOut.model_validate(row) for row in teams],
+        spotlight_teams=(
+            [HomepageTeamOut.model_validate(spotlight_team)] if spotlight_team is not None else []
+        ),
+        spotlight_players=(
+            [HomepagePlayerOut.model_validate(spotlight_player)] if spotlight_player is not None else []
+        ),
+        spotlight_player_appearances=(
+            _public_player_match_appearance_rows(db, spotlight_player.id)[:20]
+            if spotlight_player is not None
+            else []
+        ),
+        gallery=[HomepageGalleryOut.model_validate(row) for row in gallery],
+        sponsors=[
+            HomepageSponsorOut(
+                id=sponsor.id,
+                name=sponsor.name,
+                image_url=sponsor.image_url,
+                link_url=sponsor.link_url,
+                team_id=sponsor.team_id,
+                team_name=team_name,
+            )
+            for sponsor, team_name in sponsor_rows
+        ],
+    )
+
+
+@router.get("/navigation", response_model=NavigationOut)
+def get_navigation(db: Session = Depends(get_db)) -> NavigationOut:
+    """Compact navigation data used by the shared public-site header."""
+    teams = list(
+        db.scalars(
+            select(Team).where(Team.status == "active").order_by(Team.category, Team.name),
+        ).all(),
+    )
+    leagues = list(db.scalars(select(League).order_by(League.category, League.name)).all())
+    seasons = list(
+        db.execute(
+            select(Season, League.slug, League.category)
+            .join(League, Season.league_id == League.id)
+            .where(Season.status != "archived")
+            .order_by(League.category, Season.start_date.desc().nullslast(), Season.id.desc()),
+        ).all(),
+    )
+    return NavigationOut(
+        teams=[HomepageTeamOut.model_validate(team) for team in teams],
+        leagues=[NavigationLeagueOut.model_validate(league) for league in leagues],
+        seasons=[
+            NavigationSeasonOut(
+                id=season.id,
+                name=season.name,
+                slug=season.slug,
+                league_slug=league_slug,
+                league_category=league_category,
+            )
+            for season, league_slug, league_category in seasons
+        ],
+    )
+
+
+@router.get("/hero-images", response_model=dict)
+def get_hero_images(db: Session = Depends(get_db)) -> dict[str, list[str]]:
+    """Small fallback-image pool for internal page heroes."""
+    gallery_rows = db.execute(
+        select(GalleryItem.thumbnail_url, GalleryItem.file_url)
+        .where(GalleryItem.status == "published")
+        .order_by(GalleryItem.created_at.desc())
+        .limit(18),
+    ).all()
+    article_rows = db.scalars(
+        _published_article_filter(select(Article.featured_image_url))
+        .order_by(Article.published_at.desc().nullslast(), Article.created_at.desc())
+        .limit(18),
+    ).all()
+    candidates = [thumbnail or file_url for thumbnail, file_url in gallery_rows]
+    candidates.extend(article_rows)
+    return {"images": list(dict.fromkeys(url for url in candidates if url))}
 
 
 @router.get("/teams", response_model=dict)
@@ -753,7 +991,7 @@ def _fan_player_vote_candidate_stats(match: Match) -> list[MatchPlayerStat]:
 def _fan_player_vote_summary(
     match_id: int,
     db: Session,
-    voter_key: str | None = None,
+    supporter_id: int | None = None,
 ) -> FanPlayerMatchVoteSummaryOut:
     match = db.scalar(
         select(Match)
@@ -801,11 +1039,11 @@ def _fan_player_vote_summary(
 
     voter_player_id: int | None = None
 
-    if voter_key and voter_key.strip():
+    if supporter_id is not None:
         existing_vote = db.scalar(
             select(FanPlayerMatchVote).where(
                 FanPlayerMatchVote.match_id == match_id,
-                FanPlayerMatchVote.voter_key == voter_key.strip(),
+                FanPlayerMatchVote.supporter_id == supporter_id,
             ),
         )
         if existing_vote is not None:
@@ -842,10 +1080,10 @@ def _fan_player_vote_summary(
 )
 def get_fan_player_vote(
     match_id: int,
-    voter_key: str | None = Query(default=None, min_length=8, max_length=128),
+    supporter: SupporterAccount | None = Depends(get_optional_supporter),
     db: Session = Depends(get_db),
 ) -> FanPlayerMatchVoteSummaryOut:
-    return _fan_player_vote_summary(match_id, db, voter_key)
+    return _fan_player_vote_summary(match_id, db, supporter.id if supporter else None)
 
 
 @router.post(
@@ -855,6 +1093,7 @@ def get_fan_player_vote(
 def submit_fan_player_vote(
     match_id: int,
     body: FanPlayerMatchVoteIn,
+    supporter: SupporterAccount = Depends(get_current_supporter),
     db: Session = Depends(get_db),
 ) -> FanPlayerMatchVoteSummaryOut:
     match = db.scalar(
@@ -903,30 +1142,48 @@ def submit_fan_player_vote(
             },
         )
 
-    voter_key = body.voter_key.strip()
+    voter_key = f"supporter:{supporter.id}"
 
     existing_vote = db.scalar(
         select(FanPlayerMatchVote).where(
             FanPlayerMatchVote.match_id == match_id,
-            FanPlayerMatchVote.voter_key == voter_key,
+            FanPlayerMatchVote.supporter_id == supporter.id,
         ),
     )
 
     if existing_vote is None:
-        db.add(
-            FanPlayerMatchVote(
-                match_id=match_id,
-                player_id=body.player_id,
-                voter_key=voter_key,
-            ),
-        )
+        try:
+            with db.begin_nested():
+                db.add(
+                    FanPlayerMatchVote(
+                        match_id=match_id,
+                        player_id=body.player_id,
+                        voter_key=voter_key,
+                        supporter_id=supporter.id,
+                    ),
+                )
+                db.flush()
+        except IntegrityError:
+            # A second browser tab may submit the same supporter's vote while
+            # the first request is committing. Treat that as a vote change,
+            # not a server error or a second ballot.
+            existing_vote = db.scalar(
+                select(FanPlayerMatchVote).where(
+                    FanPlayerMatchVote.match_id == match_id,
+                    FanPlayerMatchVote.supporter_id == supporter.id,
+                ),
+            )
+            if existing_vote is None:
+                raise
+            existing_vote.player_id = body.player_id
+            existing_vote.updated_at = datetime.now(timezone.utc)
     else:
         existing_vote.player_id = body.player_id
         existing_vote.updated_at = datetime.now(timezone.utc)
 
     db.commit()
 
-    return _fan_player_vote_summary(match_id, db, voter_key)
+    return _fan_player_vote_summary(match_id, db, supporter.id)
 
 
 
@@ -1058,6 +1315,26 @@ def list_public_sponsors(
     ]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
 
+def _public_merchandise_variants(
+    db: Session,
+    product_ids: list[int],
+) -> dict[int, list[MerchandiseProductVariantOut]]:
+    variants = list(
+        db.scalars(
+            select(MerchandiseProductVariant)
+            .where(
+                MerchandiseProductVariant.product_id.in_(product_ids),
+                MerchandiseProductVariant.status == "active",
+            )
+            .order_by(MerchandiseProductVariant.product_id, MerchandiseProductVariant.sort_order, MerchandiseProductVariant.id)
+        ).all()
+    ) if product_ids else []
+    grouped: dict[int, list[MerchandiseProductVariantOut]] = {product_id: [] for product_id in product_ids}
+    for variant in variants:
+        grouped[variant.product_id].append(MerchandiseProductVariantOut.model_validate(variant))
+    return grouped
+
+
 @router.get("/merchandise", response_model=dict)
 def list_public_merchandise(
     db: Session = Depends(get_db),
@@ -1107,10 +1384,12 @@ def list_public_merchandise(
     team_ids_by_product = {product_id: [] for product_id in product_ids}
     for product_id, product_team_id in product_team_rows:
         team_ids_by_product[product_id].append(product_team_id)
+    variants_by_product = _public_merchandise_variants(db, product_ids)
     items = [
         MerchandiseProductOut.model_validate(row).model_copy(
             update={
                 "team_ids": team_ids_by_product[row.id] or ([row.team_id] if row.team_id is not None else []),
+                "variants": variants_by_product.get(row.id, []),
             },
         )
         for row in rows
@@ -1145,19 +1424,23 @@ def get_public_merchandise_product(
         ).all(),
     )
     return MerchandiseProductOut.model_validate(product).model_copy(
-        update={"team_ids": team_ids or ([product.team_id] if product.team_id is not None else [])},
+        update={
+            "team_ids": team_ids or ([product.team_id] if product.team_id is not None else []),
+            "variants": _public_merchandise_variants(db, [product.id]).get(product.id, []),
+        },
     )
 
 
 @router.post(
     "/merchandise/orders",
-    response_model=MerchandiseOrderOut,
+    response_model=MerchandiseOrderCreateOut,
     status_code=status.HTTP_201_CREATED,
 )
 def submit_merchandise_order(
     body: MerchandiseOrderCreate,
+    supporter: SupporterAccount | None = Depends(get_optional_supporter),
     db: Session = Depends(get_db),
-) -> MerchandiseOrderOut:
+) -> MerchandiseOrderCreateOut:
     product = db.get(MerchandiseProduct, body.product_id)
 
     if product is None or product.status != "active":
@@ -1169,23 +1452,128 @@ def submit_merchandise_order(
             },
         )
 
+    variant: MerchandiseProductVariant | None = None
+    has_active_variants = db.scalar(
+        select(func.count())
+        .select_from(MerchandiseProductVariant)
+        .where(
+            MerchandiseProductVariant.product_id == product.id,
+            MerchandiseProductVariant.status == "active",
+        )
+    )
+    if has_active_variants and body.variant_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "variant_required", "message": "Choose a product option before ordering."},
+        )
+    if body.variant_id is not None:
+        variant = db.scalar(
+            select(MerchandiseProductVariant).where(
+                MerchandiseProductVariant.id == body.variant_id,
+                MerchandiseProductVariant.product_id == product.id,
+                MerchandiseProductVariant.status == "active",
+            ).with_for_update()
+        )
+        if variant is None:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "invalid_variant", "message": "The selected product option is unavailable."},
+            )
+        if (
+            variant.stock_quantity is not None
+            and not variant.allow_backorder
+            and body.quantity > variant.stock_quantity
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "insufficient_stock", "message": "There is not enough stock for this option."},
+            )
+
+    tracking_token = secrets.token_urlsafe(32)
+    order_number = f"NPL-{datetime.now(timezone.utc):%y%m%d}-{secrets.token_hex(3).upper()}"
     order = MerchandiseOrder(
         product_id=product.id,
+        supporter_id=supporter.id if supporter else None,
+        variant_id=variant.id if variant else None,
+        order_number=order_number,
+        tracking_token_hash=sha256(tracking_token.encode()).hexdigest(),
         product_name=product.name,
         customer_name=body.customer_name.strip(),
         phone=body.phone.strip(),
         email=body.email.strip() if body.email and body.email.strip() else None,
-        size=body.size.strip() if body.size and body.size.strip() else None,
+        size=(variant.size if variant and variant.size else (body.size.strip() if body.size and body.size.strip() else None)),
         quantity=body.quantity,
         notes=body.notes.strip() if body.notes and body.notes.strip() else None,
         status="new",
+        fulfilment_method=body.fulfilment_method,
+        delivery_address=(body.delivery_address.strip() if body.delivery_address else None),
     )
 
     db.add(order)
+    db.flush()
+    db.add(
+        MerchandiseOrderStatusEvent(
+            order_id=order.id,
+            status="new",
+            public_message="Your order request has been received.",
+        )
+    )
+    if variant is not None and variant.stock_quantity is not None:
+        variant.stock_quantity -= body.quantity
     db.commit()
     db.refresh(order)
 
-    return MerchandiseOrderOut.model_validate(order)
+    return MerchandiseOrderCreateOut(
+        id=order.id,
+        order_number=order.order_number,
+        tracking_token=tracking_token,
+        status=order.status,
+        created_at=order.created_at,
+    )
+
+
+@router.get(
+    "/merchandise/order-tracking/{order_number}",
+    response_model=MerchandiseOrderTrackingOut,
+)
+def track_merchandise_order(
+    order_number: str,
+    token: str = Query(min_length=16, max_length=256),
+    db: Session = Depends(get_db),
+) -> MerchandiseOrderTrackingOut:
+    order = db.scalar(select(MerchandiseOrder).where(MerchandiseOrder.order_number == order_number.strip().upper()))
+    provided_hash = sha256(token.encode()).hexdigest()
+    if order is None or not hmac.compare_digest(order.tracking_token_hash, provided_hash):
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Order tracking details were not found."},
+        )
+    variant_label = db.scalar(
+        select(MerchandiseProductVariant.label).where(MerchandiseProductVariant.id == order.variant_id)
+    ) if order.variant_id else None
+    timeline = list(
+        db.scalars(
+            select(MerchandiseOrderStatusEvent)
+            .where(MerchandiseOrderStatusEvent.order_id == order.id)
+            .order_by(MerchandiseOrderStatusEvent.created_at, MerchandiseOrderStatusEvent.id)
+        ).all()
+    )
+    return MerchandiseOrderTrackingOut(
+        order_number=order.order_number,
+        product_name=order.product_name,
+        variant_label=variant_label,
+        quantity=order.quantity,
+        status=order.status,
+        payment_status=order.payment_status,
+        fulfilment_method=order.fulfilment_method,
+        fulfilment_notes=order.fulfilment_notes,
+        carrier=order.carrier,
+        tracking_number=order.tracking_number,
+        estimated_ready_at=order.estimated_ready_at,
+        created_at=order.created_at,
+        updated_at=order.updated_at,
+        timeline=[MerchandiseOrderStatusEventOut.model_validate(row) for row in timeline],
+    )
 
 
 

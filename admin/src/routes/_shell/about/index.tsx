@@ -184,7 +184,7 @@ function AboutForm({ data }: AboutFormProps) {
                 <MediaUrlField
                   id={`pic-${i}`}
                   uploadKind="misc"
-                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,image/bmp,image/tiff,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.gif,.avif,.svg,.bmp,.tif,.tiff,.heic,.heif"
+                  accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
                   value={row.picture_url}
                   onChange={(u) => setTeamField(i, { picture_url: u ?? '' })}
                 />

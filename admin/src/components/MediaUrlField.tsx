@@ -40,15 +40,15 @@ function resolveDisplayUrl(raw: string): string {
 
 function acceptHint(accept: string): string {
   if (accept.includes('video')) {
-    return 'Images or video — common JPG/PNG/WebP/AVIF/SVG and MP4/WebM/MOV/M4V/AVI/MKV formats'
+    return 'JPG, PNG, WebP or GIF images; MP4, WebM, MOV, AVI, MKV, MPEG or OGV video'
   }
-  return 'Common image formats (JPG, PNG, WebP, GIF, AVIF, SVG, TIFF, BMP, HEIC)'
+  return 'JPG, PNG, WebP or GIF images'
 }
 
 function looksLikeImageUrl(text: string, imageOnly: boolean): boolean {
   if (!text.trim()) return false
   if (imageOnly) return true
-  return /\.(jpe?g|png|gif|webp|avif|svg|bmp|tiff?|heic|heif)(\?|#|$)/i.test(
+  return /\.(jpe?g|png|gif|webp)(\?|#|$)/i.test(
     text,
   )
 }

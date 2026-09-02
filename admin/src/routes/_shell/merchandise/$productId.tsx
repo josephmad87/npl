@@ -8,6 +8,10 @@ import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
 import { PageHeader } from '@/components/PageHeader'
+import {
+  MerchandiseVariantEditor,
+  type MerchandiseVariantDraft,
+} from '@/components/MerchandiseVariantEditor'
 
 const MERCHANDISE_CATEGORIES = ['Shirts', 'Bottoms', 'Caps', 'Other']
 const MERCHANDISE_AUDIENCES = ['Kids', 'Adults', 'Ladies', 'Mens', 'Unisex']
@@ -56,6 +60,7 @@ function EditMerchandisePage() {
   const [category, setCategory] = useState('Shirts')
   const [audience, setAudience] = useState('Unisex')
   const [teamIds, setTeamIds] = useState<number[]>([])
+  const [variants, setVariants] = useState<MerchandiseVariantDraft[]>([])
   
  useEffect(() => {
   if (!product) return
@@ -78,6 +83,19 @@ function EditMerchandisePage() {
   )
   setStatus(product.status)
   setSortOrder(String(product.sort_order))
+  setVariants((product.variants ?? []).map(({ sku, label, size, colour, price_text, price_minor, currency, stock_quantity, allow_backorder, status, sort_order }) => ({
+    sku,
+    label,
+    size,
+    colour,
+    price_text,
+    price_minor,
+    currency,
+    stock_quantity,
+    allow_backorder,
+    status,
+    sort_order,
+  })))
 }, [product])
 
   const toggleTeam = (teamId: number) => {
@@ -135,6 +153,7 @@ function EditMerchandisePage() {
           team_ids: teamIds,
           status,
           sort_order: Number(sortOrder) || 0,
+          variants,
         },
       )
 
@@ -164,6 +183,19 @@ function EditMerchandisePage() {
             : [],
       )
       setSortOrder(String(updated.sort_order))
+      setVariants((updated.variants ?? []).map(({ sku, label, size, colour, price_text, price_minor, currency, stock_quantity, allow_backorder, status, sort_order }) => ({
+        sku,
+        label,
+        size,
+        colour,
+        price_text,
+        price_minor,
+        currency,
+        stock_quantity,
+        allow_backorder,
+        status,
+        sort_order,
+      })))
     } catch (e: unknown) {
       setSaveError(e instanceof Error ? e.message : 'Save failed')
     } finally {
@@ -250,7 +282,7 @@ function EditMerchandisePage() {
       onChange={setImageUrl}
       disabled={isSaving}
       uploadKind="merchandise"
-      accept="image/*"
+      accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
     />
   ),
 },
@@ -264,7 +296,7 @@ function EditMerchandisePage() {
       onChange={setImageUrl2}
       disabled={isSaving}
       uploadKind="merchandise"
-      accept="image/*"
+      accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
     />
   ),
 },
@@ -278,7 +310,7 @@ function EditMerchandisePage() {
       onChange={setImageUrl3}
       disabled={isSaving}
       uploadKind="merchandise"
-      accept="image/*"
+      accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
     />
   ),
 },
@@ -294,6 +326,13 @@ function EditMerchandisePage() {
                 maxLength={255}
                 placeholder="e.g. S, M, L, XL"
               />
+            ),
+          },
+          {
+            id: 'variants',
+            label: 'Product options and stock',
+            control: (
+              <MerchandiseVariantEditor value={variants} onChange={setVariants} disabled={isSaving} />
             ),
           },
 

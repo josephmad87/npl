@@ -65,8 +65,8 @@ function NewMatchPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
 
-  const teamOptions = teamsQ.data ?? []
-  const seasonOptions = seasonsQ.data ?? []
+  const teamOptions = useMemo(() => teamsQ.data ?? [], [teamsQ.data])
+  const seasonOptions = useMemo(() => seasonsQ.data ?? [], [seasonsQ.data])
   const selectedSeason = seasonOptions.find(
     (season) => season.id === requestedSeasonId,
   )

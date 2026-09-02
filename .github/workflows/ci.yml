@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  accessibility-contracts:
+    name: Shared accessibility contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm --prefix ui test
+
+  frontend:
+    name: ${{ matrix.name }} lint, build, and smoke
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Public website
+            directory: website
+            port: 4174
+          - name: Admin website
+            directory: admin
+            port: 4173
+    defaults:
+      run:
+        working-directory: ${{ matrix.directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.directory }}/package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=moderate
+      - run: npm run lint
+      - run: npm test --if-present
+      - run: npm run build
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:8000/api/v1
+          VITE_APP_ENV: ci
+          VITE_GOOGLE_SITE_VERIFICATION: ""
+      - name: Smoke-test built application shell
+        shell: bash
+        run: |
+          python3 -m http.server "${{ matrix.port }}" --bind 127.0.0.1 --directory dist &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in 1 2 3 4 5; do
+            if python3 ../ops/smoke_check.py --site-url "http://127.0.0.1:${{ matrix.port }}" --attempts 1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+
+  api:
+    name: API lint, tests, migrations, and smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: npl_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d npl_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: api
+    env:
+      APP_ENVIRONMENT: ci
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@127.0.0.1:5432/npl_ci
+      SECRET_KEY: ci-only-secret-that-is-never-used-in-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.9"
+          enable-cache: true
+      - run: uv sync --frozen --all-extras
+      - run: uv run ruff check app alembic tests scripts
+      - run: uv run pytest -q
+      - name: Upgrade a fresh PostgreSQL database
+        run: uv run alembic upgrade head
+      - name: Check models have a matching migration
+        run: uv run alembic check
+      - name: Smoke-test API health and readiness
+        shell: bash
+        run: |
+          uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in 1 2 3 4 5; do
+            if python3 ../ops/smoke_check.py --api-url http://127.0.0.1:8000 --attempts 1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1

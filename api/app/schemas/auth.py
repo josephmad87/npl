@@ -12,11 +12,11 @@ EmailLike = Annotated[str, Field(min_length=3, max_length=255, pattern=r"^[^@\s]
 
 class LoginRequest(BaseModel):
     email: EmailLike
-    password: str = Field(min_length=1)
+    password: str = Field(min_length=1, max_length=256)
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str = Field(min_length=10)
+    refresh_token: str = Field(min_length=10, max_length=4096)
 
 
 class TokenResponse(BaseModel):
@@ -39,12 +39,12 @@ class UserMeUpdate(BaseModel):
 
     full_name: str | None = Field(None, max_length=255)
     current_password: str | None = Field(None, min_length=1)
-    new_password: str | None = Field(None, min_length=8, max_length=128)
+    new_password: str | None = Field(None, min_length=12, max_length=128)
 
 
 class AdminUserCreate(BaseModel):
     email: EmailLike
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=12, max_length=128)
     full_name: str | None = None
     role: str = Field(
         pattern="^(super_admin|competition_manager|content_editor|read_only_admin|scorer)$",

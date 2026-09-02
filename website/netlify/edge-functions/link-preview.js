@@ -2,6 +2,114 @@ const SITE_NAME = 'National Premier League'
 const DEFAULT_DESCRIPTION =
   'Latest fixtures, results, scorecards, news and standings from the National Premier League.'
 const DEFAULT_IMAGE_PATH = '/apple-touch-icon.png'
+const KNOWN_PUBLIC_PATHS = new Set([
+  '/',
+  '/mens',
+  '/mens/fixtures',
+  '/mens/results',
+  '/mens/seasons',
+  '/mens/teams',
+  '/women',
+  '/women/fixtures',
+  '/women/results',
+  '/women/seasons',
+  '/women/teams',
+  '/youth',
+  '/youth/fixtures',
+  '/youth/results',
+  '/youth/seasons',
+  '/youth/teams',
+  '/fixtures',
+  '/results',
+  '/live',
+  '/news',
+  '/search',
+  '/gallery',
+  '/gallery/images',
+  '/gallery/video',
+  '/merchandise',
+  '/compare-teams',
+  '/about-us',
+  '/contact-us',
+  '/privacy',
+  '/terms',
+  '/support',
+  '/account-deletion',
+  '/competition',
+  '/safeguarding',
+  '/scorecard-corrections',
+  '/supporters',
+])
+
+const MANAGED_PAGE_SLUGS = new Set([
+  'privacy',
+  'terms',
+  'support',
+  'account-deletion',
+  'competition',
+  'safeguarding',
+  'scorecard-corrections',
+  'supporters',
+])
+
+const STATIC_PAGE_PREVIEWS = {
+  '/': {
+    title: SITE_NAME,
+    description: DEFAULT_DESCRIPTION,
+  },
+  '/fixtures': {
+    title: 'Cricket Fixtures',
+    description: 'Upcoming NPL Zimbabwe cricket fixtures, dates, venues and match details.',
+  },
+  '/results': {
+    title: 'Cricket Results',
+    description: 'Latest official NPL Zimbabwe cricket results and completed scorecards.',
+  },
+  '/live': {
+    title: 'Live Cricket Scores',
+    description: 'Follow live NPL Zimbabwe cricket scores, ball-by-ball updates and scorecards.',
+  },
+  '/news': {
+    title: 'Cricket News',
+    description: 'Latest news, match reports and updates from NPL Zimbabwe club cricket.',
+  },
+  '/about-us': {
+    title: 'About NPL Zimbabwe',
+    description: 'Learn about National Premier League cricket in Zimbabwe.',
+  },
+  '/contact-us': {
+    title: 'Contact NPL Zimbabwe',
+    description: 'Contact NPL Zimbabwe about competitions, scores, media, support or merchandise.',
+  },
+  '/merchandise': {
+    title: 'Official NPL Merchandise',
+    description: 'Browse official National Premier League supporter merchandise.',
+  },
+  '/compare-teams': {
+    title: 'Compare Teams',
+    description: 'Compare NPL Zimbabwe cricket team records and performance.',
+  },
+  '/search': {
+    title: 'Search NPL Zimbabwe',
+    description: 'Search NPL Zimbabwe teams, players, fixtures, results and news.',
+  },
+}
+
+function hasKnownRouteShape(pathname) {
+  if (KNOWN_PUBLIC_PATHS.has(pathname)) return true
+  return [
+    /^\/news\/[^/]+$/,
+    /^\/teams\/[^/]+$/,
+    /^\/players\/[^/]+$/,
+    /^\/merchandise\/[^/]+$/,
+    /^\/merchandise\/teams\/[^/]+$/,
+    /^\/leagues\/[^/]+$/,
+    /^\/leagues\/[^/]+\/seasons\/[^/]+$/,
+    /^\/leagues\/[^/]+\/seasons\/[^/]+\/matches\/\d+\/[^/]+$/,
+  ].some((pattern) => pattern.test(pathname))
+}
+
+export { hasKnownRouteShape, matchSeoPath }
 
 let teamNameCache = null
 
@@ -107,6 +215,27 @@ async function fetchApi(path) {
   }
 }
 
+async function fetchApiResource(path) {
+  try {
+    const response = await fetch(`${apiBaseUrl()}${path}`, {
+      headers: {
+        accept: 'application/json',
+      },
+    })
+
+    if (response.status === 404) {
+      return { outcome: 'not-found', data: null }
+    }
+    if (!response.ok) {
+      return { outcome: 'unavailable', data: null }
+    }
+
+    return { outcome: 'ok', data: await response.json() }
+  } catch {
+    return { outcome: 'unavailable', data: null }
+  }
+}
+
 async function fetchAllApi(path) {
   const separator = path.includes('?') ? '&' : '?'
   const firstPage = await fetchApi(`${path}${separator}page=1&page_size=100`)
@@ -136,23 +265,42 @@ function defaultPreview(request) {
   }
 }
 
-async function previewForNews(slug, request) {
-  const article = await fetchApi(`/public/news/${encodeURIComponent(slug)}`)
-
-  if (!article) {
-    return defaultPreview(request)
+function notFoundPreview(request) {
+  return {
+    ...defaultPreview(request),
+    title: 'Page not found',
+    description: 'The requested National Premier League page could not be found.',
+    notFound: true,
   }
+}
+
+async function previewForNews(slug, request) {
+  const resource = await fetchApiResource(`/public/news/${encodeURIComponent(slug)}`)
+  const article = resource.data
+
+  if (resource.outcome === 'not-found') {
+    return notFoundPreview(request)
+  }
+  if (!article) return defaultPreview(request)
 
   return {
-    title: article.title || SITE_NAME,
+    title: cleanText(article.seo_title) || article.title || SITE_NAME,
     description:
-      truncate(article.excerpt || article.body || DEFAULT_DESCRIPTION) ||
+      truncate(
+        article.seo_description ||
+          article.excerpt ||
+          article.body ||
+          DEFAULT_DESCRIPTION,
+      ) ||
       DEFAULT_DESCRIPTION,
     image: absoluteUrl(
       article.featured_image_url || article.body_image_url,
       request.url,
     ),
     type: 'article',
+    entityKind: 'article',
+    entity: article,
+    content: truncate(article.body || article.excerpt, 1800),
   }
 }
 
@@ -217,13 +365,14 @@ function matchSeoPath(match, homeName, awayName) {
     seoSlug(match.season_slug) ||
     seoSlug(match.season?.name) ||
     seoSlug(match.season_name)
-  const teamsSlug = `${seoSlug(homeName)}-vs-${seoSlug(awayName)}`
+  const homeSlug = seoSlug(homeName)
+  const awaySlug = seoSlug(awayName)
 
-  if (!leagueSlug || !seasonSlug || !teamsSlug || !match.id) {
+  if (!leagueSlug || !seasonSlug || !homeSlug || !awaySlug || !match.id) {
     return null
   }
 
-  return `/leagues/${leagueSlug}/seasons/${seasonSlug}/matches/${match.id}/${teamsSlug}`
+  return `/leagues/${leagueSlug}/seasons/${seasonSlug}/matches/${match.id}/${homeSlug}-vs-${awaySlug}`
 }
 
 async function legacySeoRedirect(request) {
@@ -233,6 +382,33 @@ async function legacySeoRedirect(request) {
   }
 
   const url = new URL(request.url)
+
+  const staticAliases = new Map([
+    ['/about', '/about-us'],
+    ['/contact', '/contact-us'],
+    ['/live-scores', '/live'],
+    ['/scores', '/live'],
+    ['/shop', '/merchandise'],
+    ['/merch', '/merchandise'],
+  ])
+  const staticTarget = staticAliases.get(url.pathname)
+  if (staticTarget) {
+    url.pathname = staticTarget
+    return url
+  }
+
+  const singularAliases = [
+    [/^\/team\/([^/]+)$/, '/teams/'],
+    [/^\/player\/([^/]+)$/, '/players/'],
+    [/^\/article\/([^/]+)$/, '/news/'],
+  ]
+  for (const [pattern, prefix] of singularAliases) {
+    const value = url.pathname.match(pattern)?.[1]
+    if (value) {
+      url.pathname = `${prefix}${value}`
+      return url
+    }
+  }
 
   if (url.pathname === '/ladies' || url.pathname.startsWith('/ladies/')) {
     url.pathname = url.pathname.replace(/^\/ladies(?=\/|$)/, '/women')
@@ -247,7 +423,7 @@ async function legacySeoRedirect(request) {
     return url
   }
 
-  const matchId = url.pathname.match(/^\/matches\/(\d+)$/)?.[1]
+  const matchId = url.pathname.match(/^\/(?:matches|match|scorecard)\/(\d+)$/)?.[1]
   if (matchId) {
     const match = await fetchApi(`/public/matches/${encodeURIComponent(matchId)}`)
     if (match) {
@@ -260,9 +436,57 @@ async function legacySeoRedirect(request) {
     }
   }
 
+  const canonicalMatchId = url.pathname.match(
+    /^\/leagues\/[^/]+\/seasons\/[^/]+\/matches\/(\d+)(?:\/[^/]*)?$/,
+  )?.[1]
+  if (canonicalMatchId) {
+    const match = await fetchApi(
+      `/public/matches/${encodeURIComponent(canonicalMatchId)}`,
+    )
+    if (match) {
+      const { homeName, awayName } = await resolvedMatchTeamNames(match)
+      const canonicalPath = matchSeoPath(match, homeName, awayName)
+      if (canonicalPath && canonicalPath !== url.pathname) {
+        url.pathname = canonicalPath
+        return url
+      }
+    }
+  }
+
+  const productSegment = url.pathname.match(/^\/merchandise\/([^/]+)$/)?.[1]
+  const productId = merchandiseProductIdFromSegment(productSegment)
+  if (productId) {
+    const product = await fetchApi(
+      `/public/merchandise/${encodeURIComponent(productId)}`,
+    )
+    const canonicalSegment = product
+      ? `${seoSlug(product.name) || 'product'}-${productId}`
+      : ''
+    if (canonicalSegment && canonicalSegment !== productSegment) {
+      url.pathname = `/merchandise/${canonicalSegment}`
+      return url
+    }
+  }
+
   if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
     url.pathname = url.pathname.replace(/\/+$/, '')
     return url
+  }
+
+  if (/^\/(?:news|teams|players|leagues)\//.test(url.pathname)) {
+    const registeredRedirect = await fetchApiResource(
+      `/public/seo/redirect?path=${encodeURIComponent(url.pathname)}`,
+    )
+    const registeredTarget = cleanText(registeredRedirect.data?.target_path)
+    if (
+      registeredRedirect.outcome === 'ok' &&
+      registeredTarget.startsWith('/') &&
+      !registeredTarget.startsWith('//') &&
+      registeredTarget !== url.pathname
+    ) {
+      url.pathname = registeredTarget
+      return url
+    }
   }
 
   return null
@@ -282,46 +506,27 @@ function xmlEscape(value) {
     .replaceAll("'", '&apos;')
 }
 
-function sitemapUrl(origin, path) {
-  return `<url><loc>${xmlEscape(new URL(path, origin).toString())}</loc></url>`
+function sitemapLastmod(value) {
+  if (!value) return ''
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString()
+}
+
+function sitemapUrl(origin, path, lastmod = '') {
+  const resolvedLastmod = sitemapLastmod(lastmod)
+  return `<url><loc>${xmlEscape(new URL(path, origin).toString())}</loc>${
+    resolvedLastmod ? `<lastmod>${xmlEscape(resolvedLastmod)}</lastmod>` : ''
+  }</url>`
 }
 
 async function sitemapResponse(request) {
   const origin = new URL(request.url).origin
-  const staticPaths = [
-    '/',
-    '/mens',
-    '/mens/fixtures',
-    '/mens/results',
-    '/mens/seasons',
-    '/mens/teams',
-    '/women',
-    '/women/fixtures',
-    '/women/results',
-    '/women/seasons',
-    '/women/teams',
-    '/youth',
-    '/youth/fixtures',
-    '/youth/results',
-    '/youth/seasons',
-    '/youth/teams',
-    '/fixtures',
-    '/results',
-    '/live',
-    '/news',
-    '/gallery',
-    '/gallery/images',
-    '/gallery/video',
-    '/merchandise',
-    '/compare-teams',
-    '/about-us',
-    '/contact-us',
-    '/privacy',
-    '/terms',
-    '/support',
-    '/account-deletion',
-  ]
-  const [teams, players, articles, leagues, products, fixtures, results] =
+  const managedPagesPromise = Promise.all(
+    [...MANAGED_PAGE_SLUGS].map((slug) =>
+      fetchApi(`/public/site-pages/${encodeURIComponent(slug)}`),
+    ),
+  )
+  const [teams, players, articles, leagues, products, fixtures, results, managedPages] =
     await Promise.all([
       fetchAllApi('/public/teams'),
       fetchAllApi('/public/players'),
@@ -330,33 +535,62 @@ async function sitemapResponse(request) {
       fetchAllApi('/public/merchandise'),
       fetchAllApi('/public/fixtures'),
       fetchAllApi('/public/results'),
+      managedPagesPromise,
     ])
 
-  const paths = new Set(staticPaths)
+  const paths = new Map(
+    [...KNOWN_PUBLIC_PATHS]
+      .filter((path) => path !== '/search')
+      .map((path) => [path, '']),
+  )
+  const addPath = (path, lastmod = '') => {
+    const existing = sitemapLastmod(paths.get(path))
+    const candidate = sitemapLastmod(lastmod)
+    paths.set(path, candidate > existing ? candidate : existing)
+  }
+
+  for (const page of managedPages) {
+    if (MANAGED_PAGE_SLUGS.has(page?.slug)) {
+      addPath(`/${page.slug}`, page.updated_at)
+    }
+  }
 
   for (const team of teams) {
-    if (seoSlug(team.slug)) paths.add(`/teams/${encodeURIComponent(team.slug)}`)
+    if (seoSlug(team.slug)) addPath(`/teams/${encodeURIComponent(team.slug)}`, team.updated_at)
   }
   for (const player of players) {
-    if (seoSlug(player.slug)) paths.add(`/players/${encodeURIComponent(player.slug)}`)
+    if (seoSlug(player.slug)) addPath(`/players/${encodeURIComponent(player.slug)}`, player.updated_at)
   }
   for (const article of articles) {
-    if (seoSlug(article.slug)) paths.add(`/news/${encodeURIComponent(article.slug)}`)
+    if (seoSlug(article.slug)) {
+      const articleLastmod = article.updated_at || article.published_at || article.created_at
+      addPath(
+        `/news/${encodeURIComponent(article.slug)}`,
+        articleLastmod,
+      )
+      addPath('/news', articleLastmod)
+    }
   }
   for (const league of leagues) {
-    if (seoSlug(league.slug)) paths.add(`/leagues/${encodeURIComponent(league.slug)}`)
+    if (seoSlug(league.slug)) addPath(`/leagues/${encodeURIComponent(league.slug)}`, league.updated_at)
   }
   for (const product of products) {
     if (product.id) {
       const segment = `${seoSlug(product.name) || 'product'}-${product.id}`
-      paths.add(`/merchandise/${encodeURIComponent(segment)}`)
+      addPath(`/merchandise/${encodeURIComponent(segment)}`, product.updated_at)
+      addPath('/merchandise', product.updated_at)
     }
   }
+  for (const match of fixtures) {
+    addPath('/fixtures', match.updated_at || match.match_date)
+  }
+  for (const match of results) {
+    addPath('/results', match.updated_at || match.match_date)
+  }
   for (const match of [...fixtures, ...results]) {
-    const homeName = cleanText(match.home_name || match.home_team_name)
-    const awayName = cleanText(match.away_name || match.away_team_name)
+    const { homeName, awayName } = await resolvedMatchTeamNames(match)
     const path = matchSeoPath(match, homeName, awayName)
-    if (path) paths.add(path)
+    if (path) addPath(path, match.updated_at || match.match_date)
   }
 
   const leaguesWithSlugs = leagues.filter((league) => seoSlug(league.slug))
@@ -369,14 +603,17 @@ async function sitemapResponse(request) {
     const league = leaguesWithSlugs[index]
     for (const season of seasonLists[index]) {
       if (seoSlug(season.slug)) {
-        paths.add(`/leagues/${encodeURIComponent(league.slug)}/seasons/${encodeURIComponent(season.slug)}`)
+        addPath(
+          `/leagues/${encodeURIComponent(league.slug)}/seasons/${encodeURIComponent(season.slug)}`,
+          season.updated_at || season.end_date || season.start_date,
+        )
       }
     }
   }
 
-  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${[...paths]
-    .sort()
-    .map((path) => sitemapUrl(origin, path))
+  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${[...paths.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([path, lastmod]) => sitemapUrl(origin, path, lastmod))
     .join('\n')}\n</urlset>`
 
   return new Response(body, {
@@ -669,11 +906,13 @@ function matchShareDescription(match, homeName, awayName) {
 }
 
 async function previewForMatch(matchId, request) {
-  const match = await fetchApi(`/public/matches/${encodeURIComponent(matchId)}`)
+  const resource = await fetchApiResource(`/public/matches/${encodeURIComponent(matchId)}`)
+  const match = resource.data
 
-  if (!match) {
-    return defaultPreview(request)
+  if (resource.outcome === 'not-found') {
+    return notFoundPreview(request)
   }
+  if (!match) return defaultPreview(request)
 
   const { homeName, awayName } = await resolvedMatchTeamNames(match)
   const { homeLogo, awayLogo } = await resolvedMatchTeamImages(match)
@@ -704,15 +943,19 @@ async function previewForMatch(matchId, request) {
       request.url,
     ),
     type: 'website',
+    entityKind: 'match',
+    entity: { ...match, homeName, awayName },
   }
 }
 
 async function previewForTeam(slug, request) {
-  const team = await fetchApi(`/public/teams/${encodeURIComponent(slug)}`)
+  const resource = await fetchApiResource(`/public/teams/${encodeURIComponent(slug)}`)
+  const team = resource.data
 
-  if (!team) {
-    return defaultPreview(request)
+  if (resource.outcome === 'not-found') {
+    return notFoundPreview(request)
   }
+  if (!team) return defaultPreview(request)
 
   return {
     title: team.name || SITE_NAME,
@@ -724,15 +967,19 @@ async function previewForTeam(slug, request) {
       ) || DEFAULT_DESCRIPTION,
     image: absoluteUrl(team.cover_image_url || team.logo_url, request.url),
     type: 'website',
+    entityKind: 'team',
+    entity: team,
   }
 }
 
 async function previewForPlayer(slug, request) {
-  const player = await fetchApi(`/public/players/${encodeURIComponent(slug)}`)
+  const resource = await fetchApiResource(`/public/players/${encodeURIComponent(slug)}`)
+  const player = resource.data
 
-  if (!player) {
-    return defaultPreview(request)
+  if (resource.outcome === 'not-found') {
+    return notFoundPreview(request)
   }
+  if (!player) return defaultPreview(request)
 
   return {
     title: player.full_name || SITE_NAME,
@@ -749,15 +996,19 @@ async function previewForPlayer(slug, request) {
       ) || `${player.full_name} player profile on ${SITE_NAME}.`,
     image: absoluteUrl(player.profile_photo_url, request.url),
     type: 'profile',
+    entityKind: 'player',
+    entity: player,
   }
 }
 
 async function previewForLeague(slug, request) {
-  const league = await fetchApi(`/public/leagues/${encodeURIComponent(slug)}`)
+  const resource = await fetchApiResource(`/public/leagues/${encodeURIComponent(slug)}`)
+  const league = resource.data
 
-  if (!league) {
-    return defaultPreview(request)
+  if (resource.outcome === 'not-found') {
+    return notFoundPreview(request)
   }
+  if (!league) return defaultPreview(request)
 
   return {
     title: league.name || SITE_NAME,
@@ -768,19 +1019,23 @@ async function previewForLeague(slug, request) {
       ) || DEFAULT_DESCRIPTION,
     image: absoluteUrl(league.banner_url || league.logo_url, request.url),
     type: 'website',
+    entityKind: 'league',
+    entity: league,
   }
 }
 
 async function previewForSeason(leagueSlug, seasonSlug, request) {
-  const season = await fetchApi(
+  const resource = await fetchApiResource(
     `/public/leagues/${encodeURIComponent(
       leagueSlug,
     )}/seasons/${encodeURIComponent(seasonSlug)}`,
   )
+  const season = resource.data
 
-  if (!season) {
-    return defaultPreview(request)
+  if (resource.outcome === 'not-found') {
+    return notFoundPreview(request)
   }
+  if (!season) return defaultPreview(request)
 
   return {
     title: `${season.name || 'Season'} | ${SITE_NAME}`,
@@ -790,6 +1045,8 @@ async function previewForSeason(leagueSlug, seasonSlug, request) {
       ) || DEFAULT_DESCRIPTION,
     image: new URL(DEFAULT_IMAGE_PATH, request.url).toString(),
     type: 'website',
+    entityKind: 'season',
+    entity: { ...season, leagueSlug },
   }
 }
 
@@ -810,11 +1067,15 @@ function merchandiseProductIdFromSegment(segment) {
 }
 
 async function previewForMerchandiseProduct(productId, request) {
-  const product = await fetchApi(`/public/merchandise/${encodeURIComponent(productId)}`)
+  const resource = await fetchApiResource(
+    `/public/merchandise/${encodeURIComponent(productId)}`,
+  )
+  const product = resource.data
 
-  if (!product) {
-    return previewForMerchandise(request)
+  if (resource.outcome === 'not-found') {
+    return notFoundPreview(request)
   }
+  if (!product) return defaultPreview(request)
 
   const name = cleanText(product.name) || 'Official NPL Merchandise'
   const description =
@@ -825,16 +1086,22 @@ async function previewForMerchandiseProduct(productId, request) {
     title: name,
     description,
     image: absoluteUrl(product.image_url, request.url),
-    type: 'website',
+    type: 'product',
+    entityKind: 'product',
+    entity: product,
   }
 }
 
 async function previewForTeamMerchandise(teamSlug, request) {
-  const team = await fetchApi(`/public/teams/${encodeURIComponent(teamSlug)}`)
+  const resource = await fetchApiResource(
+    `/public/teams/${encodeURIComponent(teamSlug)}`,
+  )
+  const team = resource.data
 
-  if (!team) {
-    return previewForMerchandise(request)
+  if (resource.outcome === 'not-found') {
+    return notFoundPreview(request)
   }
+  if (!team) return defaultPreview(request)
 
   const teamName = cleanText(team.name) || 'NPL Team'
 
@@ -846,9 +1113,50 @@ async function previewForTeamMerchandise(teamSlug, request) {
   }
 }
 
+async function previewForManagedPage(slug, request) {
+  const page = await fetchApi(`/public/site-pages/${encodeURIComponent(slug)}`)
+  if (!page) {
+    return {
+      ...defaultPreview(request),
+      title: slug
+        .split('-')
+        .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+        .join(' '),
+    }
+  }
+
+  return {
+    title: page.title || SITE_NAME,
+    description: truncate(page.subtitle || page.intro_html) || DEFAULT_DESCRIPTION,
+    image: new URL(DEFAULT_IMAGE_PATH, request.url).toString(),
+    type: 'website',
+    entityKind: 'managed-page',
+    entity: page,
+    content: truncate(
+      [
+        page.intro_html,
+        ...(Array.isArray(page.sections)
+          ? page.sections.flatMap((section) => [section.heading, section.body_html])
+          : []),
+      ]
+        .filter(Boolean)
+        .join(' '),
+      2400,
+    ),
+  }
+}
+
 async function buildPreview(request) {
   const url = new URL(request.url)
   const parts = url.pathname.split('/').filter(Boolean)
+
+  if (!hasKnownRouteShape(url.pathname)) {
+    return notFoundPreview(request)
+  }
+
+  if (parts.length === 1 && MANAGED_PAGE_SLUGS.has(parts[0])) {
+    return previewForManagedPage(parts[0], request)
+  }
 
   if (parts[0] === 'news' && parts[1]) {
     return previewForNews(parts[1], request)
@@ -876,21 +1184,20 @@ async function buildPreview(request) {
     return previewForLeague(parts[1], request)
   }
 
-  if (parts[0] === 'fixtures') {
-    return {
-      title: `Fixtures | ${SITE_NAME}`,
-      description: 'Upcoming NPL fixtures, venues and match schedules.',
-      image: new URL(DEFAULT_IMAGE_PATH, request.url).toString(),
-      type: 'website',
+  if (['mens', 'women', 'youth'].includes(parts[0])) {
+    const categoryLabels = { mens: "Men's", women: "Women's", youth: 'Youth' }
+    const sectionLabels = {
+      fixtures: 'Fixtures',
+      results: 'Results',
+      seasons: 'Seasons',
+      teams: 'Teams',
     }
-  }
-
-  if (parts[0] === 'results') {
+    const category = categoryLabels[parts[0]]
+    const section = sectionLabels[parts[1]] || 'Cricket'
     return {
-      title: `Results | ${SITE_NAME}`,
-      description: 'Latest NPL match results, scorecards and match summaries.',
-      image: new URL(DEFAULT_IMAGE_PATH, request.url).toString(),
-      type: 'website',
+      ...defaultPreview(request),
+      title: `${category} ${section}`,
+      description: `${category} NPL Zimbabwe ${section.toLowerCase()}, competition information and club cricket updates.`,
     }
   }
 
@@ -903,6 +1210,7 @@ async function buildPreview(request) {
     if (productId) {
       return previewForMerchandiseProduct(productId, request)
     }
+    return notFoundPreview(request)
   }
 
   if (parts[0] === 'merchandise') {
@@ -910,11 +1218,24 @@ async function buildPreview(request) {
   }
 
   if (parts[0] === 'gallery') {
+    const galleryTitle = parts[1] === 'images'
+      ? 'Photo Gallery'
+      : parts[1] === 'video'
+        ? 'Video Gallery'
+        : 'Gallery'
     return {
-      title: `Gallery | ${SITE_NAME}`,
-      description: 'NPL photos and video highlights.',
+      title: galleryTitle,
+      description: `${galleryTitle} featuring NPL Zimbabwe cricket highlights.`,
       image: new URL(DEFAULT_IMAGE_PATH, request.url).toString(),
       type: 'website',
+    }
+  }
+
+  const staticPreview = STATIC_PAGE_PREVIEWS[url.pathname]
+  if (staticPreview) {
+    return {
+      ...defaultPreview(request),
+      ...staticPreview,
     }
   }
 
@@ -926,7 +1247,13 @@ function metaTags(preview, request) {
   const isInternalSearch =
     url.pathname === '/search' ||
     (url.pathname === '/news' && url.searchParams.has('q'))
-  const robots = isInternalSearch ? 'noindex,follow' : 'index,follow'
+  const deploymentContext = cleanText(env('CONTEXT')).toLowerCase()
+  const productionHost = ['npl.co.zw', 'www.npl.co.zw'].includes(url.hostname)
+  const isNonProduction =
+    (deploymentContext && deploymentContext !== 'production') || !productionHost
+  const robots = preview.notFound || isInternalSearch || isNonProduction
+    ? 'noindex,follow'
+    : 'index,follow,max-image-preview:large'
   url.search = ''
   url.hash = ''
   const title = preview.title.includes(SITE_NAME)
@@ -960,6 +1287,273 @@ function metaTags(preview, request) {
 `.trim()
 }
 
+function titleCase(value) {
+  return cleanText(value)
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ')
+}
+
+function previewBreadcrumbs(preview, request) {
+  const url = new URL(request.url)
+  const parts = url.pathname.split('/').filter(Boolean)
+  const current =
+    cleanText(preview.entityKind === 'article' ? preview.entity?.title : preview.title) ||
+    SITE_NAME
+  const home = { name: 'Home', path: '/' }
+
+  if (parts.length === 0) return [{ name: 'Home', path: '/' }]
+  if (preview.entityKind === 'article') {
+    return [home, { name: 'News', path: '/news' }, { name: current, path: url.pathname }]
+  }
+  if (preview.entityKind === 'product') {
+    return [home, { name: 'Merchandise', path: '/merchandise' }, { name: current, path: url.pathname }]
+  }
+  if (preview.entityKind === 'team') {
+    const category = ['mens', 'women', 'youth'].includes(preview.entity?.category)
+      ? preview.entity.category
+      : 'mens'
+    return [
+      home,
+      { name: 'Teams', path: `/${category}/teams` },
+      { name: current, path: url.pathname },
+    ]
+  }
+  if (preview.entityKind === 'player') {
+    return [home, { name: 'Players', path: '/mens/teams' }, { name: current, path: url.pathname }]
+  }
+  if (preview.entityKind === 'match') {
+    return [home, { name: 'Fixtures and results', path: '/fixtures' }, { name: current, path: url.pathname }]
+  }
+  if (preview.entityKind === 'season') {
+    return [
+      home,
+      { name: 'Competition information', path: '/competition' },
+      { name: current, path: url.pathname },
+    ]
+  }
+  if (preview.entityKind === 'league') {
+    return [
+      home,
+      { name: 'Competition information', path: '/competition' },
+      { name: current, path: url.pathname },
+    ]
+  }
+
+  return [home, { name: current || titleCase(parts.at(-1)), path: url.pathname }]
+}
+
+function entityStructuredData(preview, request) {
+  const entity = preview.entity || {}
+  const url = new URL(request.url)
+  url.search = ''
+  url.hash = ''
+  const common = {
+    '@context': 'https://schema.org',
+    url: url.toString(),
+  }
+
+  if (preview.entityKind === 'article') {
+    return {
+      ...common,
+      '@type': 'NewsArticle',
+      headline: cleanText(entity.title) || preview.title,
+      description: preview.description,
+      image: [preview.image].filter(Boolean),
+      datePublished: entity.published_at || entity.created_at || undefined,
+      dateModified: entity.updated_at || entity.published_at || entity.created_at || undefined,
+      author: {
+        '@type': entity.author_name ? 'Person' : 'Organization',
+        name: cleanText(entity.author_name) || SITE_NAME,
+      },
+      publisher: { '@type': 'Organization', name: SITE_NAME },
+      keywords: Array.isArray(entity.tags) ? entity.tags.join(', ') : undefined,
+      mainEntityOfPage: url.toString(),
+    }
+  }
+  if (preview.entityKind === 'match') {
+    const statusMap = {
+      scheduled: 'https://schema.org/EventScheduled',
+      live: 'https://schema.org/EventInProgress',
+      completed: 'https://schema.org/EventCompleted',
+      abandoned: 'https://schema.org/EventCancelled',
+      cancelled: 'https://schema.org/EventCancelled',
+    }
+    return {
+      ...common,
+      '@type': 'SportsEvent',
+      name: `${cleanText(entity.homeName)} vs ${cleanText(entity.awayName)}`,
+      sport: 'Cricket',
+      startDate: entity.start_time || entity.match_date || undefined,
+      eventStatus: statusMap[entity.status] || 'https://schema.org/EventScheduled',
+      location: entity.venue
+        ? { '@type': 'Place', name: cleanText(entity.venue) }
+        : undefined,
+      competitor: [entity.homeName, entity.awayName]
+        .filter(Boolean)
+        .map((name) => ({ '@type': 'SportsTeam', name: cleanText(name) })),
+      description: preview.description,
+      image: preview.image,
+    }
+  }
+  if (preview.entityKind === 'team') {
+    return {
+      ...common,
+      '@type': 'SportsTeam',
+      name: cleanText(entity.name) || preview.title,
+      sport: 'Cricket',
+      description: preview.description,
+      logo: preview.image,
+      location: entity.home_ground
+        ? { '@type': 'Place', name: cleanText(entity.home_ground) }
+        : undefined,
+    }
+  }
+  if (preview.entityKind === 'player') {
+    return {
+      ...common,
+      '@type': 'Person',
+      name: cleanText(entity.full_name) || preview.title,
+      description: preview.description,
+      image: preview.image,
+      nationality: cleanText(entity.nationality) || undefined,
+      affiliation: entity.team_name
+        ? { '@type': 'SportsTeam', name: cleanText(entity.team_name) }
+        : undefined,
+    }
+  }
+  if (preview.entityKind === 'league') {
+    return {
+      ...common,
+      '@type': 'SportsOrganization',
+      name: cleanText(entity.name) || preview.title,
+      sport: 'Cricket',
+      description: preview.description,
+      logo: preview.image,
+    }
+  }
+  if (preview.entityKind === 'season') {
+    return {
+      ...common,
+      '@type': 'CollectionPage',
+      name: cleanText(entity.name) || preview.title,
+      description: preview.description,
+      dateCreated: entity.start_date || undefined,
+      expires: entity.end_date || undefined,
+    }
+  }
+  if (preview.entityKind === 'product') {
+    return {
+      ...common,
+      '@type': 'Product',
+      name: cleanText(entity.name) || preview.title,
+      description: preview.description,
+      image: [entity.image_url, entity.image_url_2, entity.image_url_3]
+        .filter(Boolean)
+        .map((image) => absoluteUrl(image, request.url)),
+      category: cleanText(entity.category) || undefined,
+    }
+  }
+  if (preview.entityKind === 'managed-page') {
+    return {
+      ...common,
+      '@type': 'WebPage',
+      name: cleanText(entity.title) || preview.title,
+      description: preview.description,
+      dateModified: entity.updated_at || undefined,
+    }
+  }
+
+  return {
+    ...common,
+    '@type': 'WebPage',
+    name: preview.title,
+    description: preview.description || DEFAULT_DESCRIPTION,
+  }
+}
+
+function safeJsonLd(value) {
+  return JSON.stringify(value)
+    .replaceAll('<', '\\u003c')
+    .replaceAll('>', '\\u003e')
+    .replaceAll('&', '\\u0026')
+}
+
+function structuredDataTags(preview, request) {
+  const url = new URL(request.url)
+  url.search = ''
+  url.hash = ''
+  const breadcrumbs = previewBreadcrumbs(preview, request)
+  const values = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: SITE_NAME,
+      url: url.origin,
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: `${url.origin}/search?q={search_term_string}`,
+        'query-input': 'required name=search_term_string',
+      },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: breadcrumbs.map((item, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: item.name,
+        item: new URL(item.path, url.origin).toString(),
+      })),
+    },
+    entityStructuredData(preview, request),
+  ].filter(Boolean)
+
+  return values
+    .map(
+      (value) =>
+        `<script type="application/ld+json" data-npl-edge-jsonld>${safeJsonLd(value)}</script>`,
+    )
+    .join('\n')
+}
+
+function prerenderedContent(preview, request) {
+  const url = new URL(request.url)
+  const heading = preview.entityKind === 'article'
+    ? cleanText(preview.entity?.title) || preview.title
+    : preview.title
+  const breadcrumbs = previewBreadcrumbs(preview, request)
+  const breadcrumbHtml = breadcrumbs
+    .map((item, index) => {
+      const content = index === breadcrumbs.length - 1
+        ? `<span aria-current="page">${escapeHtml(item.name)}</span>`
+        : `<a href="${escapeHtml(item.path)}">${escapeHtml(item.name)}</a>`
+      return `<li>${content}</li>`
+    })
+    .join('')
+  const related = [
+    ['/fixtures', 'Fixtures'],
+    ['/results', 'Results'],
+    ['/news', 'News'],
+    ['/competition', 'Competition information'],
+  ].filter(([path]) => path !== url.pathname)
+
+  return `<main data-npl-edge-prerender>
+  <nav aria-label="Breadcrumb"><ol>${breadcrumbHtml}</ol></nav>
+  <article>
+    <h1>${escapeHtml(heading)}</h1>
+    <p>${escapeHtml(preview.description || DEFAULT_DESCRIPTION)}</p>
+    ${preview.content && preview.content !== preview.description
+      ? `<p>${escapeHtml(preview.content)}</p>`
+      : ''}
+  </article>
+  <nav aria-label="Related NPL pages">${related
+    .map(([path, label]) => `<a href="${path}">${escapeHtml(label)}</a>`)
+    .join(' ')}</nav>
+</main>`
+}
+
 function injectMeta(html, preview, request) {
   const cleaned = html
     .replace(/<title>[\s\S]*?<\/title>/gi, '')
@@ -968,12 +1562,23 @@ function injectMeta(html, preview, request) {
     .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+(property|name)=["']og:[^"']+["'][^>]*>\s*/gi, '')
     .replace(/<meta\s+(property|name)=["']twitter:[^"']+["'][^>]*>\s*/gi, '')
+    .replace(/<script\s+type=["']application\/ld\+json["'][^>]*data-npl-edge-jsonld[^>]*>[\s\S]*?<\/script>\s*/gi, '')
 
   if (!cleaned.includes('</head>')) {
     return cleaned
   }
 
-  return cleaned.replace('</head>', `${metaTags(preview, request)}\n</head>`)
+  const withHead = cleaned.replace(
+    '</head>',
+    `${metaTags(preview, request)}\n${structuredDataTags(preview, request)}\n</head>`,
+  )
+  const prerendered = prerenderedContent(preview, request)
+  if (!prerendered) return withHead
+
+  return withHead.replace(
+    /<div\s+id=["']root["']\s*>[\s\S]*?<\/div>/i,
+    `<div id="root">${prerendered}</div>`,
+  )
 }
 
 export default async function handler(request, context) {
@@ -1004,8 +1609,8 @@ export default async function handler(request, context) {
   headers.delete('content-length')
 
   return new Response(body, {
-    status: response.status,
-    statusText: response.statusText,
+    status: preview.notFound ? 404 : response.status,
+    statusText: preview.notFound ? 'Not Found' : response.statusText,
     headers,
   })
 }

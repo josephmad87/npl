@@ -77,8 +77,8 @@ function MyProfilePage() {
         setFormError('Enter your current password to set a new one.')
         return
       }
-      if (newPassword.length < 8) {
-        setFormError('New password must be at least 8 characters.')
+      if (newPassword.length < 12) {
+        setFormError('New password must be at least 12 characters.')
         return
       }
       if (newPassword !== confirmPassword) {
@@ -207,7 +207,7 @@ function MyProfilePage() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     autoComplete="new-password"
-                    minLength={8}
+                    minLength={12}
                   />
                 </div>
                 <div className="settings-form__group">

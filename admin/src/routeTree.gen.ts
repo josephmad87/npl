@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ShellRouteImport } from './routes/_shell'
 import { Route as ShellIndexRouteImport } from './routes/_shell/index'
 import { Route as ShellProfileRouteImport } from './routes/_shell/profile'
+import { Route as ShellFanEngagementRouteImport } from './routes/_shell/fan-engagement'
 import { Route as ShellSettingsRouteRouteImport } from './routes/_shell/settings/route'
 import { Route as ShellUsersIndexRouteImport } from './routes/_shell/users/index'
 import { Route as ShellTeamsIndexRouteImport } from './routes/_shell/teams/index'
@@ -74,6 +75,11 @@ const ShellIndexRoute = ShellIndexRouteImport.update({
 const ShellProfileRoute = ShellProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellFanEngagementRoute = ShellFanEngagementRouteImport.update({
+  id: '/fan-engagement',
+  path: '/fan-engagement',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellSettingsRouteRoute = ShellSettingsRouteRouteImport.update({
@@ -302,6 +308,7 @@ export interface FileRoutesByFullPath {
   '/': typeof ShellIndexRoute
   '/login': typeof LoginRoute
   '/settings': typeof ShellSettingsRouteRouteWithChildren
+  '/fan-engagement': typeof ShellFanEngagementRoute
   '/profile': typeof ShellProfileRoute
   '/audit/$auditId': typeof ShellAuditAuditIdRoute
   '/contact-messages/$messageId': typeof ShellContactMessagesMessageIdRoute
@@ -348,6 +355,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/fan-engagement': typeof ShellFanEngagementRoute
   '/profile': typeof ShellProfileRoute
   '/': typeof ShellIndexRoute
   '/audit/$auditId': typeof ShellAuditAuditIdRoute
@@ -398,6 +406,7 @@ export interface FileRoutesById {
   '/_shell': typeof ShellRouteWithChildren
   '/login': typeof LoginRoute
   '/_shell/settings': typeof ShellSettingsRouteRouteWithChildren
+  '/_shell/fan-engagement': typeof ShellFanEngagementRoute
   '/_shell/profile': typeof ShellProfileRoute
   '/_shell/': typeof ShellIndexRoute
   '/_shell/audit/$auditId': typeof ShellAuditAuditIdRoute
@@ -449,6 +458,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/settings'
+    | '/fan-engagement'
     | '/profile'
     | '/audit/$auditId'
     | '/contact-messages/$messageId'
@@ -495,6 +505,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/fan-engagement'
     | '/profile'
     | '/'
     | '/audit/$auditId'
@@ -544,6 +555,7 @@ export interface FileRouteTypes {
     | '/_shell'
     | '/login'
     | '/_shell/settings'
+    | '/_shell/fan-engagement'
     | '/_shell/profile'
     | '/_shell/'
     | '/_shell/audit/$auditId'
@@ -623,6 +635,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ShellProfileRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/fan-engagement': {
+      id: '/_shell/fan-engagement'
+      path: '/fan-engagement'
+      fullPath: '/fan-engagement'
+      preLoaderRoute: typeof ShellFanEngagementRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/settings': {
@@ -960,6 +979,7 @@ const ShellLeaguesLeagueIdRouteWithChildren =
 
 interface ShellRouteChildren {
   ShellSettingsRouteRoute: typeof ShellSettingsRouteRouteWithChildren
+  ShellFanEngagementRoute: typeof ShellFanEngagementRoute
   ShellProfileRoute: typeof ShellProfileRoute
   ShellIndexRoute: typeof ShellIndexRoute
   ShellAuditAuditIdRoute: typeof ShellAuditAuditIdRoute
@@ -1003,6 +1023,7 @@ interface ShellRouteChildren {
 
 const ShellRouteChildren: ShellRouteChildren = {
   ShellSettingsRouteRoute: ShellSettingsRouteRouteWithChildren,
+  ShellFanEngagementRoute: ShellFanEngagementRoute,
   ShellProfileRoute: ShellProfileRoute,
   ShellIndexRoute: ShellIndexRoute,
   ShellAuditAuditIdRoute: ShellAuditAuditIdRoute,

@@ -1,0 +1,256 @@
+/* Shared NPL design system: brand, typography, spacing, focus, motion and elevation. */
+:root {
+  --npl-brand-50: #fff7f3;
+  --npl-brand-100: #fee9df;
+  --npl-brand-200: #fbd0bd;
+  --npl-brand-300: #f4aa89;
+  --npl-brand-400: #e77a50;
+  --npl-brand-500: #bf4927;
+  --npl-brand-600: #a63b20;
+  --npl-brand-700: #822e1c;
+  --npl-brand-800: #64251b;
+  --npl-brand-900: #401315;
+  --npl-brand-950: #200001;
+
+  --npl-gold-50: #fff9eb;
+  --npl-gold-100: #ffefc6;
+  --npl-gold-300: #f4c25c;
+  --npl-gold-500: #e58b1b;
+  --npl-gold-700: #9c520d;
+
+  --npl-neutral-50: #fcfbfb;
+  --npl-neutral-100: #f6f3f3;
+  --npl-neutral-200: #e8e2e2;
+  --npl-neutral-300: #d2c8c8;
+  --npl-neutral-400: #a99d9d;
+  --npl-neutral-500: #756b6b;
+  --npl-neutral-600: #564d4d;
+  --npl-neutral-700: #3f3637;
+  --npl-neutral-800: #2b2223;
+  --npl-neutral-900: #1d1516;
+
+  --npl-surface-page: var(--npl-neutral-50);
+  --npl-surface-subtle: var(--npl-neutral-100);
+  --npl-surface-raised: #ffffff;
+  --npl-surface-inverse: var(--npl-brand-950);
+  --npl-text: var(--npl-brand-950);
+  --npl-text-muted: var(--npl-neutral-600);
+  --npl-text-inverse: var(--npl-neutral-50);
+  --npl-text-muted-inverse: var(--npl-neutral-300);
+
+  --npl-success-50: #edf9f2;
+  --npl-success-200: #bce8ce;
+  --npl-success-600: #147a43;
+  --npl-success-700: #0d6034;
+  --npl-warning-50: #fff8e8;
+  --npl-warning-200: #f9d68c;
+  --npl-warning-600: #9c5809;
+  --npl-warning-700: #7b4206;
+  --npl-error-50: #fff1f0;
+  --npl-error-200: #f5b9b4;
+  --npl-error-600: #b42318;
+  --npl-error-700: #8e1c14;
+  --npl-info-50: #eff6ff;
+  --npl-info-200: #bfdbfe;
+  --npl-info-600: #1d4ed8;
+  --npl-info-700: #1e40af;
+
+  --npl-space-1: 0.25rem;
+  --npl-space-2: 0.5rem;
+  --npl-space-3: 0.75rem;
+  --npl-space-4: 1rem;
+  --npl-space-5: 1.25rem;
+  --npl-space-6: 1.5rem;
+  --npl-space-8: 2rem;
+  --npl-space-10: 2.5rem;
+  --npl-space-12: 3rem;
+  --npl-space-16: 4rem;
+
+  --npl-type-xs: 0.75rem;
+  --npl-type-sm: 0.875rem;
+  --npl-type-base: 1rem;
+  --npl-type-lg: 1.2rem;
+  --npl-type-xl: 1.44rem;
+  --npl-type-2xl: clamp(1.5rem, 1.32rem + 0.75vw, 1.75rem);
+  --npl-type-3xl: clamp(1.75rem, 1.45rem + 1.25vw, 2.1rem);
+  --npl-type-4xl: clamp(2rem, 1.55rem + 2vw, 2.5rem);
+  --npl-leading-tight: 1.12;
+  --npl-leading-snug: 1.3;
+  --npl-leading-body: 1.55;
+  --npl-tracking-tight: -0.02em;
+  --npl-tracking-caps: 0.075em;
+  --npl-font-sans: Inter, "Google Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --npl-radius-sm: 0.5rem;
+  --npl-radius-md: 0.75rem;
+  --npl-radius-lg: 1rem;
+  --npl-radius-pill: 999px;
+  --npl-shadow-1: 0 1px 2px rgb(32 0 1 / 0.1), 0 1px 1px rgb(32 0 1 / 0.06);
+  --npl-shadow-2: 0 4px 12px rgb(32 0 1 / 0.12), 0 2px 4px rgb(32 0 1 / 0.08);
+  --npl-shadow-3: 0 12px 32px rgb(32 0 1 / 0.16), 0 4px 10px rgb(32 0 1 / 0.1);
+  --npl-shadow-4: 0 22px 60px rgb(8 0 0 / 0.3), 0 8px 18px rgb(8 0 0 / 0.18);
+
+  --npl-duration-fast: 120ms;
+  --npl-duration-mid: 180ms;
+  --npl-duration-slow: 260ms;
+  --npl-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --npl-ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --npl-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  --npl-z-dropdown: 100;
+  --npl-z-sticky: 200;
+  --npl-z-modal: 300;
+  --npl-z-toast: 400;
+  --npl-control-min: 2.75rem;
+  --npl-focus: #f4a62a;
+  --npl-focus-contrast: #200001;
+}
+
+/* Reusable primitives shared by the public and operations interfaces. */
+.npl-skip-link {
+  position: fixed;
+  inset-block-start: var(--npl-space-2);
+  inset-inline-start: var(--npl-space-2);
+  z-index: calc(var(--npl-z-toast) + 1);
+  translate: 0 -180%;
+  border: 2px solid var(--npl-focus-contrast);
+  border-radius: var(--npl-radius-sm);
+  background: var(--npl-focus);
+  color: var(--npl-brand-950);
+  padding: var(--npl-space-3) var(--npl-space-4);
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: var(--npl-shadow-3);
+}
+
+.npl-skip-link:focus {
+  translate: 0;
+}
+
+.npl-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid var(--npl-focus) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 2px var(--npl-focus-contrast) !important;
+}
+
+:where(button, input, select, textarea) {
+  font: inherit;
+}
+
+:where(button, [role="button"], input:not([type="hidden"]), select) {
+  min-block-size: var(--npl-control-min);
+}
+
+:where(button, [role="button"], a) {
+  touch-action: manipulation;
+}
+
+:where(p, li, dd, td, th, label) {
+  overflow-wrap: anywhere;
+}
+
+.npl-table-region {
+  max-inline-size: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.npl-surface {
+  border: 1px solid var(--npl-neutral-200);
+  border-radius: var(--npl-radius-lg);
+  background: var(--npl-surface-raised);
+  color: var(--npl-text);
+  box-shadow: var(--npl-shadow-1);
+}
+
+.npl-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--npl-space-2);
+  min-block-size: var(--npl-control-min);
+  border: 1px solid transparent;
+  border-radius: var(--npl-radius-pill);
+  padding-inline: var(--npl-space-4);
+  font-weight: 750;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.npl-field {
+  min-block-size: var(--npl-control-min);
+  inline-size: 100%;
+  border: 1px solid var(--npl-neutral-400);
+  border-radius: var(--npl-radius-md);
+  background: var(--npl-surface-raised);
+  color: var(--npl-text);
+  padding: var(--npl-space-3) var(--npl-space-4);
+}
+
+.npl-table-region:focus-visible {
+  border-radius: var(--npl-radius-sm);
+}
+
+[role="dialog"][aria-modal="true"] {
+  box-shadow: var(--npl-shadow-4);
+}
+
+[role="tablist"] {
+  scrollbar-width: thin;
+}
+
+[role="tab"] {
+  min-block-size: var(--npl-control-min);
+}
+
+[role="tab"][aria-selected="true"] {
+  text-decoration-thickness: 0.12em;
+  text-underline-offset: 0.22em;
+}
+
+@media (forced-colors: active) {
+  :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline-color: Highlight !important;
+    box-shadow: none !important;
+  }
+
+  [role="tab"][aria-selected="true"],
+  [aria-current="page"] {
+    outline: 2px solid currentColor;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@media (max-width: 40rem) {
+  .npl-table-region {
+    inline-size: 100%;
+  }
+}

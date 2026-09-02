@@ -35,8 +35,8 @@ function NewAdminUserPage() {
       setSaveError('Email is required.')
       return
     }
-    if (password.length < 8) {
-      setSaveError('Password must be at least 8 characters.')
+    if (password.length < 12) {
+      setSaveError('Password must be at least 12 characters.')
       return
     }
     setSaveError(null)
@@ -93,6 +93,7 @@ function NewAdminUserPage() {
               <input
                 id="password"
                 type="password"
+                minLength={12}
                 autoComplete="new-password"
                 className="inline-edit__control"
                 value={password}

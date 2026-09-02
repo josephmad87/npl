@@ -2424,11 +2424,15 @@ export function LiveScorePanel({
         )}
       </div>
 
-      <div className="live-score-panel__tabs" aria-label="Live match tabs">
+      <div className="live-score-panel__tabs" role="tablist" aria-label="Live match tabs">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
+            id={`live-match-tab-${tab.id}`}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`live-match-panel-${tab.id}`}
             className={`live-score-panel__tab${activeTab === tab.id ? ' is-active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
           >
@@ -2437,16 +2441,23 @@ export function LiveScorePanel({
         ))}
       </div>
 
-      {activeTab === 'live' ? (
-        <>
-          {renderMiniScorecard()}
-          {renderCommentary()}
-        </>
-      ) : null}
-      {activeTab === 'scorecard' ? renderFullScorecard() : null}
-      {activeTab === 'commentary' ? renderCommentary() : null}
-      {activeTab === 'teams' ? renderTeams() : null}
-      {activeTab === 'standings' ? renderStandings() : null}
+      <div
+        id={`live-match-panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`live-match-tab-${activeTab}`}
+        tabIndex={0}
+      >
+        {activeTab === 'live' ? (
+          <>
+            {renderMiniScorecard()}
+            {renderCommentary()}
+          </>
+        ) : null}
+        {activeTab === 'scorecard' ? renderFullScorecard() : null}
+        {activeTab === 'commentary' ? renderCommentary() : null}
+        {activeTab === 'teams' ? renderTeams() : null}
+        {activeTab === 'standings' ? renderStandings() : null}
+      </div>
     </section>
   )
 }

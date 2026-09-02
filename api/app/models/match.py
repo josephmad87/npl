@@ -46,6 +46,14 @@ class Match(Base):
     dls_team1_resource_percentage: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
     dls_team2_resource_percentage: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
     scorecard_finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    scoring_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    scorecard_reconciled_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    scorecard_reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scorecard_reconciliation_status: Mapped[str] = mapped_column(
+        String(32),
+        default="in_sync",
+        nullable=False,
+    )
 
     season: Mapped["Season | None"] = relationship(back_populates="matches")
     home_team: Mapped["Team"] = relationship(foreign_keys=[home_team_id], back_populates="home_matches")
@@ -70,6 +78,11 @@ class Match(Base):
 
     scorer_assignments: Mapped[list["MatchScorerAssignment"]] = relationship(
         "MatchScorerAssignment",
+        back_populates="match",
+        cascade="all, delete-orphan",
+    )
+    scoring_sessions: Mapped[list["MatchScoringSession"]] = relationship(
+        "MatchScoringSession",
         back_populates="match",
         cascade="all, delete-orphan",
     )
@@ -171,6 +184,11 @@ class FanPlayerMatchVote(Base):
             "voter_key",
             name="uq_fan_player_match_votes_match_voter",
         ),
+        UniqueConstraint(
+            "match_id",
+            "supporter_id",
+            name="uq_fan_player_match_votes_match_supporter",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -183,6 +201,10 @@ class FanPlayerMatchVote(Base):
         ForeignKey("players.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
+    )
+    supporter_id: Mapped[int | None] = mapped_column(
+        ForeignKey("supporter_accounts.id", ondelete="CASCADE"),
+        index=True,
     )
     voter_key: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -234,6 +256,49 @@ class MatchScorerAssignment(Base):
     match: Mapped["Match"] = relationship("Match", back_populates="scorer_assignments")
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
     assigned_by: Mapped["User | None"] = relationship("User", foreign_keys=[assigned_by_user_id])
+
+
+class MatchScoringSession(Base):
+    """Leased ownership of a live scorecard by one scorer device."""
+
+    __tablename__ = "match_scoring_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[int] = mapped_column(
+        ForeignKey("matches.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    owner_user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    session_token: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    device_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    device_label: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(32), default="active", nullable=False, index=True)
+    acquired_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ended_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+    )
+    takeover_reason: Mapped[str | None] = mapped_column(String(512))
+
+    match: Mapped["Match"] = relationship("Match", back_populates="scoring_sessions")
+    owner: Mapped["User"] = relationship("User", foreign_keys=[owner_user_id])
+    ended_by: Mapped["User | None"] = relationship("User", foreign_keys=[ended_by_user_id])
 
 
 class DisciplineCase(Base):

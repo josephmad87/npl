@@ -1,9 +1,11 @@
 import type { RefObject } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { preferredScrollBehavior } from '@npl/ui/accessibility'
 import { formatMatchDate, formatNewsHighlightsDate } from '../lib/formatters'
 import type { ArticleLite } from '../lib/hooks'
 import { resolveMediaUrl } from '../lib/publicApi'
+import { ResponsiveImage } from './ResponsiveImage'
 
 type FilterOption = { id: string; label: string }
 
@@ -95,16 +97,18 @@ function HomeNewsCarouselTrack({
               className="home-news-carousel__card-link"
               onFocus={() => setActivePanelIndex(idx)}
             >
-              <div
-                className="home-news-carousel__card-bg"
-                style={
-                  img
-                    ? {
-                        backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.82) 100%), url(${img})`,
-                      }
-                    : undefined
-                }
-              >
+              <div className="home-news-carousel__card-bg">
+                {img ? (
+                  <ResponsiveImage
+                    src={img}
+                    alt=""
+                    className="home-news-carousel__card-image"
+                    widths={[320, 480, 640, 800]}
+                    sizes="(max-width: 760px) 84vw, 33vw"
+                    fallbackWidth={640}
+                  />
+                ) : null}
+                <span className="home-news-carousel__card-shade" aria-hidden="true" />
                 <div className="home-news-carousel__card-body">
                   <h3 className="home-news-carousel__card-title">{article.title}</h3>
                   <p className="home-news-carousel__card-meta">{metaBits.join(' · ')}</p>
@@ -149,7 +153,7 @@ export function HomeNewsCarousel({
     const card = el.querySelector<HTMLElement>('.home-news-carousel__card')
     const gap = 12
     const step = card ? card.getBoundingClientRect().width + gap : Math.min(el.clientWidth * 0.75, 360)
-    el.scrollBy({ left: direction * step, behavior: 'smooth' })
+    el.scrollBy({ left: direction * step, behavior: preferredScrollBehavior() })
   }, [])
 
   const subtitle = `${formatNewsHighlightsDate()} News Highlights`
@@ -167,13 +171,12 @@ export function HomeNewsCarousel({
       </header>
 
       <div className="home-news-carousel__toolbar">
-        <div className="home-news-carousel__chips" role="tablist" aria-label="Filter news">
+        <div className="home-news-carousel__chips" role="group" aria-label="Filter news">
           {filterOptions.map((opt) => (
             <button
               key={opt.id}
               type="button"
-              role="tab"
-              aria-selected={effectiveFilter === opt.id}
+              aria-pressed={effectiveFilter === opt.id}
               className={`home-news-carousel__chip${effectiveFilter === opt.id ? ' is-active' : ''}`}
               onClick={() => setActiveFilter(opt.id)}
             >

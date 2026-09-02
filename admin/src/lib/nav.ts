@@ -56,7 +56,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     to: '/site-pages',
-    label: 'Policy & support pages',
+    label: 'Policy & information pages',
     roles: ['super_admin'],
   },
   {
@@ -95,6 +95,11 @@ export const NAV_ITEMS: NavItem[] = [
     'read_only_admin',
   ],
 },
+  {
+    to: '/fan-engagement',
+    label: 'Fan engagement',
+    roles: ['super_admin', 'competition_manager', 'content_editor', 'read_only_admin'],
+  },
   
   {
     to: '/users',

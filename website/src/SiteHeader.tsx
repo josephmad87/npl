@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
-import { fetchAllPaginatedList } from './lib/publicApi'
-import nplLogoUrl from './assets/logo.png'
+import { fetchJson } from './lib/publicApi'
+import nplLogoUrl from './assets/logo-optimized.png'
 
 type ApiTeam = {
   id: number
@@ -15,12 +15,7 @@ type ApiLeague = {
   id: number
   name: string
   slug: string
-}
-
-type ApiSeason = {
-  id: number
-  name: string
-  slug: string
+  category: string
 }
 
 type NavTeamCategory = 'mens' | 'women' | 'youth'
@@ -32,97 +27,63 @@ type HeaderSeason = {
   leagueSlug: string
 }
 
-async function fetchTeamsForCategory(category: NavTeamCategory): Promise<ApiTeam[]> {
-  return fetchAllPaginatedList<ApiTeam>(
-    (page) =>
-      `/public/teams?page=${page}&page_size=100&category=${encodeURIComponent(category)}`,
-  )
-}
-
-async function fetchLeaguesForCategory(category: NavTeamCategory): Promise<ApiLeague[]> {
-  return fetchAllPaginatedList<ApiLeague>(
-    (page) =>
-      `/public/leagues?page=${page}&page_size=100&category=${encodeURIComponent(category)}`,
-  )
-}
-
-async function fetchSeasonsForLeagues(leagues: ApiLeague[]): Promise<HeaderSeason[]> {
-  if (leagues.length === 0) return []
-  const seasonLists = await Promise.all(
-    leagues.map(async (league) => {
-      const seasons = await fetchAllPaginatedList<ApiSeason>(
-        (page) => `/public/leagues/${league.slug}/seasons?page=${page}&page_size=50`,
-        5,
-      )
-      return seasons.map((season) => ({
-        ...season,
-        leagueSlug: league.slug,
-      }))
-    }),
-  )
-  const seen = new Set<number>()
-  const merged: HeaderSeason[] = []
-  seasonLists.flat().forEach((season) => {
-    if (seen.has(season.id)) return
-    seen.add(season.id)
-    merged.push(season)
-  })
-  return merged
+type NavigationPayload = {
+  teams: ApiTeam[]
+  leagues: ApiLeague[]
+  seasons: Array<{
+    id: number
+    name: string
+    slug: string
+    league_slug: string
+    league_category: string
+  }>
 }
 
 export function SiteHeader() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [searchText, setSearchText] = useState('')
   const navigate = useNavigate()
   const location = useRouterState({ select: (s) => s.location })
-  const { data: mensNavTeams = [] } = useQuery({
-    queryKey: ['header-teams', 'mens'],
-    queryFn: () => fetchTeamsForCategory('mens'),
+  const routeSearchText =
+    location.pathname === '/search' && typeof location.search.q === 'string'
+      ? location.search.q
+      : ''
+  const [searchDraft, setSearchDraft] = useState(() => ({
+    source: routeSearchText,
+    value: routeSearchText,
+  }))
+  const searchText =
+    searchDraft.source === routeSearchText ? searchDraft.value : routeSearchText
+  const setSearchText = (value: string) => {
+    setSearchDraft({ source: routeSearchText, value })
+  }
+  const { data: navigation } = useQuery({
+    queryKey: ['public-navigation'],
+    queryFn: () => fetchJson<NavigationPayload>('/public/navigation'),
+    staleTime: 5 * 60_000,
     retry: 1,
   })
-  const { data: womenNavTeams = [] } = useQuery({
-    queryKey: ['header-teams', 'women'],
-    queryFn: () => fetchTeamsForCategory('women'),
-    retry: 1,
-  })
-  const { data: youthNavTeams = [] } = useQuery({
-    queryKey: ['header-teams', 'youth'],
-    queryFn: () => fetchTeamsForCategory('youth'),
-    retry: 1,
-  })
-  const { data: mensLeagues = [] } = useQuery({
-    queryKey: ['header-leagues', 'mens'],
-    queryFn: () => fetchLeaguesForCategory('mens'),
-    retry: 1,
-  })
-  const { data: womenLeagues = [] } = useQuery({
-    queryKey: ['header-leagues', 'women'],
-    queryFn: () => fetchLeaguesForCategory('women'),
-    retry: 1,
-  })
-  const { data: youthLeagues = [] } = useQuery({
-    queryKey: ['header-leagues', 'youth'],
-    queryFn: () => fetchLeaguesForCategory('youth'),
-    retry: 1,
-  })
-  const { data: mensSeasons = [] } = useQuery({
-    queryKey: ['header-seasons', 'mens', mensLeagues.map((l) => l.slug).join(',')],
-    queryFn: () => fetchSeasonsForLeagues(mensLeagues),
-    enabled: mensLeagues.length > 0,
-    retry: 1,
-  })
-  const { data: womenSeasons = [] } = useQuery({
-    queryKey: ['header-seasons', 'women', womenLeagues.map((l) => l.slug).join(',')],
-    queryFn: () => fetchSeasonsForLeagues(womenLeagues),
-    enabled: womenLeagues.length > 0,
-    retry: 1,
-  })
-  const { data: youthSeasons = [] } = useQuery({
-    queryKey: ['header-seasons', 'youth', youthLeagues.map((l) => l.slug).join(',')],
-    queryFn: () => fetchSeasonsForLeagues(youthLeagues),
-    enabled: youthLeagues.length > 0,
-    retry: 1,
-  })
+  const teamsFor = (category: NavTeamCategory) =>
+    (navigation?.teams ?? []).filter((team) => team.category === category)
+  const leaguesFor = (category: NavTeamCategory) =>
+    (navigation?.leagues ?? []).filter((league) => league.category === category)
+  const seasonsFor = (category: NavTeamCategory): HeaderSeason[] =>
+    (navigation?.seasons ?? [])
+      .filter((season) => season.league_category === category)
+      .map((season) => ({
+        id: season.id,
+        name: season.name,
+        slug: season.slug,
+        leagueSlug: season.league_slug,
+      }))
+  const mensNavTeams = teamsFor('mens')
+  const womenNavTeams = teamsFor('women')
+  const youthNavTeams = teamsFor('youth')
+  const mensLeagues = leaguesFor('mens')
+  const womenLeagues = leaguesFor('women')
+  const youthLeagues = leaguesFor('youth')
+  const mensSeasons = seasonsFor('mens')
+  const womenSeasons = seasonsFor('women')
+  const youthSeasons = seasonsFor('youth')
 
   const closeMobileNav = () => setMobileNavOpen(false)
 
@@ -143,12 +104,6 @@ export function SiteHeader() {
   const mensSeasonLinks = mensSeasons.slice(0, 5)
   const womenSeasonLinks = womenSeasons.slice(0, 5)
   const youthSeasonLinks = youthSeasons.slice(0, 5)
-
-  useEffect(() => {
-    if (location.pathname !== '/search') return
-    const current = typeof location.search.q === 'string' ? location.search.q : ''
-    setSearchText(current)
-  }, [location.pathname, location.search])
 
   const submitSearch = () => {
     const q = searchText.trim()
@@ -203,9 +158,12 @@ export function SiteHeader() {
             />
           ) : null}
 
-          <nav
+          <div
             id="mobile-navigation"
             className={`site-header-mobile__drawer${mobileNavOpen ? ' is-open' : ''}`}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mobile menu"
             aria-hidden={!mobileNavOpen}
             inert={!mobileNavOpen}
           >
@@ -215,7 +173,7 @@ export function SiteHeader() {
                 <span aria-hidden="true">×</span>
               </button>
             </div>
-            <div className="site-header-mobile__drawer-scroll">
+            <nav className="site-header-mobile__drawer-scroll" aria-label="Mobile">
                           <Link
                 to="/"
                 className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top"
@@ -258,6 +216,13 @@ export function SiteHeader() {
                 onClick={closeMobileNav}
               >
                 Contact Us
+              </Link>
+              <Link
+                to="/my-npl"
+                className="site-header-mobile__drawer-link site-header-mobile__drawer-link--top"
+                onClick={closeMobileNav}
+              >
+                My NPL
               </Link>
 
               <details className="site-header-mobile__details">
@@ -409,8 +374,8 @@ export function SiteHeader() {
                   </Link>
                 </div>
               </details>
-            </div>
-          </nav>
+            </nav>
+          </div>
         </div>
 
         <div className="site-header-desktop">
@@ -550,6 +515,7 @@ export function SiteHeader() {
 
             <Link to="/about-us">About</Link>
             <Link to="/contact-us">Contact</Link>
+            <Link to="/my-npl" className="site-header-desktop__account">My NPL</Link>
             <form
               className="site-header-desktop__search"
               role="search"

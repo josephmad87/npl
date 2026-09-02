@@ -4,7 +4,7 @@
 Credentials come from the environment (see api/.env.example):
 
 - SEED_ADMIN_EMAIL — default: dev@npl.local
-- SEED_ADMIN_PASSWORD — default: changeme (must be >= 8 characters)
+- SEED_ADMIN_PASSWORD — default: change-me-dev-only (must be >= 12 characters)
 
 Run after migrations: PYTHONPATH=. python scripts/seed_dev.py
 """
@@ -24,14 +24,14 @@ from app.db.session import SessionLocal
 from app.models.user import User
 
 DEFAULT_EMAIL = "dev@npl.local"
-DEFAULT_PASSWORD = "changeme"
+DEFAULT_PASSWORD = "change-me-dev-only"
 
 
 def main() -> None:
     email = os.environ.get("SEED_ADMIN_EMAIL", DEFAULT_EMAIL).strip()
     password = os.environ.get("SEED_ADMIN_PASSWORD", DEFAULT_PASSWORD)
-    if len(password) < 8:
-        sys.exit("SEED_ADMIN_PASSWORD must be at least 8 characters")
+    if len(password) < 12:
+        sys.exit("SEED_ADMIN_PASSWORD must be at least 12 characters")
 
     db: Session = SessionLocal()
     try:

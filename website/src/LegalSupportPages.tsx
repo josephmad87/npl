@@ -2,6 +2,10 @@ import { type FormEvent, type ReactNode, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { PageHero } from './components/PageHero'
+import { Breadcrumbs } from './components/Breadcrumbs'
+import { SeoHead } from './components/SeoHead'
+import { ErrorNotice } from './components/ErrorNotice'
+import { Spinner } from './components/Spinner'
 import { fetchJson, postJson } from './lib/publicApi'
 import { sanitizeHtml } from './lib/sanitizeHtml'
 
@@ -20,6 +24,10 @@ type ManagedPageSlug =
   | 'terms'
   | 'support'
   | 'account-deletion'
+  | 'competition'
+  | 'safeguarding'
+  | 'scorecard-corrections'
+  | 'supporters'
 
 type ManagedPageSection = {
   id: string
@@ -146,43 +154,102 @@ function PolicyNavigation({ items }: { items: Array<{ href: string; label: strin
 }
 
 function ManagedPolicyPage({ page }: { page: ManagedPage }) {
+  const canonicalPath = `/${page.slug}`
+  const breadcrumbs = [
+    { name: 'Home', path: '/' },
+    { name: page.title, path: canonicalPath },
+  ]
   return (
-    <LegalPageShell title={page.title} subtitle={page.subtitle}>
-      {page.effective_date ? (
-        <div className="legal-page__meta">
-          <span>Effective {page.effective_date}</span>
-          <span>NPL Zimbabwe digital services</span>
-        </div>
-      ) : null}
+    <>
+      <SeoHead
+        title={page.title}
+        description={page.subtitle}
+        canonicalPath={canonicalPath}
+        breadcrumbs={breadcrumbs}
+        structuredData={{
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          name: page.title,
+          description: page.subtitle,
+          dateModified: page.updated_at,
+        }}
+      />
+      <LegalPageShell title={page.title} subtitle={page.subtitle}>
+        <Breadcrumbs items={breadcrumbs} />
+        {page.effective_date ? (
+          <div className="legal-page__meta">
+            <span>Effective {page.effective_date}</span>
+            <span>NPL Zimbabwe digital services</span>
+          </div>
+        ) : null}
 
-      <div className="legal-page__layout">
-        <article className="legal-document">
-          {page.intro_html ? (
-            <ManagedHtml
-              html={page.intro_html}
-              className="legal-document__lead managed-rich-text"
-            />
-          ) : null}
-          {page.sections.map((section) => (
-            <section key={section.id} id={section.id}>
-              <h2>{section.heading}</h2>
+        <div className="legal-page__layout">
+          <article className="legal-document">
+            {page.intro_html ? (
               <ManagedHtml
-                html={section.body_html}
-                className="managed-rich-text"
+                html={page.intro_html}
+                className="legal-document__lead managed-rich-text"
               />
-            </section>
-          ))}
-        </article>
+            ) : null}
+            {page.sections.map((section) => (
+              <section key={section.id} id={section.id}>
+                <h2>{section.heading}</h2>
+                <ManagedHtml
+                  html={section.body_html}
+                  className="managed-rich-text"
+                />
+              </section>
+            ))}
+          </article>
 
-        <PolicyNavigation
-          items={page.sections.map((section) => ({
-            href: `#${section.id}`,
-            label: section.heading,
-          }))}
-        />
-      </div>
-    </LegalPageShell>
+          <PolicyNavigation
+            items={page.sections.map((section) => ({
+              href: `#${section.id}`,
+              label: section.heading,
+            }))}
+          />
+        </div>
+      </LegalPageShell>
+    </>
   )
+}
+
+function ManagedInformationPage({ slug }: { slug: ManagedPageSlug }) {
+  const pageQ = useManagedPage(slug)
+
+  if (pageQ.isLoading) {
+    return (
+      <main className="container legal-page">
+        <Spinner label="Loading information page" />
+      </main>
+    )
+  }
+
+  if (pageQ.isError || !pageQ.data) {
+    return (
+      <main className="container legal-page">
+        <ErrorNotice message="This information page could not be loaded. Please try again." />
+      </main>
+    )
+  }
+
+  return <ManagedPolicyPage page={pageQ.data} />
+}
+
+export function CompetitionInformationPage() {
+  return <ManagedInformationPage slug="competition" />
+}
+
+export function SafeguardingPage() {
+  return <ManagedInformationPage slug="safeguarding" />
+}
+
+export function ScorecardCorrectionsPage() {
+  return <ManagedInformationPage slug="scorecard-corrections" />
+}
+
+export function SupporterInformationPage() {
+  return <ManagedInformationPage slug="supporters" />
 }
 
 function ManagedSupportPage({ page }: { page: ManagedPage }) {
@@ -191,10 +258,29 @@ function ManagedSupportPage({ page }: { page: ManagedPage }) {
     .map((email) => email.trim())
     .filter(Boolean)
   const phone = contactQ.data?.contacts?.phone?.trim() ?? ''
+  const breadcrumbs = [
+    { name: 'Home', path: '/' },
+    { name: page.title, path: '/support' },
+  ]
 
   return (
-    <LegalPageShell title={page.title} subtitle={page.subtitle}>
-      <section className="support-page__intro">
+    <>
+      <SeoHead
+        title={page.title}
+        description={page.subtitle}
+        canonicalPath="/support"
+        breadcrumbs={breadcrumbs}
+        structuredData={{
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          name: page.title,
+          description: page.subtitle,
+          dateModified: page.updated_at,
+        }}
+      />
+      <LegalPageShell title={page.title} subtitle={page.subtitle}>
+        <Breadcrumbs items={breadcrumbs} />
+        <section className="support-page__intro">
         <div>
           <p className="support-page__eyebrow">NPL help centre</p>
           <h2>How can we help?</h2>
@@ -213,24 +299,25 @@ function ManagedSupportPage({ page }: { page: ManagedPage }) {
             <a href={`tel:${phone.replace(/\s+/g, '')}`}>{phone}</a>
           ) : null}
         </div>
-      </section>
+        </section>
 
-      <section className="support-page__grid" aria-label="Support topics">
-        {page.sections.map((section) => (
-          <article
-            className="support-page__topic"
-            id={section.id}
-            key={section.id}
-          >
-            <h2>{section.heading}</h2>
-            <ManagedHtml
-              html={section.body_html}
-              className="managed-rich-text"
-            />
-          </article>
-        ))}
-      </section>
-    </LegalPageShell>
+        <section className="support-page__grid" aria-label="Support topics">
+          {page.sections.map((section) => (
+            <article
+              className="support-page__topic"
+              id={section.id}
+              key={section.id}
+            >
+              <h2>{section.heading}</h2>
+              <ManagedHtml
+                html={section.body_html}
+                className="managed-rich-text"
+              />
+            </article>
+          ))}
+        </section>
+      </LegalPageShell>
+    </>
   )
 }
 
@@ -792,15 +879,32 @@ export function AccountDeletionPage() {
       setSubmitState('error')
     }
   }
+  const pageTitle = managedPage.data?.title ?? 'Account Deletion'
+  const pageDescription =
+    managedPage.data?.subtitle ??
+    'Request deletion of an NPL - Zimbabwe fan account and associated personal information.'
+  const breadcrumbs = [
+    { name: 'Home', path: '/' },
+    { name: pageTitle, path: '/account-deletion' },
+  ]
 
   return (
-    <LegalPageShell
-      title={managedPage.data?.title ?? 'Account Deletion'}
-      subtitle={
-        managedPage.data?.subtitle ??
-        'Request deletion of an NPL - Zimbabwe fan account and associated personal information.'
-      }
-    >
+    <>
+      <SeoHead
+        title={pageTitle}
+        description={pageDescription}
+        canonicalPath="/account-deletion"
+        breadcrumbs={breadcrumbs}
+        structuredData={managedPage.data ? {
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          name: pageTitle,
+          description: pageDescription,
+          dateModified: managedPage.data.updated_at,
+        } : undefined}
+      />
+      <LegalPageShell title={pageTitle} subtitle={pageDescription}>
+        <Breadcrumbs items={breadcrumbs} />
       <div className="account-deletion__layout">
         <article className="legal-document account-deletion__explanation">
           {managedPage.data ? (
@@ -957,6 +1061,7 @@ export function AccountDeletionPage() {
           )}
         </section>
       </div>
-    </LegalPageShell>
+      </LegalPageShell>
+    </>
   )
 }

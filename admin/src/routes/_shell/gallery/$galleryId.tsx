@@ -269,7 +269,7 @@ function GalleryDetailPage() {
                 <MediaUrlField
                   id="file_url"
                   uploadKind="gallery"
-                  accept="image/*,video/mp4,video/webm,video/quicktime,video/x-m4v,video/x-msvideo,video/x-matroska,video/mpeg,video/ogg,.jpg,.jpeg,.png,.webp,.gif,.avif,.svg,.bmp,.tif,.tiff,.heic,.heif,.mp4,.webm,.mov,.m4v,.avi,.mkv,.mpeg,.mpg,.ogv"
+                  accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska,video/mpeg,video/ogg,.jpg,.jpeg,.png,.webp,.gif,.mp4,.webm,.mov,.avi,.mkv,.mpeg,.mpg,.ogv"
                   value={merged.file_url}
                   onChange={(next) =>
                     setPatch((p) => ({
@@ -291,7 +291,7 @@ function GalleryDetailPage() {
                 <MediaUrlField
                   id="thumbnail_url"
                   uploadKind="gallery"
-                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,image/bmp,image/tiff,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.gif,.avif,.svg,.bmp,.tif,.tiff,.heic,.heif"
+                  accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
                   value={merged.thumbnail_url ?? null}
                   onChange={(next) =>
                     setPatch((p) => ({ ...p, thumbnail_url: next }))

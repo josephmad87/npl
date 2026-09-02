@@ -19,7 +19,7 @@ type EntityTableProps<T> = {
   data: T[]
   globalFilterPlaceholder?: string
   hideToolbar?: boolean
-  /** When set, each body row opens the detail view (click or Enter / Space). */
+  /** When set, pointer users can open a row and a dedicated keyboard-accessible action is added. */
   onRowClick?: (row: T) => void
   enableRowSelection?: boolean
   getRowId?: (row: T) => string
@@ -149,7 +149,19 @@ export function EntityTable<T>({
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((header) => (
-                  <th key={header.id}>
+                  <th
+                    key={header.id}
+                    scope="col"
+                    aria-sort={
+                      header.column.getIsSorted() === 'asc'
+                        ? 'ascending'
+                        : header.column.getIsSorted() === 'desc'
+                          ? 'descending'
+                          : header.column.getCanSort()
+                            ? 'none'
+                            : undefined
+                    }
+                  >
                     {header.isPlaceholder ? null : header.id ===
                       'select' ? (
                       flexRender(
@@ -161,6 +173,7 @@ export function EntityTable<T>({
                         type="button"
                         className="sort"
                         onClick={header.column.getToggleSortingHandler()}
+                        disabled={!header.column.getCanSort()}
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -175,6 +188,11 @@ export function EntityTable<T>({
                     )}
                   </th>
                 ))}
+                {onRowClick ? (
+                  <th scope="col" className="data-table__open-col">
+                    <span className="visually-hidden">Open details</span>
+                  </th>
+                ) : null}
               </tr>
             ))}
           </thead>
@@ -185,30 +203,16 @@ export function EntityTable<T>({
                 className={
                   onRowClick ? 'data-table__row--clickable' : undefined
                 }
-                tabIndex={onRowClick ? 0 : undefined}
-                role={onRowClick ? 'button' : undefined}
-                aria-label={onRowClick ? 'View row details' : undefined}
                 onClick={
                   onRowClick
                     ? (e) => {
                         const target = e.target as HTMLElement
                         if (
-                          target.closest('input[type="checkbox"]') ||
-                          target.closest('button')
+                          target.closest('a, button, input, select, textarea, label')
                         ) {
                           return
                         }
                         onRowClick(row.original)
-                      }
-                    : undefined
-                }
-                onKeyDown={
-                  onRowClick
-                    ? (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          onRowClick(row.original)
-                        }
                       }
                     : undefined
                 }
@@ -218,6 +222,18 @@ export function EntityTable<T>({
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
+                {onRowClick ? (
+                  <td className="data-table__open-col">
+                    <button
+                      type="button"
+                      className="data-table__open-button"
+                      onClick={() => onRowClick(row.original)}
+                    >
+                      Open
+                      <ChevronRight size={16} strokeWidth={2.5} aria-hidden />
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>

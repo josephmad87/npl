@@ -3,11 +3,51 @@ command = "npm run build"
 publish = "dist"
 edge_functions = "netlify/edge-functions"
 
+[context.deploy-preview.environment]
+VITE_APP_ENV = "preview"
+
+[context.branch-deploy.environment]
+VITE_APP_ENV = "staging"
+
+[context.staging.environment]
+VITE_APP_ENV = "staging"
+
 [[edge_functions]]
 function = "link-preview"
 path = "/*"
+
+[[headers]]
+for = "/*"
+
+  [headers.values]
+  Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; frame-src https://www.youtube.com https://www.youtube-nocookie.com; upgrade-insecure-requests"
+  Cross-Origin-Opener-Policy = "same-origin"
+  Permissions-Policy = "camera=(), geolocation=(), microphone=()"
+  Referrer-Policy = "strict-origin-when-cross-origin"
+  Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+  X-Content-Type-Options = "nosniff"
+  X-Frame-Options = "DENY"
+
+[[headers]]
+for = "/assets/*"
+
+  [headers.values]
+  Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/index.html"
+
+  [headers.values]
+  Cache-Control = "no-cache"
 
 [[redirects]]
 from = "/*"
 to = "/index.html"
 status = 200
+
+[images]
+remote_images = [
+  "^https://admin\\.npl\\.co\\.zw/.*$",
+  "^https://[a-z0-9-]+\\.supabase\\.co/.*$",
+  "^https://i\\.ytimg\\.com/.*$",
+]

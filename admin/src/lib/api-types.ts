@@ -297,6 +297,10 @@ export type SitePageSlug =
   | 'terms'
   | 'support'
   | 'account-deletion'
+  | 'competition'
+  | 'safeguarding'
+  | 'scorecard-corrections'
+  | 'supporters'
 
 export type SitePageSectionDto = {
   id: string
@@ -404,11 +408,33 @@ export type MerchandiseProductDto = {
   sort_order: number
   created_at: string
   updated_at: string
+  variants: MerchandiseProductVariantDto[]
+}
+
+export type MerchandiseProductVariantDto = {
+  id?: number
+  product_id?: number
+  sku: string
+  label: string
+  size: string | null
+  colour: string | null
+  price_text: string
+  price_minor: number | null
+  currency: string
+  stock_quantity: number | null
+  allow_backorder: boolean
+  status: 'active' | 'inactive'
+  sort_order: number
+  created_at?: string
+  updated_at?: string
 }
 
 export type MerchandiseOrderDto = {
   id: number
   product_id: number | null
+  supporter_id: number | null
+  variant_id: number | null
+  order_number: string
   product_name: string
   customer_name: string
   phone: string
@@ -417,7 +443,36 @@ export type MerchandiseOrderDto = {
   quantity: number
   notes: string | null
   status: string
+  payment_status: string
+  fulfilment_method: string
+  fulfilment_notes: string | null
+  delivery_address: string | null
+  carrier: string | null
+  tracking_number: string | null
+  estimated_ready_at: string | null
   created_at: string
+  updated_at: string
+}
+
+export type FanEngagementReportDto = {
+  from_date: string
+  to_date: string
+  supporter_accounts: number
+  marketing_opt_ins: number
+  push_opt_ins: number
+  team_follows: number
+  player_follows: number
+  votes: number
+  notifications_queued: number
+  notifications_sent: number
+  notification_opens: number
+  product_views: number
+  orders_submitted: number
+  orders_fulfilled: number
+  order_conversion_rate: number
+  top_followed_teams: Array<{ name: string; follows: number }>
+  top_followed_players: Array<{ name: string; follows: number }>
+  top_products: Array<{ name: string; orders: number }>
 }
 
 
@@ -546,6 +601,22 @@ export type LiveBallEventDto = {
   created_by_user_id: number | null
   created_at: string
   updated_at: string
+  score_version: number | null
+}
+
+export type ScoringSessionDto = {
+  id: number
+  match_id: number
+  owner_user_id: number
+  owner_name: string
+  device_id: string
+  device_label: string | null
+  status: string
+  acquired_at: string
+  last_seen_at: string
+  expires_at: string
+  is_owner: boolean
+  session_token: string | null
 }
 
 export type LiveScoreInningsSummaryDto = {
@@ -577,6 +648,11 @@ export type LiveScoreStateDto = {
   edit_request_status: 'pending' | 'approved' | 'denied' | null
   edit_request_decision_note: string | null
   edit_access_until: string | null
+  scoring_version: number
+  scorecard_reconciled_version: number
+  scorecard_reconciled_at: string | null
+  scorecard_reconciliation_status: 'in_sync' | 'out_of_sync' | string
+  scoring_session: ScoringSessionDto | null
 }
 
 export type LiveBallEventInput = {

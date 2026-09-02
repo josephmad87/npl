@@ -39,7 +39,7 @@ class PlayerMatchAppearanceOut(BaseModel):
 
 class PlayerBase(BaseModel):
     full_name: str = Field(min_length=1, max_length=255)
-    slug: str = Field(min_length=1, max_length=255)
+    slug: str = Field(min_length=1, max_length=255, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
     profile_photo_url: str | None = None
     team_id: int
     category: str = Field(min_length=1, max_length=32)
@@ -76,7 +76,12 @@ class PlayerCreate(PlayerBase, PlayerStatsPatch):
 
 class PlayerUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=255)
-    slug: str | None = Field(default=None, min_length=1, max_length=255)
+    slug: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    )
     profile_photo_url: str | None = None
     team_id: int | None = None
     category: str | None = None

@@ -78,11 +78,13 @@ export function LeagueHeroBar({
             <button
               key={key}
               type="button"
+              id={`league-tab-${key}`}
               role="tab"
               className={section === key ? 'is-active' : ''}
               onClick={() => onSectionChange(key)}
               disabled={isDisabled}
               aria-selected={section === key}
+              aria-controls={`league-panel-${key}`}
             >
               {label}
             </button>

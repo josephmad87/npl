@@ -8,7 +8,10 @@ from app.core.config import get_settings
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 def hash_password(plain: str) -> str:
@@ -37,10 +40,13 @@ def create_access_token(subject: str, extra_claims: dict[str, Any] | None = None
     )
 
 
-def create_refresh_token(subject: str) -> str:
+def create_refresh_token(subject: str, extra_claims: dict[str, Any] | None = None) -> str:
     settings = get_settings()
+    claims: dict[str, Any] = {"sub": subject, "type": "refresh"}
+    if extra_claims:
+        claims.update(extra_claims)
     return _encode_token(
-        {"sub": subject, "type": "refresh"},
+        claims,
         timedelta(days=settings.refresh_token_expire_days),
         settings.secret_key,
     )

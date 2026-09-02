@@ -40,7 +40,7 @@ function LoginPage() {
   const [error, setError] = useState<string | null>(null)
 
   return (
-    <div className="login-page">
+    <main id="main-content" className="login-page" tabIndex={-1}>
       <div className="login-card">
         <h1 className="app-display">NPL Admin</h1>
         {error ? <div className="login-error">{error}</div> : null}
@@ -110,6 +110,6 @@ function LoginPage() {
           </button>
         </form>
       </div>
-    </div>
+    </main>
   )
 }

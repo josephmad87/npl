@@ -3,6 +3,7 @@ import { SiteLogoPlaceholder } from './SiteLogoPlaceholder'
 import { formatCategoryLabel } from '../lib/formatters'
 import { resolveMediaUrl } from '../lib/publicApi'
 import type { TeamLite } from '../lib/hooks'
+import { ResponsiveImage } from './ResponsiveImage'
 
 export function TeamCard({ team }: { team: TeamLite }) {
   const image = resolveMediaUrl(team.cover_image_url) ?? resolveMediaUrl(team.logo_url)
@@ -10,7 +11,13 @@ export function TeamCard({ team }: { team: TeamLite }) {
     <Link to="/teams/$slug" params={{ slug: team.slug }} className="ui-team-card">
       <div className="ui-team-card__media">
         {image ? (
-          <img src={image} alt={team.name} />
+          <ResponsiveImage
+            src={image}
+            alt={team.name}
+            widths={[320, 480, 640]}
+            sizes="(max-width: 700px) 100vw, 33vw"
+            fallbackWidth={480}
+          />
         ) : (
           <SiteLogoPlaceholder className="ui-team-card-placeholder" />
         )}

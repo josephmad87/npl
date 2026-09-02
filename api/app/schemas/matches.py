@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.common import ORMModel
 
@@ -101,7 +101,6 @@ class MatchPlayerStatOut(ORMModel):
 
 class FanPlayerMatchVoteIn(BaseModel):
     player_id: int = Field(ge=1)
-    voter_key: str = Field(min_length=8, max_length=128)
 
 
 class FanPlayerMatchVoteChoiceOut(BaseModel):
@@ -230,6 +229,34 @@ class LiveScoreCompleteIn(BaseModel):
     match_overs: Decimal | None = None
 
 
+class ScoringSessionAcquireIn(BaseModel):
+    device_id: str = Field(min_length=8, max_length=128)
+    device_label: str | None = Field(default=None, max_length=255)
+    force_takeover: bool = False
+    takeover_reason: str | None = Field(default=None, max_length=512)
+
+    @model_validator(mode="after")
+    def takeover_has_reason(self) -> "ScoringSessionAcquireIn":
+        if self.force_takeover and len((self.takeover_reason or "").strip()) < 5:
+            raise ValueError("A takeover reason of at least 5 characters is required")
+        return self
+
+
+class ScoringSessionOut(BaseModel):
+    id: int
+    match_id: int
+    owner_user_id: int
+    owner_name: str
+    device_id: str
+    device_label: str | None = None
+    status: str
+    acquired_at: datetime
+    last_seen_at: datetime
+    expires_at: datetime
+    is_owner: bool = False
+    session_token: str | None = None
+
+
 class LiveBallEventIn(BaseModel):
     client_event_id: str | None = Field(default=None, min_length=8, max_length=64)
     innings: int = Field(ge=1, le=4)
@@ -300,6 +327,7 @@ class LiveBallEventOut(ORMModel):
     created_by_user_id: int | None
     created_at: datetime
     updated_at: datetime
+    score_version: int | None = None
 
 
 class LiveScoreInningsSummaryOut(BaseModel):
@@ -331,6 +359,11 @@ class LiveScoreStateOut(BaseModel):
     edit_request_status: str | None = None
     edit_request_decision_note: str | None = None
     edit_access_until: datetime | None = None
+    scoring_version: int = 0
+    scorecard_reconciled_version: int = 0
+    scorecard_reconciled_at: datetime | None = None
+    scorecard_reconciliation_status: str = "in_sync"
+    scoring_session: ScoringSessionOut | None = None
 
 
 class MatchResultIn(BaseModel):

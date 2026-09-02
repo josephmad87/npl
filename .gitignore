@@ -1,2 +1,8 @@
 .DS_Store
 tmp/
+backups/
+__pycache__/
+*.py[cod]
+
+# Local Netlify folder
+.netlify

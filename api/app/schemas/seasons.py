@@ -7,7 +7,7 @@ from app.schemas.common import ORMModel
 
 class SeasonBase(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    slug: str = Field(min_length=1, max_length=255)
+    slug: str = Field(min_length=1, max_length=255, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
     start_date: date | None = None
     end_date: date | None = None
     status: str = "upcoming"
@@ -19,7 +19,12 @@ class SeasonCreate(SeasonBase):
 
 class SeasonUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    slug: str | None = Field(default=None, min_length=1, max_length=255)
+    slug: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    )
     start_date: date | None = None
     end_date: date | None = None
     status: str | None = None

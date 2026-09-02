@@ -4,7 +4,7 @@ import {
   useNavigate,
   useRouterState,
 } from '@tanstack/react-router'
-import { Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import nplLogoUrl from '@/assets/logo.png'
 import { adminRouteIconForPath } from '@/lib/adminRouteIcons'
@@ -57,6 +57,13 @@ export function AppShell() {
   }, [isMobile, mobileNavOpen])
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('main-content')?.focus({ preventScroll: false })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [pathname])
+
+  useEffect(() => {
     if (!isMobile || !mobileNavOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setMobileNavOpen(false)
@@ -94,6 +101,7 @@ export function AppShell() {
 
   return (
     <div className={shellClass}>
+      <a className="npl-skip-link" href="#main-content">Skip to main content</a>
       {isMobile && mobileNavOpen ? (
         <button
           type="button"
@@ -106,7 +114,19 @@ export function AppShell() {
         id="app-shell-sidebar"
         className="app-shell__sidebar"
         aria-label="Main navigation"
+        role={isMobile && mobileNavOpen ? 'dialog' : undefined}
+        aria-modal={isMobile && mobileNavOpen ? true : undefined}
       >
+        {isMobile ? (
+          <button
+            type="button"
+            className="app-shell__sidebar-close"
+            onClick={closeMobileNav}
+            aria-label="Close navigation menu"
+          >
+            <X size={22} strokeWidth={2} aria-hidden />
+          </button>
+        ) : null}
         <div className="app-shell__brand">
           <Link
             to="/"
@@ -254,7 +274,7 @@ export function AppShell() {
             ) : null}
           </div>
         </header>
-        <main className="app-shell__content">
+        <main id="main-content" className="app-shell__content" tabIndex={-1}>
           {isNavigating ? (
             <div className="app-shell__loading-overlay" role="status" aria-live="polite">
               <div className="app-shell__loading-panel">

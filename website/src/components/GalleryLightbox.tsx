@@ -36,6 +36,7 @@ export function GalleryLightbox({
     ) : isVideo ? (
       <video
         src={resolveMediaUrl(active.file_url) ?? ''}
+        aria-label={active.title}
         controls
         autoPlay
         playsInline

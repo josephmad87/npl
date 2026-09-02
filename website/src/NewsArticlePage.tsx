@@ -3,9 +3,13 @@ import { Link, useParams } from '@tanstack/react-router'
 import { ErrorNotice } from './components/ErrorNotice'
 import { SocialShareButtons } from './components/SocialShareButtons'
 import { SiteLogoPlaceholder } from './components/SiteLogoPlaceholder'
+import { ResponsiveImage } from './components/ResponsiveImage'
+import { Breadcrumbs } from './components/Breadcrumbs'
+import { SeoHead } from './components/SeoHead'
 import { parseArticleCompetitionCategory } from './lib/competitionCategories'
 import { formatCategoryLabel } from './lib/formatters'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { sanitizeHtml } from './lib/sanitizeHtml'
 
 type ApiNewsArticle = {
   id: number
@@ -18,7 +22,11 @@ type ApiNewsArticle = {
   author_name: string | null
   published_at: string | null
   created_at: string | null
+  updated_at?: string | null
   category: string | null
+  seo_title?: string | null
+  seo_description?: string | null
+  tags?: string[] | null
 }
 
 async function fetchNewsArticle(slug: string): Promise<ApiNewsArticle> {
@@ -132,9 +140,54 @@ export default function NewsArticlePage() {
 
         {!isLoading && !isError && article ? (
           <>
+            <SeoHead
+              title={article.seo_title || article.title}
+              description={
+                article.seo_description ||
+                article.excerpt ||
+                truncateShareText(cleanArticleText(article.body), 160)
+              }
+              canonicalPath={`/news/${article.slug}`}
+              image={heroImage}
+              type="article"
+              breadcrumbs={[
+                { name: 'Home', path: '/' },
+                { name: 'News', path: '/news' },
+                { name: article.title, path: `/news/${article.slug}` },
+              ]}
+              structuredData={{
+                '@context': 'https://schema.org',
+                '@type': 'NewsArticle',
+                headline: article.title,
+                description: article.seo_description || article.excerpt || undefined,
+                image: heroImage ? [heroImage] : undefined,
+                datePublished: article.published_at || article.created_at || undefined,
+                dateModified:
+                  article.updated_at || article.published_at || article.created_at || undefined,
+                author: {
+                  '@type': article.author_name ? 'Person' : 'Organization',
+                  name: article.author_name || 'NPL Zimbabwe',
+                },
+                keywords: article.tags?.join(', ') || undefined,
+              }}
+            />
+            <Breadcrumbs
+              items={[
+                { name: 'Home', path: '/' },
+                { name: 'News', path: '/news' },
+                { name: article.title, path: `/news/${article.slug}` },
+              ]}
+            />
             {heroImage ? (
               <header className="article-hero">
-                <img src={heroImage} alt={article.title} />
+                <ResponsiveImage
+                  src={heroImage}
+                  alt={article.title}
+                  widths={[480, 768, 1024, 1280, 1600]}
+                  sizes="100vw"
+                  fallbackWidth={1280}
+                  priority
+                />
                 <div className="article-hero-overlay">
                   {categoryLine ? (
                     <p className="article-category">{categoryLine}</p>
@@ -176,14 +229,20 @@ export default function NewsArticlePage() {
 
                 {bodyImage ? (
                   <figure className="article-body-image">
-                    <img src={bodyImage} alt="" />
+                    <ResponsiveImage
+                      src={bodyImage}
+                      alt=""
+                      widths={[480, 768, 1024, 1280]}
+                      sizes="(max-width: 900px) 100vw, 70vw"
+                      fallbackWidth={1024}
+                    />
                   </figure>
                 ) : null}
 
                 {article.body ? (
                   <section
                     className="article-body"
-                    dangerouslySetInnerHTML={{ __html: article.body }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.body) }}
                   />
                 ) : article.excerpt ? null : (
                   <p className="article-empty">Full story coming soon.</p>
@@ -208,7 +267,13 @@ export default function NewsArticlePage() {
                         className="article-sidebar-item"
                       >
                         {thumb ? (
-                          <img src={thumb} alt={item.title} />
+                          <ResponsiveImage
+                            src={thumb}
+                            alt={item.title}
+                            widths={[160, 240, 320]}
+                            sizes="120px"
+                            fallbackWidth={240}
+                          />
                         ) : (
                           <SiteLogoPlaceholder className="article-sidebar-thumb-placeholder" />
                         )}
@@ -220,6 +285,11 @@ export default function NewsArticlePage() {
                 </div>
               </aside>
             </div>
+            <nav className="article-page__explore" aria-label="Explore more NPL content">
+              <Link to="/fixtures">View fixtures</Link>
+              <Link to="/results">View results</Link>
+              <Link to="/competition">Competition information</Link>
+            </nav>
           </>
         ) : null}
       </section>

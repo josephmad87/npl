@@ -1,0 +1,16 @@
+{
+  "name": "@npl/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./tokens.css",
+    "./accessibility": {
+      "types": "./accessibility.d.ts",
+      "default": "./accessibility.js"
+    }
+  },
+  "scripts": {
+    "test": "node --test accessibility.test.mjs"
+  }
+}

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ErrorNotice } from './components/ErrorNotice'
 import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox, type GalleryLightboxItem } from './components/GalleryLightbox'
@@ -9,6 +9,9 @@ import { MatchCard } from './components/MatchCard'
 import { PageHero } from './components/PageHero'
 import { PlayerCard } from './components/PlayerCard'
 import { SectionHeader } from './components/SectionHeader'
+import { Breadcrumbs } from './components/Breadcrumbs'
+import { SeoHead } from './components/SeoHead'
+import { FollowButton } from './components/FollowButton'
 import { Spinner } from './components/Spinner'
 import playerPlaceholderSrc from './assets/player_avatar_placeholder.png'
 import { SiteLogoPlaceholder } from './components/SiteLogoPlaceholder'
@@ -264,8 +267,7 @@ function TeamMerchandiseCard({
   )
 }
 
-export function TeamDetailPage() {
-  const { slug } = useParams({ from: '/teams/$slug' })
+function TeamDetailPageContent({ slug }: Readonly<{ slug: string }>) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['team-detail', slug],
     queryFn: () => fetchJson<TeamDetail>(`/public/teams/${slug}`),
@@ -273,8 +275,8 @@ export function TeamDetailPage() {
   })
   const { map: teamsMap } = useTeamsMap()
   const [galleryActive, setGalleryActive] = useState<GalleryLightboxItem | null>(null)
-  const [activeTab, setActiveTab] = useState<TeamSectionTabId>('leadership')
-  const [resultsPageIndex, setResultsPageIndex] = useState(0)
+  const [requestedActiveTab, setActiveTab] = useState<TeamSectionTabId>('leadership')
+  const [requestedResultsPageIndex, setResultsPageIndex] = useState(0)
 
   const seasonRecordsQ = useQuery({
     queryKey: ['team-season-records', slug],
@@ -555,6 +557,11 @@ const teamResultsPageCount = Math.max(
   Math.ceil(teamResults.length / TEAM_RESULTS_PAGE_SIZE),
 )
 
+const resultsPageIndex = Math.min(
+  requestedResultsPageIndex,
+  Math.max(0, teamResultsPageCount - 1),
+)
+
 const teamResultsPageStart = resultsPageIndex * TEAM_RESULTS_PAGE_SIZE
 
 const teamResultsPaged = teamResults.slice(
@@ -565,15 +572,6 @@ const teamResultsPaged = teamResults.slice(
 const canGoPreviousResults = resultsPageIndex > 0
 const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
 
-useEffect(() => {
-  setResultsPageIndex((current) =>
-    Math.min(current, Math.max(0, teamResultsPageCount - 1)),
-  )
-}, [teamResultsPageCount])
-
-useEffect(() => {
-  setResultsPageIndex(0)
-}, [slug])
     const teamMerchandise = useMemo(
     () =>
       [...(merchandiseQ.data ?? [])].sort(
@@ -624,14 +622,47 @@ useEffect(() => {
     [data],
   )
 
-  useEffect(() => {
-    if (!teamTabs.some((tab) => tab.id === activeTab)) {
-      setActiveTab(teamTabs[0]?.id ?? 'leadership')
-    }
-  }, [activeTab, teamTabs])
+  const activeTab = teamTabs.some((tab) => tab.id === requestedActiveTab)
+    ? requestedActiveTab
+    : (teamTabs[0]?.id ?? 'leadership')
+  const categoryPath = data?.category?.toLowerCase().includes('women')
+    ? '/women/teams'
+    : data?.category?.toLowerCase().includes('youth')
+      ? '/youth/teams'
+      : '/mens/teams'
+  const breadcrumbs = data
+    ? [
+        { name: 'Home', path: '/' },
+        { name: 'Teams', path: categoryPath },
+        { name: data.name, path: `/teams/${data.slug}` },
+      ]
+    : []
 
   return (
     <>
+      {data ? (
+        <SeoHead
+          title={data.name}
+          description={
+            data.description?.trim() ||
+            `${data.name} team profile, fixtures, results, squad and statistics.`
+          }
+          canonicalPath={`/teams/${data.slug}`}
+          image={resolveMediaUrl(data.cover_image_url || data.logo_url)}
+          breadcrumbs={breadcrumbs}
+          structuredData={{
+            '@context': 'https://schema.org',
+            '@type': 'SportsTeam',
+            name: data.name,
+            sport: 'Cricket',
+            description: data.description || undefined,
+            logo: resolveMediaUrl(data.logo_url) || undefined,
+            location: data.home_ground
+              ? { '@type': 'Place', name: data.home_ground }
+              : undefined,
+          }}
+        />
+      ) : null}
       {data ? (
         <PageHero
           title={data.name}
@@ -646,11 +677,13 @@ useEffect(() => {
         />
       ) : null}
       <main className="container">
+        {data ? <Breadcrumbs items={breadcrumbs} /> : null}
         <section className="menu-page team-page">
           {isLoading ? <Spinner label="Loading team..." /> : null}
           {isError ? <ErrorNotice message="Could not load team details." /> : null}
           {data ? (
             <>
+              <div className="team-page__follow"><FollowButton kind="team" entityId={data.id} name={data.name} /></div>
               {data.description?.trim() ? (
                 <div className="team-page__intro team-page__intro--lede-only">
                   <p className="team-page__lede muted">{data.description.trim()}</p>
@@ -737,8 +770,10 @@ useEffect(() => {
                   <button
                     key={tab.id}
                     type="button"
+                    id={`team-tab-${tab.id}`}
                     role="tab"
                     aria-selected={activeTab === tab.id}
+                    aria-controls={`team-panel-${tab.id}`}
                     className={`team-page__tab-btn${activeTab === tab.id ? ' is-active' : ''}`}
                     onClick={() => setActiveTab(tab.id)}
                   >
@@ -746,6 +781,13 @@ useEffect(() => {
                   </button>
                 ))}
               </div>
+
+              <div
+                id={`team-panel-${activeTab}`}
+                role="tabpanel"
+                aria-labelledby={`team-tab-${activeTab}`}
+                tabIndex={0}
+              >
 
               {activeTab === 'leadership' ? (
   <section className="team-page__section" aria-label="Leadership">
@@ -1197,6 +1239,7 @@ useEffect(() => {
                   </div>
                 </section>
               ) : null}
+              </div>
             </>
           ) : null}
         </section>
@@ -1204,4 +1247,9 @@ useEffect(() => {
       <GalleryLightbox active={galleryActive} onClose={() => setGalleryActive(null)} />
     </>
   )
+}
+
+export function TeamDetailPage() {
+  const { slug } = useParams({ from: '/teams/$slug' })
+  return <TeamDetailPageContent key={slug} slug={slug} />
 }

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import siteLogoUrl from '../assets/logo.png'
+import siteLogoUrl from '../assets/logo-optimized.png'
 import { type YouTubeThumbQuality, getYouTubeThumbnailUrl } from '../lib/youtube'
 
 const FALLBACK_ORDER: YouTubeThumbQuality[] = ['maxresdefault', 'hqdefault', 'mqdefault', 'default']

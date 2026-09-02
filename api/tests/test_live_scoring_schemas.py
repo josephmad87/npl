@@ -116,6 +116,8 @@ def test_match_model_maps_match_overs_column() -> None:
     assert "dls_team1_resource_percentage" in Match.__table__.columns
     assert "dls_team2_resource_percentage" in Match.__table__.columns
     assert "scorecard_finalized_at" in Match.__table__.columns
+    assert "scoring_version" in Match.__table__.columns
+    assert "scorecard_reconciled_version" in Match.__table__.columns
 
 
 def test_live_conditions_preserve_revised_overs_and_innings() -> None:
@@ -160,9 +162,10 @@ def test_clear_live_conditions_resets_dls_and_preserves_match_length(
 
     monkeypatch.setattr(
         admin_routes,
-        "_assert_can_edit_score_match",
-        lambda *_args: None,
+        "_begin_scoring_write",
+        lambda *_args: match,
     )
+    monkeypatch.setattr(admin_routes, "_reconcile_live_scorecard", lambda *_args: None)
     monkeypatch.setattr(
         admin_routes,
         "write_audit",
@@ -183,6 +186,8 @@ def test_clear_live_conditions_resets_dls_and_preserves_match_length(
         body=LiveMatchConditionsIn(match_overs=0, innings=2),
         db=_Db(),  # type: ignore[arg-type]
         actor=SimpleNamespace(id=7),  # type: ignore[arg-type]
+        score_version=0,
+        scoring_session_token="test-session-token",
     )
 
     assert match.match_overs == Decimal("35.0")
@@ -191,7 +196,7 @@ def test_clear_live_conditions_resets_dls_and_preserves_match_length(
     assert match.revised_target_runs is None
     assert state.revised_target_runs is None
     assert audit_actions == ["clear_live_match_conditions"]
-    assert len(commits) == 2
+    assert len(commits) == 1
 
 
 def test_match_squad_accepts_concussion_substitute() -> None:
@@ -247,6 +252,7 @@ def test_super_admin_approval_reopens_locked_scorecard_temporarily() -> None:
     request = SimpleNamespace(
         status="approved",
         access_until=now + timedelta(minutes=30),
+        decision_note=None,
     )
 
     class _Db:
@@ -286,9 +292,10 @@ def test_start_does_not_reopen_completed_scorecard(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr(
         admin_routes,
-        "_assert_can_edit_score_match",
-        lambda *_args: None,
+        "_begin_scoring_write",
+        lambda *_args: match,
     )
+    monkeypatch.setattr(admin_routes, "_reconcile_live_scorecard", lambda *_args: None)
     monkeypatch.setattr(admin_routes, "_assert_live_team_ids", lambda *_args: None)
     monkeypatch.setattr(
         admin_routes,
@@ -301,6 +308,8 @@ def test_start_does_not_reopen_completed_scorecard(monkeypatch: pytest.MonkeyPat
         body=LiveScoreStartIn(batting_team_id=1, bowling_team_id=2),
         db=_Db(),  # type: ignore[arg-type]
         actor=actor,  # type: ignore[arg-type]
+        score_version=0,
+        scoring_session_token="test-session-token",
     )
 
     assert status_after_start == "completed"
