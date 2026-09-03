@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 import app.models  # noqa: F401 - register the complete metadata graph
 from app.api.v1 import admin_routes
 from app.db.base import Base
-from app.models.match import Match, MatchBallEvent, MatchPlayerStat
+from app.models.match import Match, MatchBallEvent, MatchPlayerStat, MatchScorerAssignment
 from app.models.player import Player
 from app.models.team import Team
 from app.models.user import User
@@ -167,6 +167,81 @@ def record(
     return row
 
 
+def test_match_duties_keep_scoring_and_commentary_permissions_separate() -> None:
+    with scoring_database() as (db, match, actor, _home_players, _away_players):
+        scorer_only = User(
+            email="score-only@example.test",
+            hashed_password="unused",
+            role="scorer",
+        )
+        combined = User(
+            email="combined@example.test",
+            hashed_password="unused",
+            role="scorer",
+        )
+        commentator = User(
+            email="commentary@example.test",
+            hashed_password="unused",
+            role="commentator",
+        )
+        db.add_all([scorer_only, combined, commentator])
+        db.flush()
+        db.add_all(
+            [
+                MatchScorerAssignment(
+                    match_id=match.id,
+                    user_id=scorer_only.id,
+                    assigned_by_user_id=actor.id,
+                    duty="scorer_only",
+                ),
+                MatchScorerAssignment(
+                    match_id=match.id,
+                    user_id=combined.id,
+                    assigned_by_user_id=actor.id,
+                    duty="score_and_commentary",
+                ),
+                MatchScorerAssignment(
+                    match_id=match.id,
+                    user_id=commentator.id,
+                    assigned_by_user_id=actor.id,
+                    duty="commentator_only",
+                ),
+            ],
+        )
+        db.commit()
+
+        assert admin_routes._can_score_match(db, match.id, scorer_only)
+        assert not admin_routes._can_comment_match(db, match.id, scorer_only)
+        assert admin_routes._can_score_match(db, match.id, combined)
+        assert admin_routes._can_comment_match(db, match.id, combined)
+        assert not admin_routes._can_score_match(db, match.id, commentator)
+        assert admin_routes._can_comment_match(db, match.id, commentator)
+
+        # Both live-match appointments can use the shared photo workspace.
+        admin_routes._assert_can_open_match_workbench(db, match.id, scorer_only)
+        admin_routes._assert_can_open_match_workbench(db, match.id, combined)
+        admin_routes._assert_can_open_match_workbench(db, match.id, commentator)
+
+        unassigned = User(
+            email="unassigned@example.test",
+            hashed_password="unused",
+            role="scorer",
+        )
+        db.add(unassigned)
+        db.commit()
+        with pytest.raises(HTTPException) as upload_denied:
+            admin_routes._assert_can_open_match_workbench(db, match.id, unassigned)
+        assert upload_denied.value.status_code == 403
+
+        with pytest.raises(HTTPException) as scoring_denied:
+            admin_routes._assert_can_score_match(db, match.id, commentator)
+        assert scoring_denied.value.status_code == 403
+
+        with pytest.raises(HTTPException) as commentary_denied:
+            admin_routes._assert_can_comment_match(db, match.id, scorer_only)
+        assert commentary_denied.value.status_code == 403
+
+
 def test_scoring_version_and_session_ownership_prevent_conflicting_writes() -> None:
     with scoring_database() as (db, match, actor, home_players, away_players):
         other_actor = db.scalar(select(User).where(User.email == "other@example.test"))
@@ -254,6 +329,74 @@ def test_scoring_version_and_session_ownership_prevent_conflicting_writes() -> N
                 actor=other_actor,
             )
         assert stale.value.status_code == 409
+
+
+def test_replacement_bowler_cannot_have_bowled_the_previous_over() -> None:
+    with scoring_database() as (db, match, actor, home_players, away_players):
+        token = acquire(db, match, actor)
+        home = match.home_team_id
+        away = match.away_team_id
+        striker, non_striker = home_players[:2]
+        previous_bowler, replacement_bowler = away_players[:2]
+
+        for ball_number in range(1, 7):
+            record(
+                db,
+                match,
+                actor,
+                token,
+                event_input(
+                    client_id=f"bowler-rule-{ball_number:04d}",
+                    innings=1,
+                    batting_team_id=home,
+                    bowling_team_id=away,
+                    striker_id=striker.id,
+                    non_striker_id=non_striker.id,
+                    bowler_id=previous_bowler.id,
+                    over_number=0,
+                    ball_number=ball_number,
+                ),
+            )
+
+        record(
+            db,
+            match,
+            actor,
+            token,
+            event_input(
+                client_id="bowler-rule-next-over",
+                innings=1,
+                batting_team_id=home,
+                bowling_team_id=away,
+                striker_id=striker.id,
+                non_striker_id=non_striker.id,
+                bowler_id=replacement_bowler.id,
+                over_number=1,
+                ball_number=1,
+            ),
+        )
+
+        with pytest.raises(HTTPException) as error:
+            record(
+                db,
+                match,
+                actor,
+                token,
+                event_input(
+                    client_id="bowler-rule-invalid-change",
+                    innings=1,
+                    batting_team_id=home,
+                    bowling_team_id=away,
+                    striker_id=striker.id,
+                    non_striker_id=non_striker.id,
+                    bowler_id=previous_bowler.id,
+                    over_number=1,
+                    ball_number=2,
+                ),
+            )
+
+        assert error.value.status_code == 400
+        assert "previous over" in error.value.detail["message"]
 
 
 def test_full_scoring_workflow_reconciles_scorecard_and_player_statistics() -> None:

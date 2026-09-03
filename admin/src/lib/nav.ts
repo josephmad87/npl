@@ -12,7 +12,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: '/scoring',
     label: 'Scoring',
-    roles: ['super_admin', 'competition_manager', 'scorer'],
+    roles: ['super_admin', 'competition_manager', 'scorer', 'commentator'],
   },
   {
     to: '/teams',

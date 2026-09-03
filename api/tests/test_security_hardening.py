@@ -11,6 +11,7 @@ from starlette.requests import Request
 from app.core.config import Settings
 from app.main import app
 from app.schemas.articles import ArticleCreate, ArticleOut
+from app.schemas.matches import MatchCreate
 from app.schemas.site_page_content import SitePageBody
 from app.services.rate_limit import check_rate_limit, clear_rate_limits
 from app.services.uploads import save_upload_file
@@ -97,6 +98,42 @@ def test_production_settings_accept_explicit_secure_values() -> None:
         public_base_url="https://api.npl.co.zw",
     )
     assert settings.app_environment == "production"
+
+
+def test_match_broadcast_url_accepts_youtube_and_rejects_unsafe_schemes() -> None:
+    valid = MatchCreate(
+        category="mens",
+        home_team_id=1,
+        away_team_id=2,
+        stream_url=" https://www.youtube.com/watch?v=abc123 ",
+    )
+    assert valid.stream_url == "https://www.youtube.com/watch?v=abc123"
+
+    with pytest.raises(ValidationError):
+        MatchCreate(
+            category="mens",
+            home_team_id=1,
+            away_team_id=2,
+            stream_url="javascript:alert(1)",
+        )
+
+
+def test_scoring_cors_preflight_allows_session_and_version_headers() -> None:
+    client = TestClient(app)
+    response = client.options(
+        "/api/v1/admin/matches/1/live/balls",
+        headers={
+            "Origin": "https://stage-1--npl-admin.netlify.app",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": (
+                "authorization,content-type,x-score-version,x-scoring-session"
+            ),
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == (
+        "https://stage-1--npl-admin.netlify.app"
+    )
 
 
 def test_rate_limit_rejects_requests_after_limit() -> None:

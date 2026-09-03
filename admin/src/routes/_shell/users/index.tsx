@@ -72,12 +72,13 @@ function UsersPage() {
     onError: (error: Error) => setStatusError(error.message),
   })
 
-  const changeScorerStatus = useCallback((user: UserDto, isActive: boolean) => {
+  const changeMatchDayStatus = useCallback((user: UserDto, isActive: boolean) => {
     const label = user.full_name?.trim() || user.email
+    const roleLabel = user.role === 'commentator' ? 'commentator' : 'scorer'
     const ok = window.confirm(
       isActive
-        ? `Reactivate scorer account for ${label}?`
-        : `Deactivate scorer account for ${label}? This will also remove the scorer from open fixtures.`,
+        ? `Reactivate ${roleLabel} account for ${label}?`
+        : `Deactivate ${roleLabel} account for ${label}? This will also remove the account from open fixtures.`,
     )
 
     if (!ok) return
@@ -94,7 +95,7 @@ function UsersPage() {
         cell: ({ row }) => {
           const user = row.original
 
-          if (user.role !== 'scorer') {
+          if (user.role !== 'scorer' && user.role !== 'commentator') {
             return <span className="muted">—</span>
           }
 
@@ -104,17 +105,17 @@ function UsersPage() {
               className="btn-ghost"
               onClick={(event) => {
                 event.stopPropagation()
-                changeScorerStatus(user, !user.is_active)
+                changeMatchDayStatus(user, !user.is_active)
               }}
               disabled={userStatusMutation.isPending}
             >
-              {user.is_active ? 'Deactivate scorer' : 'Reactivate scorer'}
+              {user.is_active ? 'Deactivate' : 'Reactivate'}
             </button>
           )
         },
       },
     ],
-    [changeScorerStatus, userStatusMutation.isPending],
+    [changeMatchDayStatus, userStatusMutation.isPending],
   )
 
   const data = q.data ?? []
@@ -204,18 +205,18 @@ function UsersPage() {
               </div>
               <div className="entity-thumb-card__footer">
                 <StatusBadge status={u.is_active ? 'active' : 'inactive'} />
-                {u.role === 'scorer' ? (
+                {u.role === 'scorer' || u.role === 'commentator' ? (
                   <button
                     type="button"
                     className="btn-ghost"
                     onClick={(event) => {
                       event.preventDefault()
                       event.stopPropagation()
-                      changeScorerStatus(u, !u.is_active)
+                      changeMatchDayStatus(u, !u.is_active)
                     }}
                     disabled={userStatusMutation.isPending}
                   >
-                    {u.is_active ? 'Deactivate scorer' : 'Reactivate scorer'}
+                    {u.is_active ? 'Deactivate' : 'Reactivate'}
                   </button>
                 ) : null}
               </div>

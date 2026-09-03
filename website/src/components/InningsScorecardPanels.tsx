@@ -271,6 +271,8 @@ export function InningsScorecardPanels({
         (s.batting_order != null || hasBattingLine(s)),
     )
     .sort(compareBattingOrder)
+  const recordedBattingRows = battingRows.filter((row) => !isDidNotBat(row.dismissal))
+  const yetToBatRows = battingRows.filter((row) => isDidNotBat(row.dismissal))
 
   const bowlingRows = stats
     .filter((s) => s.team_id === sides.bowlingTeamId && hasBowlingLine(s))
@@ -278,9 +280,19 @@ export function InningsScorecardPanels({
 
   const battingHeading = formatInningsHeading(
     battingLabel,
-    battingRows,
+    recordedBattingRows,
     bowlingRows,
     extrasLine,
+  )
+  const totalRuns =
+    recordedBattingRows.reduce((total, row) => total + row.runs, 0) +
+    extrasRunsFromLine(extrasLine)
+  const wickets = recordedBattingRows.filter((row) =>
+    isWicketDismissal(row.dismissal),
+  ).length
+  const legalBalls = bowlingRows.reduce(
+    (total, row) => total + oversFieldToBalls(row.overs),
+    0,
   )
 
   return (
@@ -312,7 +324,7 @@ export function InningsScorecardPanels({
                 </tr>
               </thead>
               <tbody>
-                {battingRows.map((s) => (
+                {recordedBattingRows.map((s) => (
                   <tr
                     key={`bat-${s.id}`}
                     className={highlightedRowClass(
@@ -342,12 +354,25 @@ export function InningsScorecardPanels({
                     <td colSpan={6}>{extrasLine.replace(/^Extras\s*/i, '')}</td>
                   </tr>
                 ) : null}
+                <tr className="batting-scorecard-table__total">
+                  <td>Total</td>
+                  <td colSpan={6}>
+                    <strong>{totalRuns}/{wickets}</strong>{' '}
+                    ({ballsToOversLabel(legalBalls)} overs)
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
         ) : (
           <p className="match-centre-muted">No batting rows for this innings.</p>
         )}
+        {yetToBatRows.length > 0 ? (
+          <p className="innings-scorecard-panels__note">
+            <strong>Yet to bat:</strong>{' '}
+            {yetToBatRows.map((row) => playerName(row.player_id)).join(', ')}
+          </p>
+        ) : null}
       </section>
 
       <section className="innings-scorecard-panels__section">

@@ -7,6 +7,7 @@ export type AdminRole =
   | 'content_editor'
   | 'read_only_admin'
   | 'scorer'
+  | 'commentator'
 
 export type AdminSession = {
   email: string
@@ -56,6 +57,7 @@ const ROLE_LABELS: Record<AdminRole, string> = {
   content_editor: 'Content Editor',
   read_only_admin: 'Read-only',
   scorer: 'Scorer',
+  commentator: 'Commentator',
 }
 
 export function roleLabel(role: AdminRole): string {
@@ -68,6 +70,7 @@ const KNOWN_ROLES: readonly AdminRole[] = [
   'content_editor',
   'read_only_admin',
   'scorer',
+  'commentator',
 ] as const
 
 export function parseAdminRole(role: string): AdminRole {

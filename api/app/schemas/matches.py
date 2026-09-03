@@ -1,7 +1,8 @@
 from datetime import date, datetime
 from decimal import Decimal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.common import ORMModel
 
@@ -26,6 +27,19 @@ class MatchBase(BaseModel):
     away_team_placeholder: str | None = None
     description: str | None = None
     cover_image_url: str | None = None
+    stream_url: str | None = Field(default=None, max_length=1024)
+    stream_label: str | None = Field(default=None, max_length=128)
+
+    @field_validator("stream_url")
+    @classmethod
+    def validate_stream_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = value.strip()
+        parsed = urlsplit(normalized)
+        if parsed.scheme.lower() not in {"https", "http"} or not parsed.netloc:
+            raise ValueError("Broadcast URL must begin with https:// or http://")
+        return normalized
 
 
 class MatchCreate(MatchBase):
@@ -52,6 +66,19 @@ class MatchUpdate(BaseModel):
     away_team_placeholder: str | None = None
     description: str | None = None
     cover_image_url: str | None = None
+    stream_url: str | None = Field(default=None, max_length=1024)
+    stream_label: str | None = Field(default=None, max_length=128)
+
+    @field_validator("stream_url")
+    @classmethod
+    def validate_stream_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = value.strip()
+        parsed = urlsplit(normalized)
+        if parsed.scheme.lower() not in {"https", "http"} or not parsed.netloc:
+            raise ValueError("Broadcast URL must begin with https:// or http://")
+        return normalized
 
 
 class MatchPlayerStatIn(BaseModel):
@@ -120,7 +147,22 @@ class FanPlayerMatchVoteSummaryOut(BaseModel):
     choices: list[FanPlayerMatchVoteChoiceOut] = Field(default_factory=list)
 
 
+class MatchStreamAccessOut(BaseModel):
+    match_id: int
+    stream_url: str
+    stream_label: str | None = None
+
+
+class MatchScorerAssignmentItemIn(BaseModel):
+    user_id: int = Field(ge=1)
+    duty: str = Field(
+        pattern="^(scorer_only|score_and_commentary|commentator_only)$",
+    )
+
+
 class MatchScorerAssignmentIn(BaseModel):
+    assignments: list[MatchScorerAssignmentItemIn] = Field(default_factory=list)
+    # Retained for older admin clients. New clients send explicit per-match duties.
     user_ids: list[int] = Field(default_factory=list)
 
 
@@ -171,6 +213,7 @@ class MatchScorerAssignmentOut(BaseModel):
     user_id: int
     user_email: str
     user_full_name: str | None = None
+    duty: str
     assigned_by_user_id: int | None = None
     created_at: datetime
 
@@ -261,7 +304,9 @@ class LiveBallEventIn(BaseModel):
     client_event_id: str | None = Field(default=None, min_length=8, max_length=64)
     innings: int = Field(ge=1, le=4)
     over_number: int = Field(ge=0, le=999)
-    ball_number: int = Field(ge=0, le=12)
+    # An umpire's miscount stands, so an over may contain more than six valid
+    # deliveries and an arbitrary number of invalid deliveries.
+    ball_number: int = Field(ge=0)
     batting_team_id: int = Field(ge=1)
     bowling_team_id: int = Field(ge=1)
     striker_player_id: int = Field(ge=1)
@@ -288,6 +333,10 @@ class LiveBallEventIn(BaseModel):
     batters_crossed: bool = False
     dismissal_text: str | None = Field(default=None, max_length=255)
     notes: str | None = None
+
+
+class LiveBallCommentaryIn(BaseModel):
+    commentary: str | None = Field(default=None, max_length=4000)
 
 
 class LiveBallEventOut(ORMModel):
@@ -322,6 +371,9 @@ class LiveBallEventOut(ORMModel):
     batters_crossed: bool = False
     dismissal_text: str | None
     notes: str | None
+    commentary: str | None = None
+    commentary_updated_by_user_id: int | None = None
+    commentary_updated_at: datetime | None = None
     client_event_id: str | None = None
     sequence_number: int
     created_by_user_id: int | None
@@ -364,6 +416,7 @@ class LiveScoreStateOut(BaseModel):
     scorecard_reconciled_at: datetime | None = None
     scorecard_reconciliation_status: str = "in_sync"
     scoring_session: ScoringSessionOut | None = None
+    can_edit_commentary: bool = False
 
 
 class MatchResultIn(BaseModel):
@@ -543,6 +596,9 @@ class MatchDetailOut(ORMModel):
     away_team_placeholder: str | None = None
     description: str | None
     cover_image_url: str | None
+    stream_url: str | None = None
+    stream_label: str | None = None
+    stream_available: bool = False
     scorecard_finalized_at: datetime | None = None
     scorecard_locks_at: datetime | None = None
     scorecard_locked: bool = False

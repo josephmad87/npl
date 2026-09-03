@@ -97,11 +97,12 @@ function DashboardHome() {
   const session = getSession()
   const navigate = useNavigate()
   const isScorer = session?.role === 'scorer'
+  const isMatchDayUser = isScorer || session?.role === 'commentator'
 
   useEffect(() => {
-    if (!isScorer) return
+    if (!isMatchDayUser) return
     void navigate({ to: '/scoring' })
-  }, [isScorer, navigate])
+  }, [isMatchDayUser, navigate])
 
   const showMatchTables = navVisibleForRole(
     {
@@ -120,7 +121,7 @@ function DashboardHome() {
           adminGet<Paginated<TeamDto>>(
             '/admin/teams?page=1&page_size=1&status=active',
           ).then((r) => r.total),
-        enabled: !isScorer,
+        enabled: !isMatchDayUser,
       },
       {
         queryKey: ['admin', 'totals', 'players'],
@@ -128,7 +129,7 @@ function DashboardHome() {
           adminGet<Paginated<PlayerDto>>('/admin/players?page=1&page_size=1').then(
             (r) => r.total,
           ),
-        enabled: !isScorer,
+        enabled: !isMatchDayUser,
       },
       {
         queryKey: ['admin', 'totals', 'leagues'],
@@ -136,7 +137,7 @@ function DashboardHome() {
           adminGet<Paginated<LeagueDto>>('/admin/leagues?page=1&page_size=1').then(
             (r) => r.total,
           ),
-        enabled: !isScorer,
+        enabled: !isMatchDayUser,
       },
       {
         queryKey: ['admin', 'totals', 'matches'],
@@ -144,17 +145,17 @@ function DashboardHome() {
           adminGet<Paginated<MatchDto>>('/admin/matches?page=1&page_size=1').then(
             (r) => r.total,
           ),
-        enabled: !isScorer,
+        enabled: !isMatchDayUser,
       },
       {
         queryKey: ['admin', 'teams'],
         queryFn: () => adminListAll<TeamDto>('/admin/teams'),
-        enabled: showMatchTables && !isScorer,
+        enabled: showMatchTables && !isMatchDayUser,
       },
       {
         queryKey: ['admin', 'matches'],
         queryFn: () => adminListAll<MatchDto>('/admin/matches'),
-        enabled: showMatchTables && !isScorer,
+        enabled: showMatchTables && !isMatchDayUser,
       },
     ],
   })
@@ -264,7 +265,7 @@ function DashboardHome() {
   )
 
   let body: ReactNode
-  if (isScorer) {
+  if (isMatchDayUser) {
     body = <p className="muted">Opening scoring dashboard…</p>
   } else if (loading) {
     body = <p className="muted">Loading…</p>

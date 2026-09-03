@@ -83,6 +83,7 @@ function ScoringDashboardPage() {
   const queryClient = useQueryClient()
   const session = getSession()
   const isScorer = session?.role === 'scorer'
+  const isCommentator = session?.role === 'commentator'
   const isSuperAdmin = session?.role === 'super_admin'
   const [activeTab, setActiveTab] = useState<MatchTab>('assigned')
   const [decisionNotes, setDecisionNotes] = useState<Record<number, string>>({})
@@ -255,8 +256,12 @@ function ScoringDashboardPage() {
       `}</style>
 
       <PageHeader
-        title="Live scoring"
-        description="Assigned and completed matches for ball-by-ball scoring."
+        title={isCommentator ? 'Live commentary' : 'Live scoring & commentary'}
+        description={
+          isCommentator
+            ? 'Assigned matches for public ball-by-ball commentary.'
+            : 'Assigned and completed matches for scoring and commentary.'
+        }
       />
 
       {isSuperAdmin ? (
@@ -409,7 +414,7 @@ function ScoringDashboardPage() {
       {!matchesQ.isLoading && !matchesQ.isError && visibleRows.length === 0 ? (
         <p className="muted">
           {activeTab === 'assigned'
-            ? 'No assigned matches are available for scoring.'
+            ? `No assigned matches are available for ${isCommentator ? 'commentary' : 'scoring'}.`
             : 'No completed matches yet.'}
         </p>
       ) : null}
@@ -473,7 +478,9 @@ function ScoringDashboardPage() {
                     ) : (
                       <PlayCircle size={18} aria-hidden />
                     )}
-                    {isLocked && !canEdit
+                    {isCommentator
+                      ? 'Commentate'
+                      : isLocked && !canEdit
                       ? 'View scorecard'
                       : isCompleted
                         ? 'Edit scorecard'

@@ -3,6 +3,7 @@ COMPETITION_MANAGER = "competition_manager"
 CONTENT_EDITOR = "content_editor"
 READ_ONLY_ADMIN = "read_only_admin"
 SCORER = "scorer"
+COMMENTATOR = "commentator"
 
 ALL_ROLES = frozenset(
     {
@@ -10,6 +11,8 @@ ALL_ROLES = frozenset(
         COMPETITION_MANAGER,
         CONTENT_EDITOR,
         READ_ONLY_ADMIN,
+        SCORER,
+        COMMENTATOR,
     },
 )
 
@@ -36,3 +39,7 @@ def can_write_admin(role: str) -> bool:
 
 def can_score_matches(role: str) -> bool:
     return role in (SUPER_ADMIN, COMPETITION_MANAGER, SCORER)
+
+
+def can_commentate_matches(role: str) -> bool:
+    return role in (SUPER_ADMIN, COMPETITION_MANAGER, SCORER, COMMENTATOR)
