@@ -16,7 +16,6 @@ export function NplTvSection() {
       <div className="ui-section-header npl-tv-section__header">
         <div>
           <h2 id="npl-tv-title">NPL TV</h2>
-          <p>Watch NPL broadcasts and follow the latest updates from NPL Zimbabwe.</p>
         </div>
       </div>
 

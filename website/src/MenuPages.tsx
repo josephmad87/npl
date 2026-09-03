@@ -53,7 +53,6 @@ function CategoryHomePage({ category }: { category: string }) {
       <PageHero
         variant="siteLogo"
         title={`${categoryLabel} Cricket`}
-        subtitle={`Follow the ${categoryLabel.toLowerCase()} competition`}
       />
     <main className="container">
         <FeaturedTeamsCarousel
@@ -127,9 +126,11 @@ function resultLeagueLabel(match: MatchLite): string {
 
 function FixturesPageContent({ category }: { category?: string }) {
   const title = `${category ? `${formatCategoryLabel(category)} ` : ''}Fixtures`
-  const pageSubtitle = category
-    ? `Upcoming and scheduled ${formatCategoryLabel(category).toLowerCase()} matches.`
-    : 'Upcoming and scheduled matches across all competitions.'
+  const pageSubtitle = category === 'mens'
+    ? undefined
+    : category
+      ? `Upcoming and scheduled ${formatCategoryLabel(category).toLowerCase()} matches.`
+      : 'Upcoming and scheduled matches across all competitions.'
   return (
     <>
       <PageHero variant="siteLogo" title={title} subtitle={pageSubtitle} />
@@ -598,7 +599,6 @@ function NewsListPage() {
       <PageHero
         fullWidth
         title="News"
-        subtitle="Match reports, features, and competition updates"
         imageUrl={resolveMediaUrl(news[0]?.featured_image_url)}
       />
     <main className="container">

@@ -59,27 +59,11 @@ export function SiteFooter() {
 
           <nav className="site-footer-col" aria-label="Competitions">
             <h3>Competitions</h3>
-            <Link to="/mens">Mens hub</Link>
-            <Link to="/women">Women hub</Link>
-            <Link to="/youth">Youth hub</Link>
-            <Link to="/fixtures">All fixtures</Link>
-            <Link to="/results">All results</Link>
-          </nav>
-
-          <nav className="site-footer-col" aria-label="Teams and players">
-            <h3>Teams &amp; players</h3>
-            <Link to="/mens/teams">Mens teams</Link>
-            <Link to="/women/teams">Women teams</Link>
-            <Link to="/youth/teams">Youth teams</Link>
-            <Link to="/mens/seasons" search={{ leagueSlug: '' }}>
-              Mens seasons
-            </Link>
-            <Link to="/women/seasons" search={{ leagueSlug: '' }}>
-              Women seasons
-            </Link>
-            <Link to="/youth/seasons" search={{ leagueSlug: '' }}>
-              Youth seasons
-            </Link>
+            <Link to="/mens">Mens Hub</Link>
+            <Link to="/women">Women Hub</Link>
+            <Link to="/youth">Youth Hub</Link>
+            <Link to="/fixtures">All Fixtures</Link>
+            <Link to="/results">All Results</Link>
           </nav>
 
           <nav className="site-footer-col" aria-label="Media and updates">
@@ -87,23 +71,18 @@ export function SiteFooter() {
             <Link to="/news" search={{ q: '' }}>
               Newsroom
             </Link>
-            <Link to="/gallery">Photo gallery</Link>
-            <Link to="/gallery/images">Image highlights</Link>
-            <Link to="/gallery/video">Video highlights</Link>
+            <Link to="/gallery">Photo Gallery</Link>
+            <Link to="/gallery/images">Image Highlights</Link>
+            <Link to="/gallery/video">Video Highlights</Link>
           </nav>
 
           <nav className="site-footer-col" aria-label="About and support">
             <h3>About &amp; support</h3>
-            <Link to="/about-us">About us</Link>
-            <Link to="/competition">Competition information</Link>
-            <Link to="/supporters">Supporter information</Link>
+            <Link to="/about-us">About Us</Link>
             <Link to="/safeguarding">Safeguarding</Link>
-            <Link to="/scorecard-corrections">Scorecard corrections</Link>
-            <Link to="/contact-us">Contact us</Link>
+            <Link to="/scorecard-corrections">Scorecard Corrections</Link>
+            <Link to="/contact-us">Contact Us</Link>
             <Link to="/support">Support</Link>
-            <Link to="/account-deletion">Delete account</Link>
-            <Link to="/privacy">Privacy policy</Link>
-            <Link to="/terms">Terms of use</Link>
           </nav>
 
           <nav className="site-footer-col" aria-label="Social">
@@ -133,7 +112,13 @@ export function SiteFooter() {
 
         <div className="site-footer-bottom">
           <p className="site-footer-copy">© {year} Zimbabwe Cricket NPL. All rights reserved.</p>
-          <p className="site-footer-meta">Built for supporters, teams, and officials across Zimbabwe.</p>
+          <nav className="site-footer-legal" aria-label="Legal and account links">
+            <Link to="/account-deletion">Delete Account</Link>
+            <span aria-hidden="true">|</span>
+            <Link to="/privacy">Privacy Policy</Link>
+            <span aria-hidden="true">|</span>
+            <Link to="/terms">Terms of Use</Link>
+          </nav>
         </div>
       </div>
     </footer>

@@ -37,7 +37,7 @@ export function SeasonDetailPage() {
           params: { leagueSlug, seasonSlug: s },
         })
       }}
-      showDescription
+      showDescription={false}
     />
   )
 }

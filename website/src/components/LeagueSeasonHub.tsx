@@ -59,6 +59,8 @@ type MatchResultLike = {
   winning_team_id?: number | null
 }
 
+const SEASON_RESULTS_BATCH_SIZE = 6
+
 const standingSortOptions: Array<{ value: StandingSortMode; label: string }> = [
   { value: 'points', label: 'Points' },
   { value: 'nrr', label: 'NRR' },
@@ -183,6 +185,7 @@ export function LeagueSeasonHub({
   const { map: teamsMap } = useTeamsMap()
   const [selectedSeasonSlug, setSelectedSeasonSlug] = useState<string | null>(null)
   const [section, setSection] = useState<'results' | 'stats' | 'standings'>('results')
+  const [visibleResultCount, setVisibleResultCount] = useState(SEASON_RESULTS_BATCH_SIZE)
 
   const [standingsSort, setStandingsSort] = useState<StandingSortMode>('points')
 
@@ -264,7 +267,16 @@ export function LeagueSeasonHub({
     retry: 1,
   })
 
-  const resultMatches = useMemo(() => resultsQ.data ?? [], [resultsQ.data])
+  const resultMatches = useMemo(
+    () => [...(resultsQ.data ?? [])].sort((a, b) => matchTimeValue(b) - matchTimeValue(a)),
+    [resultsQ.data],
+  )
+  const visibleResultMatches = useMemo(
+    () => resultMatches.slice(0, visibleResultCount),
+    [resultMatches, visibleResultCount],
+  )
+  const hasMoreResults = visibleResultCount < resultMatches.length
+
   const pointsAdjustments = useMemo(
     () => Object.fromEntries((adjustmentsQ.data ?? []).map((row) => [row.team_id, row.points_delta])),
     [adjustmentsQ.data],
@@ -326,6 +338,7 @@ export function LeagueSeasonHub({
           selectedSeasonSlug={activeSeasonSlug}
           selectedLeagueSlug={leagueSlug}
           onSeasonSlugChange={(s) => {
+            setVisibleResultCount(SEASON_RESULTS_BATCH_SIZE)
             if (onSeasonSlugNavigate) {
               onSeasonSlugNavigate(s)
             } else {
@@ -391,7 +404,7 @@ export function LeagueSeasonHub({
                 ) : (
                   <div className="league-season-results">
                     <div className="league-season-results__list">
-                      {resultMatches.map((match) => (
+                      {visibleResultMatches.map((match) => (
                         <MatchCard
                           key={match.id}
                           match={match}
@@ -400,6 +413,17 @@ export function LeagueSeasonHub({
                         />
                       ))}
                     </div>
+                    {hasMoreResults ? (
+                      <button
+                        type="button"
+                        className="league-season-results__load-more"
+                        onClick={() => {
+                          setVisibleResultCount((current) => current + SEASON_RESULTS_BATCH_SIZE)
+                        }}
+                      >
+                        Load More
+                      </button>
+                    ) : null}
                   </div>
                 )
               ) : section === 'standings' ? (
