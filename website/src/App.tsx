@@ -650,10 +650,17 @@ function App() {
 
   const heroSlides = useMemo(
     () =>
-      newsArticles.map((article) => ({
-        ...article,
-        heroImage: resolveMediaUrl(article.featured_image_url),
-      })),
+      [...newsArticles]
+        .sort((a, b) => {
+          const aTime = Date.parse(a.published_at ?? a.created_at ?? '')
+          const bTime = Date.parse(b.published_at ?? b.created_at ?? '')
+          return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime)
+        })
+        .slice(0, 5)
+        .map((article) => ({
+          ...article,
+          heroImage: resolveMediaUrl(article.featured_image_url),
+        })),
     [newsArticles],
   )
 

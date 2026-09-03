@@ -1,5 +1,5 @@
 import asyncio
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from starlette.requests import Request
 from starlette.responses import Response
@@ -120,17 +120,21 @@ def test_compact_homepage_endpoint_excludes_heavy_fields() -> None:
             status="scheduled",
             is_published=True,
         )
+        published_at = datetime.now(timezone.utc)
         session.add_all(
             [
                 completed,
                 fixture,
-                Article(
-                    title="News",
-                    slug="news",
-                    body="This heavy body must not be returned.",
-                    status="published",
-                    published_at=datetime.now(timezone.utc),
-                ),
+                *[
+                    Article(
+                        title=f"News {index}",
+                        slug=f"news-{index}",
+                        body="This heavy body must not be returned.",
+                        status="published",
+                        published_at=published_at - timedelta(days=index),
+                    )
+                    for index in range(6)
+                ],
                 GalleryItem(
                     title="Photo",
                     slug="photo",
@@ -165,7 +169,14 @@ def test_compact_homepage_endpoint_excludes_heavy_fields() -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload["news"]) == 1
+    assert len(payload["news"]) == 5
+    assert [article["title"] for article in payload["news"]] == [
+        "News 0",
+        "News 1",
+        "News 2",
+        "News 3",
+        "News 4",
+    ]
     assert "body" not in payload["news"][0]
     assert len(payload["fixtures"]) == 1
     assert len(payload["results"]) == 1

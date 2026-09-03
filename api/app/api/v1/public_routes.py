@@ -356,7 +356,7 @@ def get_homepage(db: Session = Depends(get_db)) -> HomepageOut:
         db.scalars(
             _published_article_filter(select(Article))
             .order_by(Article.published_at.desc().nullslast(), Article.created_at.desc())
-            .limit(8),
+            .limit(5),
         ).all(),
     )
     match_options = (

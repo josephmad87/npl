@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { formatMatchDate, toTimeShort } from '../lib/formatters'
 import { matchSeoPath } from '../lib/matchUrls'
 import { publicDisplayMatchStatus } from '../lib/matchStatus'
@@ -123,8 +122,7 @@ function TeamLogoBadge({
   variant?: 'default' | 'round'
   isWinner?: boolean
 }) {
-  const initial = resolveMediaUrl(logoUrl) ?? nplLogoUrl
-  const [src, setSrc] = useState(initial)
+  const src = resolveMediaUrl(logoUrl) ?? nplLogoUrl
 
   return (
     <span
@@ -143,7 +141,10 @@ function TeamLogoBadge({
         widths={[64, 96, 128]}
         sizes="64px"
         fallbackWidth={96}
-        onError={() => setSrc(nplLogoUrl)}
+        onError={(event) => {
+          event.currentTarget.onerror = null
+          event.currentTarget.src = nplLogoUrl
+        }}
       />
 
       {isWinner ? (
