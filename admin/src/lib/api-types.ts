@@ -208,6 +208,8 @@ export type MatchDto = {
   away_team_placeholder?: string | null
   description: string | null
   cover_image_url: string | null
+  stream_url?: string | null
+  stream_label?: string | null
   scorecard_finalized_at?: string | null
   scorecard_locks_at?: string | null
   scorecard_locked?: boolean
@@ -252,6 +254,7 @@ export type GalleryItemDto = {
   status: string
   tags: string[] | null
   team_id?: number | null
+  match_id?: number | null
   created_at: string
 }
 
@@ -476,12 +479,18 @@ export type FanEngagementReportDto = {
 }
 
 
+export type ScorerAssignmentDuty =
+  | 'scorer_only'
+  | 'score_and_commentary'
+  | 'commentator_only'
+
 export type ScorerAssignmentDto = {
   id: number
   match_id: number
   user_id: number
   user_email: string
   user_full_name: string | null
+  duty: ScorerAssignmentDuty
   assigned_by_user_id: number | null
   created_at: string
 }
@@ -596,6 +605,9 @@ export type LiveBallEventDto = {
   batters_crossed: boolean
   dismissal_text: string | null
   notes: string | null
+  commentary?: string | null
+  commentary_updated_by_user_id?: number | null
+  commentary_updated_at?: string | null
   client_event_id: string | null
   sequence_number: number
   created_by_user_id: number | null
@@ -653,6 +665,7 @@ export type LiveScoreStateDto = {
   scorecard_reconciled_at: string | null
   scorecard_reconciliation_status: 'in_sync' | 'out_of_sync' | string
   scoring_session: ScoringSessionDto | null
+  can_edit_commentary?: boolean
 }
 
 export type LiveBallEventInput = {

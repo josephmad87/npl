@@ -250,6 +250,8 @@ function MatchesPage() {
         r.away_name,
         r.venue,
         r.status,
+        r.stream_label,
+        r.stream_url,
         matchResultSummaryLine(r),
       ]
         .filter(Boolean)
@@ -329,6 +331,18 @@ function MatchesPage() {
       },
     },
     { accessorKey: 'venue', header: 'Venue' },
+    {
+      id: 'broadcast',
+      header: 'Broadcast',
+      cell: ({ row }) =>
+        row.original.stream_url?.trim() ? (
+          <span className="badge badge--published">
+            {row.original.stream_label?.trim() || 'NPL Live'}
+          </span>
+        ) : (
+          <span className="muted">—</span>
+        ),
+    },
     {
       accessorKey: 'status',
       header: 'Status',
@@ -504,6 +518,9 @@ function MatchesPage() {
           </p>
         </div>
         <div className="entity-thumb-card__footer">
+          {m.stream_url?.trim() ? (
+            <span className="badge badge--published">Broadcast linked</span>
+          ) : null}
           {m.is_published === false ? <StatusBadge status="draft" /> : null}
           <StatusBadge
             status={

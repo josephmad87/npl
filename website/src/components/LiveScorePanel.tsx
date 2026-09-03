@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { fetchAllPaginatedList, fetchJson } from '../lib/publicApi'
-import {
-  computeSeasonStandings,
-  formatStandingsNrr,
-  sortStandingsDesc,
-} from '../lib/leagueSeasonAggregates'
+import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
 import type { MatchLite } from '../lib/hooks'
+import { formatCategoryLabel, formatMatchDate } from '../lib/formatters'
+import { GalleryCard } from './GalleryCard'
+import { GalleryLightbox, type GalleryLightboxItem } from './GalleryLightbox'
+import { MatchStreamPanel } from './MatchStreamPanel'
 
 export type LiveBallEvent = {
   id: number
@@ -39,13 +38,13 @@ export type LiveBallEvent = {
   batters_crossed?: boolean
   dismissal_text: string | null
   notes: string | null
+  commentary?: string | null
+  commentary_updated_at?: string | null
   sequence_number: number
   created_by_user_id: number | null
   created_at: string
   updated_at: string
 }
-
-type StandingAdjustment = { team_id: number; points_delta: number }
 
 export type LiveInningsSummary = {
   innings: number
@@ -83,6 +82,7 @@ type PublicPlayer = {
   wickets_taken?: number
   bowling_average?: number | null
   economy_rate?: number | null
+  role?: string | null
 }
 
 type PublicTeam = {
@@ -97,6 +97,10 @@ type PublicMatchDetail = MatchLite & {
   season_id: number | null
   match_overs?: string | number | null
   revised_target_runs?: number | null
+  stream_label?: string | null
+  stream_available?: boolean
+  umpires?: string | null
+  description?: string | null
   season?: {
     id: number
     name: string
@@ -107,11 +111,6 @@ type PublicMatchDetail = MatchLite & {
       slug: string
     } | null
   } | null
-}
-
-type SeasonDetail = {
-  id: number
-  team_ids: number[]
 }
 
 type MatchSquadPlayer = {
@@ -152,6 +151,9 @@ type BowlerMiniStat = {
   balls: number
   wickets: number
   maidens: number
+  dots: number
+  wides: number
+  noBalls: number
   firstSequence: number
   lastSequence: number
   overRuns: Map<string, number>
@@ -222,7 +224,16 @@ type InningsDashboard = {
   partnerships: PartnershipStat[]
 }
 
-type LiveTab = 'live' | 'scorecard' | 'commentary' | 'teams' | 'standings'
+type LiveTab =
+  | 'live'
+  | 'stream'
+  | 'scorecard'
+  | 'commentary'
+  | 'stats'
+  | 'overs'
+  | 'photos'
+  | 'squads'
+  | 'info'
 
 const BOWLER_CREDIT_WICKETS = new Set([
   'bowled',
@@ -264,6 +275,31 @@ function shortTeamName(name: string): string {
   return words.map((word) => word[0]).join('').toUpperCase()
 }
 
+function LiveScoreTeamCrest({ logoUrl, name }: { logoUrl: string | null; name: string }) {
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null)
+  const resolvedLogoUrl = resolveMediaUrl(logoUrl)
+  const imageFailed = Boolean(resolvedLogoUrl && failedLogoUrl === resolvedLogoUrl)
+
+  if (!resolvedLogoUrl || imageFailed) {
+    return (
+      <span className="live-score-panel__team-logo-fallback" aria-hidden>
+        {shortTeamName(name).slice(0, 2)}
+      </span>
+    )
+  }
+
+  return (
+    <img
+      src={resolvedLogoUrl}
+      alt=""
+      className="live-score-panel__team-logo"
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailedLogoUrl(resolvedLogoUrl)}
+    />
+  )
+}
+
 function playerName(playerById: Map<number, PublicPlayer>, playerId: number | null | undefined): string {
   if (!playerId) return '—'
   return playerById.get(playerId)?.full_name ?? `#${playerId}`
@@ -285,28 +321,6 @@ function dismissalLabel(value: string | null | undefined): string {
     .join(' ')
 }
 
-function splitOverNote(notes: string | null | undefined): { ballNote: string | null; overNote: string | null } {
-  const raw = notes?.trim()
-  if (!raw) return { ballNote: null, overNote: null }
-
-  const ballLines: string[] = []
-  let overNote: string | null = null
-
-  for (const line of raw.split(/\r?\n/)) {
-    const match = line.match(/^over note:\s*(.+)$/i)
-    if (match) {
-      overNote = match[1]?.trim() || null
-    } else if (line.trim()) {
-      ballLines.push(line.trim())
-    }
-  }
-
-  return {
-    ballNote: ballLines.length > 0 ? ballLines.join(' ') : null,
-    overNote,
-  }
-}
-
 function eventTotalRuns(event: LiveBallEvent): number {
   return (
     (event.runs_batter ?? 0) +
@@ -321,6 +335,60 @@ function wicketCounts(event: LiveBallEvent): boolean {
       event.wicket_type !== 'retired_hurt' &&
       event.wicket_type !== 'retired_not_out',
   )
+}
+
+function inningsExtrasSummary(events: LiveBallEvent[]): {
+  total: number
+  breakdown: string
+} {
+  let wides = 0
+  let noBalls = 0
+  let byes = 0
+  let legByes = 0
+  let penalties = 0
+
+  for (const event of events) {
+    if (event.extras_type === 'wide') wides += event.runs_extras ?? 0
+    if (event.extras_type?.startsWith('no_ball')) noBalls += 1
+    if (event.extras_type === 'bye') byes += event.runs_extras ?? 0
+    if (event.extras_type === 'no_ball_bye') {
+      byes += Math.max(0, (event.runs_extras ?? 0) - 1)
+    }
+    if (event.extras_type === 'leg_bye') legByes += event.runs_extras ?? 0
+    if (event.extras_type === 'no_ball_leg_bye') {
+      legByes += Math.max(0, (event.runs_extras ?? 0) - 1)
+    }
+    penalties += event.penalty_runs_batting ?? 0
+  }
+
+  const total = wides + noBalls + byes + legByes + penalties
+  return {
+    total,
+    breakdown: `b ${byes}, lb ${legByes}, w ${wides}, nb ${noBalls}, p ${penalties}`,
+  }
+}
+
+function inningsFallOfWickets(events: LiveBallEvent[]): Array<{
+  wicket: number
+  score: number
+  over: string
+  playerId: number | null
+}> {
+  let score = 0
+  let wicket = 0
+  const rows: Array<{ wicket: number; score: number; over: string; playerId: number | null }> = []
+  for (const event of events) {
+    score += eventTotalRuns(event)
+    if (!wicketCounts(event)) continue
+    wicket += 1
+    rows.push({
+      wicket,
+      score,
+      over: `${event.over_number}.${event.ball_number}`,
+      playerId: event.wicket_player_id,
+    })
+  }
+  return rows
 }
 
 function batterBallCounts(event: LiveBallEvent): boolean {
@@ -453,8 +521,7 @@ function tokenClass(token: string): string {
 }
 
 function deliveryDetail(event: LiveBallEvent, playerById: Map<number, PublicPlayer>): string {
-  const { ballNote } = splitOverNote(event.notes)
-  if (ballNote) return ballNote
+  if (event.commentary?.trim()) return event.commentary.trim()
 
   if (event.wicket_type) {
     const outName = playerName(playerById, event.wicket_player_id)
@@ -611,6 +678,9 @@ function computeMiniDashboard(
       balls: 0,
       wickets: 0,
       maidens: 0,
+      dots: 0,
+      wides: 0,
+      noBalls: 0,
       firstSequence: event.sequence_number,
       lastSequence: event.sequence_number,
       overRuns: new Map<string, number>(),
@@ -622,11 +692,14 @@ function computeMiniDashboard(
     bowler.overRuns.set(overKey, (bowler.overRuns.get(overKey) ?? 0) + conceded)
     if (event.is_legal_delivery !== false && !event.is_dead_ball) {
       bowler.balls += 1
+      if (eventTotalRuns(event) === 0) bowler.dots += 1
       bowler.overLegalBalls.set(overKey, (bowler.overLegalBalls.get(overKey) ?? 0) + 1)
       if ((bowler.overLegalBalls.get(overKey) ?? 0) === 6 && (bowler.overRuns.get(overKey) ?? 0) === 0) {
         bowler.maidens += 1
       }
     }
+    if (event.extras_type === 'wide') bowler.wides += event.runs_extras ?? 0
+    if (event.extras_type?.startsWith('no_ball')) bowler.noBalls += 1
     if (event.wicket_type && BOWLER_CREDIT_WICKETS.has(event.wicket_type)) {
       bowler.wickets += 1
     }
@@ -695,8 +768,6 @@ function computeMiniDashboard(
 
     inningsRuns += runs
     group.runs += runs
-    const parsedOverNote = splitOverNote(event.notes).overNote
-    if (parsedOverNote) group.overNote = parsedOverNote
     partnershipRuns += runs
     if (isLegalBall) {
       legalBalls += 1
@@ -714,7 +785,6 @@ function computeMiniDashboard(
       if (outStat) {
         outStat.isOut = true
         outStat.dismissal =
-          splitOverNote(event.notes).ballNote ||
           event.dismissal_text?.trim() ||
           dismissalLabel(event.wicket_type)
       }
@@ -818,6 +888,112 @@ function computeMiniDashboard(
     overStripGroups,
     wormPoints,
     partnerships,
+  }
+}
+
+type OverStatPoint = {
+  over: number
+  runs: number
+  wickets: number
+  score: number
+  scoreWickets: number
+  legalBalls: number
+  runRate: number
+  group: OverCommentaryGroup
+}
+
+function overStatPoints(dashboard: InningsDashboard): OverStatPoint[] {
+  let score = 0
+  let scoreWickets = 0
+  let legalBalls = 0
+
+  return [...dashboard.overGroups]
+    .sort((a, b) => a.overNumber - b.overNumber)
+    .map((group) => {
+      score += group.runs
+      scoreWickets += group.wickets
+      legalBalls += group.deliveries.filter(
+        (delivery) =>
+          delivery.event.is_legal_delivery !== false &&
+          !delivery.event.is_dead_ball,
+      ).length
+      return {
+        over: group.overNumber + 1,
+        runs: group.runs,
+        wickets: group.wickets,
+        score,
+        scoreWickets,
+        legalBalls,
+        runRate: legalBalls > 0 ? (score * 6) / legalBalls : 0,
+        group,
+      }
+    })
+}
+
+function chartLinePath(
+  points: Array<{ over: number; value: number }>,
+  maxOver: number,
+  maxValue: number,
+): string {
+  if (points.length === 0) return ''
+  return points
+    .map((point, index) => {
+      const x = 38 + (point.over / Math.max(1, maxOver)) * 270
+      const y = 132 - (point.value / Math.max(1, maxValue)) * 104
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`
+    })
+    .join(' ')
+}
+
+function powerplayOversForMatch(allottedBalls: number | null): number {
+  if (allottedBalls == null) return 6
+  const overs = allottedBalls / 6
+  if (overs > 20) return 10
+  return Math.max(1, Math.min(6, Math.ceil(overs * 0.3)))
+}
+
+function liveScoringBreakdown(
+  dashboard: InningsDashboard,
+  powerplayOvers: number,
+) {
+  const powerplayBallLimit = powerplayOvers * 6
+  let legalBalls = 0
+  let powerplayRuns = 0
+  let powerplayWickets = 0
+  let outsideRuns = 0
+  let outsideWickets = 0
+  let dots = 0
+
+  for (const event of dashboard.events) {
+    const inPowerplay = legalBalls < powerplayBallLimit
+    const runs = eventTotalRuns(event)
+    if (inPowerplay) {
+      powerplayRuns += runs
+      if (wicketCounts(event)) powerplayWickets += 1
+    } else {
+      outsideRuns += runs
+      if (wicketCounts(event)) outsideWickets += 1
+    }
+    if (
+      event.is_legal_delivery !== false &&
+      !event.is_dead_ball
+    ) {
+      legalBalls += 1
+      if (runs === 0) dots += 1
+    }
+  }
+
+  const fours = dashboard.batters.reduce((total, batter) => total + batter.fours, 0)
+  const sixes = dashboard.batters.reduce((total, batter) => total + batter.sixes, 0)
+
+  return {
+    powerplay: `${powerplayRuns}/${powerplayWickets}`,
+    outsidePowerplay: `${outsideRuns}/${outsideWickets}`,
+    fours,
+    sixes,
+    boundaryRuns: fours * 4 + sixes * 6,
+    dotBallPercentage: legalBalls > 0 ? `${Math.round((dots / legalBalls) * 100)}%` : '0%',
+    extras: inningsExtrasSummary(dashboard.events).total,
   }
 }
 
@@ -1009,6 +1185,8 @@ export function LiveScorePanel({
 }) {
   const isLive = String(matchStatus ?? '').toLowerCase() === 'live'
   const [activeTab, setActiveTab] = useState<LiveTab>('live')
+  const [expandedOver, setExpandedOver] = useState<number | null>(null)
+  const [activePhoto, setActivePhoto] = useState<GalleryLightboxItem | null>(null)
 
   const liveQ = useQuery({
     queryKey: ['public-live-score', matchId],
@@ -1056,25 +1234,13 @@ export function LiveScorePanel({
     retry: 1,
   })
 
-  const seasonDetailQ = useQuery({
-    queryKey: ['public-live-season-detail', matchQ.data?.season?.league?.slug, matchQ.data?.season?.slug],
-    queryFn: () => fetchJson<SeasonDetail>(`/public/leagues/${matchQ.data?.season?.league?.slug}/seasons/${matchQ.data?.season?.slug}`),
-    enabled: Boolean(matchQ.data?.season?.league?.slug && matchQ.data?.season?.slug),
-    retry: 1,
-  })
-
-  const seasonId = matchQ.data?.season_id ?? seasonDetailQ.data?.id ?? null
-  const resultsQ = useQuery({
-    queryKey: ['public-live-season-results', seasonId],
-    queryFn: () => fetchAllPaginatedList<MatchLite>((page) => `/public/results?page=${page}&page_size=100&season_id=${seasonId}`),
-    enabled: Boolean(seasonId),
-    retry: 1,
-  })
-
-  const adjustmentsQ = useQuery({
-    queryKey: ['public-live-standing-adjustments', seasonId],
-    queryFn: () => fetchJson<StandingAdjustment[]>(`/public/seasons/${seasonId}/standing-adjustments`),
-    enabled: Boolean(seasonId),
+  const photosQ = useQuery({
+    queryKey: ['public-live-match-photos', matchId],
+    queryFn: () =>
+      fetchAllPaginatedList<GalleryLightboxItem>(
+        (page) => `/public/gallery?page=${page}&page_size=100&match_id=${matchId}`,
+      ),
+    enabled: Number.isFinite(matchId),
     retry: 1,
   })
 
@@ -1105,15 +1271,6 @@ export function LiveScorePanel({
     () => (liveQ.data?.summaries ?? []).map((summary) => computeMiniDashboard(liveQ.data, playerById, summary.innings)),
     [liveQ.data, playerById],
   )
-
-  const standingsRows = useMemo(() => {
-    const teamIds = seasonDetailQ.data?.team_ids ?? []
-    if (!teamIds.length) return []
-    const adjustments = Object.fromEntries(
-      (adjustmentsQ.data ?? []).map((row) => [row.team_id, row.points_delta]),
-    )
-    return sortStandingsDesc(computeSeasonStandings(resultsQ.data ?? [], teamIds, adjustments))
-  }, [adjustmentsQ.data, resultsQ.data, seasonDetailQ.data?.team_ids])
 
   const activeSummary = dashboard.summary
   const summaries = liveQ.data?.summaries ?? []
@@ -1219,7 +1376,7 @@ export function LiveScorePanel({
   const wormSeries = wormDashboards.map((inningsDashboard, index) => ({
     innings: inningsDashboard.summary?.innings ?? index + 1,
     team: teamName(inningsDashboard.summary?.batting_team_id, teamNames),
-    color: index === 0 ? '#0969c8' : '#f97316',
+    color: index === 0 ? '#7a1f2a' : '#d86c18',
     points: inningsDashboard.wormPoints,
   }))
   const allWormPoints = wormSeries.flatMap((series) => series.points)
@@ -1231,6 +1388,31 @@ export function LiveScorePanel({
     if (wormMaxOver <= 4) return index
     return Math.round((wormMaxOver / 4) * index)
   })
+  const inningsOverSeries = inningsDashboards.slice(0, 2).map((inningsDashboard, index) => ({
+    innings: inningsDashboard.summary?.innings ?? index + 1,
+    teamId: inningsDashboard.summary?.batting_team_id ?? null,
+    team: teamName(inningsDashboard.summary?.batting_team_id, teamNames),
+    color: index === 0 ? '#7a1f2a' : '#d86c18',
+    points: overStatPoints(inningsDashboard),
+    dashboard: inningsDashboard,
+  }))
+  const maximumComparedOver = Math.max(
+    1,
+    ...inningsOverSeries.flatMap((series) => series.points.map((point) => point.over)),
+  )
+  const maximumOverRuns = Math.max(
+    6,
+    ...inningsOverSeries.flatMap((series) => series.points.map((point) => point.runs)),
+  )
+  const maximumRunRate = Math.max(
+    6,
+    ...inningsOverSeries.flatMap((series) => series.points.map((point) => point.runRate)),
+  )
+  const powerplayOvers = powerplayOversForMatch(allottedBalls)
+  const scoringBreakdowns = inningsOverSeries.map((series) => ({
+    ...series,
+    stats: liveScoringBreakdown(series.dashboard, powerplayOvers),
+  }))
 
   const teamLogo = (teamId: number | null | undefined): string | null => {
     if (!teamId) return null
@@ -1242,11 +1424,7 @@ export function LiveScorePanel({
     const logo = teamLogo(teamId)
     return (
       <span className="live-score-panel__team-name">
-        {logo ? (
-          <img src={logo} alt="" className="live-score-panel__team-logo" loading="lazy" />
-        ) : (
-          <span className="live-score-panel__team-logo-fallback">{shortTeamName(name).slice(0, 2)}</span>
-        )}
+        <LiveScoreTeamCrest logoUrl={logo} name={name} />
         <span>{name}</span>
       </span>
     )
@@ -1270,13 +1448,6 @@ export function LiveScorePanel({
     }
 
     return <span className="live-score-panel__yet-to-bat">Yet to bat</span>
-  }
-
-  const squadPlayersForTeam = (teamId: number): MatchSquadPlayer[] => {
-    const team = squadQ.data?.teams.find((row) => row.team_id === teamId)
-    return [...(team?.players ?? [])]
-      .filter((row) => row.role === 'playing_xi')
-      .sort((a, b) => a.lineup_order - b.lineup_order || a.player_id - b.player_id)
   }
 
   const renderMiniScorecard = () => {
@@ -1466,6 +1637,258 @@ export function LiveScorePanel({
                 })}
               </div>
             </div>
+          )
+        })}
+      </section>
+    )
+  }
+
+  const renderWormChartPanel = () => (
+    <section className="live-score-panel__worm" aria-label="Runs worm">
+      <h3>Worm</h3>
+      <div className="live-score-panel__worm-legends">
+        {wormSeries.map((series) => (
+          <span key={series.innings} className="live-score-panel__worm-legend">
+            <i style={{ backgroundColor: series.color }} aria-hidden />
+            {series.team}
+          </span>
+        ))}
+      </div>
+      <svg
+        viewBox="0 0 230 160"
+        role="img"
+        aria-label={`Runs progression for ${wormSeries.map((series) => series.team).join(' and ')}`}
+      >
+        <line x1="34" y1="126" x2="210" y2="126" stroke="rgba(15,23,42,0.25)" />
+        <line x1="34" y1="24" x2="34" y2="126" stroke="rgba(15,23,42,0.25)" />
+        {runTicks.map((tick) => {
+          const y = 126 - (tick / wormMaxRuns) * 102
+          return (
+            <g key={`run-${tick}`}>
+              <line x1="34" y1={y} x2="210" y2={y} stroke="rgba(15,23,42,0.1)" />
+              <text x="28" y={y + 3} textAnchor="end" fill="#4b5563" fontSize="8">{tick}</text>
+            </g>
+          )
+        })}
+        {overTicks.map((tick) => {
+          const x = 34 + (tick / wormMaxOver) * 176
+          return (
+            <g key={`over-${tick}`}>
+              <line x1={x} y1="126" x2={x} y2="130" stroke="rgba(15,23,42,0.25)" />
+              <text x={x} y="142" textAnchor="middle" fill="#4b5563" fontSize="8">{tick}</text>
+            </g>
+          )
+        })}
+        {wormSeries.map((series) => {
+          const path = renderWormPath(series.points, wormMaxOver, wormMaxRuns)
+          return path ? (
+            <path
+              key={`path-${series.innings}`}
+              d={path}
+              fill="none"
+              stroke={series.color}
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ) : null
+        })}
+        {wormSeries.flatMap((series) =>
+          series.points.slice(-1).map((point) => {
+            const cx = 34 + (point.over / wormMaxOver) * 176
+            const cy = 126 - (point.runs / wormMaxRuns) * 102
+            return (
+              <circle
+                key={`${series.innings}-${point.over}-${point.runs}`}
+                cx={cx}
+                cy={cy}
+                r="3.5"
+                fill={series.color}
+              />
+            )
+          }),
+        )}
+        <text x="122" y="156" textAnchor="middle" fill="#4b5563" fontSize="9">OVERS</text>
+        <text x="4" y="20" fill="#4b5563" fontSize="9">RUNS</text>
+      </svg>
+    </section>
+  )
+
+  const renderLiveStats = () => {
+    if (scoringBreakdowns.length === 0) {
+      return <p className="live-score-panel__empty">Live statistics will appear after scoring starts.</p>
+    }
+
+    const statRows: Array<{
+      label: string
+      value: (stats: (typeof scoringBreakdowns)[number]['stats']) => string | number
+    }> = [
+      { label: `Powerplay (${powerplayOvers} ov)`, value: (stats) => stats.powerplay },
+      { label: 'Outside powerplay', value: (stats) => stats.outsidePowerplay },
+      { label: 'Sixes', value: (stats) => stats.sixes },
+      { label: 'Fours', value: (stats) => stats.fours },
+      { label: 'Runs in boundaries', value: (stats) => stats.boundaryRuns },
+      { label: 'Dot balls', value: (stats) => stats.dotBallPercentage },
+      { label: 'Runs in extras', value: (stats) => stats.extras },
+    ]
+
+    return (
+      <div className="live-score-panel__stats-tab">
+        <section className="live-score-panel__stats-breakdown" aria-labelledby="live-stats-breakdown-title">
+          <h2 id="live-stats-breakdown-title">Scoring breakdown</h2>
+          <div className="live-score-panel__stats-team-head">
+            {scoringBreakdowns.map((series) => (
+              <strong key={series.innings}>{renderTeamBadge(series.teamId, series.team)}</strong>
+            ))}
+          </div>
+          {statRows.map((row) => (
+            <div className="live-score-panel__stat-row" key={row.label}>
+              <b>{scoringBreakdowns[0] ? row.value(scoringBreakdowns[0].stats) : '—'}</b>
+              <span>{row.label}</span>
+              <b>{scoringBreakdowns[1] ? row.value(scoringBreakdowns[1].stats) : '—'}</b>
+            </div>
+          ))}
+        </section>
+
+        {renderPartnerships()}
+
+        <div className="live-score-panel__stats-chart-stack">
+          <section className="live-score-panel__chart-card">
+            <h3>Manhattan</h3>
+            <div
+              className="live-score-panel__manhattan"
+              role="img"
+              aria-label="Runs scored and wickets lost in each over"
+              style={{ gridTemplateColumns: `repeat(${maximumComparedOver}, minmax(2.25rem, 1fr))` }}
+            >
+              {Array.from({ length: maximumComparedOver }, (_, index) => index + 1).map((over) => (
+                <div className="live-score-panel__manhattan-over" key={over}>
+                  <div className="live-score-panel__manhattan-bars">
+                    {inningsOverSeries.map((series) => {
+                      const point = series.points.find((row) => row.over === over)
+                      const height = point ? Math.max(4, (point.runs / maximumOverRuns) * 100) : 0
+                      return (
+                        <span
+                          key={`${series.innings}-${over}`}
+                          style={{ height: `${height}%`, backgroundColor: series.color }}
+                          title={`${series.team}, over ${over}: ${point?.runs ?? 0} runs, ${point?.wickets ?? 0} wickets`}
+                        >
+                          {point?.wickets ? <i>{'W'.repeat(point.wickets)}</i> : null}
+                        </span>
+                      )
+                    })}
+                  </div>
+                  <small>{over}</small>
+                </div>
+              ))}
+            </div>
+            <p className="live-score-panel__chart-caption">Runs per over · wicket markers shown as W</p>
+          </section>
+
+          <section className="live-score-panel__chart-card">
+            <h3>Run rate</h3>
+            <div className="live-score-panel__chart-legend">
+              {inningsOverSeries.map((series) => (
+                <span key={series.innings}><i style={{ backgroundColor: series.color }} />{series.team}</span>
+              ))}
+            </div>
+            <svg viewBox="0 0 330 160" role="img" aria-label="Run rate by over">
+              {[0, 0.5, 1].map((part) => {
+                const y = 132 - part * 104
+                return (
+                  <g key={part}>
+                    <line x1="38" y1={y} x2="308" y2={y} stroke="rgba(15,23,42,0.12)" />
+                    <text x="31" y={y + 3} textAnchor="end" fill="#4b5563" fontSize="9">
+                      {(maximumRunRate * part).toFixed(1)}
+                    </text>
+                  </g>
+                )
+              })}
+              {inningsOverSeries.map((series) => (
+                <path
+                  key={series.innings}
+                  d={chartLinePath(
+                    series.points.map((point) => ({ over: point.over, value: point.runRate })),
+                    maximumComparedOver,
+                    maximumRunRate,
+                  )}
+                  fill="none"
+                  stroke={series.color}
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
+              <text x="173" y="155" textAnchor="middle" fill="#4b5563" fontSize="9">OVERS</text>
+              <text x="5" y="18" fill="#4b5563" fontSize="9">RR</text>
+            </svg>
+          </section>
+
+          {renderWormChartPanel()}
+        </div>
+      </div>
+    )
+  }
+
+  const renderOvers = () => {
+    if (inningsOverSeries.every((series) => series.points.length === 0)) {
+      return <p className="live-score-panel__empty">Over-by-over comparisons will appear after scoring starts.</p>
+    }
+
+    return (
+      <section
+        className="live-score-panel__overs-tab"
+        style={{ '--over-columns': inningsOverSeries.length } as CSSProperties}
+      >
+        <header className="live-score-panel__overs-head">
+          <span>Ovs</span>
+          {inningsOverSeries.map((series) => (
+            <strong key={series.innings}>{renderTeamBadge(series.teamId, series.team)}</strong>
+          ))}
+        </header>
+        {Array.from({ length: maximumComparedOver }, (_, index) => index + 1).map((over) => {
+          const expanded = expandedOver === over
+          return (
+            <button
+              type="button"
+              className="live-score-panel__over-comparison"
+              key={over}
+              aria-expanded={expanded}
+              aria-label={`${expanded ? 'Collapse' : 'Expand'} over ${over} details`}
+              onClick={() => setExpandedOver(expanded ? null : over)}
+            >
+              <span className="live-score-panel__over-number">
+                <b>{over}</b><span aria-hidden>{expanded ? '−' : '+'}</span>
+              </span>
+              {inningsOverSeries.map((series) => {
+                const point = series.points.find((row) => row.over === over)
+                if (!point) return <span className="live-score-panel__empty-over" key={series.innings}>—</span>
+                const bowlerId = point.group.deliveries[0]?.event.bowler_player_id
+                return (
+                  <span className="live-score-panel__over-cell" key={series.innings}>
+                    <span className="live-score-panel__over-cell-summary">
+                      <strong>{point.score}/{point.scoreWickets}</strong>
+                      <span>{plural(point.runs, 'run')}, {plural(point.wickets, 'wkt', 'wkts')}</span>
+                    </span>
+                    {expanded ? (
+                      <span className="live-score-panel__over-cell-details">
+                        <span><strong>Bowler:</strong> {playerName(playerById, bowlerId)}</span>
+                        <span className="live-score-panel__over-deliveries">
+                          {[...point.group.deliveries]
+                            .sort((a, b) => a.event.sequence_number - b.event.sequence_number)
+                            .map((delivery) => (
+                              <b key={delivery.event.id} className={`live-score-panel__strip-token${delivery.tokenClass}`}>
+                                {delivery.token}
+                              </b>
+                            ))}
+                        </span>
+                        <span>RR: <strong>{point.runRate.toFixed(2)}</strong></span>
+                      </span>
+                    ) : null}
+                  </span>
+                )
+              })}
+            </button>
           )
         })}
       </section>
@@ -1713,6 +2136,8 @@ export function LiveScorePanel({
                 a.lineup_order - b.lineup_order ||
                 a.player_id - b.player_id,
             )
+          const extras = inningsExtrasSummary(inningsDashboard.events)
+          const fallOfWickets = inningsFallOfWickets(inningsDashboard.events)
           return (
             <section key={summary.innings} className="live-score-panel__innings-card">
               <div className="live-score-panel__section-head">
@@ -1753,20 +2178,43 @@ export function LiveScorePanel({
                         <td>{batterStrikeRate(stat)}</td>
                       </tr>
                     ))}
-                    {didNotBatPlayers.map((row) => (
-                      <tr key={`did-not-bat-${row.player_id}`}>
-                        <td>{playerName(playerById, row.player_id)}</td>
-                        <td>did not bat</td>
-                        <td>0</td>
-                        <td>0</td>
-                        <td>0</td>
-                        <td>0</td>
-                        <td>—</td>
-                      </tr>
-                    ))}
                   </tbody>
+                  <tfoot>
+                    <tr className="live-score-panel__extras-row">
+                      <th colSpan={2}>Extras</th>
+                      <td colSpan={5}>
+                        <strong>{extras.total}</strong> ({extras.breakdown})
+                      </td>
+                    </tr>
+                    <tr className="live-score-panel__total-row">
+                      <th colSpan={2}>Total</th>
+                      <td colSpan={5}>
+                        <strong>{summary.runs}/{summary.wickets}</strong>{' '}
+                        ({summary.overs_label} overs)
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
+              {didNotBatPlayers.length > 0 ? (
+                <p className="live-score-panel__scorecard-note">
+                  <strong>Yet to bat:</strong>{' '}
+                  {didNotBatPlayers
+                    .map((row) => playerName(playerById, row.player_id))
+                    .join(', ')}
+                </p>
+              ) : null}
+              <p className="live-score-panel__scorecard-note">
+                <strong>Fall of wickets:</strong>{' '}
+                {fallOfWickets.length > 0
+                  ? fallOfWickets
+                      .map(
+                        (row) =>
+                          `${row.wicket}-${row.score} (${playerName(playerById, row.playerId)}, ${row.over})`,
+                      )
+                      .join(', ')
+                  : 'None'}
+              </p>
               <div className="live-score-panel__table-wrap live-score-panel__bowling-table-wrap">
                 <table className="live-score-panel__detail-table live-score-panel__detail-table--bowling">
                   <colgroup>
@@ -1776,6 +2224,9 @@ export function LiveScorePanel({
                     <col className="live-score-panel__bowling-stat-column" />
                     <col className="live-score-panel__bowling-stat-column" />
                     <col className="live-score-panel__economy-column" />
+                    <col className="live-score-panel__bowling-stat-column" />
+                    <col className="live-score-panel__bowling-stat-column" />
+                    <col className="live-score-panel__bowling-stat-column" />
                   </colgroup>
                   <thead>
                     <tr>
@@ -1785,6 +2236,9 @@ export function LiveScorePanel({
                       <th>R</th>
                       <th>W</th>
                       <th>Econ</th>
+                      <th>0s</th>
+                      <th>WD</th>
+                      <th>NB</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1796,6 +2250,9 @@ export function LiveScorePanel({
                         <td>{stat.runs}</td>
                         <td>{stat.wickets}</td>
                         <td>{bowlerEconomy(stat)}</td>
+                        <td>{stat.dots}</td>
+                        <td>{stat.wides}</td>
+                        <td>{stat.noBalls}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1808,112 +2265,140 @@ export function LiveScorePanel({
     )
   }
 
-  const renderTeams = () => (
+  const renderSquads = () => (
     <div className="live-score-panel__teams-tab">
       {[homeTeamId, awayTeamId].map((teamId) => {
         const name = teamName(teamId, teamNames)
-        const rows = squadPlayersForTeam(teamId)
+        const teamSquad = squadQ.data?.teams.find((row) => row.team_id === teamId)
+        const rows = [...(teamSquad?.players ?? [])].sort(
+          (a, b) => a.lineup_order - b.lineup_order || a.player_id - b.player_id,
+        )
+        const playing = rows.filter((row) => row.role === 'playing_xi')
+        const substitutes = rows.filter((row) => row.role !== 'playing_xi')
         return (
           <section key={teamId} className="live-score-panel__squad-card">
-            <h3>{renderTeamBadge(teamId, name)}</h3>
-            {rows.length === 0 ? (
+            <header className="live-score-panel__squad-head">
+              <small>Official match squad</small>
+              <h3>{renderTeamBadge(teamId, name)}</h3>
+            </header>
+            {playing.length === 0 ? (
               <p className="live-score-panel__muted">Playing XI has not been published yet.</p>
             ) : (
               <ol className="live-score-panel__squad-list">
-                {rows.map((row) => (
+                {playing.map((row) => (
                   <li key={row.player_id}>
-                    <span>{playerName(playerById, row.player_id)}</span>
+                    <span>
+                      <strong>{playerName(playerById, row.player_id)}</strong>
+                      <small>{playerById.get(row.player_id)?.role?.trim() || 'Player'}</small>
+                    </span>
                     <small>{[row.is_captain ? 'C' : '', row.is_wicketkeeper ? 'WK' : ''].filter(Boolean).join(' · ')}</small>
                   </li>
                 ))}
               </ol>
             )}
+            {substitutes.length > 0 ? (
+              <div className="live-score-panel__substitutes">
+                <h4>Substitutes</h4>
+                <p>{substitutes.map((row) => playerName(playerById, row.player_id)).join(', ')}</p>
+              </div>
+            ) : null}
           </section>
         )
       })}
     </div>
   )
 
-  const renderStandings = () => (
-    <div className="live-score-panel__standings-tab">
-      <div className="live-score-panel__section-head">
-        <h3>Current log standings</h3>
-        {matchQ.data?.season ? <span>{matchQ.data.season.name}</span> : null}
-      </div>
-      {resultsQ.isLoading || seasonDetailQ.isLoading ? (
-        <p className="live-score-panel__empty">Loading standings…</p>
-      ) : standingsRows.length === 0 ? (
-        <p className="live-score-panel__empty">Standings will appear once this season has completed results.</p>
+  const renderPhotos = () => (
+    <section className="live-score-panel__photos-tab" aria-labelledby="match-photos-title">
+      <header>
+        <small>Official match photographs</small>
+        <h2 id="match-photos-title">Photos</h2>
+      </header>
+      {photosQ.isLoading ? (
+        <p className="live-score-panel__empty">Loading match photos…</p>
+      ) : photosQ.isError ? (
+        <p className="live-score-panel__empty">Match photos could not be loaded.</p>
+      ) : (photosQ.data ?? []).length === 0 ? (
+        <p className="live-score-panel__empty">Official match photographs will appear here when they are published.</p>
       ) : (
-        <div className="live-score-panel__table-wrap">
-          <table className="live-score-panel__detail-table live-score-panel__standings-table">
-            <colgroup>
-              <col className="live-score-panel__standings-position-column" />
-              <col className="live-score-panel__standings-team-column" />
-              <col className="live-score-panel__standings-stat-column" />
-              <col className="live-score-panel__standings-stat-column" />
-              <col className="live-score-panel__standings-stat-column" />
-              <col className="live-score-panel__standings-stat-column" />
-              <col className="live-score-panel__standings-stat-column" />
-              <col className="live-score-panel__standings-points-column" />
-              <col className="live-score-panel__standings-nrr-column" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Pos</th>
-                <th>Team</th>
-                <th>Mat</th>
-                <th>Won</th>
-                <th>Lost</th>
-                <th>Tied</th>
-                <th>NR</th>
-                <th>Pts</th>
-                <th>NRR</th>
-              </tr>
-            </thead>
-            <tbody>
-              {standingsRows.map((row, index) => {
-                const team = teamById.get(row.teamId)
-                const name = team?.name ?? `Team ${row.teamId}`
-                return (
-                  <tr key={row.teamId}>
-                    <td>{index + 1}</td>
-                    <td>
-                      {team ? (
-                        <Link
-                          to="/teams/$slug"
-                          params={{ slug: team.slug }}
-                          className="live-score-panel__standings-team-link"
-                        >
-                          {renderTeamBadge(row.teamId, name)}
-                        </Link>
-                      ) : (
-                        renderTeamBadge(row.teamId, name)
-                      )}
-                    </td>
-                    <td>{row.played}</td>
-                    <td>{row.won}</td>
-                    <td>{row.lost}</td>
-                    <td>{row.tied}</td>
-                    <td>{row.nr}</td>
-                    <td><strong>{row.points}</strong></td>
-                    <td>{formatStandingsNrr(row.nrr)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div className="live-score-panel__photo-grid">
+          {(photosQ.data ?? []).map((item) => (
+            <GalleryCard key={item.id} item={item} onOpen={setActivePhoto} />
+          ))}
         </div>
       )}
-    </div>
+    </section>
   )
 
+  const renderMatchInfo = () => {
+    const match = matchQ.data
+    if (!match) return <p className="live-score-panel__empty">Loading match information…</p>
+
+    const competition = match.season?.league?.name ?? 'National Premier League'
+    const season = match.season?.name ?? '—'
+    const date = match.start_time
+      ? new Intl.DateTimeFormat('en-ZW', {
+          dateStyle: 'long',
+          timeStyle: 'short',
+        }).format(new Date(match.start_time))
+      : match.match_date
+        ? formatMatchDate(match.match_date)
+        : 'To be confirmed'
+    const scheduledOvers = Number(match.match_overs)
+    const matchFormat = Number.isFinite(scheduledOvers) && scheduledOvers > 0
+      ? scheduledOvers === 20
+        ? 'Twenty20'
+        : scheduledOvers === 50
+          ? 'One Day (50 overs)'
+          : `${scheduledOvers} overs per innings`
+      : 'To be confirmed'
+    const details = [
+      ['Competition', competition],
+      ['Season', season],
+      ['Format', matchFormat],
+      ['Category', formatCategoryLabel(match.category ?? 'cricket')],
+      ['Date', date],
+      ['Venue', match.venue?.trim() || 'To be confirmed'],
+      ['Toss', match.toss_info?.trim() || 'Pending'],
+    ]
+
+    return (
+      <section className="live-score-panel__info-tab" aria-labelledby="match-info-title">
+        <header>
+          <small>Official details</small>
+          <h2 id="match-info-title">Match information</h2>
+        </header>
+        <dl>
+          {details.map(([label, value]) => (
+            <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+          ))}
+        </dl>
+        <div className="live-score-panel__info-panels">
+          <article>
+            <h3>Match officials</h3>
+            <p>{match.umpires?.trim() || 'Officials will appear once appointments are published.'}</p>
+          </article>
+          <article>
+            <h3>Playing conditions</h3>
+            <p>{match.match_overs ? `${match.match_overs} overs per innings` : 'Overs per innings to be confirmed.'}</p>
+            {match.description?.trim() ? <p>{match.description}</p> : null}
+          </article>
+        </div>
+      </section>
+    )
+  }
+
+  const streamAvailable = Boolean(matchQ.data?.stream_available)
   const tabs: Array<{ id: LiveTab; label: string }> = [
     { id: 'live', label: 'Live' },
+    ...(streamAvailable ? [{ id: 'stream' as const, label: 'Watch Live' }] : []),
     { id: 'scorecard', label: 'Scorecard' },
     { id: 'commentary', label: 'Commentary' },
-    { id: 'teams', label: 'Teams' },
-    { id: 'standings', label: 'Standings' },
+    { id: 'stats', label: 'Live Stats' },
+    { id: 'overs', label: 'Overs' },
+    { id: 'photos', label: 'Photos' },
+    { id: 'squads', label: 'Playing XI' },
+    { id: 'info', label: 'Match Info' },
   ]
 
   return (
@@ -1922,12 +2407,12 @@ export function LiveScorePanel({
         .live-score-panel--cricinfo {
           --live-ink: #111827;
           --live-muted: #57607a;
-          --live-line: rgba(15, 23, 42, 0.1);
-          --live-soft: #f5f6f8;
-          --live-band: #e8e8e8;
-          --live-blue: #0969c8;
-          --live-over: #dff3ff;
-          --live-over-2: #ccefff;
+          --live-line: rgba(56, 11, 17, 0.12);
+          --live-soft: #f7f2ec;
+          --live-band: #eee4da;
+          --live-blue: var(--color-rust-orange, #b64d28);
+          --live-over: #fff0e5;
+          --live-over-2: #f6dfcf;
           background: #fff;
           color: var(--live-ink);
           border: 1px solid rgba(15, 23, 42, 0.08);
@@ -2211,9 +2696,9 @@ export function LiveScorePanel({
           font-size: 0.95rem;
           flex: 0 0 auto;
         }
-        .live-score-panel__ball-token.is-four, .live-score-panel__strip-token.is-four { background: #22c55e; color: #fff; }
-        .live-score-panel__ball-token.is-six, .live-score-panel__strip-token.is-six { background: #8b5cf6; color: #fff; }
-        .live-score-panel__ball-token.is-wicket, .live-score-panel__strip-token.is-wicket { background: #dc2626; color: #fff; text-transform: uppercase; }
+        .live-score-panel__ball-token.is-four, .live-score-panel__strip-token.is-four { background: #dcfce7; color: #166534; }
+        .live-score-panel__ball-token.is-six, .live-score-panel__strip-token.is-six { background: #ede9fe; color: #5b21b6; }
+        .live-score-panel__ball-token.is-wicket, .live-score-panel__strip-token.is-wicket { background: #fee2e2; color: #991b1b; text-transform: uppercase; }
         .live-score-panel__ball-token.is-extra, .live-score-panel__strip-token.is-extra { color: #111827; }
         .live-score-panel__match-centre-title { padding: 1rem 1rem 0.25rem; margin: 0; font-size: 1.35rem; font-weight: 900; }
         .live-score-panel__centre { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(17rem, 0.9fr); border-top: 1px solid var(--live-line); }
@@ -2260,19 +2745,25 @@ export function LiveScorePanel({
         .live-score-panel__partnership-total { display: grid; justify-items: center; min-width: 0; }
         .live-score-panel__partnership-total > strong { color: var(--live-ink); font-size: 0.8rem; white-space: nowrap; }
         .live-score-panel__partnership-total em { color: #64748b; font-size: 0.62rem; font-style: normal; font-weight: 800; text-transform: uppercase; }
-        .live-score-panel__partnership-bar { display: flex; height: 0.45rem; min-width: 0.22rem; max-width: 100%; margin-top: 0.38rem; overflow: hidden; border-radius: 999px; background: #dbeafe; }
+        .live-score-panel__partnership-bar { display: flex; height: 0.45rem; min-width: 0.22rem; max-width: 100%; margin-top: 0.38rem; overflow: hidden; border-radius: 999px; background: #f0d8db; }
         .live-score-panel__partnership-bar span { display: block; height: 100%; }
-        .live-score-panel__partnership-bar .is-first { flex: 0 0 auto; background: #0969c8; }
-        .live-score-panel__partnership-bar .is-second { flex: 1 1 auto; background: #93b4df; }
+        .live-score-panel__partnership-bar .is-first { flex: 0 0 auto; background: #7a1f2a; }
+        .live-score-panel__partnership-bar .is-second { flex: 1 1 auto; background: #c98f97; }
         .live-score-panel__partnership-innings.is-secondary .live-score-panel__partnership-bar { background: #ffedd5; }
         .live-score-panel__partnership-innings.is-secondary .live-score-panel__partnership-bar .is-first { background: #f97316; }
         .live-score-panel__partnership-innings.is-secondary .live-score-panel__partnership-bar .is-second { background: #fdba74; }
         .live-score-panel__empty, .live-score-panel__muted { margin: 0; color: var(--live-muted); }
         .live-score-panel__empty { padding: 1rem; }
-        .live-score-panel__full-scorecard, .live-score-panel__teams-tab, .live-score-panel__standings-tab { padding: 1rem; }
+        .live-score-panel__full-scorecard, .live-score-panel__teams-tab, .live-score-panel__stream-panel { padding: 1rem; }
         .live-score-panel__innings-card, .live-score-panel__squad-card { border: 1px solid var(--live-line); border-radius: 0.85rem; overflow: hidden; margin-bottom: 1rem; background: #fff; }
         .live-score-panel__section-head { padding: 0.85rem 1rem; background: #f8fafc; border-bottom: 1px solid var(--live-line); }
         .live-score-panel__section-head h3 { margin: 0; font-size: 1rem; font-weight: 950; }
+        .live-score-panel__innings-card > .live-score-panel__section-head {
+          background: linear-gradient(135deg, var(--color-deep-maroon, #380b11), #571821);
+          color: #fff;
+        }
+        .live-score-panel__innings-card > .live-score-panel__section-head h3,
+        .live-score-panel__innings-card > .live-score-panel__section-head strong { color: #fff; }
         .live-score-panel__table-wrap { overflow-x: auto; }
         .live-score-panel__detail-table th:nth-child(n + 2), .live-score-panel__detail-table td:nth-child(n + 2) { text-align: center; }
         .live-score-panel__detail-table--batting { min-width: 48rem; }
@@ -2290,7 +2781,7 @@ export function LiveScorePanel({
         }
         .live-score-panel__detail-table--bowling { min-width: 48rem; }
         .live-score-panel__bowling-table-wrap { margin-top: 1rem; }
-        .live-score-panel__detail-table--bowling .live-score-panel__bowler-column { width: 66%; }
+        .live-score-panel__detail-table--bowling .live-score-panel__bowler-column { width: 44%; }
         .live-score-panel__detail-table--bowling .live-score-panel__bowling-stat-column { width: 6%; }
         .live-score-panel__detail-table--bowling .live-score-panel__economy-column { width: 10%; }
         .live-score-panel__detail-table--bowling th:nth-child(n + 2),
@@ -2298,6 +2789,27 @@ export function LiveScorePanel({
           padding-left: 0.4rem;
           padding-right: 0.4rem;
           white-space: nowrap;
+        }
+        .live-score-panel__detail-table tfoot th,
+        .live-score-panel__detail-table tfoot td {
+          border-top: 1px solid var(--live-line);
+          background: #fffaf5;
+          color: #5a3e43;
+          text-align: left !important;
+        }
+        .live-score-panel__detail-table tfoot .live-score-panel__total-row th,
+        .live-score-panel__detail-table tfoot .live-score-panel__total-row td {
+          background: #f6e7db;
+          color: var(--color-deep-maroon, #380b11);
+          font-size: 0.88rem;
+        }
+        .live-score-panel__scorecard-note {
+          margin: 0;
+          padding: 0.65rem 1rem;
+          border-top: 1px solid var(--live-line);
+          color: #6f5a5e;
+          font-size: 0.8rem;
+          line-height: 1.5;
         }
         .live-score-panel__detail-table--batting th:first-child,
         .live-score-panel__detail-table--batting td:first-child,
@@ -2309,44 +2821,72 @@ export function LiveScorePanel({
           word-break: normal;
         }
         .live-score-panel__teams-tab { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-        .live-score-panel__squad-card h3 { margin: 0; padding: 0.85rem 1rem; background: #f8fafc; border-bottom: 1px solid var(--live-line); }
+        .live-score-panel__squad-head { padding: 0.85rem 1rem; background: #f8fafc; border-bottom: 1px solid var(--live-line); }
+        .live-score-panel__squad-head > small, .live-score-panel__photos-tab > header small, .live-score-panel__info-tab > header small { display: block; color: #7c2d12; font-size: 0.72rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+        .live-score-panel__squad-head h3 { margin: 0.3rem 0 0; }
         .live-score-panel__squad-list { list-style: decimal; margin: 0; padding: 0.5rem 1rem 0.75rem 2.4rem; }
         .live-score-panel__squad-list li { padding: 0.45rem 0; border-bottom: 1px solid rgba(15,23,42,0.05); }
         .live-score-panel__squad-list li:last-child { border-bottom: 0; }
-        .live-score-panel__squad-list small { color: var(--live-muted); font-weight: 900; }
-        .live-score-panel__standings-table { min-width: 50rem; }
-        .live-score-panel__standings-table .live-score-panel__standings-position-column { width: 5%; }
-        .live-score-panel__standings-table .live-score-panel__standings-team-column { width: 43%; }
-        .live-score-panel__standings-table .live-score-panel__standings-stat-column { width: 6%; }
-        .live-score-panel__standings-table .live-score-panel__standings-points-column { width: 8%; }
-        .live-score-panel__standings-table .live-score-panel__standings-nrr-column { width: 14%; }
-        .live-score-panel__standings-table td:first-child,
-        .live-score-panel__standings-table th:first-child { text-align: center; }
-        .live-score-panel__standings-table td:nth-child(2),
-        .live-score-panel__standings-table th:nth-child(2) { text-align: left; }
-        .live-score-panel__standings-table th:nth-child(n + 3),
-        .live-score-panel__standings-table td:nth-child(n + 3) {
-          padding-left: 0.3rem;
-          padding-right: 0.3rem;
-          white-space: nowrap;
-        }
-        .live-score-panel__standings-team-link {
-          display: inline-flex;
-          max-width: 100%;
-          color: var(--live-ink);
-          text-decoration: none;
-        }
-        .live-score-panel__standings-team-link:hover,
-        .live-score-panel__standings-team-link:focus-visible {
-          color: var(--live-blue);
-          text-decoration: underline;
-          text-underline-offset: 0.18em;
-        }
-        .live-score-panel__standings-table .live-score-panel__team-name > span:last-child {
-          overflow: visible;
-          text-overflow: clip;
-          white-space: normal;
-        }
+        .live-score-panel__squad-list li > span > small { display: block; margin-top: 0.12rem; color: var(--live-muted); font-weight: 650; }
+        .live-score-panel__squad-list li > small { color: #7c2d12; font-weight: 950; }
+        .live-score-panel__substitutes { padding: 0.75rem 1rem 1rem; border-top: 1px solid var(--live-line); }
+        .live-score-panel__substitutes h4 { margin: 0 0 0.35rem; font-size: 0.85rem; }
+        .live-score-panel__substitutes p { margin: 0; color: var(--live-muted); line-height: 1.55; }
+        .live-score-panel__stats-tab { display: grid; gap: 1rem; padding: 1rem; background: #fbfaf8; }
+        .live-score-panel__stats-breakdown, .live-score-panel__chart-card, .live-score-panel__stats-tab > .live-score-panel__partnerships { overflow: hidden; border: 1px solid var(--live-line); border-radius: 0.85rem; background: #fff; }
+        .live-score-panel__stats-breakdown > h2, .live-score-panel__chart-card > h3 { margin: 0; padding: 0.9rem 1rem; font-size: 1.08rem; }
+        .live-score-panel__stats-team-head { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; padding: 0.7rem 1rem; background: var(--live-band); }
+        .live-score-panel__stats-team-head strong:last-child { display: flex; justify-content: flex-end; }
+        .live-score-panel__stat-row { display: grid; grid-template-columns: minmax(4rem, 1fr) minmax(9rem, 1.7fr) minmax(4rem, 1fr); align-items: center; gap: 0.75rem; min-height: 2.85rem; padding: 0.45rem 1rem; border-top: 1px solid var(--live-line); text-align: center; }
+        .live-score-panel__stat-row b:first-child { text-align: left; }
+        .live-score-panel__stat-row b:last-child { text-align: right; }
+        .live-score-panel__stat-row span { color: var(--live-muted); font-weight: 750; }
+        .live-score-panel__stats-chart-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+        .live-score-panel__stats-chart-stack > .live-score-panel__worm { border: 1px solid var(--live-line); border-radius: 0.85rem; }
+        .live-score-panel__manhattan { display: grid; align-items: end; gap: 0.4rem; min-width: 28rem; height: 13rem; padding: 1rem 1rem 0.6rem; border-top: 1px solid var(--live-line); overflow-x: auto; }
+        .live-score-panel__manhattan-over { display: grid; grid-template-rows: 9.5rem auto; gap: 0.35rem; align-items: end; text-align: center; }
+        .live-score-panel__manhattan-bars { display: flex; align-items: flex-end; justify-content: center; gap: 0.18rem; height: 100%; border-bottom: 1px solid #64748b; }
+        .live-score-panel__manhattan-bars > span { position: relative; display: block; width: min(0.85rem, 42%); min-height: 0; border-radius: 0.25rem 0.25rem 0 0; }
+        .live-score-panel__manhattan-bars i { position: absolute; left: 50%; top: -1rem; transform: translateX(-50%); color: #991b1b; font-size: 0.65rem; font-style: normal; font-weight: 950; }
+        .live-score-panel__manhattan-over small { color: var(--live-muted); font-weight: 800; }
+        .live-score-panel__chart-card { overflow-x: auto; }
+        .live-score-panel__chart-card svg { display: block; width: 100%; min-width: 24rem; height: auto; padding: 0 0.5rem 0.6rem; }
+        .live-score-panel__chart-caption { margin: 0; padding: 0 1rem 0.9rem; color: var(--live-muted); font-size: 0.78rem; }
+        .live-score-panel__chart-legend { display: flex; flex-wrap: wrap; gap: 0.55rem 1rem; padding: 0 1rem 0.4rem; }
+        .live-score-panel__chart-legend span { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--live-muted); font-size: 0.8rem; font-weight: 750; }
+        .live-score-panel__chart-legend i { width: 0.65rem; height: 0.65rem; border-radius: 999px; }
+        .live-score-panel__overs-tab { overflow-x: auto; }
+        .live-score-panel__overs-head, .live-score-panel__over-comparison { display: grid; grid-template-columns: 4rem repeat(var(--over-columns), minmax(12rem, 1fr)); min-width: calc(4rem + var(--over-columns) * 12rem); }
+        .live-score-panel__overs-head { align-items: center; background: var(--live-band); color: var(--live-ink); }
+        .live-score-panel__overs-head > * { padding: 0.8rem 1rem; }
+        .live-score-panel__overs-head > strong { border-left: 1px solid var(--live-line); }
+        .live-score-panel__over-comparison { appearance: none; width: 100%; padding: 0; border: 0; border-top: 1px solid var(--live-line); background: #fff; color: var(--live-ink); font: inherit; text-align: left; cursor: pointer; }
+        .live-score-panel__over-comparison:hover { background: #fffaf5; }
+        .live-score-panel__over-comparison:focus-visible, .live-score-panel__tab:focus-visible { outline: 3px solid #f59e0b; outline-offset: -3px; }
+        .live-score-panel__over-number { display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 0.75rem 0.85rem 1rem; color: #7c2d12; }
+        .live-score-panel__over-number b { font-size: 1.1rem; }
+        .live-score-panel__over-number > span { font-size: 1.25rem; }
+        .live-score-panel__over-cell, .live-score-panel__empty-over { padding: 0.85rem 1rem; border-left: 1px solid var(--live-line); }
+        .live-score-panel__over-cell-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+        .live-score-panel__over-cell-summary > strong { font-size: 1.05rem; }
+        .live-score-panel__over-cell-summary > span { color: var(--live-muted); font-size: 0.8rem; font-weight: 700; }
+        .live-score-panel__over-cell-details { display: grid; gap: 0.65rem; margin-top: 0.8rem; padding-top: 0.75rem; border-top: 1px solid var(--live-line); color: var(--live-muted); font-size: 0.82rem; }
+        .live-score-panel__over-deliveries { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .live-score-panel__over-deliveries .live-score-panel__strip-token { min-width: 2rem; width: auto; height: 2rem; padding: 0 0.35rem; }
+        .live-score-panel__photos-tab, .live-score-panel__info-tab { padding: 1rem; }
+        .live-score-panel__photos-tab > header, .live-score-panel__info-tab > header { margin-bottom: 1rem; }
+        .live-score-panel__photos-tab h2, .live-score-panel__info-tab h2 { margin: 0.25rem 0 0; }
+        .live-score-panel__photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+        .live-score-panel__info-tab dl { margin: 0; border: 1px solid var(--live-line); border-radius: 0.85rem; overflow: hidden; }
+        .live-score-panel__info-tab dl > div { display: grid; grid-template-columns: minmax(8rem, 0.45fr) minmax(0, 1fr); gap: 1rem; padding: 0.8rem 1rem; border-top: 1px solid var(--live-line); }
+        .live-score-panel__info-tab dl > div:first-child { border-top: 0; }
+        .live-score-panel__info-tab dt { color: var(--live-muted); font-weight: 800; }
+        .live-score-panel__info-tab dd { margin: 0; color: var(--live-ink); font-weight: 750; }
+        .live-score-panel__info-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+        .live-score-panel__info-panels article { padding: 1rem; border: 1px solid var(--live-line); border-radius: 0.85rem; background: #fffaf5; }
+        .live-score-panel__info-panels h3 { margin: 0 0 0.55rem; }
+        .live-score-panel__info-panels p { margin: 0; color: var(--live-muted); line-height: 1.55; }
+        .live-score-panel__info-panels p + p { margin-top: 0.45rem; }
         @media (max-width: 760px) {
           .live-score-panel--cricinfo { border-radius: 0.85rem; }
           .live-score-panel--cricinfo .live-score-panel__top { padding: 0.9rem 0.85rem; }
@@ -2369,8 +2909,10 @@ export function LiveScorePanel({
           .live-score-panel__ball-row { grid-template-columns: 2.5rem minmax(2.5rem, max-content) minmax(0, 1fr); gap: 0.65rem; padding: 0.95rem 0.85rem; }
           .live-score-panel__ball-number { text-align: left; }
           .live-score-panel__ball-detail { font-size: 0.98rem; }
-          .live-score-panel__teams-tab { grid-template-columns: 1fr; padding: 0.85rem; }
-          .live-score-panel__full-scorecard, .live-score-panel__standings-tab { padding: 0.85rem; }
+          .live-score-panel__teams-tab, .live-score-panel__photo-grid, .live-score-panel__stats-chart-stack, .live-score-panel__info-panels { grid-template-columns: 1fr; }
+          .live-score-panel__teams-tab, .live-score-panel__full-scorecard, .live-score-panel__photos-tab, .live-score-panel__info-tab, .live-score-panel__stats-tab { padding: 0.85rem; }
+          .live-score-panel__stat-row { grid-template-columns: minmax(3rem, 0.7fr) minmax(8rem, 1.5fr) minmax(3rem, 0.7fr); padding-inline: 0.75rem; }
+          .live-score-panel__info-tab dl > div { grid-template-columns: 1fr; gap: 0.2rem; }
         }
       `}</style>
 
@@ -2453,11 +2995,26 @@ export function LiveScorePanel({
             {renderCommentary()}
           </>
         ) : null}
+        {activeTab === 'stream' && streamAvailable ? (
+          <div className="live-score-panel__stream-panel">
+            <MatchStreamPanel
+              matchId={matchId}
+              streamLabel={matchQ.data?.stream_label}
+              homeName={homeName}
+              awayName={awayName}
+              isLive={isLive}
+            />
+          </div>
+        ) : null}
         {activeTab === 'scorecard' ? renderFullScorecard() : null}
         {activeTab === 'commentary' ? renderCommentary() : null}
-        {activeTab === 'teams' ? renderTeams() : null}
-        {activeTab === 'standings' ? renderStandings() : null}
+        {activeTab === 'stats' ? renderLiveStats() : null}
+        {activeTab === 'overs' ? renderOvers() : null}
+        {activeTab === 'photos' ? renderPhotos() : null}
+        {activeTab === 'squads' ? renderSquads() : null}
+        {activeTab === 'info' ? renderMatchInfo() : null}
       </div>
+      <GalleryLightbox active={activePhoto} onClose={() => setActivePhoto(null)} />
     </section>
   )
 }

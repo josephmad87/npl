@@ -4036,3 +4036,33 @@ video.article-view__hero-img {
   .discipline-admin__new { grid-template-columns: 1fr; }
   .discipline-admin__decision fieldset { grid-template-columns: 1fr; }
 }
+
+.assignment-duty-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.45fr);
+  gap: var(--npl-space-3);
+  align-items: center;
+  border: 1px solid var(--npl-neutral-500);
+  border-radius: var(--npl-radius-md);
+  background: var(--npl-brand-900);
+  padding: var(--npl-space-3);
+}
+
+.assignment-duty-row .checkbox-row {
+  display: flex;
+  gap: var(--npl-space-2);
+  align-items: flex-start;
+}
+
+.assignment-duty-row .checkbox-row > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--npl-space-1) var(--npl-space-2);
+  align-items: center;
+}
+
+@media (max-width: 48rem) {
+  .assignment-duty-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -37,6 +37,8 @@ class Match(Base):
     away_team_placeholder: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     cover_image_url: Mapped[str | None] = mapped_column(String(512))
+    stream_url: Mapped[str | None] = mapped_column(String(1024))
+    stream_label: Mapped[str | None] = mapped_column(String(128))
     match_overs: Mapped[Decimal] = mapped_column(
         Numeric(6, 2),
         default=Decimal("40.0"),
@@ -245,6 +247,12 @@ class MatchScorerAssignment(Base):
     )
     assigned_by_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+    )
+    duty: Mapped[str] = mapped_column(
+        String(32),
+        default="score_and_commentary",
+        nullable=False,
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -524,6 +532,12 @@ class MatchBallEvent(Base):
     batters_crossed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     dismissal_text: Mapped[str | None] = mapped_column(String(255))
     notes: Mapped[str | None] = mapped_column(Text)
+    commentary: Mapped[str | None] = mapped_column(Text)
+    commentary_updated_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+    )
+    commentary_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # A client-generated token makes a retry safe when connectivity drops
     # after the server has accepted a delivery.
     client_event_id: Mapped[str | None] = mapped_column(String(64), index=True)

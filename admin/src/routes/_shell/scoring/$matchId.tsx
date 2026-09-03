@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { CloudUpload, LockKeyhole, Pencil, RotateCcw, Save, Undo2, Wifi, WifiOff, X } from 'lucide-react'
+import { CloudUpload, ImagePlus, LockKeyhole, Pencil, RotateCcw, Save, Undo2, Wifi, WifiOff, X } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   LiveBallEventDto,
   LiveBallEventInput,
   LiveMatchConditionsInput,
   LiveScoreStateDto,
+  GalleryItemDto,
   MatchDto,
   MatchLiveSetupInput,
   MatchSquadDto,
@@ -18,12 +19,13 @@ import type {
   ScorecardEditRequestDto,
   TeamDto,
 } from '@/lib/api-types'
-import { adminGet, adminPost } from '@/lib/admin-client'
+import { adminGet, adminPost, scorerUploadMatchPhoto } from '@/lib/admin-client'
 import { ApiError, apiFetch } from '@/lib/api'
 import { getSession } from '@/lib/session'
 import { oversFieldToBalls } from '@/lib/cricket'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
+import { resolveAdminMediaUrl } from '@/lib/media-url'
 import {
   enqueueScoringBall,
   loadScoringOutbox,
@@ -110,7 +112,16 @@ type UndoLastBallResult = {
   undoneEvent: LiveBallEventDto | null
 }
 
-type ScorerPanel = 'score' | 'setup' | 'squads' | 'balls' | 'corrections' | 'review' | 'help'
+type ScorerPanel =
+  | 'score'
+  | 'commentary'
+  | 'photos'
+  | 'setup'
+  | 'squads'
+  | 'balls'
+  | 'corrections'
+  | 'review'
+  | 'help'
 
 const EXTRAS_OPTIONS = [
   { value: '', label: 'None' },
@@ -202,7 +213,7 @@ const DISMISSAL_OPTIONS: DismissalOption[] = [
 ]
 
 const WIDE_DISMISSALS = new Set(['run_out', 'stumped', 'hit_wicket', 'obstructing_field'])
-// MCC Law 21.18: after a no-ball, only run out, obstructing the field and
+// MCC Law 21.17: after a no-ball, only run out, obstructing the field and
 // hit the ball twice remain available. Hit wicket is not a valid dismissal.
 const NO_BALL_DISMISSALS = new Set(['run_out', 'hit_ball_twice', 'obstructing_field'])
 const COUNTED_WICKET_DISMISSALS = new Set([
@@ -415,10 +426,13 @@ function oversLabel(legalBalls: number): string {
 }
 
 function eventClosesOver(
-  event: Pick<LiveBallEventDto, 'is_legal_delivery' | 'over_complete_override'>,
+  event: Pick<LiveBallEventDto, 'is_dead_ball' | 'is_legal_delivery' | 'over_complete_override'>,
   legalBallsInOver: number,
 ): boolean {
-  return event.is_legal_delivery && (event.over_complete_override ?? legalBallsInOver === 6)
+  if (event.is_dead_ball) return false
+  if (event.over_complete_override === true) return true
+  if (!event.is_legal_delivery || event.over_complete_override === false) return false
+  return legalBallsInOver === 6
 }
 
 function completedOverEventIds(events: LiveBallEventDto[], innings: number): Set<number> {
@@ -428,8 +442,7 @@ function completedOverEventIds(events: LiveBallEventDto[], innings: number): Set
   for (const event of events
     .filter((item) => item.innings === innings)
     .sort((a, b) => a.sequence_number - b.sequence_number || a.id - b.id)) {
-    if (!event.is_legal_delivery) continue
-    legalBallsInOver += 1
+    if (event.is_legal_delivery) legalBallsInOver += 1
     if (eventClosesOver(event, legalBallsInOver)) {
       completedEventIds.add(event.id)
       legalBallsInOver = 0
@@ -445,8 +458,7 @@ function nextDeliveryPosition(events: LiveBallEventDto[], innings: number): { ov
   for (const event of [...events]
     .filter((item) => item.innings === innings)
     .sort((a, b) => a.sequence_number - b.sequence_number || a.id - b.id)) {
-    if (!event.is_legal_delivery) continue
-    balls += 1
+    if (event.is_legal_delivery) balls += 1
     if (eventClosesOver(event, balls)) {
       over += 1
       balls = 0
@@ -557,6 +569,18 @@ function liveEventChipLabel(event: LiveBallEventDto): string {
   return event.runs_batter === 0 ? '•' : String(event.runs_batter)
 }
 
+function liveEventChipClass(event: LiveBallEventDto): string {
+  const baseClass = 'live-scorer-ball-chip'
+  if (event.wicket_type) return `${baseClass} ${baseClass}--wicket`
+  if (event.boundary_type === 'six' || event.boundary_runs === 6) {
+    return `${baseClass} ${baseClass}--six`
+  }
+  if (event.boundary_type === 'four' || event.boundary_runs === 4) {
+    return `${baseClass} ${baseClass}--four`
+  }
+  return baseClass
+}
+
 function playerName(playerById: Map<number, PlayerDto>, playerId: number | null | undefined): string {
   if (!playerId) return '—'
   return playerById.get(playerId)?.full_name ?? `#${playerId}`
@@ -580,8 +604,9 @@ function selectionAfterEvent(event: LiveBallEventDto) {
   }
 
   const changedEnds = (event.completed_runs ?? 0) % 2 === 1
-  const overEnded = event.is_legal_delivery && (
-    event.over_complete_override ?? event.ball_number === 6
+  const overEnded = !event.is_dead_ball && (
+    event.over_complete_override === true ||
+    (event.is_legal_delivery && event.over_complete_override !== false && event.ball_number === 6)
   )
   if (changedEnds !== overEnded && strikerPlayerId && nonStrikerPlayerId) {
     const previousStriker = strikerPlayerId
@@ -722,6 +747,185 @@ function selectedRoleCount(players: PlayerDto[], roles: PlayerRoleMap, role: Mat
   return players.filter((player) => roles[player.id] === role).length
 }
 
+type LiveBatterScorecardRow = {
+  playerId: number
+  runs: number
+  balls: number
+  fours: number
+  sixes: number
+  dismissal: string
+}
+
+type LiveBowlerScorecardRow = {
+  playerId: number
+  legalBalls: number
+  runs: number
+  wickets: number
+  dots: number
+  wides: number
+  noBalls: number
+}
+
+function liveInningsScorecard(events: LiveBallEventDto[]) {
+  const batterRows = new Map<number, LiveBatterScorecardRow>()
+  const bowlerRows = new Map<number, LiveBowlerScorecardRow>()
+  const bowlerWickets = new Set([
+    'bowled',
+    'caught',
+    'caught_and_bowled',
+    'lbw',
+    'stumped',
+    'hit_wicket',
+  ])
+
+  for (const event of events) {
+    const batter = batterRows.get(event.striker_player_id) ?? {
+      playerId: event.striker_player_id,
+      runs: 0,
+      balls: 0,
+      fours: 0,
+      sixes: 0,
+      dismissal: 'not out',
+    }
+    batter.runs += event.runs_batter
+    if (event.is_legal_delivery && event.extras_type !== 'wide') batter.balls += 1
+    if (event.boundary_type === 'four' || event.runs_batter === 4) batter.fours += 1
+    if (event.boundary_type === 'six' || event.runs_batter === 6) batter.sixes += 1
+    batterRows.set(batter.playerId, batter)
+
+    if (event.non_striker_player_id && !batterRows.has(event.non_striker_player_id)) {
+      batterRows.set(event.non_striker_player_id, {
+        playerId: event.non_striker_player_id,
+        runs: 0,
+        balls: 0,
+        fours: 0,
+        sixes: 0,
+        dismissal: 'not out',
+      })
+    }
+
+    if (event.wicket_player_id) {
+      const dismissed = batterRows.get(event.wicket_player_id) ?? {
+        playerId: event.wicket_player_id,
+        runs: 0,
+        balls: 0,
+        fours: 0,
+        sixes: 0,
+        dismissal: 'not out',
+      }
+      dismissed.dismissal = event.dismissal_text?.trim() || dismissalLabel(event.wicket_type)
+      batterRows.set(dismissed.playerId, dismissed)
+    }
+
+    const bowler = bowlerRows.get(event.bowler_player_id) ?? {
+      playerId: event.bowler_player_id,
+      legalBalls: 0,
+      runs: 0,
+      wickets: 0,
+      dots: 0,
+      wides: 0,
+      noBalls: 0,
+    }
+    if (event.is_legal_delivery) bowler.legalBalls += 1
+    const isBye = event.extras_type === 'bye' || event.extras_type === 'leg_bye'
+    bowler.runs += event.runs_batter + (isBye ? 0 : event.runs_extras)
+    if (event.is_legal_delivery && event.runs_batter + event.runs_extras === 0) bowler.dots += 1
+    if (event.extras_type === 'wide') bowler.wides += event.runs_extras
+    if (event.extras_type?.startsWith('no_ball')) bowler.noBalls += 1
+    if (event.wicket_type && bowlerWickets.has(event.wicket_type)) bowler.wickets += 1
+    bowlerRows.set(bowler.playerId, bowler)
+  }
+
+  return {
+    batters: Array.from(batterRows.values()),
+    bowlers: Array.from(bowlerRows.values()),
+  }
+}
+
+function liveExtrasBreakdown(events: LiveBallEventDto[]) {
+  return events.reduce(
+    (totals, event) => {
+      if (event.extras_type === 'wide') totals.wides += event.runs_extras
+      if (event.extras_type?.startsWith('no_ball')) {
+        totals.noBalls += 1
+      }
+      if (event.extras_type === 'bye') totals.byes += event.runs_extras
+      if (event.extras_type === 'no_ball_bye') {
+        totals.byes += Math.max(0, event.runs_extras - 1)
+      }
+      if (event.extras_type === 'leg_bye') totals.legByes += event.runs_extras
+      if (event.extras_type === 'no_ball_leg_bye') {
+        totals.legByes += Math.max(0, event.runs_extras - 1)
+      }
+      totals.penalties += event.penalty_runs_batting + event.penalty_runs_fielding
+      totals.total += event.runs_extras + event.penalty_runs_batting + event.penalty_runs_fielding
+      return totals
+    },
+    { total: 0, wides: 0, noBalls: 0, byes: 0, legByes: 0, penalties: 0 },
+  )
+}
+
+function livePartnership(events: LiveBallEventDto[]) {
+  const lastWicketIndex = events.reduce(
+    (index, event, eventIndex) =>
+      dismissalCountsAsWicket(event.wicket_type) ? eventIndex : index,
+    -1,
+  )
+  const partnershipEvents = events.slice(lastWicketIndex + 1)
+  return {
+    runs: partnershipEvents.reduce(
+      (total, event) => total + eventRunsTotal(event),
+      0,
+    ),
+    balls: partnershipEvents.filter(
+      (event) => event.is_legal_delivery && !event.is_dead_ball,
+    ).length,
+    fours: partnershipEvents.filter(
+      (event) => event.boundary_type === 'four' || event.runs_batter === 4,
+    ).length,
+    sixes: partnershipEvents.filter(
+      (event) => event.boundary_type === 'six' || event.runs_batter === 6,
+    ).length,
+  }
+}
+
+function liveBowlerMaidens(events: LiveBallEventDto[], playerId: number | ''): number {
+  if (!playerId) return 0
+  const overs = new Map<number, { legalBalls: number; runs: number }>()
+  for (const event of events.filter((item) => item.bowler_player_id === playerId)) {
+    const over = overs.get(event.over_number) ?? { legalBalls: 0, runs: 0 }
+    if (event.is_legal_delivery && !event.is_dead_ball) over.legalBalls += 1
+    over.runs += bowlerRunsConceded(event)
+    overs.set(event.over_number, over)
+  }
+  return [...overs.values()].filter((over) => over.legalBalls === 6 && over.runs === 0).length
+}
+
+function liveFallOfWickets(events: LiveBallEventDto[]): Array<{
+  wicket: number
+  runs: number
+  over: string
+  playerId: number | null
+}> {
+  let runs = 0
+  let wicket = 0
+  const rows: Array<{ wicket: number; runs: number; over: string; playerId: number | null }> = []
+
+  for (const event of events) {
+    runs += event.runs_batter + event.runs_extras + event.penalty_runs_batting
+    if (!dismissalCountsAsWicket(event.wicket_type)) continue
+    wicket += 1
+    rows.push({
+      wicket,
+      runs,
+      over: `${event.over_number}.${event.ball_number}`,
+      playerId: event.wicket_player_id,
+    })
+  }
+
+  return rows
+}
+
 function LiveScoringPage() {
   const { matchId } = Route.useParams()
   const mid = Number(matchId)
@@ -729,6 +933,7 @@ function LiveScoringPage() {
   const currentSession = getSession() as { role?: string } | null | undefined
   const canResetTestMatch = currentSession?.role === 'super_admin'
   const isScorer = currentSession?.role === 'scorer'
+  const isCommentator = currentSession?.role === 'commentator'
   const deviceId = useMemo(() => scoringDeviceId(), [])
   const deviceLabel = useMemo(() => scoringDeviceLabel(), [])
   const [deliveryOutbox, setDeliveryOutbox] = useState<ScoringOutboxEntry[]>(
@@ -777,7 +982,7 @@ function LiveScoringPage() {
         device_id: deviceId,
         device_label: deviceLabel,
       }),
-    enabled: Number.isFinite(mid),
+    enabled: Number.isFinite(mid) && !isCommentator,
     refetchInterval: 30000,
     retry: false,
   })
@@ -785,6 +990,16 @@ function LiveScoringPage() {
   const squadQ = useQuery({
     queryKey: ['admin', 'matches', mid, 'squads'],
     queryFn: () => adminGet<MatchSquadDto>(`/admin/matches/${mid}/squads`),
+    enabled: Number.isFinite(mid) && Boolean(match),
+    retry: 1,
+  })
+
+  const matchPhotosQ = useQuery({
+    queryKey: ['public', 'gallery', 'match', mid],
+    queryFn: () =>
+      adminGet<Paginated<GalleryItemDto>>(
+        `/public/gallery?page=1&page_size=100&match_id=${mid}`,
+      ),
     enabled: Number.isFinite(mid) && Boolean(match),
     retry: 1,
   })
@@ -856,14 +1071,23 @@ function LiveScoringPage() {
   const [conditionsOpen, setConditionsOpen] = useState(false)
   const [editingBall, setEditingBall] = useState<EditingBallDraft | null>(null)
   const [editBallError, setEditBallError] = useState<string | null>(null)
-  const [activeScorerPanel, setActiveScorerPanel] = useState<ScorerPanel>('score')
+  const [activeScorerPanel, setActiveScorerPanel] = useState<ScorerPanel>(() =>
+    isCommentator ? 'commentary' : 'score',
+  )
+  const [commentaryEventId, setCommentaryEventId] = useState<number | null>(null)
+  const [commentaryDraft, setCommentaryDraft] = useState('')
+  const [photoTitle, setPhotoTitle] = useState('')
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [correctionSearch, setCorrectionSearch] = useState('')
   const [extrasOpen, setExtrasOpen] = useState(false)
   const [shortRunCompleted, setShortRunCompleted] = useState(2)
   const [shortRunScored, setShortRunScored] = useState(1)
   const [shortRunDelivery, setShortRunDelivery] = useState<ShortRunDelivery>('bat')
   const [umpireEndOverAfterNextBall, setUmpireEndOverAfterNextBall] = useState(false)
+  const [umpireContinueOverAfterNextBall, setUmpireContinueOverAfterNextBall] = useState(false)
   const [umpireReplacementInOver, setUmpireReplacementInOver] = useState(false)
+  const [overControlsOpen, setOverControlsOpen] = useState(true)
+  const [playerControlsOpen, setPlayerControlsOpen] = useState(false)
   const [finalReviewConfirmed, setFinalReviewConfirmed] = useState(false)
   const [bowlerChangeOpen, setBowlerChangeOpen] = useState(false)
   const [completedOverSummary, setCompletedOverSummary] = useState<EndOfOverSummary | null>(null)
@@ -1165,6 +1389,18 @@ function LiveScoringPage() {
   const nextDelivery = nextDeliveryPosition(liveQ.data?.events ?? [], innings)
   const nextOverNumber = nextDelivery.over
   const nextBallNumber = nextDelivery.ball
+  const currentOverDeliveryEvents = (liveQ.data?.events ?? [])
+    .filter(
+      (event) =>
+        event.innings === innings &&
+        event.over_number === nextOverNumber &&
+        !event.is_dead_ball,
+    )
+    .sort((a, b) => a.sequence_number - b.sequence_number || a.id - b.id)
+  const currentOverLegalEvents = currentOverDeliveryEvents.filter(
+    (event) => event.is_legal_delivery,
+  )
+  const lastDeliveryInCurrentOver = currentOverDeliveryEvents.at(-1) ?? null
   const chaseTarget =
     liveQ.data?.revised_target_runs ??
     (firstInningsSummary ? firstInningsSummary.runs + 1 : null)
@@ -1226,10 +1462,70 @@ function LiveScoringPage() {
     setWicketPlayerId(selection.strikerPlayerId ?? selection.nonStrikerPlayerId ?? '')
   }, [innings, liveQ.data?.events])
 
+  useEffect(() => {
+    const events = [...(liveQ.data?.events ?? [])].sort(
+      (a, b) => b.sequence_number - a.sequence_number || b.id - a.id,
+    )
+    if (events.length === 0) {
+      setCommentaryEventId(null)
+      setCommentaryDraft('')
+      return
+    }
+    const current = events.find((event) => event.id === commentaryEventId)
+    if (current) return
+    setCommentaryEventId(events[0].id)
+    setCommentaryDraft(events[0].commentary ?? '')
+  }, [commentaryEventId, liveQ.data?.events])
+
   const battingTeamName =
     matchTeams.find((team) => team.id === battingTeamId)?.name ?? 'Batting team'
   const bowlingTeamName =
     matchTeams.find((team) => team.id === bowlingTeamId)?.name ?? 'Bowling team'
+
+  const saveCommentaryMutation = useMutation({
+    mutationFn: ({ eventId, commentary }: { eventId: number; commentary: string }) =>
+      adminPutJson<LiveBallEventDto>(
+        `/admin/matches/${mid}/live/balls/${eventId}/commentary`,
+        { commentary: commentary.trim() || null },
+      ),
+    onSuccess: (updatedEvent) => {
+      queryClient.setQueryData<LiveScoreStateDto>(
+        ['admin', 'matches', mid, 'live'],
+        (current) =>
+          current
+            ? {
+                ...current,
+                events: current.events.map((event) =>
+                  event.id === updatedEvent.id ? updatedEvent : event,
+                ),
+              }
+            : current,
+      )
+      setCommentaryDraft(updatedEvent.commentary ?? '')
+      setActionError(null)
+    },
+    onError: (error: Error) => setActionError(error.message),
+  })
+
+  const uploadMatchPhotoMutation = useMutation({
+    mutationFn: () => {
+      if (!photoFile) throw new Error('Choose a photo to upload.')
+      return scorerUploadMatchPhoto<GalleryItemDto>(
+        mid,
+        photoFile,
+        photoTitle.trim() || `${match?.title?.trim() || 'Match'} photo`,
+      )
+    },
+    onSuccess: async () => {
+      setPhotoFile(null)
+      setPhotoTitle('')
+      const input = document.getElementById('live-match-photo-file') as HTMLInputElement | null
+      if (input) input.value = ''
+      setActionError(null)
+      await queryClient.invalidateQueries({ queryKey: ['public', 'gallery', 'match', mid] })
+    },
+    onError: (error: Error) => setActionError(error.message),
+  })
 
   const saveSetupMutation = useMutation({
     mutationFn: () => {
@@ -1379,8 +1675,11 @@ function LiveScoringPage() {
 
     const oddRuns = strikeRuns % 2 === 1
     const endOfOver =
-      body.is_legal_delivery !== false &&
-      (body.over_complete_override ?? nextBallNumber === 6)
+      !body.is_dead_ball &&
+      (body.over_complete_override === true ||
+        (body.is_legal_delivery !== false &&
+          body.over_complete_override !== false &&
+          nextBallNumber === 6))
 
     if (oddRuns !== endOfOver && nextStriker && nextNonStriker) {
       const oldStriker = nextStriker
@@ -1467,7 +1766,8 @@ function LiveScoringPage() {
     setDismissalTextTouched(false)
     setExtrasOpen(false)
     if (payload.body.is_legal_delivery !== false) {
-      setUmpireEndOverAfterNextBall(false)
+      setUmpireEndOverAfterNextBall(payload.body.over_complete_override === false)
+      setUmpireContinueOverAfterNextBall(false)
       setUmpireReplacementInOver(false)
     }
     lastHydratedEventKeyRef.current = `${created.innings}:${created.sequence_number}:${created.updated_at}`
@@ -1641,13 +1941,44 @@ function LiveScoringPage() {
         { ...eventToLiveBallInput(event), over_complete_override: false },
         scoringWriteHeaders(),
       ),
-    onSuccess: async (state) => {
+    onSuccess: async (state, event) => {
+      const changedEvent = state.events.find((candidate) => candidate.id === event.id) ?? event
+      const selection = selectionAfterEvent(changedEvent)
+      setStrikerPlayerId(selection.strikerPlayerId ?? '')
+      setNonStrikerPlayerId(selection.nonStrikerPlayerId ?? '')
       setActionError(null)
       setBowlerChangeOpen(false)
       setCompletedOverSummary(null)
       setPreviousBowlerPlayerId(null)
       setNextBowlerPlayerId('')
       setUmpireEndOverAfterNextBall(true)
+      setUmpireContinueOverAfterNextBall(false)
+      lastHydratedEventKeyRef.current = ''
+      queryClient.setQueryData(['admin', 'matches', mid, 'live'], state)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
+    },
+    onError: (error: Error) => setActionError(error.message),
+  })
+
+  const endOverNowMutation = useMutation({
+    mutationFn: (event: LiveBallEventDto) =>
+      adminPutJson<LiveScoreStateDto>(
+        `/admin/matches/${mid}/live/balls/${event.id}`,
+        { ...eventToLiveBallInput(event), over_complete_override: true },
+        scoringWriteHeaders(),
+      ),
+    onSuccess: async (state, event) => {
+      const closingEvent = state.events.find((candidate) => candidate.id === event.id) ?? event
+      const selection = selectionAfterEvent(closingEvent)
+      setStrikerPlayerId(selection.strikerPlayerId ?? '')
+      setNonStrikerPlayerId(selection.nonStrikerPlayerId ?? '')
+      setActionError(null)
+      setCompletedOverSummary(endOfOverSummary(state.events, closingEvent))
+      setPreviousBowlerPlayerId(closingEvent.bowler_player_id)
+      setNextBowlerPlayerId('')
+      setUmpireEndOverAfterNextBall(false)
+      setUmpireContinueOverAfterNextBall(false)
+      setBowlerChangeOpen(true)
       lastHydratedEventKeyRef.current = ''
       queryClient.setQueryData(['admin', 'matches', mid, 'live'], state)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
@@ -1871,6 +2202,9 @@ function LiveScoringPage() {
           break
         }
       }
+      if (outboxRef.current.length === 0) {
+        setActionError(null)
+      }
     } catch (error) {
       setActionError(
         `Queued deliveries remain safe on this device. Reconnection check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -1901,6 +2235,8 @@ function LiveScoringPage() {
   const scorecardReadOnly =
     Boolean(liveQ.data?.scorecard_locked) &&
     liveQ.data?.can_edit_scorecard === false
+  const canPublishCommentary =
+    isCommentator || liveQ.data?.can_edit_commentary !== false
   const scoringSessionConflict =
     scoringSessionQ.error instanceof ApiError && scoringSessionQ.error.status === 409
   const requestScoringTakeover = () => {
@@ -1916,9 +2252,18 @@ function LiveScoringPage() {
   }
   const matchFinalized =
     liveQ.data?.status === 'completed' || match?.status === 'completed'
-  const effectiveScorerPanel =
-    scorecardReadOnly &&
-    !(['balls', 'review', 'help'] as ScorerPanel[]).includes(activeScorerPanel)
+  const effectiveScorerPanel = isCommentator
+    ? (['commentary', 'photos'] as ScorerPanel[]).includes(activeScorerPanel)
+      ? activeScorerPanel
+      : 'commentary'
+    : !canPublishCommentary && activeScorerPanel === 'commentary'
+      ? scorecardReadOnly
+        ? 'review'
+        : 'score'
+    : scorecardReadOnly &&
+        !(['commentary', 'photos', 'balls', 'review', 'help'] as ScorerPanel[]).includes(
+          activeScorerPanel,
+        )
       ? 'review'
       : activeScorerPanel
 
@@ -2070,7 +2415,11 @@ function LiveScoringPage() {
 
     const isLegalDelivery = input.isLegalDelivery ?? true
     const overCompleteOverride = input.overCompleteOverride ?? (
-      isLegalDelivery && umpireEndOverAfterNextBall ? true : null
+      isLegalDelivery && umpireEndOverAfterNextBall
+        ? true
+        : isLegalDelivery && umpireContinueOverAfterNextBall
+          ? false
+          : null
     )
     const ballComment = notes.trim()
     const combinedNotes = [
@@ -2260,6 +2609,22 @@ function LiveScoringPage() {
       return
     }
 
+    if (wicketType === 'timed_out') {
+      submitBall(
+        {
+          wicketType,
+          wicketPlayerId: playerOut,
+          isLegalDelivery: false,
+          isDeadBall: true,
+          completedRuns: 0,
+          strikeRuns: 0,
+          dismissalText: finalDismissalText,
+        },
+        newBatter,
+      )
+      return
+    }
+
     if (RETIREMENT_DISMISSALS.has(wicketType)) {
       submitBall(
         {
@@ -2382,6 +2747,8 @@ function LiveScoringPage() {
     isComplete?: boolean
   }> = [
     { id: 'score', label: 'Score', hint: 'Ball controls' },
+    { id: 'commentary', label: 'Commentary', hint: 'Public ball text' },
+    { id: 'photos', label: 'Photos', hint: `${matchPhotosQ.data?.total ?? 0} published` },
     {
       id: 'setup',
       label: 'Setup',
@@ -2399,11 +2766,19 @@ function LiveScoringPage() {
     { id: 'review', label: 'Review', hint: 'Finalize' },
     { id: 'help', label: 'Help', hint: 'Scorer guide' },
   ]
-  const scoringPanels = scorecardReadOnly
-    ? allScoringPanels.filter((panel) =>
-        (['balls', 'review', 'help'] as ScorerPanel[]).includes(panel.id),
-      )
-    : allScoringPanels
+  const scoringPanels = isCommentator
+    ? allScoringPanels.filter((panel) => panel.id === 'commentary' || panel.id === 'photos')
+    : scorecardReadOnly
+      ? allScoringPanels.filter((panel) =>
+          (
+            canPublishCommentary
+              ? (['commentary', 'photos', 'balls', 'review', 'help'] as ScorerPanel[])
+              : (['photos', 'balls', 'review', 'help'] as ScorerPanel[])
+          ).includes(panel.id),
+        )
+      : allScoringPanels.filter(
+          (panel) => panel.id !== 'commentary' || canPublishCommentary,
+        )
 
   const latestInningsEvent = [...(liveQ.data?.events ?? [])]
     .filter((event) => event.innings === innings)
@@ -2499,6 +2874,56 @@ function LiveScoringPage() {
   const allLiveEvents = [...(liveQ.data?.events ?? [])].sort(
     (a, b) => a.sequence_number - b.sequence_number || a.id - b.id,
   )
+  const scoringInningsEvents = allLiveEvents.filter((event) => event.innings === innings)
+  const scoringScorecard = liveInningsScorecard(scoringInningsEvents)
+  const activeScoringBatters = [strikerPlayerId, nonStrikerPlayerId]
+    .map((playerId): LiveBatterScorecardRow | null => {
+      if (!playerId) return null
+      return scoringScorecard.batters.find((row) => row.playerId === playerId) ?? {
+        playerId,
+        runs: 0,
+        balls: 0,
+        fours: 0,
+        sixes: 0,
+        dismissal: 'not out',
+      }
+    })
+    .filter((row): row is LiveBatterScorecardRow => row !== null)
+  const activeScoringBowler = bowlerPlayerId
+    ? scoringScorecard.bowlers.find((row) => row.playerId === bowlerPlayerId) ?? {
+        playerId: bowlerPlayerId,
+        legalBalls: 0,
+        runs: 0,
+        wickets: 0,
+        dots: 0,
+        wides: 0,
+        noBalls: 0,
+      }
+    : null
+  const scoringExtras = liveExtrasBreakdown(scoringInningsEvents)
+  const scoringPartnership = livePartnership(scoringInningsEvents)
+  const scoringBowlerMaidens = liveBowlerMaidens(scoringInningsEvents, bowlerPlayerId)
+  const scoringRunRate = legalBalls > 0
+    ? (((currentSummary?.runs ?? 0) * 6) / legalBalls).toFixed(2)
+    : '0.00'
+  const selectedCommentaryEvent =
+    allLiveEvents.find((event) => event.id === commentaryEventId) ??
+    allLiveEvents[allLiveEvents.length - 1] ??
+    null
+  const commentaryInnings = selectedCommentaryEvent?.innings ?? liveQ.data?.current_innings ?? 1
+  const commentaryInningsEvents = allLiveEvents.filter(
+    (event) => event.innings === commentaryInnings,
+  )
+  const commentaryScorecard = liveInningsScorecard(commentaryInningsEvents)
+  const commentarySummary = liveQ.data?.summaries.find(
+    (summary) => summary.innings === commentaryInnings,
+  )
+  const commentaryFallOfWickets = liveFallOfWickets(commentaryInningsEvents)
+  const commentaryEventTotal = selectedCommentaryEvent
+    ? selectedCommentaryEvent.runs_batter +
+      selectedCommentaryEvent.runs_extras +
+      selectedCommentaryEvent.penalty_runs_batting
+    : 0
   const completedOverEventIdSet = completedOverEventIds(allLiveEvents, innings)
   const completedOverSummaryByEventId = new Map(
     allLiveEvents
@@ -2601,7 +3026,7 @@ function LiveScoringPage() {
   }
 
   return (
-    <div className={`live-scorer-page${effectiveScorerPanel === 'score' ? ' live-scorer-page--score' : ''}`}>
+    <div className={`live-scorer-page${effectiveScorerPanel === 'score' ? ' live-scorer-page--score' : ''}${effectiveScorerPanel === 'commentary' ? ' live-scorer-page--commentary' : ''}`}>
       <style>{`
         .live-scorer-page {
           display: grid;
@@ -2613,9 +3038,9 @@ function LiveScoringPage() {
           z-index: 10;
           border: 1px solid color-mix(in srgb, var(--color-primary, #111827) 18%, transparent);
           border-radius: 1.25rem;
-          background: #f8fafc;
-          color: #111827;
-          box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+          background: linear-gradient(135deg, var(--color-deep-maroon), #4a1118);
+          color: #ffffff;
+          box-shadow: 0 16px 38px rgba(32, 0, 1, 0.22);
           padding: 0.85rem;
           backdrop-filter: blur(12px);
         }
@@ -2626,7 +3051,7 @@ function LiveScoringPage() {
           align-items: center;
         }
         .live-scorer-score {
-          color: #111827;
+          color: #ffffff;
           font-size: clamp(1.55rem, 6vw, 2.45rem);
           font-weight: 900;
           letter-spacing: -0.04em;
@@ -2639,12 +3064,12 @@ function LiveScoringPage() {
           margin-top: 0.55rem;
         }
         .live-scorer-chip {
-          border: 1px solid rgba(100, 116, 139, 0.45);
+          border: 1px solid rgba(255, 255, 255, 0.25);
           border-radius: 999px;
-          color: #1f2937;
+          color: #ffffff;
           padding: 0.3rem 0.55rem;
           font-size: 0.84rem;
-          background: #ffffff;
+          background: rgba(255, 255, 255, 0.1);
         }
         .live-scorer-tabs {
           display: grid;
@@ -2655,8 +3080,8 @@ function LiveScoringPage() {
         .live-scorer-tab {
           min-height: 3rem;
           border-radius: 1rem;
-          border: 1px solid rgba(100, 116, 139, 0.42);
-          background: #ffffff;
+          border: 1px solid var(--npl-neutral-500);
+          background: var(--npl-surface-raised);
           color: var(--color-deep-maroon);
           cursor: pointer;
           padding: 0.45rem;
@@ -2673,12 +3098,17 @@ function LiveScoringPage() {
           opacity: 1;
         }
         .live-scorer-tab.is-active {
-          background: #111827;
-          border-color: #111827;
+          background: var(--color-rust-orange);
+          border-color: var(--color-rust-orange);
           color: #ffffff;
         }
         .live-scorer-tab.is-active span {
-          color: #e5e7eb;
+          color: var(--npl-text-inverse);
+        }
+        .live-scorer-tab[aria-selected='true'] strong {
+          text-decoration: underline;
+          text-decoration-thickness: 0.12em;
+          text-underline-offset: 0.18em;
         }
         .live-scorer-tab.is-complete,
         .live-scorer-tab.is-complete:hover {
@@ -2791,19 +3221,30 @@ function LiveScoringPage() {
           margin-top: 0.65rem;
         }
         .live-scorer-ball-chip {
-          display: inline-flex;
+          display: inline-grid;
+          flex: 0 0 2.35rem;
+          width: 2.35rem;
+          height: 2.35rem;
           min-width: 2.35rem;
-          min-height: 2.15rem;
-          align-items: center;
-          justify-content: center;
+          min-height: 2.35rem;
+          place-items: center;
+          padding: 0;
+          box-sizing: border-box;
           border-radius: 0.65rem;
           background: #f1f5f9;
           color: #111827;
           font-weight: 900;
+          font-variant-numeric: tabular-nums;
+          line-height: 1;
+          text-align: center;
         }
-        .live-scorer-ball-chip--boundary {
+        .live-scorer-ball-chip--four {
           background: #dcfce7;
           color: #166534;
+        }
+        .live-scorer-ball-chip--six {
+          background: #ede9fe;
+          color: #5b21b6;
         }
         .live-scorer-ball-chip--wicket {
           background: #fee2e2;
@@ -2815,9 +3256,100 @@ function LiveScoringPage() {
           gap: 0.5rem;
         }
         .live-scorer-score-buttons .btn-primary {
-          min-height: 4rem !important;
+          width: min(4.5rem, 100%);
+          min-height: 4.5rem !important;
+          aspect-ratio: 1;
+          justify-self: center;
+          border-radius: 999px !important;
           font-size: 1.25rem;
           font-weight: 900;
+        }
+        .live-scorer-score-buttons .live-scorer-quick-extra {
+          min-height: 4.5rem;
+          border-color: var(--npl-brand-600);
+          border-radius: 999px;
+          background: var(--npl-brand-50);
+          color: var(--npl-brand-900);
+          font-weight: 850;
+        }
+        .live-scorer-score-buttons .live-scorer-quick-extra:hover:not(:disabled) {
+          border-color: var(--npl-brand-800);
+          background: var(--npl-brand-100);
+          color: var(--npl-brand-950);
+        }
+        .live-scorer-over-controls {
+          display: grid;
+          gap: 0.75rem;
+          margin-bottom: 0.75rem;
+          padding: 0.75rem;
+          border: 1px solid var(--npl-neutral-400);
+          border-radius: 0.75rem;
+          background: var(--npl-neutral-50);
+        }
+        .live-scorer-over-controls__head {
+          display: grid;
+          gap: 0.25rem;
+          color: var(--npl-neutral-900);
+        }
+        .live-scorer-over-controls__head span {
+          color: var(--npl-neutral-700);
+          font-size: 0.82rem;
+        }
+        .live-scorer-over-controls__choices {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 0.5rem;
+        }
+        .live-scorer-over-controls .live-scorer-final-confirm {
+          align-items: flex-start;
+          gap: 0.5rem;
+          min-height: 100%;
+          margin: 0;
+          padding: 0.65rem;
+          border: 1px solid var(--npl-neutral-400);
+          border-radius: 0.65rem;
+          background: #ffffff;
+          color: var(--npl-neutral-800);
+          cursor: pointer;
+        }
+        .live-scorer-over-controls .live-scorer-final-confirm:has(input:checked) {
+          border-color: var(--npl-brand-700);
+          background: var(--npl-brand-50);
+          color: var(--npl-brand-950);
+          box-shadow: inset 0 0 0 1px var(--npl-brand-700);
+        }
+        .live-scorer-workspace__controls .live-scorer-over-controls input[type='radio'] {
+          margin-top: 0.2rem;
+          accent-color: var(--npl-brand-700);
+        }
+        .live-scorer-over-controls__actions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        .live-scorer-over-controls__actions span {
+          color: var(--npl-neutral-700);
+          font-size: 0.82rem;
+        }
+        .live-scorer-over-controls__actions .btn-ghost {
+          min-height: 2.5rem;
+          border: 1px solid var(--npl-brand-700);
+          border-radius: 999px;
+          background: #ffffff;
+          color: var(--npl-brand-950);
+          font-weight: 850;
+        }
+        .live-scorer-over-controls__actions .btn-ghost:hover:not(:disabled),
+        .live-scorer-over-controls__actions .btn-ghost:focus-visible {
+          border-color: var(--npl-brand-900);
+          background: var(--npl-brand-100);
+          color: var(--npl-brand-950);
+        }
+        @media (min-width: 768px) {
+          .live-scorer-over-controls__choices {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
         }
         .live-scorer-short-run {
           display: grid;
@@ -2830,7 +3362,7 @@ function LiveScoringPage() {
         }
         .live-scorer-short-run__title {
           padding-bottom: 0.6rem;
-          color: var(--text-muted);
+          color: var(--npl-text-muted);
           font-size: 0.78rem;
           font-weight: 850;
           letter-spacing: 0.06em;
@@ -2873,12 +3405,20 @@ function LiveScoringPage() {
           background: var(--color-white) !important;
           border-color: rgba(32, 0, 1, 0.28) !important;
           color: var(--color-deep-maroon) !important;
+          border-radius: 999px !important;
         }
         .live-scorer-quick-actions .btn-ghost:hover,
         .live-scorer-extras-panel .btn-ghost:hover {
           background: #ffffff !important;
           border-color: var(--color-rust-orange) !important;
           color: var(--color-rust-orange) !important;
+        }
+        .live-scorer-quick-actions .btn-ghost.is-active,
+        .live-scorer-quick-actions .btn-ghost.is-active:hover {
+          border-color: var(--npl-brand-700) !important;
+          background: var(--npl-brand-100) !important;
+          color: var(--npl-brand-900) !important;
+          box-shadow: inset 0 -3px var(--npl-brand-700);
         }
         .live-scorer-quick-actions .live-scorer-wicket-action,
         .live-scorer-quick-actions .live-scorer-wicket-action:hover {
@@ -3054,13 +3594,235 @@ function LiveScoringPage() {
         }
         .live-scorer-workspace {
           display: grid;
-          grid-template-columns: minmax(0, 1.35fr) minmax(290px, 0.65fr);
-          gap: 0.75rem;
+          grid-template-columns: minmax(0, 1.75fr) minmax(300px, 0.9fr);
+          gap: 0;
           min-height: 0;
           margin-top: 0.6rem;
+          overflow: hidden;
+          border: 1px solid rgba(32, 0, 1, 0.18);
+          border-radius: 1.2rem;
+          background: #ffffff;
+          box-shadow: 0 16px 38px rgba(32, 0, 1, 0.1);
         }
         .live-scorer-workspace__controls {
           min-width: 0;
+          padding: 1rem;
+          color: var(--npl-neutral-900);
+        }
+        .live-scorer-workspace__controls .team-hub-section__title,
+        .live-scorer-workspace__controls .inline-edit__label,
+        .live-scorer-workspace__controls h4 {
+          color: var(--npl-brand-950) !important;
+        }
+        .live-scorer-workspace__controls .muted {
+          color: var(--npl-text-muted) !important;
+        }
+        .live-scorer-workspace__controls .live-scorer-final-confirm {
+          color: var(--npl-neutral-700);
+        }
+        .live-scorer-workspace__controls input[type='checkbox'] {
+          accent-color: var(--npl-brand-600);
+        }
+        .live-scorer-mini-sheet {
+          overflow: hidden;
+          border: 1px solid var(--npl-neutral-500);
+          border-radius: 1rem;
+          background: var(--npl-surface-raised);
+          color: var(--npl-neutral-900);
+        }
+        .live-scorer-mini-sheet__topline {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+          align-items: center;
+          gap: 0.65rem;
+          background: var(--npl-brand-950);
+          color: var(--npl-text-inverse);
+          padding: 0.55rem 0.7rem;
+          font-size: 0.74rem;
+          font-weight: 800;
+        }
+        .live-scorer-mini-sheet__topline > span:last-child {
+          text-align: right;
+        }
+        .live-scorer-mini-sheet__topline i {
+          display: inline-block;
+          width: 0.48rem;
+          height: 0.48rem;
+          margin-right: 0.35rem;
+          border-radius: 50%;
+          background: var(--npl-success-600);
+          box-shadow: 0 0 0 0.18rem rgba(20, 122, 67, 0.28);
+        }
+        .live-scorer-mini-sheet__teams {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          border-bottom: 1px solid var(--npl-neutral-300);
+          background: var(--npl-neutral-100);
+        }
+        .live-scorer-mini-sheet__teams > div {
+          min-width: 0;
+          padding: 0.55rem 0.7rem;
+          border-left: 4px solid transparent;
+        }
+        .live-scorer-mini-sheet__teams > div + div {
+          border-inline-start: 1px solid var(--npl-neutral-300);
+        }
+        .live-scorer-mini-sheet__teams > div.is-active {
+          border-left-color: var(--npl-brand-600);
+          background: var(--npl-brand-50);
+        }
+        .live-scorer-mini-sheet__teams span,
+        .live-scorer-mini-sheet__teams strong {
+          display: block;
+        }
+        .live-scorer-mini-sheet__teams span {
+          color: var(--npl-neutral-600);
+          font-size: 0.68rem;
+          font-weight: 850;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .live-scorer-mini-sheet__teams strong {
+          overflow: hidden;
+          margin-top: 0.15rem;
+          color: var(--npl-brand-950);
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .live-scorer-mini-sheet__total {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 1rem;
+          padding: 0.75rem;
+          border-bottom: 1px solid var(--npl-neutral-300);
+        }
+        .live-scorer-mini-sheet__total > div:first-child {
+          display: flex;
+          align-items: baseline;
+          gap: 0.55rem;
+        }
+        .live-scorer-mini-sheet__total > div:first-child strong {
+          color: var(--npl-brand-950);
+          font-size: 2rem;
+          line-height: 1;
+        }
+        .live-scorer-mini-sheet__total > div:first-child span,
+        .live-scorer-mini-sheet__total > div:last-child span,
+        .live-scorer-mini-sheet__total > div:last-child small {
+          display: block;
+          color: var(--npl-neutral-600);
+          font-size: 0.72rem;
+        }
+        .live-scorer-mini-sheet__total > div:last-child {
+          text-align: right;
+        }
+        .live-scorer-mini-sheet__total > div:last-child strong {
+          color: var(--npl-brand-950);
+          font-size: 1.1rem;
+        }
+        .live-scorer-mini-table {
+          max-width: 100%;
+          overflow-x: auto;
+        }
+        .live-scorer-mini-table table {
+          width: 100%;
+          min-width: 34rem;
+          border-collapse: collapse;
+          font-size: 0.76rem;
+        }
+        .live-scorer-mini-table th,
+        .live-scorer-mini-table td {
+          border-bottom: 1px solid var(--npl-neutral-300);
+          padding: 0.48rem 0.55rem;
+          text-align: right;
+          white-space: nowrap;
+        }
+        .live-scorer-mini-table th:first-child,
+        .live-scorer-mini-table td:first-child {
+          text-align: left;
+        }
+        .live-scorer-mini-table thead th {
+          background: var(--npl-neutral-100);
+          color: var(--npl-neutral-700);
+          font-size: 0.68rem;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+        .live-scorer-mini-table tbody th {
+          color: var(--npl-brand-950);
+        }
+        .live-scorer-mini-table tbody tr.is-active {
+          background: var(--npl-brand-50);
+          box-shadow: inset 4px 0 var(--npl-brand-600);
+        }
+        .live-scorer-mini-sheet__summary {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          border-bottom: 1px solid var(--npl-neutral-300);
+          background: var(--npl-neutral-100);
+        }
+        .live-scorer-mini-sheet__summary > span {
+          padding: 0.55rem 0.7rem;
+          color: var(--npl-neutral-700);
+          font-size: 0.78rem;
+        }
+        .live-scorer-mini-sheet__summary > span + span {
+          border-inline-start: 1px solid var(--npl-neutral-300);
+        }
+        .live-scorer-mini-sheet__summary strong {
+          color: var(--npl-brand-950);
+        }
+        .live-scorer-mini-sheet__summary small {
+          display: block;
+          margin-top: 0.15rem;
+          color: var(--npl-neutral-600);
+        }
+        .live-scorer-mini-sheet__over {
+          display: grid;
+          grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+          gap: 0.65rem;
+          background: var(--npl-brand-900);
+          color: var(--npl-text-inverse);
+          padding: 0.65rem 0.7rem;
+        }
+        .live-scorer-mini-sheet__over span,
+        .live-scorer-mini-sheet__over strong {
+          display: block;
+        }
+        .live-scorer-mini-sheet__over > div > span {
+          color: var(--npl-neutral-300);
+          font-size: 0.68rem;
+          font-weight: 850;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+        .live-scorer-mini-sheet__over strong {
+          margin-top: 0.15rem;
+          font-size: 0.82rem;
+        }
+        .live-scorer-mini-sheet__over .live-scorer-over-strip {
+          margin-top: 0.3rem;
+        }
+        .live-scorer-player-controls {
+          margin-top: 0.65rem;
+          border: 1px solid var(--npl-neutral-500);
+          border-radius: 0.85rem;
+          background: var(--npl-neutral-100);
+          color: var(--npl-neutral-900);
+          padding: 0.65rem 0.75rem;
+        }
+        .live-scorer-player-controls summary {
+          color: var(--npl-brand-950);
+          cursor: pointer;
+          font-weight: 850;
+        }
+        .live-scorer-player-controls > p {
+          color: var(--npl-neutral-600);
+          font-size: 0.78rem;
+        }
+        .live-scorer-player-controls .inline-edit__label {
+          color: var(--npl-brand-950) !important;
         }
         .live-scorer-ball-panel {
           min-width: 0;
@@ -3068,8 +3830,9 @@ function LiveScoringPage() {
           display: flex;
           flex-direction: column;
           overflow: hidden;
-          border: 1px solid rgba(100, 116, 139, 0.28);
-          border-radius: 1rem;
+          border: 0;
+          border-left: 1px solid rgba(32, 0, 1, 0.16);
+          border-radius: 0;
           background: #f8fafc;
           color: #111827;
         }
@@ -3079,7 +3842,8 @@ function LiveScoringPage() {
           justify-content: space-between;
           gap: 0.65rem;
           padding: 0.65rem 0.75rem;
-          border-bottom: 1px solid rgba(100, 116, 139, 0.22);
+          border-bottom: 1px solid rgba(32, 0, 1, 0.16);
+          background: #efe7dd;
         }
         .live-scorer-ball-panel__head strong,
         .live-scorer-ball-panel__head span {
@@ -3087,12 +3851,43 @@ function LiveScoringPage() {
         }
         .live-scorer-ball-panel__head span {
           margin-top: 0.1rem;
-          color: #64748b;
+          color: var(--npl-neutral-700);
           font-size: 0.74rem;
         }
         .live-scorer-ball-panel__head .btn-ghost {
           min-height: 2.35rem;
           padding: 0.35rem 0.55rem;
+        }
+        .live-scorer-conditions .btn-ghost,
+        .live-scorer-ball-panel__head .btn-ghost,
+        .live-commentary-editor .btn-ghost,
+        .live-scorer-dialog .btn-ghost {
+          border-color: var(--npl-neutral-500);
+          background: var(--npl-surface-raised);
+          color: var(--npl-neutral-800);
+        }
+        .live-scorer-conditions .btn-ghost:hover:not(:disabled),
+        .live-scorer-ball-panel__head .btn-ghost:hover:not(:disabled),
+        .live-commentary-editor .btn-ghost:hover:not(:disabled),
+        .live-scorer-dialog .btn-ghost:hover:not(:disabled) {
+          border-color: var(--npl-brand-600);
+          background: var(--npl-brand-50);
+          color: var(--npl-brand-800);
+        }
+        .live-scorer-conditions .btn-ghost:disabled,
+        .live-scorer-ball-panel__head .btn-ghost:disabled,
+        .live-commentary-editor .btn-ghost:disabled,
+        .live-scorer-dialog .btn-ghost:disabled {
+          border-color: var(--npl-neutral-400);
+          background: var(--npl-neutral-100);
+          color: var(--npl-neutral-600);
+          cursor: not-allowed;
+        }
+        .live-scorer-page .btn-primary:disabled {
+          border-color: var(--npl-neutral-500);
+          background: var(--npl-neutral-300);
+          color: var(--npl-neutral-700);
+          cursor: not-allowed;
         }
         .live-scorer-ball-panel__list {
           min-height: 0;
@@ -3193,6 +3988,385 @@ function LiveScoringPage() {
         .live-scorer-ball-panel__over-summary-bowler-inline {
           text-align: right;
           font-size: 0.74rem;
+        }
+        .live-commentary-workspace {
+          display: grid;
+          grid-template-columns: minmax(0, 1.05fr) minmax(400px, 0.95fr);
+          gap: 1rem;
+          align-items: start;
+        }
+        .live-commentary-editor,
+        .live-commentary-scorecard {
+          overflow: hidden;
+          border: 1px solid rgba(32, 0, 1, 0.18);
+          border-radius: 1.2rem;
+          background: #ffffff;
+          color: #23171a;
+          box-shadow: 0 16px 38px rgba(32, 0, 1, 0.09);
+        }
+        .live-commentary-editor {
+          padding: 1rem;
+        }
+        .live-commentary-editor__head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 1rem;
+          padding-bottom: 0.9rem;
+          border-bottom: 1px solid #eadfd4;
+        }
+        .live-commentary-editor__head h2,
+        .live-commentary-editor__head p {
+          margin: 0;
+        }
+        .live-commentary-editor__head h2 {
+          margin-top: 0.15rem;
+          color: var(--color-deep-maroon);
+          font-size: 1.35rem;
+        }
+        .live-commentary-editor__head p {
+          margin-top: 0.35rem;
+          color: #6d5b5e;
+          font-size: 0.88rem;
+        }
+        .live-commentary-kicker {
+          color: var(--color-rust-orange);
+          font-size: 0.72rem;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .live-commentary-live-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          border-radius: 999px;
+          background: #fff1eb;
+          color: #a33719;
+          padding: 0.35rem 0.55rem;
+          font-size: 0.7rem;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+        }
+        .live-commentary-live-pill span {
+          width: 0.45rem;
+          height: 0.45rem;
+          border-radius: 50%;
+          background: #dc2626;
+          box-shadow: 0 0 0 0.22rem rgba(220, 38, 38, 0.13);
+        }
+        .live-commentary-context {
+          display: grid;
+          grid-template-columns: 0.65fr 1.65fr 1fr 0.8fr;
+          gap: 0.5rem;
+          margin: 0.9rem 0;
+        }
+        .live-commentary-context > div {
+          min-width: 0;
+          border-radius: 0.8rem;
+          background: #f5efe8;
+          padding: 0.65rem;
+        }
+        .live-commentary-context span,
+        .live-commentary-context strong {
+          display: block;
+        }
+        .live-commentary-context span {
+          color: var(--npl-neutral-600);
+          font-size: 0.66rem;
+          font-weight: 850;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .live-commentary-context strong {
+          margin-top: 0.2rem;
+          overflow: hidden;
+          color: var(--color-deep-maroon);
+          font-size: 0.82rem;
+          text-overflow: ellipsis;
+        }
+        .live-commentary-field {
+          display: grid;
+          gap: 0.4rem;
+        }
+        .live-commentary-field > span {
+          color: var(--color-deep-maroon);
+          font-weight: 850;
+        }
+        .live-commentary-field textarea {
+          width: 100%;
+          min-height: 9.5rem;
+          resize: vertical;
+          border: 1px solid var(--npl-neutral-500);
+          border-radius: 0.9rem;
+          background: #fffdf9;
+          color: #23171a;
+          padding: 0.8rem;
+          font: inherit;
+          line-height: 1.55;
+        }
+        .live-commentary-field textarea:focus {
+          border-color: var(--color-rust-orange);
+          outline: 3px solid color-mix(in srgb, var(--color-rust-orange) 20%, transparent);
+        }
+        .live-commentary-field small {
+          justify-self: end;
+          color: var(--npl-neutral-600);
+        }
+        .live-commentary-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.55rem;
+          margin-top: 0.75rem;
+        }
+        .live-commentary-public-preview {
+          margin-top: 0.9rem;
+          border-left: 4px solid var(--color-rust-orange);
+          background: #fff7ef;
+          padding: 0.75rem 0.85rem;
+        }
+        .live-commentary-public-preview span {
+          color: var(--npl-neutral-600);
+          font-size: 0.68rem;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .live-commentary-public-preview p {
+          margin: 0.25rem 0 0;
+          line-height: 1.55;
+        }
+        .live-commentary-empty {
+          margin-block: 1rem;
+          border: 1px dashed rgba(32, 0, 1, 0.3);
+          border-radius: 0.9rem;
+          padding: 1.25rem;
+          text-align: center;
+        }
+        .live-commentary-empty p {
+          margin: 0.25rem 0 0;
+          color: var(--npl-neutral-600);
+        }
+        .live-commentary-feed-picker {
+          margin-top: 1rem;
+          border-top: 1px solid #eadfd4;
+          padding-top: 0.9rem;
+        }
+        .live-commentary-feed-picker__head {
+          display: flex;
+          justify-content: space-between;
+          gap: 1rem;
+          margin-bottom: 0.55rem;
+          color: var(--color-deep-maroon);
+        }
+        .live-commentary-feed-picker__head span {
+          color: var(--npl-neutral-600);
+          font-size: 0.78rem;
+        }
+        .live-commentary-feed-picker__list {
+          display: grid;
+          max-height: 20rem;
+          overflow-y: auto;
+          border: 1px solid var(--npl-neutral-500);
+          border-radius: 0.85rem;
+        }
+        .live-commentary-feed-picker__list > button {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          gap: 0.65rem;
+          align-items: center;
+          border: 0;
+          border-bottom: 1px solid #eadfd4;
+          background: #ffffff;
+          color: #23171a;
+          padding: 0.65rem;
+          text-align: left;
+          cursor: pointer;
+        }
+        .live-commentary-feed-picker__list > button:last-child {
+          border-bottom: 0;
+        }
+        .live-commentary-feed-picker__list > button.is-selected {
+          background: #fff2e8;
+          box-shadow: inset 4px 0 var(--color-rust-orange);
+        }
+        .live-commentary-feed-picker__list strong,
+        .live-commentary-feed-picker__list small {
+          display: block;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .live-commentary-feed-picker__list strong {
+          color: var(--color-deep-maroon);
+          font-size: 0.8rem;
+        }
+        .live-commentary-feed-picker__list small {
+          margin-top: 0.15rem;
+          color: var(--npl-neutral-600);
+          font-size: 0.73rem;
+        }
+        .live-commentary-scorecard {
+          position: sticky;
+          top: 12rem;
+        }
+        .live-commentary-scorecard__hero {
+          background: linear-gradient(135deg, var(--color-deep-maroon), #4a1118);
+          color: #ffffff;
+          padding: 1rem;
+        }
+        .live-commentary-scorecard__hero span {
+          font-size: 0.7rem;
+          font-weight: 900;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+        .live-commentary-scorecard__hero strong {
+          display: block;
+          margin-top: 0.3rem;
+          font-size: 2.2rem;
+          line-height: 1;
+        }
+        .live-commentary-scorecard__hero p {
+          margin: 0.35rem 0 0;
+          color: #f4ded7;
+        }
+        .live-commentary-scorecard__section {
+          padding: 0.8rem;
+          border-bottom: 1px solid #eadfd4;
+        }
+        .live-commentary-scorecard__section:last-child {
+          border-bottom: 0;
+        }
+        .live-commentary-scorecard__section h3 {
+          margin: 0 0 0.55rem;
+          color: var(--color-deep-maroon);
+          font-size: 0.82rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .live-commentary-scorecard table {
+          width: 100%;
+          min-width: 560px;
+          border-collapse: collapse;
+          font-size: 0.72rem;
+        }
+        .live-commentary-scorecard th,
+        .live-commentary-scorecard td {
+          border-bottom: 1px solid #efe7dd;
+          padding: 0.45rem 0.4rem;
+          text-align: right;
+          white-space: nowrap;
+        }
+        .live-commentary-scorecard th:first-child,
+        .live-commentary-scorecard td:first-child,
+        .live-commentary-scorecard th:nth-child(2),
+        .live-commentary-scorecard td:nth-child(2) {
+          text-align: left;
+        }
+        .live-commentary-scorecard thead th {
+          background: #f5efe8;
+          color: #6f5c60;
+          font-size: 0.65rem;
+          text-transform: uppercase;
+        }
+        .live-commentary-scorecard tfoot tr:last-child {
+          background: #fff2e8;
+          color: var(--color-deep-maroon);
+        }
+        .live-commentary-fow {
+          margin: 0.7rem 0 0;
+          color: #6f5c60;
+          font-size: 0.74rem;
+          line-height: 1.5;
+        }
+        .live-match-photo-workspace {
+          display: grid;
+          gap: 1rem;
+        }
+        .live-match-photo-upload {
+          display: grid;
+          grid-template-columns: minmax(14rem, 1fr) minmax(17rem, 1.2fr) auto;
+          gap: 0.8rem;
+          align-items: end;
+          padding: 1rem;
+          border: 1px solid var(--npl-neutral-300);
+          border-radius: 1rem;
+          background: var(--npl-neutral-50);
+        }
+        .live-match-photo-upload .inline-edit__label {
+          color: var(--npl-neutral-900);
+          font-weight: 800;
+        }
+        .live-match-photo-upload .inline-edit__control {
+          min-height: 3.2rem;
+          border-color: #8b716f;
+          background: #ffffff;
+          color: var(--npl-brand-950);
+        }
+        .live-match-photo-upload .inline-edit__control::placeholder {
+          color: #65575a;
+          opacity: 1;
+        }
+        .live-match-photo-upload .inline-edit__control:focus-visible {
+          border-color: var(--color-rust-orange);
+          outline: 3px solid rgba(216, 108, 24, 0.28);
+          outline-offset: 2px;
+        }
+        .live-match-photo-picker {
+          display: flex;
+          align-items: center;
+          gap: 0.8rem;
+          min-height: 3.2rem;
+          padding: 0.7rem 0.85rem;
+          border: 1.5px dashed #9a6b61;
+          border-radius: 0.75rem;
+          background: #fffaf5;
+          color: var(--color-deep-maroon);
+          cursor: pointer;
+        }
+        .live-match-photo-picker:hover,
+        .live-match-photo-picker:focus-within {
+          border-color: var(--color-rust-orange);
+          background: #fff1e6;
+        }
+        .live-match-photo-picker strong,
+        .live-match-photo-picker small {
+          display: block;
+        }
+        .live-match-photo-picker small {
+          margin-top: 0.15rem;
+          color: #5f5255;
+        }
+        .live-match-photo-list {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+          gap: 0.8rem;
+        }
+        .live-match-photo-list article {
+          overflow: hidden;
+          border: 1px solid var(--npl-neutral-300);
+          border-radius: 0.85rem;
+          background: #fff;
+        }
+        .live-match-photo-list img {
+          display: block;
+          width: 100%;
+          aspect-ratio: 4 / 3;
+          object-fit: cover;
+          background: var(--npl-neutral-100);
+        }
+        .live-match-photo-list article > div {
+          display: grid;
+          gap: 0.2rem;
+          padding: 0.7rem;
+        }
+        .live-match-photo-list article strong {
+          color: var(--npl-brand-950);
+        }
+        .live-match-photo-list article small {
+          color: #166534;
+          font-weight: 800;
         }
         .live-scorer-dialog-backdrop {
           position: fixed;
@@ -3482,8 +4656,11 @@ function LiveScoringPage() {
           }
           .live-scorer-workspace__controls .live-scorer-ball-chip,
           .live-scorer-ball-panel .live-scorer-ball-chip {
+            flex-basis: 1.95rem;
+            width: 1.95rem;
+            height: 1.95rem;
             min-width: 1.95rem;
-            min-height: 1.85rem;
+            min-height: 1.95rem;
             font-size: 0.76rem;
           }
           .live-scorer-workspace__controls > .team-hub-section {
@@ -3506,6 +4683,11 @@ function LiveScoringPage() {
           .live-scorer-score-buttons .btn-primary {
             min-height: 3rem !important;
             font-size: 1.05rem !important;
+          }
+          .live-scorer-score-buttons .live-scorer-quick-extra {
+            min-height: 3rem;
+            padding: 0.35rem;
+            font-size: 0.76rem;
           }
           .live-scorer-short-run {
             grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -3539,12 +4721,31 @@ function LiveScoringPage() {
             padding-block: 0.35rem;
           }
         }
+        @media (max-width: 1099px) {
+          .live-scorer-sticky {
+            position: static;
+          }
+        }
         @media (max-width: 900px) {
           .live-scorer-primary-grid,
           .live-scorer-cockpit,
           .live-scorer-record-grid,
-          .live-scorer-workspace {
+          .live-scorer-workspace,
+          .live-commentary-workspace {
             grid-template-columns: 1fr;
+          }
+          .live-commentary-scorecard {
+            position: static;
+          }
+          .live-scorer-mini-sheet__over {
+            grid-template-columns: 1fr;
+          }
+          .live-commentary-context {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+          .live-match-photo-upload {
+            grid-template-columns: 1fr;
+            align-items: stretch;
           }
           .live-scorer-ball-panel {
             max-height: 26rem;
@@ -3574,7 +4775,7 @@ function LiveScoringPage() {
             grid-template-columns: 1fr;
           }
           .live-scorer-tabs {
-            grid-template-columns: repeat(7, minmax(58px, 1fr));
+            grid-template-columns: repeat(9, minmax(58px, 1fr));
             overflow-x: auto;
             padding-bottom: 0.1rem;
           }
@@ -3591,6 +4792,26 @@ function LiveScoringPage() {
           }
           .live-scorer-page .catalog-card-grid {
             grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+          .live-scorer-mini-sheet__topline {
+            grid-template-columns: 1fr auto;
+          }
+          .live-scorer-mini-sheet__topline > span:last-child {
+            grid-column: 1 / -1;
+            text-align: left;
+          }
+          .live-scorer-mini-sheet__summary,
+          .live-scorer-mini-sheet__teams,
+          .live-scorer-mini-sheet__total {
+            grid-template-columns: 1fr;
+          }
+          .live-scorer-mini-sheet__teams > div + div,
+          .live-scorer-mini-sheet__summary > span + span {
+            border-inline-start: 0;
+            border-top: 1px solid var(--npl-neutral-300);
+          }
+          .live-scorer-mini-sheet__total > div:last-child {
+            text-align: left;
           }
           .live-scorer-page .catalog-toolbar {
             gap: 0.45rem;
@@ -3622,12 +4843,33 @@ function LiveScoringPage() {
           .live-scorer-ball-panel__over-summary-bowler-inline {
             text-align: left;
           }
+          .live-commentary-editor {
+            padding: 0.75rem;
+          }
+          .live-commentary-editor__head {
+            flex-direction: column;
+          }
+          .live-commentary-context {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
       <PageHeader
-        title="Live scoring"
+        title={
+          isCommentator
+            ? 'Live commentary'
+            : canPublishCommentary
+              ? 'Live scoring & commentary'
+              : 'Live scoring'
+        }
         descriptionAsTooltip
-        description="Pick match day squads first, then score ball-by-ball from the selected XI and substitutes."
+        description={
+          isCommentator
+            ? 'Add public ball-by-ball commentary beside the live full scorecard.'
+            : canPublishCommentary
+              ? 'Score ball-by-ball, manage the match, and publish public commentary from one workspace.'
+              : 'Score ball-by-ball and manage the match from the live scorer workspace.'
+        }
         actions={<Link to="/scoring">Scoring dashboard</Link>}
       />
 
@@ -3655,7 +4897,7 @@ function LiveScoringPage() {
         </div>
       </section>
 
-      {liveQ.data?.scorecard_locked ? (
+      {!isCommentator && liveQ.data?.scorecard_locked ? (
         <aside className="live-scorer-lock-banner" aria-live="polite">
           <div>
             <strong className="live-scorer-lock-banner__title">
@@ -3694,7 +4936,7 @@ function LiveScoringPage() {
         </aside>
       ) : null}
 
-      {scoringSessionConflict ? (
+      {!isCommentator && scoringSessionConflict ? (
         <aside className="live-scorer-lock-banner" aria-live="assertive">
           <div>
             <strong className="live-scorer-lock-banner__title">
@@ -3721,7 +4963,7 @@ function LiveScoringPage() {
         </aside>
       ) : null}
 
-      <aside
+      {!isCommentator ? <aside
         className={`live-scorer-sync-banner${!isOnline ? ' live-scorer-sync-banner--offline' : deliveryOutbox.length > 0 ? ' live-scorer-sync-banner--retry' : ''}`}
         aria-live="polite"
       >
@@ -3759,7 +5001,7 @@ function LiveScoringPage() {
             {outboxFlushing ? 'Syncing…' : `Sync ${deliveryOutbox.length} queued`}
           </button>
         ) : null}
-      </aside>
+      </aside> : null}
 
       <section className="live-scorer-sticky" aria-label="Scoring quick controls">
         <div className="live-scorer-sticky__top">
@@ -3773,7 +5015,7 @@ function LiveScoringPage() {
               <span className="live-scorer-chip">Bowler: {bowlerName}</span>
             </div>
           </div>
-          {!scorecardReadOnly ? <div className="catalog-toolbar">
+          {!scorecardReadOnly && !isCommentator ? <div className="catalog-toolbar">
             {match.status !== 'completed' ? (
               <button
                 type="button"
@@ -4016,6 +5258,333 @@ function LiveScoringPage() {
       </section>
       ) : null}
 
+      {effectiveScorerPanel === 'commentary' ? (
+        <section className="live-commentary-workspace" aria-label="Live commentary workspace">
+          <div className="live-commentary-editor">
+            <div className="live-commentary-editor__head">
+              <div>
+                <span className="live-commentary-kicker">Live commentary</span>
+                <h2>Describe the selected delivery</h2>
+                <p>
+                  Commentary publishes to the public match centre without changing
+                  the official score or ball record.
+                </p>
+              </div>
+              <span className="live-commentary-live-pill">
+                <span aria-hidden /> LIVE
+              </span>
+            </div>
+
+            {selectedCommentaryEvent ? (
+              <>
+                <div className="live-commentary-context" aria-label="Selected delivery facts">
+                  <div>
+                    <span>Ball</span>
+                    <strong>
+                      {selectedCommentaryEvent.over_number}.{selectedCommentaryEvent.ball_number}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Delivery</span>
+                    <strong>
+                      {playerName(playerById, selectedCommentaryEvent.bowler_player_id)} to{' '}
+                      {playerName(playerById, selectedCommentaryEvent.striker_player_id)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Outcome</span>
+                    <strong>
+                      {selectedCommentaryEvent.wicket_type
+                        ? dismissalLabel(selectedCommentaryEvent.wicket_type)
+                        : `${commentaryEventTotal} run${commentaryEventTotal === 1 ? '' : 's'}`}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Score</span>
+                    <strong>
+                      {commentarySummary
+                        ? `${commentarySummary.runs}/${commentarySummary.wickets}`
+                        : currentScore}
+                    </strong>
+                  </div>
+                </div>
+
+                <label className="live-commentary-field">
+                  <span>Public ball-by-ball text</span>
+                  <textarea
+                    value={commentaryDraft}
+                    onChange={(event) => setCommentaryDraft(event.target.value)}
+                    maxLength={4000}
+                    placeholder="Example: Driven firmly through extra cover and it races away to the rope."
+                  />
+                  <small>{commentaryDraft.length}/4000 characters</small>
+                </label>
+
+                <div className="live-commentary-actions">
+                  <button
+                    type="button"
+                    className="btn-primary btn--with-icon"
+                    disabled={
+                      saveCommentaryMutation.isPending ||
+                      selectedCommentaryEvent.id < 0 ||
+                      liveQ.data?.can_edit_commentary === false
+                    }
+                    onClick={() =>
+                      void saveCommentaryMutation.mutate({
+                        eventId: selectedCommentaryEvent.id,
+                        commentary: commentaryDraft,
+                      })
+                    }
+                  >
+                    <Save size={18} strokeWidth={2} aria-hidden />
+                    {saveCommentaryMutation.isPending ? 'Publishing…' : 'Publish commentary'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    disabled={saveCommentaryMutation.isPending || commentaryDraft.length === 0}
+                    onClick={() => setCommentaryDraft('')}
+                  >
+                    Clear text
+                  </button>
+                </div>
+
+                <div className="live-commentary-public-preview">
+                  <span>Public preview</span>
+                  <p>{commentaryDraft.trim() || 'Commentary will appear here as supporters see it.'}</p>
+                </div>
+              </>
+            ) : (
+              <div className="live-commentary-empty">
+                <strong>Waiting for the first delivery</strong>
+                <p>The latest scored ball will appear here automatically.</p>
+              </div>
+            )}
+
+            <div className="live-commentary-feed-picker">
+              <div className="live-commentary-feed-picker__head">
+                <strong>Choose a delivery</strong>
+                <span>{allLiveEvents.length} recorded</span>
+              </div>
+              <div className="live-commentary-feed-picker__list">
+                {[...allLiveEvents]
+                  .reverse()
+                  .slice(0, 30)
+                  .map((event) => (
+                    <button
+                      key={event.id}
+                      type="button"
+                      className={event.id === selectedCommentaryEvent?.id ? 'is-selected' : ''}
+                      aria-pressed={event.id === selectedCommentaryEvent?.id}
+                      onClick={() => {
+                        setCommentaryEventId(event.id)
+                        setCommentaryDraft(event.commentary ?? '')
+                      }}
+                    >
+                      <span className={liveEventChipClass(event)}>
+                        {liveEventChipLabel(event)}
+                      </span>
+                      <span>
+                        <strong>
+                          {event.over_number}.{event.ball_number}{' '}
+                          {playerName(playerById, event.bowler_player_id)} to{' '}
+                          {playerName(playerById, event.striker_player_id)}
+                        </strong>
+                        <small>
+                          {event.commentary?.trim() || 'No public commentary yet'}
+                        </small>
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </div>
+
+          <aside className="live-commentary-scorecard" aria-label="Live full scorecard">
+            <div className="live-commentary-scorecard__hero">
+              <span>{commentaryInnings === 1 ? '1st' : '2nd'} innings</span>
+              <strong>
+                {commentarySummary
+                  ? `${commentarySummary.runs}/${commentarySummary.wickets}`
+                  : '0/0'}
+              </strong>
+              <p>
+                {commentarySummary
+                  ? `${teamById.get(commentarySummary.batting_team_id)?.name ?? 'Batting team'} · ${commentarySummary.overs_label} overs`
+                  : 'Waiting for scoring data'}
+              </p>
+            </div>
+
+            <div className="live-commentary-scorecard__section">
+              <h3>Batting</h3>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Player</th>
+                      <th>Dismissal</th>
+                      <th>R</th>
+                      <th>B</th>
+                      <th>4</th>
+                      <th>6</th>
+                      <th>SR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {commentaryScorecard.batters.map((row) => (
+                      <tr key={row.playerId}>
+                        <td>{playerName(playerById, row.playerId)}</td>
+                        <td>{row.dismissal}</td>
+                        <td><strong>{row.runs}</strong></td>
+                        <td>{row.balls}</td>
+                        <td>{row.fours}</td>
+                        <td>{row.sixes}</td>
+                        <td>{row.balls ? ((row.runs * 100) / row.balls).toFixed(2) : '—'}</td>
+                      </tr>
+                    ))}
+                    {commentaryScorecard.batters.length === 0 ? (
+                      <tr><td colSpan={7}>No batting data yet.</td></tr>
+                    ) : null}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th colSpan={2}>Extras</th>
+                      <td colSpan={5}>
+                        {commentaryInningsEvents.reduce(
+                          (total, event) =>
+                            total + event.runs_extras + event.penalty_runs_batting,
+                          0,
+                        )}
+                      </td>
+                    </tr>
+                    <tr>
+                      <th colSpan={2}>Total</th>
+                      <td colSpan={5}>
+                        <strong>
+                          {commentarySummary
+                            ? `${commentarySummary.runs}/${commentarySummary.wickets} (${commentarySummary.overs_label} ov)`
+                            : '0/0 (0.0 ov)'}
+                        </strong>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <p className="live-commentary-fow">
+                <strong>Fall of wickets:</strong>{' '}
+                {commentaryFallOfWickets.length
+                  ? commentaryFallOfWickets
+                      .map(
+                        (row) =>
+                          `${row.wicket}-${row.runs} (${playerName(playerById, row.playerId)}, ${row.over})`,
+                      )
+                      .join(', ')
+                  : 'None'}
+              </p>
+            </div>
+
+            <div className="live-commentary-scorecard__section">
+              <h3>Bowling</h3>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Bowler</th><th>O</th><th>R</th><th>W</th><th>Econ</th><th>0s</th><th>WD</th><th>NB</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {commentaryScorecard.bowlers.map((row) => (
+                      <tr key={row.playerId}>
+                        <td>{playerName(playerById, row.playerId)}</td>
+                        <td>{Math.floor(row.legalBalls / 6)}.{row.legalBalls % 6}</td>
+                        <td>{row.runs}</td>
+                        <td><strong>{row.wickets}</strong></td>
+                        <td>{row.legalBalls ? ((row.runs * 6) / row.legalBalls).toFixed(2) : '—'}</td>
+                        <td>{row.dots}</td><td>{row.wides}</td><td>{row.noBalls}</td>
+                      </tr>
+                    ))}
+                    {commentaryScorecard.bowlers.length === 0 ? (
+                      <tr><td colSpan={8}>No bowling data yet.</td></tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </aside>
+        </section>
+      ) : null}
+
+      {effectiveScorerPanel === 'photos' ? (
+        <section className="team-hub-section live-match-photo-workspace" aria-labelledby="live-match-photos-title">
+          <div className="team-hub-section-head">
+            <div className="team-hub-section-head__lead">
+              <h2 id="live-match-photos-title" className="team-hub-section__title">Match photos</h2>
+              <p className="muted">
+                Upload official in-game photos. Published images appear immediately in the public match centre Photos tab.
+              </p>
+            </div>
+          </div>
+
+          <form
+            className="live-match-photo-upload"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void uploadMatchPhotoMutation.mutate()
+            }}
+          >
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Photo title</span>
+              <input
+                className="inline-edit__control"
+                value={photoTitle}
+                maxLength={255}
+                onChange={(event) => setPhotoTitle(event.target.value)}
+                placeholder={`${match.title?.trim() || 'Match'} photo`}
+                disabled={uploadMatchPhotoMutation.isPending}
+              />
+            </label>
+            <label className="live-match-photo-picker" htmlFor="live-match-photo-file">
+              <ImagePlus size={28} aria-hidden />
+              <span>
+                <strong>{photoFile ? photoFile.name : 'Choose a match photo'}</strong>
+                <small>JPG, PNG, WebP, GIF or another supported image format</small>
+              </span>
+            </label>
+            <input
+              id="live-match-photo-file"
+              className="visually-hidden"
+              type="file"
+              accept="image/*"
+              onChange={(event) => setPhotoFile(event.target.files?.[0] ?? null)}
+              disabled={uploadMatchPhotoMutation.isPending}
+            />
+            <button
+              type="submit"
+              className="btn-primary btn--with-icon"
+              disabled={!photoFile || uploadMatchPhotoMutation.isPending}
+            >
+              <CloudUpload size={18} aria-hidden />
+              {uploadMatchPhotoMutation.isPending ? 'Uploading…' : 'Upload & publish'}
+            </button>
+          </form>
+
+          <div className="live-match-photo-list" aria-live="polite">
+            {(matchPhotosQ.data?.items ?? []).map((photo) => {
+              const src = resolveAdminMediaUrl(photo.thumbnail_url ?? photo.file_url)
+              return (
+                <article key={photo.id}>
+                  {src ? <img src={src} alt={photo.title} loading="lazy" decoding="async" /> : null}
+                  <div><strong>{photo.title}</strong><small>Published</small></div>
+                </article>
+              )
+            })}
+            {!matchPhotosQ.isLoading && (matchPhotosQ.data?.items.length ?? 0) === 0 ? (
+              <p className="muted">No in-game photos have been published yet.</p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
       {effectiveScorerPanel === 'score' ? (
       <section className="team-hub-section live-scorer-score-section">
         <div className="team-hub-section-head">
@@ -4174,119 +5743,171 @@ function LiveScoringPage() {
           tabIndex={0}
         >
         <div className="live-scorer-workspace__controls">
-        <div className="inline-edit__grid">
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Batting team</span>
-            <select
-              className="inline-edit__control"
-              value={battingTeamId}
-              onChange={(event) => setBattingTeamId(Number(event.target.value))}
-            >
-              {matchTeams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Bowling team</span>
-            <select
-              className="inline-edit__control"
-              value={bowlingTeamId}
-              onChange={(event) => setBowlingTeamId(Number(event.target.value))}
-            >
-              {matchTeams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Striker</span>
-            <select
-              className="inline-edit__control"
-              value={strikerPlayerId}
-              onChange={(event) => setStrikerPlayerId(Number(event.target.value))}
-            >
-              <option value="">Choose striker</option>
-              {battingPlayers.map((player) => (
-                <option key={player.id} value={player.id}>
-                  {player.full_name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Non-striker</span>
-            <select
-              className="inline-edit__control"
-              value={nonStrikerPlayerId}
-              onChange={(event) =>
-                setNonStrikerPlayerId(event.target.value ? Number(event.target.value) : '')
-              }
-            >
-              <option value="">Choose non-striker</option>
-              {battingPlayers.map((player) => (
-                <option key={player.id} value={player.id}>
-                  {player.full_name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="inline-edit__field">
-            <span className="inline-edit__label">Bowler</span>
-            <select
-              className="inline-edit__control"
-              value={bowlerPlayerId}
-              onChange={(event) => setBowlerPlayerId(Number(event.target.value))}
-            >
-              <option value="">Choose bowler</option>
-              {bowlingPlayers.map((player) => (
-                <option key={player.id} value={player.id}>
-                  {player.full_name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="live-scorer-cockpit" aria-label="Scoring cockpit">
-          <div className="live-scorer-cockpit__card">
-            <span className="live-scorer-cockpit__label">Next ball</span>
-            <span className="live-scorer-cockpit__main">
-              {nextOverNumber}.{nextBallNumber}: {bowlerName} to {strikerName}
-            </span>
-            <p className="live-scorer-cockpit__sub">
-              {bowlingTeamName} bowling · {battingTeamName} batting
-            </p>
+        <section className="live-scorer-mini-sheet" aria-label="Live innings summary">
+          <div className="live-scorer-mini-sheet__topline">
+            <span><i aria-hidden="true" /> Live innings {innings}</span>
+            <strong>Scoresheet</strong>
+            <span>Updates after every ball</span>
           </div>
-          <div className="live-scorer-cockpit__card">
-            <span className="live-scorer-cockpit__label">
-              Over {overStripOverNumber + 1} · {overStripRuns} runs
-            </span>
-            <div className="live-scorer-over-strip" aria-label="Current over balls">
-              {overStripEvents.length > 0 ? (
-                overStripEvents.map((event) => (
-                  <span
-                    key={event.id}
-                    className={`live-scorer-ball-chip${event.wicket_type ? ' live-scorer-ball-chip--wicket' : event.boundary_runs >= 4 ? ' live-scorer-ball-chip--boundary' : ''}`}
-                    title={`${event.over_number}.${event.ball_number} ${liveEventLabel(event)}`}
-                  >
-                    {liveEventChipLabel(event)}
-                  </span>
-                ))
-              ) : (
-                <span className="muted">No balls in this over yet.</span>
-              )}
+
+          <div className="live-scorer-mini-sheet__teams">
+            <div className="is-active">
+              <span>Batting</span>
+              <strong>{battingTeamName}</strong>
+            </div>
+            <div>
+              <span>Fielding</span>
+              <strong>{bowlingTeamName}</strong>
             </div>
           </div>
-        </div>
+
+          <div className="live-scorer-mini-sheet__total">
+            <div role="status" aria-live="polite" aria-atomic="true">
+              <strong>{currentSummary?.runs ?? 0}/{currentSummary?.wickets ?? 0}</strong>
+              <span>{currentSummary?.overs_label ?? '0.0'} overs</span>
+            </div>
+            <div>
+              <span>Current run rate</span>
+              <strong>{scoringRunRate}</strong>
+              {inningsTarget ? <small>Target {inningsTarget}</small> : null}
+            </div>
+          </div>
+
+          <div className="live-scorer-mini-table" role="region" aria-label="Batters at the crease" tabIndex={0}>
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Batters</th>
+                  <th scope="col">R</th>
+                  <th scope="col">B</th>
+                  <th scope="col">4s</th>
+                  <th scope="col">6s</th>
+                  <th scope="col">SR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeScoringBatters.map((batter) => (
+                  <tr key={batter.playerId} className={batter.playerId === strikerPlayerId ? 'is-active' : ''}>
+                    <th scope="row">
+                      {playerName(playerById, batter.playerId)}
+                      {batter.playerId === strikerPlayerId ? <span aria-label="striker"> *</span> : null}
+                    </th>
+                    <td>{batter.runs}</td>
+                    <td>{batter.balls}</td>
+                    <td>{batter.fours}</td>
+                    <td>{batter.sixes}</td>
+                    <td>{batter.balls ? ((batter.runs / batter.balls) * 100).toFixed(2) : '0.00'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="live-scorer-mini-sheet__summary">
+            <span>
+              Extras <strong>{scoringExtras.total}</strong>
+              <small>nb {scoringExtras.noBalls}, wd {scoringExtras.wides}, b {scoringExtras.byes}, lb {scoringExtras.legByes}, p {scoringExtras.penalties}</small>
+            </span>
+            <span>
+              Partnership <strong>{scoringPartnership.runs}</strong>
+              <small>{scoringPartnership.balls} balls · {scoringPartnership.fours} fours · {scoringPartnership.sixes} sixes</small>
+            </span>
+          </div>
+
+          <div className="live-scorer-mini-table" role="region" aria-label="Current bowler" tabIndex={0}>
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Bowler</th>
+                  <th scope="col">O</th>
+                  <th scope="col">M</th>
+                  <th scope="col">R</th>
+                  <th scope="col">W</th>
+                  <th scope="col">Econ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="is-active">
+                  <th scope="row">{bowlerName}</th>
+                  <td>{activeScoringBowler ? oversLabel(activeScoringBowler.legalBalls) : '0.0'}</td>
+                  <td>{scoringBowlerMaidens}</td>
+                  <td>{activeScoringBowler?.runs ?? 0}</td>
+                  <td>{activeScoringBowler?.wickets ?? 0}</td>
+                  <td>{activeScoringBowler?.legalBalls ? ((activeScoringBowler.runs * 6) / activeScoringBowler.legalBalls).toFixed(2) : '0.00'}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="live-scorer-mini-sheet__over">
+            <div>
+              <span>Next ball</span>
+              <strong>{nextOverNumber}.{nextBallNumber}: {bowlerName} to {strikerName}</strong>
+            </div>
+            <div>
+              <span>Over {overStripOverNumber + 1} · {overStripRuns} runs</span>
+              <div className="live-scorer-over-strip" aria-label="Current over balls">
+                {overStripEvents.length > 0 ? (
+                  overStripEvents.map((event) => (
+                    <span
+                      key={event.id}
+                      className={liveEventChipClass(event)}
+                      title={`${event.over_number}.${event.ball_number} ${liveEventLabel(event)}`}
+                    >
+                      {liveEventChipLabel(event)}
+                    </span>
+                  ))
+                ) : (
+                  <span className="muted">No balls in this over yet.</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <details
+          className="live-scorer-player-controls"
+          open={playerControlsOpen}
+          onToggle={(event) => setPlayerControlsOpen(event.currentTarget.open)}
+        >
+          <summary>Batters / strike and bowler controls</summary>
+          <p>Use these controls to start an innings or correct the active players. Normal strike changes update automatically after every ball.</p>
+          <div className="inline-edit__grid">
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Batting team</span>
+              <select className="inline-edit__control" value={battingTeamId} onChange={(event) => setBattingTeamId(Number(event.target.value))}>
+                {matchTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+              </select>
+            </label>
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Bowling team</span>
+              <select className="inline-edit__control" value={bowlingTeamId} onChange={(event) => setBowlingTeamId(Number(event.target.value))}>
+                {matchTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+              </select>
+            </label>
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Striker</span>
+              <select className="inline-edit__control" value={strikerPlayerId} onChange={(event) => setStrikerPlayerId(Number(event.target.value))}>
+                <option value="">Choose striker</option>
+                {battingPlayers.map((player) => <option key={player.id} value={player.id}>{player.full_name}</option>)}
+              </select>
+            </label>
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Non-striker</span>
+              <select className="inline-edit__control" value={nonStrikerPlayerId} onChange={(event) => setNonStrikerPlayerId(event.target.value ? Number(event.target.value) : '')}>
+                <option value="">Choose non-striker</option>
+                {battingPlayers.map((player) => <option key={player.id} value={player.id}>{player.full_name}</option>)}
+              </select>
+            </label>
+            <label className="inline-edit__field">
+              <span className="inline-edit__label">Bowler</span>
+              <select className="inline-edit__control" value={bowlerPlayerId} onChange={(event) => setBowlerPlayerId(Number(event.target.value))}>
+                <option value="">Choose bowler</option>
+                {bowlingPlayers.map((player) => <option key={player.id} value={player.id}>{player.full_name}</option>)}
+              </select>
+            </label>
+          </div>
+        </details>
 
         {scorerWarnings.length > 0 ? (
           <div className="live-scorer-warning-list" role="alert">
@@ -4306,34 +5927,95 @@ function LiveScoringPage() {
             </div>
           </div>
 
-          <div className="catalog-toolbar" style={{ marginBottom: '0.75rem' }}>
-            <label className="live-scorer-final-confirm">
-              <input
-                type="checkbox"
-                checked={umpireEndOverAfterNextBall}
-                onChange={(event) => setUmpireEndOverAfterNextBall(event.target.checked)}
-              />
-              <span>Umpire call: end the over after the next legal ball</span>
-            </label>
-            <label className="live-scorer-final-confirm">
-              <input
-                type="checkbox"
-                checked={umpireReplacementInOver}
-                onChange={(event) => setUmpireReplacementInOver(event.target.checked)}
-              />
-              <span>Replacement bowler is completing this over</span>
-            </label>
-          </div>
+          {overControlsOpen ? (
+            <fieldset
+              id="official-over-controls"
+              className="live-scorer-over-controls"
+            >
+              <legend className="sr-only">Umpire over count</legend>
+              <div className="live-scorer-over-controls__head">
+                <strong>Umpire over count</strong>
+                <span>Choose how the next legal delivery affects this over. The selection resets after the ball is recorded.</span>
+              </div>
+              <div className="live-scorer-over-controls__choices">
+                <label className="live-scorer-final-confirm">
+                  <input
+                    type="radio"
+                    name="umpire-over-count"
+                    checked={!umpireEndOverAfterNextBall && !umpireContinueOverAfterNextBall}
+                    onChange={() => {
+                      setUmpireEndOverAfterNextBall(false)
+                      setUmpireContinueOverAfterNextBall(false)
+                    }}
+                  />
+                  <span>Normal: end after 6 legal balls</span>
+                </label>
+                <label className="live-scorer-final-confirm">
+                  <input
+                    type="radio"
+                    name="umpire-over-count"
+                    checked={umpireEndOverAfterNextBall}
+                    onChange={() => {
+                      setUmpireEndOverAfterNextBall(true)
+                      setUmpireContinueOverAfterNextBall(false)
+                    }}
+                  />
+                  <span>End over after the next legal ball</span>
+                </label>
+                <label className="live-scorer-final-confirm">
+                  <input
+                    type="radio"
+                    name="umpire-over-count"
+                    checked={umpireContinueOverAfterNextBall}
+                    onChange={() => {
+                      setUmpireEndOverAfterNextBall(false)
+                      setUmpireContinueOverAfterNextBall(true)
+                    }}
+                  />
+                  <span>Continue over after the next legal ball</span>
+                </label>
+              </div>
+              <div className="live-scorer-over-controls__actions">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => {
+                    if (lastDeliveryInCurrentOver) {
+                      endOverNowMutation.mutate(lastDeliveryInCurrentOver)
+                    }
+                  }}
+                  disabled={!lastDeliveryInCurrentOver || endOverNowMutation.isPending}
+                >
+                  {endOverNowMutation.isPending ? 'Ending over…' : 'End current over now'}
+                </button>
+                <span>
+                  {currentOverLegalEvents.length > 0
+                    ? `${currentOverLegalEvents.length} legal ball${currentOverLegalEvents.length === 1 ? '' : 's'} recorded in this over.`
+                    : currentOverDeliveryEvents.length > 0
+                      ? 'No legal balls recorded in this over yet.'
+                      : 'Record at least one delivery before ending the over.'}
+                </span>
+              </div>
+              <label className="live-scorer-final-confirm">
+                <input
+                  type="checkbox"
+                  checked={umpireReplacementInOver}
+                  onChange={(event) => setUmpireReplacementInOver(event.target.checked)}
+                />
+                <span>Replacement bowler is completing this over</span>
+              </label>
+            </fieldset>
+          ) : null}
 
           <div className="live-scorer-record-grid">
             <div>
-              <div className="live-scorer-score-buttons">
+              <div className="live-scorer-score-buttons" aria-label="Ball result keypad">
                 {[0, 1, 2, 3, 4, 5, 6, 7].map((runs) => (
                   <button
                     key={runs}
                     type="button"
                     className="btn-primary"
-                    style={{ minHeight: '4.5rem', fontSize: '1.45rem', fontWeight: 800 }}
+                    aria-label={`Record ${runs} run${runs === 1 ? '' : 's'}`}
                     onClick={() =>
                       submitBall({
                         runsBatter: runs,
@@ -4348,21 +6030,84 @@ function LiveScoringPage() {
                   {runs}
                 </button>
               ))}
+                <button
+                  type="button"
+                  className="btn-ghost live-scorer-quick-extra"
+                  onClick={() =>
+                    submitBall({
+                      runsExtras: 1,
+                      extrasType: 'wide',
+                      isLegalDelivery: false,
+                      completedRuns: 0,
+                      strikeRuns: 0,
+                    })
+                  }
+                  disabled={ballMutation.isPending}
+                >
+                  Wide
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost live-scorer-quick-extra"
+                  onClick={() =>
+                    submitBall({
+                      runsExtras: 1,
+                      extrasType: 'no_ball',
+                      isLegalDelivery: false,
+                      completedRuns: 0,
+                      strikeRuns: 0,
+                    })
+                  }
+                  disabled={ballMutation.isPending}
+                >
+                  No ball
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost live-scorer-quick-extra"
+                  onClick={() =>
+                    submitBall({
+                      runsExtras: 1,
+                      extrasType: 'bye',
+                      completedRuns: 1,
+                      strikeRuns: 1,
+                    })
+                  }
+                  disabled={ballMutation.isPending}
+                >
+                  Bye
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost live-scorer-quick-extra"
+                  onClick={() =>
+                    submitBall({
+                      runsExtras: 1,
+                      extrasType: 'leg_bye',
+                      completedRuns: 1,
+                      strikeRuns: 1,
+                      legByeAttempted: true,
+                    })
+                  }
+                  disabled={ballMutation.isPending}
+                >
+                  Leg bye
+                </button>
               </div>
             </div>
 
             <label className="inline-edit__field live-scorer-commentary" style={{ margin: 0 }}>
-              <span className="inline-edit__label">Ball comment / commentary</span>
+              <span className="inline-edit__label">Scorer note (internal)</span>
               <textarea
                 className="inline-edit__control"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                placeholder="Optional comment, for example: edged past slip, excellent yorker, overthrow, dropped catch…"
+                placeholder="Optional scorer note, for example: umpire signal, correction context, dropped catch…"
                 rows={4}
                 style={{ resize: 'vertical', lineHeight: 1.5 }}
               />
               <span className="muted" style={{ marginTop: '0.4rem' }}>
-                This comment is saved with the next ball or wicket you record.
+                Saved with the delivery for scoring review. Public commentary is added only after the ball is recorded.
               </span>
             </label>
           </div>
@@ -4454,6 +6199,30 @@ function LiveScoringPage() {
               disabled={ballMutation.isPending}
             >
               Retire hurt
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              aria-expanded={playerControlsOpen}
+              onClick={() => setPlayerControlsOpen((current) => !current)}
+            >
+              Batters / strike
+            </button>
+            <button
+              type="button"
+              className={overControlsOpen ? 'btn-ghost is-active' : 'btn-ghost'}
+              aria-expanded={overControlsOpen}
+              aria-controls="official-over-controls"
+              onClick={() => setOverControlsOpen((current) => !current)}
+            >
+              Umpire over count
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setActiveScorerPanel('review')}
+            >
+              Match actions
             </button>
             <button
               type="button"
@@ -4780,7 +6549,7 @@ function LiveScoringPage() {
                       onClick={() => beginEditingBall(event)}
                       title="Open this event in Fix ball"
                     >
-                      <span className={`live-scorer-ball-chip${event.wicket_type ? ' live-scorer-ball-chip--wicket' : event.boundary_runs >= 4 ? ' live-scorer-ball-chip--boundary' : ''}`}>
+                      <span className={liveEventChipClass(event)}>
                         {liveEventChipLabel(event)}
                       </span>
                       <span className="live-scorer-ball-panel__event-copy">
@@ -5060,6 +6829,23 @@ function LiveScoringPage() {
               {actionError ? <p className="login-error">{actionError}</p> : null}
 
               <div className="catalog-toolbar live-scorer-dialog__actions">
+                {(() => {
+                  const lastLegalEvent = [...(liveQ.data?.events ?? [])]
+                    .filter((event) => event.innings === innings && event.is_legal_delivery)
+                    .sort((a, b) => b.sequence_number - a.sequence_number || b.id - a.id)[0]
+                  return lastLegalEvent ? (
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => continueOverMutation.mutate(lastLegalEvent)}
+                      disabled={continueOverMutation.isPending}
+                    >
+                      {continueOverMutation.isPending
+                        ? 'Updating…'
+                        : 'Umpire miscount: continue this over'}
+                    </button>
+                  ) : null
+                })()}
                 <button
                   type="button"
                   className="btn-primary"

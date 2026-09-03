@@ -24,4 +24,8 @@ class GalleryItem(Base):
         ForeignKey("teams.id", ondelete="SET NULL"),
         index=True,
     )
+    match_id: Mapped[int | None] = mapped_column(
+        ForeignKey("matches.id", ondelete="SET NULL"),
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

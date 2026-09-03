@@ -8,6 +8,7 @@ import type {
   MatchSquadDto,
   PlayerDto,
   ScorerAssignmentDto,
+  ScorerAssignmentDuty,
   SeasonDto,
   TeamDto,
   UserDto,
@@ -56,6 +57,12 @@ function fixtureStatusOptions(current: string): readonly (typeof STATUSES)[numbe
 }
 
 type MatchResultOutcome = 'win' | 'tie' | 'no_result'
+
+function dutyLabel(duty: ScorerAssignmentDuty): string {
+  if (duty === 'scorer_only') return 'Scorer only'
+  if (duty === 'commentator_only') return 'Commentator only'
+  return 'Scorer & commentator'
+}
 
 function matchResultOutcome(match: MatchDto): MatchResultOutcome | null {
   const result = match.result as
@@ -211,7 +218,9 @@ function MatchDetailPage() {
   const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
   const [patch, setPatch] = useState<Partial<MatchDto>>({})
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [selectedScorerIds, setSelectedScorerIds] = useState<number[]>([])
+  const [selectedAssignments, setSelectedAssignments] = useState<
+    Record<number, ScorerAssignmentDuty>
+  >({})
   const [scorerSaveError, setScorerSaveError] = useState<string | null>(null)
   const [isSavingScorers, setIsSavingScorers] = useState(false)
 
@@ -263,6 +272,18 @@ function MatchDetailPage() {
       setSaveError('Use Result & scorecard to mark a match completed.')
       return
     }
+    const broadcastUrl = merged.stream_url?.trim() || null
+    if (broadcastUrl) {
+      try {
+        const parsed = new URL(broadcastUrl)
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+          throw new Error('Unsupported protocol')
+        }
+      } catch {
+        setSaveError('Enter a complete YouTube or broadcast URL beginning with https://.')
+        return
+      }
+    }
     try {
       await adminPatch<MatchDto>(`/admin/matches/${mid}`, {
         season_id: merged.season_id,
@@ -278,6 +299,8 @@ function MatchDetailPage() {
         description: merged.description?.trim() || null,
         status: merged.status,
         cover_image_url: merged.cover_image_url ?? null,
+        stream_url: broadcastUrl,
+        stream_label: broadcastUrl ? merged.stream_label?.trim() || 'NPL Live' : null,
       })
       await invalidateCompetitionDataQueries(queryClient)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid] })
@@ -291,7 +314,11 @@ function MatchDetailPage() {
   const scorerUsers = useMemo(
     () =>
       (usersQ.data ?? [])
-        .filter((user) => user.role === 'scorer' && user.is_active)
+        .filter(
+          (user) =>
+            (user.role === 'scorer' || user.role === 'commentator') &&
+            user.is_active,
+        )
         .sort((a, b) =>
           (a.full_name ?? a.email).localeCompare(b.full_name ?? b.email),
         ),
@@ -299,36 +326,51 @@ function MatchDetailPage() {
   )
 
   useEffect(() => {
-    setSelectedScorerIds((scorersQ.data ?? []).map((row) => row.user_id))
+    setSelectedAssignments(
+      Object.fromEntries(
+        (scorersQ.data ?? []).map((row) => [row.user_id, row.duty]),
+      ),
+    )
   }, [scorersQ.data])
 
   const assignedScorerNames = useMemo(() => {
     const rows = scorersQ.data ?? []
-    if (rows.length === 0) return 'No scorer assigned yet.'
+    if (rows.length === 0) return 'No match-day user assigned yet.'
     return rows
-      .map((row) => row.user_full_name?.trim() || row.user_email)
+      .map(
+        (row) =>
+          `${row.user_full_name?.trim() || row.user_email} (${dutyLabel(row.duty)})`,
+      )
       .join(', ')
   }, [scorersQ.data])
 
   const selectedScorerSet = useMemo(
-    () => new Set(selectedScorerIds),
-    [selectedScorerIds],
+    () => new Set(Object.keys(selectedAssignments).map(Number)),
+    [selectedAssignments],
   )
 
-  const setScorerSelected = (userId: number, checked: boolean) => {
-    setSelectedScorerIds((current) => {
-      const next = new Set(current)
+  const setScorerSelected = (
+    userId: number,
+    checked: boolean,
+    defaultDuty: ScorerAssignmentDuty,
+  ) => {
+    setSelectedAssignments((current) => {
+      const next = { ...current }
       if (checked) {
-        next.add(userId)
+        next[userId] = defaultDuty
       } else {
-        next.delete(userId)
+        delete next[userId]
       }
-      return Array.from(next).sort((a, b) => a - b)
+      return next
     })
   }
 
+  const setAssignmentDuty = (userId: number, duty: ScorerAssignmentDuty) => {
+    setSelectedAssignments((current) => ({ ...current, [userId]: duty }))
+  }
+
   const clearScorerAssignments = () => {
-    setSelectedScorerIds([])
+    setSelectedAssignments({})
   }
 
   const saveScorerAssignments = async () => {
@@ -339,7 +381,9 @@ function MatchDetailPage() {
 
     try {
       await adminPutJson<ScorerAssignmentDto[]>(`/admin/matches/${mid}/scorers`, {
-        user_ids: selectedScorerIds,
+        assignments: Object.entries(selectedAssignments)
+          .map(([userId, duty]) => ({ user_id: Number(userId), duty }))
+          .sort((a, b) => a.user_id - b.user_id),
       })
       await queryClient.invalidateQueries({
         queryKey: ['admin', 'matches', mid, 'scorers'],
@@ -830,6 +874,50 @@ function MatchDetailPage() {
               ),
             },
             {
+              id: 'stream_url',
+              label: 'YouTube / broadcast link (optional)',
+              control: (
+                <div>
+                  <input
+                    id="stream_url"
+                    type="url"
+                    inputMode="url"
+                    className="inline-edit__control"
+                    placeholder="https://www.youtube.com/watch?v=…"
+                    value={merged.stream_url ?? ''}
+                    onChange={(e) =>
+                      setPatch((p) => ({
+                        ...p,
+                        stream_url: e.target.value || null,
+                      }))
+                    }
+                    aria-describedby="stream_url_help"
+                  />
+                  <span id="stream_url_help" className="muted">
+                    Paste the YouTube watch, live, or share link. It appears in the public Watch Live panel.
+                  </span>
+                </div>
+              ),
+            },
+            {
+              id: 'stream_label',
+              label: 'Broadcast label (optional)',
+              control: (
+                <input
+                  id="stream_label"
+                  className="inline-edit__control"
+                  placeholder="NPL Live"
+                  value={merged.stream_label ?? ''}
+                  onChange={(e) =>
+                    setPatch((p) => ({
+                      ...p,
+                      stream_label: e.target.value || null,
+                    }))
+                  }
+                />
+              ),
+            },
+            {
               id: 'status',
               label: 'Status',
               control: (
@@ -856,10 +944,11 @@ function MatchDetailPage() {
           <section className="team-hub-section">
             <div className="team-hub-section-head">
               <div className="team-hub-section-head__lead">
-                <h2 className="team-hub-section__title">Live scoring access</h2>
+                <h2 className="team-hub-section__title">Scoring & commentary access</h2>
                 <p className="muted">
-                  Assign scorer accounts to this match, then open the live scoring
-                  screen. Current assignment: {assignedScorerNames}
+                  Assign scorer and commentator accounts to this match, then open
+                  the shared match-day workspace. Current assignment:{' '}
+                  {assignedScorerNames}
                 </p>
               </div>
               <Link
@@ -868,27 +957,27 @@ function MatchDetailPage() {
                 className="btn-primary btn--with-icon"
               >
                 <PlayCircle size={18} strokeWidth={2} aria-hidden />
-                Open live scoring
+                Open match-day workspace
               </Link>
             </div>
 
             {usersQ.isError ? (
               <p className="muted">
-                Scorer picker could not load. Only super admins can list users in
-                the current backend. Scorers already assigned can still open their
-                scoring screen.
+                Match-day user picker could not load. Only super admins can list
+                users in the current backend. Assigned users can still open their
+                workspace.
               </p>
             ) : (
               <div className="inline-edit__grid">
                 <div className="inline-edit__field">
-                  <span className="inline-edit__label">Assigned scorer accounts</span>
+                  <span className="inline-edit__label">Assigned match-day accounts</span>
 
-                  {usersQ.isLoading ? <p className="muted">Loading scorers…</p> : null}
+                  {usersQ.isLoading ? <p className="muted">Loading accounts…</p> : null}
 
                   {!usersQ.isLoading && scorerUsers.length === 0 ? (
                     <p className="muted">
-                      No active scorer users yet. Create a user with the scorer
-                      role first.
+                      No active scorer or commentator users yet. Create a match-day
+                      account first.
                     </p>
                   ) : null}
 
@@ -897,21 +986,58 @@ function MatchDetailPage() {
                       {scorerUsers.map((user) => {
                         const checked = selectedScorerSet.has(user.id)
                         const label = user.full_name?.trim() || user.email
+                        const defaultDuty: ScorerAssignmentDuty =
+                          user.role === 'commentator'
+                            ? 'commentator_only'
+                            : 'scorer_only'
 
                         return (
-                          <label key={user.id} className="checkbox-row">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(event) =>
-                                setScorerSelected(user.id, event.currentTarget.checked)
-                              }
-                            />
-                            <span>
-                              {label}
-                              <span className="muted"> — {user.email}</span>
-                            </span>
-                          </label>
+                          <div key={user.id} className="assignment-duty-row">
+                            <label className="checkbox-row">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) =>
+                                  setScorerSelected(
+                                    user.id,
+                                    event.currentTarget.checked,
+                                    defaultDuty,
+                                  )
+                                }
+                              />
+                              <span>
+                                {label}
+                                <span className="muted"> — {user.email}</span>
+                                <span className="status-badge status-badge--scheduled">
+                                  {user.role === 'commentator' ? 'Commentator account' : 'Scorer account'}
+                                </span>
+                              </span>
+                            </label>
+                            {checked ? (
+                              <label className="inline-edit__field">
+                                <span className="inline-edit__label">Match duty</span>
+                                <select
+                                  className="inline-edit__control"
+                                  value={selectedAssignments[user.id]}
+                                  onChange={(event) =>
+                                    setAssignmentDuty(
+                                      user.id,
+                                      event.target.value as ScorerAssignmentDuty,
+                                    )
+                                  }
+                                >
+                                  {user.role === 'scorer' ? (
+                                    <>
+                                      <option value="scorer_only">Scorer only</option>
+                                      <option value="score_and_commentary">Scorer &amp; commentator</option>
+                                    </>
+                                  ) : (
+                                    <option value="commentator_only">Commentator only</option>
+                                  )}
+                                </select>
+                              </label>
+                            ) : null}
+                          </div>
                         )
                       })}
                     </div>
@@ -928,15 +1054,15 @@ function MatchDetailPage() {
                       disabled={isSavingScorers || usersQ.isLoading}
                     >
                       <Save size={18} strokeWidth={2} aria-hidden />
-                      {isSavingScorers ? 'Saving…' : 'Save scorer assignments'}
+                      {isSavingScorers ? 'Saving…' : 'Save match-day access'}
                     </button>
                     <button
                       type="button"
                       className="btn-ghost"
                       onClick={clearScorerAssignments}
-                      disabled={isSavingScorers || selectedScorerIds.length === 0}
+                      disabled={isSavingScorers || Object.keys(selectedAssignments).length === 0}
                     >
-                      Clear all scorers
+                      Clear all access
                     </button>
                   </div>
 
@@ -947,11 +1073,23 @@ function MatchDetailPage() {
                         <div key={row.id} className="inline-edit__actions">
                           <span>
                             {row.user_full_name?.trim() || row.user_email}
+                            {(() => {
+                              const user = (usersQ.data ?? []).find(
+                                (candidate) => candidate.id === row.user_id,
+                              )
+                              return user ? (
+                                <span className="muted">
+                                  {' '}— {dutyLabel(row.duty)}
+                                </span>
+                              ) : null
+                            })()}
                           </span>
                           <button
                             type="button"
                             className="btn-ghost"
-                            onClick={() => setScorerSelected(row.user_id, false)}
+                            onClick={() =>
+                              setScorerSelected(row.user_id, false, row.duty)
+                            }
                             disabled={isSavingScorers}
                           >
                             Remove
@@ -962,9 +1100,9 @@ function MatchDetailPage() {
                   ) : null}
 
                   <p className="muted">
-                    Tick the scorer accounts that should access this fixture. To
-                    unassign everyone, click Clear all scorers, then Save scorer
-                    assignments.
+                    Use one scorer plus one commentator, or assign a competent scorer
+                    to both duties. Commentary-only accounts can attach text only after
+                    a scorer records a delivery and cannot change the official score.
                   </p>
 
                   {scorerSaveError ? (
@@ -996,6 +1134,16 @@ function MatchDetailPage() {
                   {
                     label: 'Notes',
                     value: match.description ?? '—',
+                  },
+                  {
+                    label: 'Live broadcast',
+                    value: match.stream_url ? (
+                      <a href={match.stream_url} target="_blank" rel="noreferrer">
+                        {match.stream_label?.trim() || 'NPL Live'}
+                      </a>
+                    ) : (
+                      '—'
+                    ),
                   },
                   { label: 'Category', value: match.category },
                   {

@@ -11,6 +11,7 @@ from app.db.session import get_db
 from app.models.audit import AuditLog
 from app.main import app
 from app.models.match import FanPlayerMatchVote, Match, MatchPlayerStat, MatchResult
+from app.models.league import League, Season
 from app.models.merchandise import (
     MerchandiseOrder,
     MerchandiseOrderStatusEvent,
@@ -43,6 +44,8 @@ def _client_and_session():
     tables = [
         User.__table__,
         AuditLog.__table__,
+        League.__table__,
+        Season.__table__,
         Team.__table__,
         Player.__table__,
         Match.__table__,
@@ -118,6 +121,52 @@ def test_supporter_registration_consent_and_admin_boundary() -> None:
         assert updated.json()["push_consent"] is False
         with sessions() as db:
             assert db.scalar(select(func.count()).select_from(SupporterConsentEvent)) == 6
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        engine.dispose()
+
+
+def test_match_stream_url_requires_a_supporter_session() -> None:
+    clear_rate_limits()
+    client, sessions, engine = _client_and_session()
+    try:
+        with sessions() as db:
+            home = Team(name="Home Club", slug="stream-home", category="mens", status="active")
+            away = Team(name="Away Club", slug="stream-away", category="mens", status="active")
+            db.add_all([home, away])
+            db.flush()
+            match = Match(
+                category="mens",
+                home_team_id=home.id,
+                away_team_id=away.id,
+                status="live",
+                is_published=True,
+                stream_url="https://www.youtube.com/watch?v=abc123",
+                stream_label="NPL Live",
+            )
+            db.add(match)
+            db.commit()
+            match_id = match.id
+
+        public_match = client.get(f"/api/v1/public/matches/{match_id}")
+        assert public_match.status_code == 200
+        assert public_match.json()["stream_available"] is True
+        assert public_match.json()["stream_url"] is None
+
+        anonymous_stream = client.get(f"/api/v1/public/matches/{match_id}/stream")
+        assert anonymous_stream.status_code == 401
+
+        token = _register(client)
+        stream = client.get(
+            f"/api/v1/public/matches/{match_id}/stream",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert stream.status_code == 200
+        assert stream.json() == {
+            "match_id": match_id,
+            "stream_url": "https://www.youtube.com/watch?v=abc123",
+            "stream_label": "NPL Live",
+        }
     finally:
         app.dependency_overrides.pop(get_db, None)
         engine.dispose()

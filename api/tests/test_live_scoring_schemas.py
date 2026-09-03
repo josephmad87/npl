@@ -69,6 +69,21 @@ def test_live_ball_accepts_client_event_id_for_safe_retry() -> None:
     assert body.client_event_id == "4c281c7f-7097-4d95-bb0a-72bd5f53d1a6"
 
 
+def test_live_ball_allows_an_umpire_miscount_beyond_twelve_deliveries() -> None:
+    body = LiveBallEventIn(
+        innings=1,
+        over_number=0,
+        ball_number=13,
+        batting_team_id=1,
+        bowling_team_id=2,
+        striker_player_id=10,
+        non_striker_player_id=11,
+        bowler_player_id=20,
+    )
+
+    assert body.ball_number == 13
+
+
 def test_live_ball_model_has_idempotency_column() -> None:
     assert "client_event_id" in Match.__table__.metadata.tables["match_ball_events"].columns
 
@@ -532,6 +547,20 @@ def test_no_ball_rejects_hit_wicket() -> None:
     assert "hit the ball twice" in error.value.detail["message"]
 
 
+def test_plain_no_ball_has_exactly_one_penalty_extra() -> None:
+    body = _wicket_ball(
+        extras_type="no_ball",
+        runs_extras=2,
+        is_legal_delivery=False,
+    )
+
+    with pytest.raises(HTTPException) as error:
+        _validate_live_ball_event(body)
+
+    assert error.value.status_code == 400
+    assert "exactly one penalty extra" in error.value.detail["message"]
+
+
 def test_leg_bye_requires_attempt_or_avoidance_confirmation() -> None:
     body = LiveBallEventIn(
         innings=1,
@@ -565,18 +594,56 @@ def test_non_striker_leaving_early_is_a_no_delivery_run_out() -> None:
     _validate_live_ball_event(body)
 
 
+def test_timed_out_is_recorded_without_a_delivery() -> None:
+    body = _wicket_ball(
+        is_dead_ball=True,
+        is_legal_delivery=False,
+        wicket_type="timed_out",
+        wicket_player_id=10,
+        fielder_player_id=None,
+        wicket_end=None,
+    )
+
+    _validate_live_ball_event(body)
+
+
+def test_a_completed_run_can_be_entirely_short() -> None:
+    body = LiveBallEventIn(
+        innings=1,
+        over_number=0,
+        ball_number=1,
+        batting_team_id=1,
+        bowling_team_id=2,
+        striker_player_id=10,
+        non_striker_player_id=11,
+        bowler_player_id=20,
+        completed_runs=1,
+        short_runs=1,
+    )
+
+    _validate_live_ball_event(body)
+
+
 def test_umpire_over_call_can_close_or_extend_an_over() -> None:
     five_ball_over = [
-        SimpleNamespace(is_legal_delivery=True, over_complete_override=None)
+        SimpleNamespace(is_dead_ball=False, is_legal_delivery=True, over_complete_override=None)
         for _ in range(4)
-    ] + [SimpleNamespace(is_legal_delivery=True, over_complete_override=True)]
+    ] + [SimpleNamespace(is_dead_ball=False, is_legal_delivery=True, over_complete_override=True)]
     extended_over = [
-        SimpleNamespace(is_legal_delivery=True, over_complete_override=None)
+        SimpleNamespace(is_dead_ball=False, is_legal_delivery=True, over_complete_override=None)
         for _ in range(5)
-    ] + [SimpleNamespace(is_legal_delivery=True, over_complete_override=False)]
+    ] + [SimpleNamespace(is_dead_ball=False, is_legal_delivery=True, over_complete_override=False)]
+    invalid_delivery_call = [
+        SimpleNamespace(is_dead_ball=False, is_legal_delivery=True, over_complete_override=None)
+        for _ in range(5)
+    ] + [
+        SimpleNamespace(is_dead_ball=False, is_legal_delivery=True, over_complete_override=False),
+        SimpleNamespace(is_dead_ball=False, is_legal_delivery=False, over_complete_override=True),
+    ]
 
     assert _live_overs_label_for_events(five_ball_over) == "1.0"
     assert _live_overs_label_for_events(extended_over) == "0.6"
+    assert _live_overs_label_for_events(invalid_delivery_call) == "1.0"
 
 
 def test_live_ball_label_keeps_wicket_and_wide_visible() -> None:

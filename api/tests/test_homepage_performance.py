@@ -146,13 +146,32 @@ def test_compact_homepage_endpoint_excludes_heavy_fields() -> None:
             ],
         )
         session.flush()
-        session.add(
-            MatchResult(
-                match_id=completed.id,
-                winning_team_id=home.id,
-                outcome="win",
-                result_status="official",
-            ),
+        fixture_id = fixture.id
+        session.add_all(
+            [
+                MatchResult(
+                    match_id=completed.id,
+                    winning_team_id=home.id,
+                    outcome="win",
+                    result_status="official",
+                ),
+                GalleryItem(
+                    title="Fixture photo",
+                    slug="fixture-photo",
+                    media_type="image",
+                    file_url="https://example.test/fixture-photo.jpg",
+                    status="published",
+                    match_id=fixture.id,
+                ),
+                GalleryItem(
+                    title="Completed match photo",
+                    slug="completed-match-photo",
+                    media_type="image",
+                    file_url="https://example.test/completed-photo.jpg",
+                    status="published",
+                    match_id=completed.id,
+                ),
+            ],
         )
         session.commit()
 
@@ -163,6 +182,9 @@ def test_compact_homepage_endpoint_excludes_heavy_fields() -> None:
     app.dependency_overrides[get_db] = override_db
     try:
         response = TestClient(app).get("/api/v1/public/homepage")
+        match_gallery_response = TestClient(app).get(
+            f"/api/v1/public/gallery?match_id={fixture_id}",
+        )
     finally:
         app.dependency_overrides.pop(get_db, None)
         engine.dispose()
@@ -182,3 +204,7 @@ def test_compact_homepage_endpoint_excludes_heavy_fields() -> None:
     assert len(payload["results"]) == 1
     assert "player_stats" not in payload["results"][0]
     assert len(payload["teams"]) == 2
+    assert match_gallery_response.status_code == 200
+    assert [item["title"] for item in match_gallery_response.json()["items"]] == [
+        "Fixture photo",
+    ]

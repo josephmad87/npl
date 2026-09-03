@@ -64,6 +64,8 @@ function NewMatchPage() {
   const [isPublished, setIsPublished] = useState(true)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
+  const [streamUrl, setStreamUrl] = useState('')
+  const [streamLabel, setStreamLabel] = useState('NPL Live')
 
   const teamOptions = useMemo(() => teamsQ.data ?? [], [teamsQ.data])
   const seasonOptions = useMemo(() => seasonsQ.data ?? [], [seasonsQ.data])
@@ -113,6 +115,18 @@ function NewMatchPage() {
       setSaveError('Select a season (create one under Leagues if needed).')
       return
     }
+    const broadcastUrl = streamUrl.trim()
+    if (broadcastUrl) {
+      try {
+        const parsed = new URL(broadcastUrl)
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+          throw new Error('Unsupported protocol')
+        }
+      } catch {
+        setSaveError('Enter a complete YouTube or broadcast URL beginning with https://.')
+        return
+      }
+    }
     setSaveError(null)
     try {
       const created = await adminPost<MatchDto>('/admin/matches', {
@@ -126,6 +140,8 @@ function NewMatchPage() {
         status,
         is_published: isPublished,
         cover_image_url: coverImageUrl?.trim() ?? null,
+        stream_url: broadcastUrl || null,
+        stream_label: broadcastUrl ? streamLabel.trim() || 'NPL Live' : null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
       void navigate({
@@ -296,6 +312,41 @@ function NewMatchPage() {
                 accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
                 value={coverImageUrl}
                 onChange={setCoverImageUrl}
+              />
+            ),
+          },
+          {
+            id: 'stream_url',
+            label: 'YouTube / broadcast link (optional)',
+            control: (
+              <div>
+                <input
+                  id="stream_url"
+                  type="url"
+                  inputMode="url"
+                  className="inline-edit__control"
+                  placeholder="https://www.youtube.com/watch?v=…"
+                  value={streamUrl}
+                  onChange={(e) => setStreamUrl(e.target.value)}
+                  aria-describedby="stream_url_help"
+                />
+                <span id="stream_url_help" className="muted">
+                  Paste the YouTube watch, live, or share link for this fixture. It appears in the public Watch Live panel.
+                </span>
+              </div>
+            ),
+          },
+          {
+            id: 'stream_label',
+            label: 'Broadcast label',
+            control: (
+              <input
+                id="stream_label"
+                className="inline-edit__control"
+                placeholder="NPL Live"
+                value={streamLabel}
+                onChange={(e) => setStreamLabel(e.target.value)}
+                disabled={!streamUrl.trim()}
               />
             ),
           },

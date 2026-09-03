@@ -64,6 +64,7 @@ from app.schemas.matches import (
     LiveScoreInningsSummaryOut,
     LiveScoreStateOut,
     MatchDetailOut,
+    MatchStreamAccessOut,
     MatchSquadOut,
     MatchSquadPlayerOut,
     MatchSquadTeamOut,
@@ -213,16 +214,22 @@ def _public_match_detail(
     refresh_top_performers: bool = False,
 ) -> MatchDetailOut:
     detail = MatchDetailOut.model_validate(match)
-    if not refresh_top_performers or detail.result is None:
-        return detail
+    public_detail = detail.model_copy(
+        update={
+            "stream_available": bool(detail.stream_url and detail.stream_url.strip()),
+            "stream_url": None,
+        },
+    )
+    if not refresh_top_performers or public_detail.result is None:
+        return public_detail
 
     top_performers = _computed_top_performers(db, match)
     if top_performers is None:
-        return detail
+        return public_detail
 
-    return detail.model_copy(
+    return public_detail.model_copy(
         update={
-            "result": detail.result.model_copy(
+            "result": public_detail.result.model_copy(
                 update={"top_performers": top_performers},
             ),
         },
@@ -929,6 +936,30 @@ def get_match(match_id: int, db: Session = Depends(get_db)) -> MatchDetailOut:
     if m is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
     return _public_match_detail(db, m, refresh_top_performers=True)
+
+
+@router.get("/matches/{match_id}/stream", response_model=MatchStreamAccessOut)
+def get_match_stream(
+    match_id: int,
+    db: Session = Depends(get_db),
+    _supporter: SupporterAccount = Depends(get_current_supporter),
+) -> MatchStreamAccessOut:
+    match = db.scalar(
+        select(Match).where(Match.id == match_id, Match.is_published.is_(True)),
+    )
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    stream_url = (match.stream_url or "").strip()
+    if not stream_url:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "No broadcast is available for this match."},
+        )
+    return MatchStreamAccessOut(
+        match_id=match.id,
+        stream_url=stream_url,
+        stream_label=(match.stream_label or "").strip() or None,
+    )
 def _fan_player_vote_candidate_stats(match: Match) -> list[MatchPlayerStat]:
     stats = list(match.player_stats or [])
 
@@ -1253,6 +1284,7 @@ def list_gallery(
     page_params: PageParams = Depends(),
     media_type: str | None = Query(default=None),
     team_id: int | None = Query(default=None),
+    match_id: int | None = Query(default=None),
     q: str | None = Query(default=None),
 ) -> dict:
     stmt = select(GalleryItem).where(GalleryItem.status == "published")
@@ -1260,6 +1292,8 @@ def list_gallery(
         stmt = stmt.where(GalleryItem.media_type == media_type)
     if team_id is not None:
         stmt = stmt.where(GalleryItem.team_id == team_id)
+    if match_id is not None:
+        stmt = stmt.where(GalleryItem.match_id == match_id)
     if q:
         like = f"%{q}%"
         stmt = stmt.where(
@@ -1619,7 +1653,14 @@ def _public_live_overs_label(legal_balls: int) -> str:
 
 
 def _public_live_event_out(event: MatchBallEvent) -> LiveBallEventOut:
-    return LiveBallEventOut.model_validate(event)
+    return LiveBallEventOut.model_validate(event).model_copy(
+        update={
+            "notes": None,
+            "client_event_id": None,
+            "created_by_user_id": None,
+            "commentary_updated_by_user_id": None,
+        },
+    )
 
 
 def _public_live_score_state(db: Session, match: Match) -> LiveScoreStateOut:

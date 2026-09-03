@@ -47,7 +47,7 @@ class AdminUserCreate(BaseModel):
     password: str = Field(min_length=12, max_length=128)
     full_name: str | None = None
     role: str = Field(
-        pattern="^(super_admin|competition_manager|content_editor|read_only_admin|scorer)$",
+        pattern="^(super_admin|competition_manager|content_editor|read_only_admin|scorer|commentator)$",
     )
 
 
@@ -55,6 +55,6 @@ class AdminUserUpdate(BaseModel):
     full_name: str | None = Field(default=None, max_length=255)
     role: str | None = Field(
         default=None,
-        pattern="^(super_admin|competition_manager|content_editor|read_only_admin|scorer)$",
+        pattern="^(super_admin|competition_manager|content_editor|read_only_admin|scorer|commentator)$",
     )
     is_active: bool | None = None

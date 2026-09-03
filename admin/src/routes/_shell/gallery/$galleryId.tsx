@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Trash2, SquarePen } from 'lucide-react'
 import { useState } from 'react'
-import type { GalleryItemDto, TeamDto } from '@/lib/api-types'
+import type { GalleryItemDto, MatchDto, TeamDto } from '@/lib/api-types'
 import { adminDelete, adminGet, adminListAll, adminPatch } from '@/lib/admin-client'
 import { BackNavLink } from '@/components/BackNavLink'
 import { DetailFields } from '@/components/DetailFields'
@@ -34,6 +34,11 @@ function GalleryDetailPage() {
   const teamsQ = useQuery({
     queryKey: ['admin', 'teams'],
     queryFn: () => adminListAll<TeamDto>('/admin/teams'),
+    staleTime: 60_000,
+  })
+  const matchesQ = useQuery({
+    queryKey: ['admin', 'matches'],
+    queryFn: () => adminListAll<MatchDto>('/admin/matches'),
     staleTime: 60_000,
   })
   const item = itemQ.data
@@ -96,6 +101,7 @@ function GalleryDetailPage() {
         file_url: merged.file_url,
         thumbnail_url: merged.thumbnail_url ?? null,
         team_id: merged.team_id ?? null,
+        match_id: merged.match_id ?? null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'gallery', gid] })
@@ -148,9 +154,25 @@ function GalleryDetailPage() {
   const teamsSorted = [...(teamsQ.data ?? [])].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
   )
+  const teamNames = new Map(teamsSorted.map((team) => [team.id, team.name]))
+  const matchesSorted = [...(matchesQ.data ?? [])].sort((a, b) =>
+    String(b.start_time ?? b.match_date ?? '').localeCompare(
+      String(a.start_time ?? a.match_date ?? ''),
+    ),
+  )
   const linkedTeamName =
     item.team_id != null
       ? (teamsQ.data ?? []).find((t) => t.id === item.team_id)?.name ?? `Team #${item.team_id}`
+      : null
+  const linkedMatch =
+    item.match_id != null
+      ? (matchesQ.data ?? []).find((match) => match.id === item.match_id) ?? null
+      : null
+  const linkedMatchName = linkedMatch
+    ? linkedMatch.title?.trim() ||
+      `${teamNames.get(linkedMatch.home_team_id) ?? `Team ${linkedMatch.home_team_id}`} v ${teamNames.get(linkedMatch.away_team_id) ?? `Team ${linkedMatch.away_team_id}`}`
+    : item.match_id != null
+      ? `Match #${item.match_id}`
       : null
 
   return (
@@ -342,6 +364,32 @@ function GalleryDetailPage() {
               ),
             },
             {
+              id: 'match_id',
+              label: 'Associated match (optional)',
+              control: (
+                <select
+                  id="match_id"
+                  className="inline-edit__control"
+                  value={merged.match_id != null ? String(merged.match_id) : ''}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setPatch((p) => ({
+                      ...p,
+                      match_id: v ? Number(v) : null,
+                    }))
+                  }}
+                  disabled={isSaving || matchesQ.isLoading}
+                >
+                  <option value="">None</option>
+                  {matchesSorted.map((match) => (
+                    <option key={match.id} value={String(match.id)}>
+                      {match.title?.trim() || `${teamNames.get(match.home_team_id) ?? `Team ${match.home_team_id}`} v ${teamNames.get(match.away_team_id) ?? `Team ${match.away_team_id}`}`} · {match.match_date ?? 'Date TBC'}
+                    </option>
+                  ))}
+                </select>
+              ),
+            },
+            {
               id: 'publish',
               label: 'Publish',
               control: (
@@ -429,6 +477,10 @@ function GalleryDetailPage() {
               {
                 label: 'Team',
                 value: linkedTeamName ?? '—',
+              },
+              {
+                label: 'Match',
+                value: linkedMatchName ?? '—',
               },
               { label: 'Tags', value: (item.tags ?? []).join(', ') || '—' },
               {

@@ -5943,10 +5943,13 @@ table.player-public-table--match-log {
 }
 
 .innings-scorecard-panels__h {
-  margin: 1rem 0 0.75rem;
+  margin: 1rem 0 0;
+  padding: 0.9rem 1rem;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(135deg, var(--color-deep-maroon, #380b11), #581821);
+  color: #ffffff;
   font-size: 1.05rem;
-  font-weight: 800;
-  color: var(--color-text, #200001);
+  font-weight: 900;
 }
 
 /* This gives the scorecard clean horizontal scroll when needed */
@@ -5959,6 +5962,28 @@ table.player-public-table--match-log {
   border: 1px solid rgba(32, 0, 1, 0.12);
   border-radius: 14px;
   background: #ffffff;
+}
+
+.innings-scorecard-panels__section .table-scroll {
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+}
+
+.batting-scorecard-table__total td {
+  background: #f5e3d6;
+  color: var(--color-deep-maroon, #380b11);
+  font-weight: 850;
+}
+
+.innings-scorecard-panels__note {
+  margin: -0.5rem 0 0;
+  border: 1px solid rgba(32, 0, 1, 0.12);
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  background: #fffaf5;
+  color: #6f5a5e;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.84rem;
 }
 
 /* Main scorecard table styling */
@@ -10800,4 +10825,198 @@ table.league-standings-table .league-standings-table__form {
 @media (max-width: 760px) {
   .supporter-dashboard { grid-template-columns: 1fr; }
   .supporter-account-page__head { flex-direction: column; }
+}
+/* Zimbabwe-style broadcast panel, expressed in the NPL maroon/rust system. */
+.match-stream {
+  overflow: hidden;
+  border: 1px solid rgba(56, 11, 17, 0.16);
+  border-radius: 1rem;
+  background: #fff;
+  color: #28181b;
+}
+
+.match-stream__head,
+.match-stream__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.match-stream__head {
+  background: linear-gradient(135deg, var(--color-deep-maroon, #380b11), #591722);
+  color: #fff;
+  padding: 1rem 1.1rem;
+}
+
+.match-stream__eyebrow {
+  color: #efb59d;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.match-stream__head h3,
+.match-stream__head p {
+  margin: 0;
+}
+
+.match-stream__head h3 {
+  margin-top: 0.15rem;
+  font-size: 1.2rem;
+}
+
+.match-stream__head p {
+  margin-top: 0.2rem;
+  color: #f5dfd8;
+  font-size: 0.86rem;
+}
+
+.match-stream__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(255,255,255,0.24);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.1);
+  padding: 0.35rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.match-stream__state span {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #c9b5b8;
+}
+
+.match-stream__state.is-live span {
+  background: #ff3b30;
+  box-shadow: 0 0 0 0.22rem rgba(255,59,48,0.17);
+}
+
+.match-stream__player {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background:
+    radial-gradient(circle at 78% 22%, rgba(204, 91, 47, 0.25), transparent 28%),
+    linear-gradient(145deg, #19080b, #3d0b13 62%, #651a20);
+}
+
+.match-stream__player iframe,
+.match-stream__player video {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  object-fit: contain;
+}
+
+.match-stream__launch,
+.match-stream__external,
+.match-stream__gate {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.45rem;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  text-align: center;
+}
+
+.match-stream__launch {
+  cursor: pointer;
+}
+
+.match-stream__launch:disabled {
+  cursor: wait;
+}
+
+.match-stream__launch:hover .match-stream__play,
+.match-stream__launch:focus-visible .match-stream__play {
+  transform: scale(1.08);
+  background: var(--color-rust-orange, #cc5b2f);
+}
+
+.match-stream__play {
+  display: grid;
+  place-items: center;
+  width: 4.25rem;
+  height: 4.25rem;
+  border: 1px solid rgba(255,255,255,0.32);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.14);
+  font-size: 1.35rem;
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.match-stream__launch strong,
+.match-stream__external strong,
+.match-stream__gate strong {
+  font-size: 1.05rem;
+}
+
+.match-stream__launch small,
+.match-stream__gate small {
+  color: #dfc9c5;
+}
+
+.match-stream__external a,
+.match-stream__gate a {
+  border-radius: 999px;
+  background: var(--color-rust-orange, #cc5b2f);
+  color: #fff;
+  padding: 0.6rem 0.85rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.match-stream__gate a:hover,
+.match-stream__gate a:focus-visible {
+  background: #a94020;
+  outline: 3px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.match-stream__lock {
+  display: grid;
+  place-items: center;
+  width: 4.25rem;
+  height: 4.25rem;
+  border: 1px solid rgba(255,255,255,0.42);
+  border-radius: 50%;
+  background: rgba(255,255,255,0.14);
+  font-size: 1.35rem;
+}
+
+.match-stream__error {
+  margin: 0;
+  padding: 0.7rem 1rem;
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 750;
+}
+
+.match-stream__foot {
+  padding: 0.7rem 1rem;
+  color: #735e62;
+  font-size: 0.78rem;
+}
+
+.match-stream__foot a {
+  color: var(--color-rust-orange, #b64d28);
+  font-weight: 850;
+}
+
+@media (max-width: 640px) {
+  .match-stream__head,
+  .match-stream__foot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }

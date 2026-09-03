@@ -70,6 +70,7 @@ from app.schemas.gallery import GalleryItemCreate, GalleryItemOut, GalleryItemUp
 from app.schemas.leagues import LeagueCreate, LeagueOut, LeagueUpdate
 from app.schemas.seasons import SeasonCreate, SeasonOut, SeasonPublicOut, SeasonUpdate
 from app.schemas.matches import (
+    LiveBallCommentaryIn,
     LiveBallEventIn,
     LiveBallEventOut,
     LiveMatchConditionsIn,
@@ -1048,7 +1049,7 @@ def _set_admin_user_active_status(
         )
 
     removed_assignments = 0
-    if user.role == "scorer" and not is_active:
+    if user.role in ("scorer", "commentator") and not is_active:
         removed_assignments = _remove_scorer_from_open_matches(db, user.id)
 
     user.is_active = is_active
@@ -1117,7 +1118,7 @@ def admin_update_user(
     if "is_active" in patch:
         user.is_active = patch["is_active"]
 
-    if old_role == "scorer" and user.is_active is False:
+    if old_role in ("scorer", "commentator") and user.is_active is False:
         removed_assignments = _remove_scorer_from_open_matches(db, user.id)
 
     db.commit()
@@ -1215,6 +1216,16 @@ def _assert_gallery_team_id(db: Session, team_id: int | None) -> None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "validation", "message": "team_id must reference an existing team."},
+        )
+
+
+def _assert_gallery_match_id(db: Session, match_id: int | None) -> None:
+    if match_id is None:
+        return
+    if db.get(Match, match_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "validation", "message": "match_id must reference an existing match."},
         )
 
 
@@ -2402,6 +2413,7 @@ def admin_create_gallery(
 ) -> GalleryItem:
     payload = body.model_dump()
     _assert_gallery_team_id(db, payload.get("team_id"))
+    _assert_gallery_match_id(db, payload.get("match_id"))
     item = GalleryItem(**payload, uploaded_by_user_id=actor.id)
     db.add(item)
     try:
@@ -2440,6 +2452,8 @@ def admin_update_gallery(
     patch = body.model_dump(exclude_unset=True)
     if "team_id" in patch:
         _assert_gallery_team_id(db, patch["team_id"])
+    if "match_id" in patch:
+        _assert_gallery_match_id(db, patch["match_id"])
     for k, v in patch.items():
         setattr(item, k, v)
     try:
@@ -2830,11 +2844,55 @@ def _is_competition_actor(user: User) -> bool:
     return user.role in ("super_admin", "competition_manager")
 
 
+SCORING_ASSIGNMENT_DUTIES = {"scorer_only", "score_and_commentary"}
+COMMENTARY_ASSIGNMENT_DUTIES = {"commentator_only", "score_and_commentary"}
+
+
+def _match_assignment_duty(db: Session, match_id: int, user_id: int) -> str | None:
+    return db.scalar(
+        select(MatchScorerAssignment.duty).where(
+            MatchScorerAssignment.match_id == match_id,
+            MatchScorerAssignment.user_id == user_id,
+        ),
+    )
+
+
+def _can_score_match(db: Session, match_id: int, actor: User) -> bool:
+    if _is_competition_actor(actor):
+        return True
+    return (
+        actor.role == "scorer"
+        and _match_assignment_duty(db, match_id, actor.id) in SCORING_ASSIGNMENT_DUTIES
+    )
+
+
+def _can_comment_match(db: Session, match_id: int, actor: User) -> bool:
+    if _is_competition_actor(actor):
+        return True
+    duty = _match_assignment_duty(db, match_id, actor.id)
+    return (
+        actor.role == "commentator" and duty == "commentator_only"
+    ) or (
+        actor.role == "scorer" and duty == "score_and_commentary"
+    )
+
+
 def _assert_can_score_match(db: Session, match_id: int, actor: User) -> None:
+    if _can_score_match(db, match_id, actor):
+        return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={"code": "forbidden", "message": "You are not assigned to score this match."},
+    )
+
+
+def _assert_can_open_match_workbench(db: Session, match_id: int, actor: User) -> None:
+    """Allow assigned scorers/commentators to share the live match workspace."""
     if _is_competition_actor(actor):
         return
 
-    if actor.role == "scorer":
+    if actor.role in ("scorer", "commentator"):
         assigned = db.scalar(
             select(MatchScorerAssignment.id).where(
                 MatchScorerAssignment.match_id == match_id,
@@ -2846,7 +2904,79 @@ def _assert_can_score_match(db: Session, match_id: int, actor: User) -> None:
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail={"code": "forbidden", "message": "You are not assigned to score this match."},
+        detail={"code": "forbidden", "message": "You are not assigned to this match."},
+    )
+
+
+@router.post(
+    "/scorer/matches/{match_id}/photos",
+    response_model=GalleryItemOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def scorer_upload_match_photo(
+    match_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    title: str = Form(default="Match photo"),
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> GalleryItem:
+    """Publish a match photo from the assigned live scorer/commentator workbench."""
+    from app.core.config import get_settings
+
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_open_match_workbench(db, match_id, actor)
+
+    if not (file.content_type or "").lower().startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "validation", "message": "Match photos must be image files."},
+        )
+
+    clean_title = title.strip() or "Match photo"
+    if len(clean_title) > 255:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "validation", "message": "Photo title must be 255 characters or fewer."},
+        )
+
+    settings = get_settings()
+    storage_key = save_upload_file(settings, kind="gallery", file=file)
+    public_url = build_media_public_url(settings, str(request.base_url), storage_key)
+    item = GalleryItem(
+        title=clean_title,
+        media_type="image",
+        file_url=public_url,
+        status="published",
+        match_id=match_id,
+        uploaded_by_user_id=actor.id,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="upload_match_photo",
+        entity_type="gallery_item",
+        entity_id=item.id,
+        summary=f"Published photo for match {match_id}: {clean_title}",
+    )
+    db.commit()
+    return item
+
+
+def _assert_can_comment_match(db: Session, match_id: int, actor: User) -> None:
+    if _can_comment_match(db, match_id, actor):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": "forbidden",
+            "message": "You are not assigned to provide commentary for this match.",
+        },
     )
 
 
@@ -2914,7 +3044,12 @@ def _scorecard_access(
         and access_until is not None
         and current_time < access_until
     )
-    can_edit = actor.role != "scorer" or not locked or approved_access
+    # Assignment eligibility is enforced before opening or mutating the scoring
+    # workbench. Keep lock-state calculation independent so it remains a pure
+    # answer about an already-authorized scorer's edit window.
+    can_edit = actor.role != "commentator" and (
+        actor.role != "scorer" or not locked or approved_access
+    )
     return {
         "scorecard_finalized_at": _as_utc(match.scorecard_finalized_at),
         "scorecard_locks_at": locks_at,
@@ -3216,7 +3351,7 @@ def _validate_squad_player(db: Session, match: Match, team_id: int, player_id: i
 
 
 def _live_ball_label(event: MatchBallEvent) -> str:
-    if event.is_dead_ball:
+    if getattr(event, "is_dead_ball", False):
         if event.wicket_type == "retired_hurt":
             return "RH"
         if event.wicket_type == "retired_not_out":
@@ -3273,10 +3408,14 @@ def _live_overs_label(legal_balls: int) -> str:
 
 def _live_event_closes_over(event: MatchBallEvent, legal_balls_in_over: int) -> bool:
     """Apply the normal six-ball rule unless an umpire has called otherwise."""
+    if event.is_dead_ball:
+        return False
+    if event.over_complete_override is True:
+        return True
     if not event.is_legal_delivery:
         return False
-    if event.over_complete_override is not None:
-        return bool(event.over_complete_override)
+    if event.over_complete_override is False:
+        return False
     return legal_balls_in_over == 6
 
 
@@ -3284,9 +3423,8 @@ def _live_overs_label_for_events(events: list[MatchBallEvent]) -> str:
     completed_overs = 0
     balls_in_current_over = 0
     for event in events:
-        if not event.is_legal_delivery:
-            continue
-        balls_in_current_over += 1
+        if event.is_legal_delivery:
+            balls_in_current_over += 1
         if _live_event_closes_over(event, balls_in_current_over):
             completed_overs += 1
             balls_in_current_over = 0
@@ -3358,16 +3496,16 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
     if boundary_type is None and body.boundary_runs not in (0,):
         raise HTTPException(status_code=400, detail={"code": "validation", "message": "boundary_runs requires a boundary_type."})
 
-    if body.short_runs and body.completed_runs <= body.short_runs:
+    if body.short_runs > body.completed_runs:
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": "completed_runs must be greater than short_runs when a short run is called."},
+            detail={"code": "validation", "message": "short_runs cannot exceed completed_runs."},
         )
 
-    if body.over_complete_override is not None and not body.is_legal_delivery:
+    if body.over_complete_override is not None and body.is_dead_ball:
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": "An umpire over call can only be applied to a legal delivery."},
+            detail={"code": "validation", "message": "An umpire over call cannot be applied to a dead-ball event."},
         )
 
     if body.penalty_runs_batting not in (0, 5, 10) or body.penalty_runs_fielding not in (0, 5, 10):
@@ -3383,7 +3521,7 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
         )
 
     retirement_transition = wicket_type in {"retired_hurt", "retired_out", "retired_not_out"}
-    non_delivery_dismissal = wicket_type == "non_striker_left_early"
+    non_delivery_dismissal = wicket_type in {"non_striker_left_early", "timed_out"}
 
     if body.is_dead_ball:
         if body.is_legal_delivery:
@@ -3396,14 +3534,14 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
         if wicket_type and not (retirement_transition or non_delivery_dismissal):
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "Only a batter retirement or non-striker leaving early can be recorded without a delivery."},
+                detail={"code": "validation", "message": "Only a batter retirement, Timed out, or non-striker leaving early can be recorded without a delivery."},
             )
         if (retirement_transition or non_delivery_dismissal) and body.wicket_player_id is None:
             raise HTTPException(
                 status_code=400,
                 detail={"code": "validation", "message": "Choose the batter who retired."},
             )
-        if non_delivery_dismissal:
+        if wicket_type == "non_striker_left_early":
             if body.wicket_player_id != body.non_striker_player_id:
                 raise HTTPException(
                     status_code=400,
@@ -3457,10 +3595,10 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
                 status_code=400,
                 detail={"code": "validation", "message": "No-balls are not legal deliveries."},
             )
-        if body.runs_extras < 1:
+        if body.runs_extras != 1:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "A No-ball must include the one-run penalty."},
+                detail={"code": "validation", "message": "A No-ball records exactly one penalty extra; use no_ball_bye or no_ball_leg_bye for additional non-batter runs."},
             )
 
     if extras_type in {"bye", "leg_bye"}:
@@ -3510,7 +3648,7 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
     if wicket_type:
         if wicket_type not in allowed_wickets:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown mode of dismissal."})
-        if body.wicket_player_id is None and wicket_type not in {"timed_out"}:
+        if body.wicket_player_id is None:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "Choose the player who is out."})
         if wicket_type in {"caught", "run_out", "stumped", "non_striker_left_early"} and body.fielder_player_id is None:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "This dismissal requires a fielder."})
@@ -3533,23 +3671,43 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
 def _assert_bowler_can_bowl_current_over(db: Session, match_id: int, body: LiveBallEventIn) -> None:
     if body.is_dead_ball:
         return
-    if body.ball_number != 1 or body.over_number <= 0:
-        return
 
-    previous = db.scalar(
+    current = db.scalar(
         select(MatchBallEvent)
         .where(
             MatchBallEvent.match_id == match_id,
             MatchBallEvent.innings == body.innings,
-            MatchBallEvent.over_number == body.over_number - 1,
+            MatchBallEvent.over_number == body.over_number,
             MatchBallEvent.is_dead_ball.is_(False),
         )
         .order_by(MatchBallEvent.sequence_number.desc(), MatchBallEvent.id.desc()),
     )
-    if previous is not None and previous.bowler_player_id == body.bowler_player_id:
+    if current is not None and current.bowler_player_id == body.bowler_player_id:
+        return
+
+    if body.over_number <= 0:
+        return
+
+    previous_over_bowler_ids = set(
+        db.scalars(
+            select(MatchBallEvent.bowler_player_id).where(
+                MatchBallEvent.match_id == match_id,
+                MatchBallEvent.innings == body.innings,
+                MatchBallEvent.over_number == body.over_number - 1,
+                MatchBallEvent.is_dead_ball.is_(False),
+            ),
+        ).all(),
+    )
+    if body.bowler_player_id in previous_over_bowler_ids:
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": "The same bowler cannot bowl consecutive overs."},
+            detail={
+                "code": "validation",
+                "message": (
+                    "A bowler cannot bowl consecutive overs or replace another bowler "
+                    "after bowling any part of the previous over."
+                ),
+            },
         )
 
 
@@ -3789,6 +3947,7 @@ def _live_score_state(
     return state.model_copy(
         update={
             **_scorecard_access(db, match, actor),
+            "can_edit_commentary": _can_comment_match(db, match.id, actor),
             "scoring_session": (
                 _session_out(db, active_session, actor)
                 if active_session is not None
@@ -3805,6 +3964,7 @@ def _assignment_out(row: MatchScorerAssignment) -> MatchScorerAssignmentOut:
         user_id=row.user_id,
         user_email=row.user.email if row.user else "",
         user_full_name=row.user.full_name if row.user else None,
+        duty=row.duty,
         assigned_by_user_id=row.assigned_by_user_id,
         created_at=row.created_at,
     )
@@ -3815,7 +3975,7 @@ def scorer_assigned_matches(
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> list[MatchDetailOut]:
-    if actor.role == "scorer":
+    if actor.role in ("scorer", "commentator"):
         stmt = (
             select(Match)
             .join(MatchScorerAssignment, MatchScorerAssignment.match_id == Match.id)
@@ -4215,7 +4375,8 @@ def admin_set_match_scorers(
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
 
-    user_ids = list(dict.fromkeys(body.user_ids))
+    requested_duties = {item.user_id: item.duty for item in body.assignments}
+    user_ids = list(requested_duties) or list(dict.fromkeys(body.user_ids))
     users = list(db.scalars(select(User).where(User.id.in_(user_ids))).all()) if user_ids else []
     found_ids = {user.id for user in users}
     missing_ids = [user_id for user_id in user_ids if user_id not in found_ids]
@@ -4225,11 +4386,69 @@ def admin_set_match_scorers(
             detail={"code": "validation", "message": f"Unknown scorer user id(s): {missing_ids}"},
         )
 
-    invalid_users = [user.email for user in users if user.role != "scorer"]
+    invalid_users = [
+        user.email for user in users if user.role not in ("scorer", "commentator")
+    ]
     if invalid_users:
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": f"Only scorer users can be assigned: {invalid_users}"},
+            detail={
+                "code": "validation",
+                "message": f"Only scorer or commentator users can be assigned: {invalid_users}",
+            },
+        )
+
+    if not requested_duties:
+        requested_duties = {
+            user.id: (
+                "commentator_only"
+                if user.role == "commentator"
+                else "score_and_commentary"
+            )
+            for user in users
+        }
+
+    invalid_duties = [
+        user.email
+        for user in users
+        if (
+            user.role == "commentator"
+            and requested_duties[user.id] != "commentator_only"
+        )
+        or (
+            user.role == "scorer"
+            and requested_duties[user.id]
+            not in ("scorer_only", "score_and_commentary")
+        )
+    ]
+    if invalid_duties:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "validation",
+                "message": (
+                    "Scorers may be assigned scorer-only or combined duties; "
+                    f"commentators may be assigned commentary-only duties: {invalid_duties}"
+                ),
+            },
+        )
+
+    scoring_count = sum(
+        duty in SCORING_ASSIGNMENT_DUTIES for duty in requested_duties.values()
+    )
+    commentary_count = sum(
+        duty in COMMENTARY_ASSIGNMENT_DUTIES for duty in requested_duties.values()
+    )
+    if scoring_count > 1 or commentary_count > 1:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "validation",
+                "message": (
+                    "Assign at most one scorer and one commentator per match, "
+                    "or one scorer with combined scoring and commentary duty."
+                ),
+            },
         )
 
     db.execute(delete(MatchScorerAssignment).where(MatchScorerAssignment.match_id == match_id))
@@ -4238,6 +4457,7 @@ def admin_set_match_scorers(
             MatchScorerAssignment(
                 match_id=match_id,
                 user_id=user.id,
+                duty=requested_duties[user.id],
                 assigned_by_user_id=actor.id,
             ),
         )
@@ -4249,7 +4469,12 @@ def admin_set_match_scorers(
         action="assign_scorers",
         entity_type="match",
         entity_id=match_id,
-        summary=f"Assigned {len(users)} scorer(s) to match {match_id}",
+        summary=(
+            f"Assigned match {match_id} duties: "
+            + ", ".join(
+                f"{user.email}={requested_duties[user.id]}" for user in users
+            )
+        ),
     )
     db.commit()
 
@@ -4273,7 +4498,7 @@ def admin_match_day_squad(
     match = db.get(Match, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_open_match_workbench(db, match_id, actor)
     return _match_squad_out(db, match)
 
 
@@ -4548,8 +4773,45 @@ def admin_live_score_state(
     match = db.get(Match, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    _assert_can_score_match(db, match_id, actor)
+    _assert_can_open_match_workbench(db, match_id, actor)
     return _live_score_state(db, match, actor)
+
+
+@router.put(
+    "/matches/{match_id}/live/balls/{event_id}/commentary",
+    response_model=LiveBallEventOut,
+)
+def admin_update_live_ball_commentary(
+    match_id: int,
+    event_id: int,
+    body: LiveBallCommentaryIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> LiveBallEventOut:
+    _assert_can_comment_match(db, match_id, actor)
+
+    event = db.get(MatchBallEvent, event_id)
+    if event is None or event.match_id != match_id:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "not_found", "message": "Ball event not found"},
+        )
+
+    event.commentary = (body.commentary or "").strip() or None
+    event.commentary_updated_by_user_id = actor.id
+    event.commentary_updated_at = datetime.now(timezone.utc)
+    write_audit(
+        db,
+        actor_user_id=actor.id,
+        action="update_live_ball_commentary",
+        entity_type="match_ball_event",
+        entity_id=event.id,
+        summary=f"Updated public commentary for live ball {event.id} in match {match_id}",
+    )
+    db.commit()
+    db.refresh(event)
+    match = db.get(Match, match_id)
+    return _live_event_out(event, score_version=_score_version(match) if match else None)
 
 
 @router.put("/matches/{match_id}/live/setup", response_model=MatchDetailOut)

@@ -8,6 +8,7 @@ import { publicDisplayMatchStatus } from './lib/matchStatus'
 import { InningsScorecardPanels } from './components/InningsScorecardPanels'
 import { SocialShareButtons } from './components/SocialShareButtons'
 import { LiveScorePanel } from './components/LiveScorePanel'
+import { MatchStreamPanel } from './components/MatchStreamPanel'
 import { Spinner } from './components/Spinner'
 import { Breadcrumbs } from './components/Breadcrumbs'
 import { SeoHead } from './components/SeoHead'
@@ -77,6 +78,8 @@ type MatchDetail = {
   toss_info: string | null
   umpires: string | null
   description: string | null
+  stream_label?: string | null
+  stream_available?: boolean
   status: string
   result: MatchResultDetail | null
   player_stats: MatchPlayerStat[]
@@ -971,6 +974,16 @@ export default function MatchDetailPage() {
               homeName={homeName}
               awayName={awayName}
               showEvents
+            />
+          ) : null}
+
+          {!isLiveMatch && data.stream_available ? (
+            <MatchStreamPanel
+              matchId={data.id}
+              streamLabel={data.stream_label}
+              homeName={homeName}
+              awayName={awayName}
+              isLive={false}
             />
           ) : null}
 

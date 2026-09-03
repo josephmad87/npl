@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
-import type { GalleryItemDto, TeamDto } from '@/lib/api-types'
+import type { GalleryItemDto, MatchDto, TeamDto } from '@/lib/api-types'
 import { adminListAll, adminPost } from '@/lib/admin-client'
 import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
@@ -23,6 +23,11 @@ function NewGalleryItemPage() {
     queryFn: () => adminListAll<TeamDto>('/admin/teams'),
     staleTime: 60_000,
   })
+  const matchesQ = useQuery({
+    queryKey: ['admin', 'matches'],
+    queryFn: () => adminListAll<MatchDto>('/admin/matches'),
+    staleTime: 60_000,
+  })
   const [title, setTitle] = useState('')
   const [slug, setSlug] = useState('')
   const [description, setDescription] = useState('')
@@ -33,11 +38,18 @@ function NewGalleryItemPage() {
     useState<GalleryStatus>('draft')
   const [tagsText, setTagsText] = useState('')
   const [teamId, setTeamId] = useState<number | ''>('')
+  const [matchId, setMatchId] = useState<number | ''>('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
   const teamsSorted = [...(teamsQ.data ?? [])].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  )
+  const teamNames = new Map(teamsSorted.map((team) => [team.id, team.name]))
+  const matchesSorted = [...(matchesQ.data ?? [])].sort((a, b) =>
+    String(b.start_time ?? b.match_date ?? '').localeCompare(
+      String(a.start_time ?? a.match_date ?? ''),
+    ),
   )
 
   const save = async () => {
@@ -71,6 +83,10 @@ function NewGalleryItemPage() {
         team_id:
           teamId !== '' && Number.isFinite(Number(teamId))
             ? Number(teamId)
+            : null,
+        match_id:
+          matchId !== '' && Number.isFinite(Number(matchId))
+            ? Number(matchId)
             : null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'gallery'] })
@@ -223,6 +239,29 @@ function NewGalleryItemPage() {
                 {teamsSorted.map((t) => (
                   <option key={t.id} value={String(t.id)}>
                     {t.name}
+                  </option>
+                ))}
+              </select>
+            ),
+          },
+          {
+            id: 'match_id',
+            label: 'Associated match (optional)',
+            control: (
+              <select
+                id="match_id"
+                className="inline-edit__control"
+                value={matchId === '' ? '' : String(matchId)}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setMatchId(v ? Number(v) : '')
+                }}
+                disabled={isSaving || matchesQ.isLoading}
+              >
+                <option value="">None</option>
+                {matchesSorted.map((match) => (
+                  <option key={match.id} value={String(match.id)}>
+                    {match.title?.trim() || `${teamNames.get(match.home_team_id) ?? `Team ${match.home_team_id}`} v ${teamNames.get(match.away_team_id) ?? `Team ${match.away_team_id}`}`} · {match.match_date ?? 'Date TBC'}
                   </option>
                 ))}
               </select>

@@ -212,6 +212,20 @@ export async function adminUploadMedia(
   })
 }
 
+export async function scorerUploadMatchPhoto<T>(
+  matchId: number,
+  file: File,
+  title: string,
+): Promise<T> {
+  const body = new FormData()
+  body.append('file', file)
+  body.append('title', title)
+  return adminApiFetch<T>(`/admin/scorer/matches/${matchId}/photos`, {
+    method: 'POST',
+    body,
+  })
+}
+
 /** Fetch all pages up to `maxPages` (default 10 × pageSize rows). */
 export async function adminListAll<T>(
   basePath: string,
