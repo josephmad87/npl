@@ -1,11 +1,11 @@
-name: Deployment preview smoke
+name: Deployment smoke
 
 on:
   deployment_status:
   workflow_dispatch:
     inputs:
       preview_url:
-        description: Netlify deployment-preview URL
+        description: Website or API deployment URL
         required: true
         type: string
 
@@ -21,7 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check deployment preview
+      - name: Check deployment
+        shell: bash
         env:
           PREVIEW_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.preview_url || github.event.deployment_status.environment_url }}
-        run: python3 ops/smoke_check.py --site-url "$PREVIEW_URL" --attempts 5 --retry-delay 3
+          DEPLOYMENT_DESCRIPTION: ${{ github.event.deployment.description }}
+        run: |
+          if [[ "$DEPLOYMENT_DESCRIPTION" == "Heroku" || "$PREVIEW_URL" == *".herokuapp.com"* ]]; then
+            python3 ops/smoke_check.py --api-url "$PREVIEW_URL" --attempts 5 --retry-delay 3
+          else
+            python3 ops/smoke_check.py --site-url "$PREVIEW_URL" --attempts 5 --retry-delay 3
+          fi
