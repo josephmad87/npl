@@ -5,6 +5,7 @@ import nplLogoUrl from './assets/logo-optimized.png'
 import { MerchandiseQuickOrderModal } from './components/MerchandiseQuickOrderModal'
 import { PageHero } from './components/PageHero'
 import { ResponsiveImage } from './components/ResponsiveImage'
+import { SectionHeader } from './components/SectionHeader'
 import {
   merchandiseExcerpt,
   merchandiseImages,
@@ -12,6 +13,8 @@ import {
   type MerchandiseProduct,
 } from './lib/merchandise'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { managedSection, useSitePageContent } from './lib/siteContent'
+import { ManagedSiteHtml } from './components/ManagedSiteHtml'
 
 type MerchandiseTeam = {
   id: number
@@ -55,20 +58,28 @@ function MerchandiseCatalog({
     [products],
   )
   const [orderProduct, setOrderProduct] = useState<MerchandiseProduct | null>(null)
+  const contentQ = useSitePageContent('merchandise')
+  const productsContent = managedSection(
+    contentQ.data,
+    'products',
+    'Merchandise',
+    '<p>Browse products and submit an order request for payment, collection or delivery.</p>',
+  )
 
   return (
     <>
       <PageHero
-        title={teamName ? `${teamName} merchandise` : 'Official NPL Merchandise'}
-        subtitle={teamId ? 'Shop merchandise linked to this team.' : undefined}
+        title={teamName ? `${teamName} merchandise` : contentQ.data?.title || 'Official NPL Merchandise'}
+        subtitle={teamId ? 'Shop merchandise linked to this team.' : contentQ.data?.subtitle}
         variant="siteLogo"
         fallbackMode="none"
       />
       <main className="container">
         <section className="menu-page merchandise-page">
-          <div className="menu-page__intro">
-            <p className="muted">Browse official National Premier League merchandise and submit an order request for payment, collection or delivery.</p>
-          </div>
+          <SectionHeader
+            title={productsContent.heading}
+            description={<ManagedSiteHtml html={productsContent.body_html} />}
+          />
           {isLoading ? <p className="muted">Loading merchandise…</p> : null}
           {isError ? <p className="form-error">Could not load merchandise.</p> : null}
           {!isLoading && activeProducts.length === 0 ? <p className="muted">{teamId ? 'No merchandise is available for this team yet.' : 'No merchandise is available yet.'}</p> : null}

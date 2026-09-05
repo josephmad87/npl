@@ -84,7 +84,7 @@ from app.schemas.site_page_content import SitePageBody, SitePageOut, SitePageSlu
 from app.schemas.sponsor import SponsorOut
 from app.schemas.teams import TeamOut, TeamSeasonRecordOut
 from app.services.dls import dls_g50_for_category, dls_par_score
-from app.services.site_pages import default_site_page_body
+from app.services.site_pages import default_site_page_body, merge_site_page_body_with_defaults
 from app.services.seo_redirects import normalise_public_path
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -279,7 +279,10 @@ def _coerce_public_site_page_body(
 ) -> SitePageBody:
     if raw and isinstance(raw, dict):
         try:
-            return SitePageBody.model_validate(raw)
+            return merge_site_page_body_with_defaults(
+                slug,
+                SitePageBody.model_validate(raw),
+            )
         except Exception:
             pass
     return default_site_page_body(slug)

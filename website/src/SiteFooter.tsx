@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import nplLogoUrl from './assets/logo-optimized.png'
 import { fetchJson } from './lib/publicApi'
+import { managedSection, useSitePageContent } from './lib/siteContent'
 
 type FooterAboutContent = {
   social_links?: {
@@ -27,6 +28,11 @@ export function SiteFooter() {
     queryFn: () => fetchJson<FooterAboutContent>('/public/about'),
     retry: 1,
   })
+  const contentQ = useSitePageContent('site-footer')
+  const competitions = managedSection(contentQ.data, 'competitions', 'Competitions')
+  const media = managedSection(contentQ.data, 'media-updates', 'Media & Updates')
+  const support = managedSection(contentQ.data, 'about-support', 'About & Support')
+  const social = managedSection(contentQ.data, 'social', 'Social')
   const socials = aboutQ.data?.social_links
   const facebook = normalizeSocialLink(socials?.facebook)
   const instagram = normalizeSocialLink(socials?.instagram)
@@ -37,7 +43,7 @@ export function SiteFooter() {
     <footer className="site-footer">
       <div className="site-footer-shell">
         <div className="site-footer-top">
-          <h2 className="site-footer-title">Explore the competition</h2>
+          <h2 className="site-footer-title">{contentQ.data?.title || 'Explore the Competition'}</h2>
           <nav className="site-footer-quick" aria-label="Competition quick links">
             <Link to="/mens">Mens</Link>
             <Link to="/women">Women</Link>
@@ -58,7 +64,7 @@ export function SiteFooter() {
           </div>
 
           <nav className="site-footer-col" aria-label="Competitions">
-            <h3>Competitions</h3>
+            <h3>{competitions.heading}</h3>
             <Link to="/mens">Mens Hub</Link>
             <Link to="/women">Women Hub</Link>
             <Link to="/youth">Youth Hub</Link>
@@ -67,7 +73,7 @@ export function SiteFooter() {
           </nav>
 
           <nav className="site-footer-col" aria-label="Media and updates">
-            <h3>Media &amp; updates</h3>
+            <h3>{media.heading}</h3>
             <Link to="/news" search={{ q: '' }}>
               Newsroom
             </Link>
@@ -77,7 +83,7 @@ export function SiteFooter() {
           </nav>
 
           <nav className="site-footer-col" aria-label="About and support">
-            <h3>About &amp; support</h3>
+            <h3>{support.heading}</h3>
             <Link to="/about-us">About Us</Link>
             <Link to="/safeguarding">Safeguarding</Link>
             <Link to="/scorecard-corrections">Scorecard Corrections</Link>
@@ -86,7 +92,7 @@ export function SiteFooter() {
           </nav>
 
           <nav className="site-footer-col" aria-label="Social">
-            <h3>Social</h3>
+            <h3>{social.heading}</h3>
             {facebook !== null ? (
               <a href={facebook} target="_blank" rel="noreferrer">
                 Facebook

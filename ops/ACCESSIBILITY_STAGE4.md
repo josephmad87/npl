@@ -30,6 +30,22 @@ npm --prefix admin run build
 
 CI runs the shared accessibility contract tests. Before release, run an automated browser audit against staging for the homepage, a match scorecard, admin login and an authenticated scoring workspace. Critical or serious findings are blockers; Lighthouse Accessibility must be at least 95.
 
+## Current public-template audit
+
+The local browser audit covers the homepage, fixtures, results, news, category hubs, gallery, merchandise, league/season, match centre, team comparison, about, contact, privacy and supporter-account routes. It checks rendered landmarks and heading order, image alternatives, accessible names for controls and fields, solid-colour text contrast, viewport overflow, keyboard target size and responsive reflow.
+
+Current code-level results:
+
+- No missing image alternative attributes, unnamed visible controls or unlabeled visible form fields were found on the audited public templates.
+- Solid-colour foreground/background pairs sampled from rendered content meet WCAG AA normal-text contrast. Text rendered over photographs and gradients remains a manual visual check because computed colour alone cannot prove the effective contrast at every pixel.
+- Page-level horizontal overflow is removed from the audited responsive templates. Intentional wide scorecards, standings and statistics tables are named, focusable horizontal-scroll regions.
+- Data-table header cells explicitly declare row or column scope.
+- Season pages expose a programmatic H1 even when the compact league hero presents the visible season title in a tabbed header.
+- Compact links and carousel controls meet their target-size requirement. Inline links within running policy text use the WCAG inline-target exception.
+- Content editors can update public page titles, subtitles, section headings and supporting rich text from **Website Content** in the admin panel. Fixed data, scores, validation messages and workflow control names remain protected application text; entity-owned content such as articles, teams, players, matches, products and the About page remains editable in its existing dedicated admin editor.
+
+Authenticated admin/scoring pages, photograph/gradient contrast, VoiceOver, TalkBack, text-spacing overrides and the complete 320 CSS-pixel scoring flow still require the staging/manual checks described below before a production release.
+
 ## Keyboard-only test
 
 Test the public header, one complete tab set, a horizontally scrollable table, merchandise quick order, admin navigation, scorer innings/panel tabs, Extras, Wicket, End of over and Finalise dialogs.

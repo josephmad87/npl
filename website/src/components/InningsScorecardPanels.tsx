@@ -263,6 +263,13 @@ export function InningsScorecardPanels({
     homeLabel,
     awayLabel,
   )
+  const bowlingLabel = teamLabel(
+    sides.bowlingTeamId,
+    homeTeamId,
+    awayTeamId,
+    homeLabel,
+    awayLabel,
+  )
 
   const battingRows = stats
     .filter(
@@ -301,7 +308,12 @@ export function InningsScorecardPanels({
         <h3 className="innings-scorecard-panels__h">{battingHeading}</h3>
 
         {battingRows.length > 0 ? (
-          <div className="table-scroll match-stats-scroll">
+          <div
+            className="table-scroll match-stats-scroll npl-table-region"
+            role="region"
+            aria-label={`${battingHeading} batting scorecard`}
+            tabIndex={0}
+          >
             <table className="match-centre-scorecard-table batting-scorecard-table">
               <colgroup>
                 <col className="scorecard-stat-columns__batter" />
@@ -314,13 +326,13 @@ export function InningsScorecardPanels({
               </colgroup>
               <thead>
                 <tr>
-                  <th>Batter</th>
-                  <th>How out</th>
-                  <th>R</th>
-                  <th>B</th>
-                  <th>4s</th>
-                  <th>6s</th>
-                  <th>SR</th>
+                  <th scope="col">Batter</th>
+                  <th scope="col">How out</th>
+                  <th scope="col">R</th>
+                  <th scope="col">B</th>
+                  <th scope="col">4s</th>
+                  <th scope="col">6s</th>
+                  <th scope="col">SR</th>
                 </tr>
               </thead>
               <tbody>
@@ -377,7 +389,12 @@ export function InningsScorecardPanels({
 
       <section className="innings-scorecard-panels__section">
         {bowlingRows.length > 0 ? (
-          <div className="table-scroll match-stats-scroll">
+          <div
+            className="table-scroll match-stats-scroll npl-table-region"
+            role="region"
+            aria-label={`${bowlingLabel} bowling scorecard`}
+            tabIndex={0}
+          >
             <table className="match-centre-scorecard-table bowling-scorecard-table">
               <colgroup>
                 <col className="scorecard-stat-columns__bowler" />
@@ -389,12 +406,12 @@ export function InningsScorecardPanels({
               </colgroup>
               <thead>
                 <tr>
-                  <th>Bowler</th>
-                  <th>O</th>
-                  <th>M</th>
-                  <th>R</th>
-                  <th>W</th>
-                  <th>Econ</th>
+                  <th scope="col">Bowler</th>
+                  <th scope="col">O</th>
+                  <th scope="col">M</th>
+                  <th scope="col">R</th>
+                  <th scope="col">W</th>
+                  <th scope="col">Econ</th>
                 </tr>
               </thead>
               <tbody>

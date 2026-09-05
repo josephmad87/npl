@@ -19,6 +19,8 @@ import {
 } from '../lib/leagueSeasonAggregates'
 import { type LeagueLite, type MatchLite, useTeamsMap } from '../lib/hooks'
 import { extractList, fetchAllPaginatedList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
+import { managedSection, useSitePageContent } from '../lib/siteContent'
+import { ManagedSiteHtml } from './ManagedSiteHtml'
 
 type LeagueDetail = {
   id: number
@@ -188,6 +190,10 @@ export function LeagueSeasonHub({
   const [visibleResultCount, setVisibleResultCount] = useState(SEASON_RESULTS_BATCH_SIZE)
 
   const [standingsSort, setStandingsSort] = useState<StandingSortMode>('points')
+  const contentQ = useSitePageContent('league-season')
+  const resultsContent = managedSection(contentQ.data, 'results', 'Results')
+  const statsContent = managedSection(contentQ.data, 'stats', 'Stats')
+  const standingsContent = managedSection(contentQ.data, 'standings', 'Standings')
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['league-detail', leagueSlug],
@@ -349,6 +355,12 @@ export function LeagueSeasonHub({
           section={section}
           onSectionChange={setSection}
           disabled={isLoading}
+          accessibleTitle={activeSeason ? `${activeSeason.name} — ${data.name}` : data.name}
+          sectionLabels={{
+            results: resultsContent.heading,
+            stats: statsContent.heading,
+            standings: standingsContent.heading,
+          }}
         />
       ) : data && seasons.length === 0 ? (
         <PageHero
@@ -403,6 +415,7 @@ export function LeagueSeasonHub({
                   <EmptyState title="No results for this season yet" />
                 ) : (
                   <div className="league-season-results">
+                    <ManagedSiteHtml html={resultsContent.body_html} className="muted managed-rich-text" />
                     <div className="league-season-results__list">
                       {visibleResultMatches.map((match) => (
                         <MatchCard
@@ -431,7 +444,7 @@ export function LeagueSeasonHub({
                   <Spinner label="Loading standings..." />
                 ) : (
                   <>
-                  <SectionHeader title="Standings" />
+                  <SectionHeader title={standingsContent.heading} description={<ManagedSiteHtml html={standingsContent.body_html} />} />
 <div className="league-standings-toolbar" aria-label="Sort standings">
   <span>Sort by</span>
   {standingSortOptions.map((option) => (
@@ -451,22 +464,22 @@ export function LeagueSeasonHub({
 ) : (
   <div className="league-standings-wrap">
     <div className="league-standings-panel">
-      <div className="league-standings-scroll" role="region" aria-label="Points table">
+      <div className="league-standings-scroll npl-table-region" role="region" aria-label="Points table" tabIndex={0}>
         <table className="league-standings-table">
          <thead>
   <tr>
-    <th>Pos</th>
-    <th>Team</th>
-    <th>Mat</th>
-    <th>Won</th>
-    <th>Lost</th>
-    <th>Tied</th>
-    <th>NR</th>
-    <th>For</th>
-    <th>Against</th>
-    <th>NRR</th>
-    <th>Pts</th>
-    <th>Form</th>
+    <th scope="col">Pos</th>
+    <th scope="col">Team</th>
+    <th scope="col">Mat</th>
+    <th scope="col">Won</th>
+    <th scope="col">Lost</th>
+    <th scope="col">Tied</th>
+    <th scope="col">NR</th>
+    <th scope="col">For</th>
+    <th scope="col">Against</th>
+    <th scope="col">NRR</th>
+    <th scope="col">Pts</th>
+    <th scope="col">Form</th>
   </tr>
 </thead>
        <tbody>
@@ -535,6 +548,7 @@ export function LeagueSeasonHub({
                 <Spinner label="Loading match statistics..." />
               ) : (
                 <div className="league-season-stats">
+                  <SectionHeader title={statsContent.heading} description={<ManagedSiteHtml html={statsContent.body_html} />} />
                   <LeagueStatsPanel
                     resultMatches={resultMatches}
                     teamIds={teamIds}

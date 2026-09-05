@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { preferredScrollBehavior } from '@npl/ui/accessibility'
+import { formatTossSummary } from '@npl/ui/toss-summary'
 import nplLogoUrl from './assets/logo-optimized.png'
 import { ErrorNotice } from './components/ErrorNotice'
 import { publicDisplayMatchStatus } from './lib/matchStatus'
@@ -23,6 +24,8 @@ import { formatExtrasBreakdown } from './lib/match-extras'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { matchSeoPath } from './lib/matchUrls'
 import { supporterFetch, useSupporterSession } from './lib/supporterApi'
+import { managedSection, useSitePageContent } from './lib/siteContent'
+import { ManagedSiteHtml } from './components/ManagedSiteHtml'
 
 type MatchResultDetail = {
   winning_team_id: number | null
@@ -514,8 +517,10 @@ function TeamLogoWithFallback({
   className: string
   alt: string
 }) {
-  const initial = resolveMediaUrl(logoUrl) ?? nplLogoUrl
-  const [src, setSrc] = useState(initial)
+  // Team data arrives after the match detail request. Derive the source from
+  // the current prop on every render so the club crest replaces the temporary
+  // fallback as soon as the teams query resolves.
+  const src = resolveMediaUrl(logoUrl) ?? nplLogoUrl
 
   return (
     <img
@@ -524,7 +529,10 @@ function TeamLogoWithFallback({
       alt={alt}
       loading="lazy"
       decoding="async"
-      onError={() => setSrc(nplLogoUrl)}
+      onError={(event) => {
+        event.currentTarget.onerror = null
+        event.currentTarget.src = nplLogoUrl
+      }}
     />
   )
 }
@@ -536,8 +544,7 @@ function MatchCentreHeroLogo({
   logoUrl: string | null
   isWinner: boolean
 }) {
-  const initial = resolveMediaUrl(logoUrl) ?? nplLogoUrl
-  const [src, setSrc] = useState(initial)
+  const src = resolveMediaUrl(logoUrl) ?? nplLogoUrl
 
   return (
     <span
@@ -552,7 +559,10 @@ function MatchCentreHeroLogo({
         alt=""
         loading="eager"
         decoding="async"
-        onError={() => setSrc(nplLogoUrl)}
+        onError={(event) => {
+          event.currentTarget.onerror = null
+          event.currentTarget.src = nplLogoUrl
+        }}
       />
       {isWinner ? (
         <span className="match-centre-hero__cup" aria-hidden title="Winner">
@@ -565,6 +575,14 @@ function MatchCentreHeroLogo({
 
 export default function MatchDetailPage() {
   const { matchId } = useParams({ strict: false }) as { matchId?: string }
+  const contentQ = useSitePageContent('match-centre')
+  const matchDetailsContent = managedSection(contentQ.data, 'match-details', 'Match Details')
+  const resultContent = managedSection(contentQ.data, 'result-player-stats', 'Result & Player Stats')
+  const topPerformersContent = managedSection(contentQ.data, 'top-performers', 'Top Performers')
+  const comparePlayersContent = managedSection(contentQ.data, 'compare-players', 'Compare Players')
+  const fanPlayerContent = managedSection(contentQ.data, 'fan-player-of-match', 'Fan Player of the Match')
+  const scorecardContent = managedSection(contentQ.data, 'scorecard', 'Scorecard')
+  const matchReportSection = managedSection(contentQ.data, 'match-report', 'Match Report')
   const { map: teamsMap } = useTeamsMap()
   const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
   const [highlightedPlayerId, setHighlightedPlayerId] = useState<number | null>(null)
@@ -991,7 +1009,11 @@ export default function MatchDetailPage() {
             <>
           <div className="match-centre-panels">
             <div className="match-centre-panels__col">
-              <div className="match-centre-panel">
+              <div className="match-centre-panel" aria-labelledby="match-details-title">
+                <h2 id="match-details-title" className="match-centre-panel__h">
+                  {matchDetailsContent.heading}
+                </h2>
+                <ManagedSiteHtml html={matchDetailsContent.body_html} />
                 <dl className="match-centre-detail">
                   <div className="match-centre-detail__row">
                     <dt>League · season</dt>
@@ -1022,7 +1044,7 @@ export default function MatchDetailPage() {
                   {data.toss_info?.trim() ? (
                     <div className="match-centre-detail__row">
                       <dt>Toss</dt>
-                      <dd>{data.toss_info}</dd>
+                      <dd>{formatTossSummary(data.toss_info)}</dd>
                     </div>
                   ) : null}
 
@@ -1092,9 +1114,8 @@ export default function MatchDetailPage() {
             <div className="match-centre-panels__col">
               {showResultBlock ? (
                 <section className="match-centre-panel match-centre-panel--result">
-                  <h2 className="match-centre-panel__h">
-                    Result &amp; player stats
-                  </h2>
+                  <h2 className="match-centre-panel__h">{resultContent.heading}</h2>
+                  <ManagedSiteHtml html={resultContent.body_html} />
 
                   {data.result ? (
                     <div className="match-centre-result">
@@ -1168,8 +1189,8 @@ export default function MatchDetailPage() {
                   <p className="match-centre-top-performers__eyebrow">
                     Match impact
                   </p>
-                  <h2 id="top-performers-title">Top Performers</h2>
-                  <p>Tap a card to jump to that player’s scorecard row.</p>
+                  <h2 id="top-performers-title">{topPerformersContent.heading}</h2>
+                  <ManagedSiteHtml html={topPerformersContent.body_html} />
                   {data.result?.top_performers ? (
                     <p className="match-centre-top-performers__summary">
                       {data.result.top_performers}
@@ -1212,8 +1233,8 @@ export default function MatchDetailPage() {
                   <p className="match-centre-player-matchup__eyebrow">
                     Player match-up
                   </p>
-                  <h2 id="player-matchup-title">Compare Players</h2>
-                  <p>Choose one player from each team and compare their match impact.</p>
+                  <h2 id="player-matchup-title">{comparePlayersContent.heading}</h2>
+                  <ManagedSiteHtml html={comparePlayersContent.body_html} />
                 </div>
               </div>
 
@@ -1285,13 +1306,18 @@ export default function MatchDetailPage() {
                     </button>
                   </div>
 
-                  <div className="match-centre-player-matchup__table-wrap">
+                  <div
+                    className="match-centre-player-matchup__table-wrap npl-table-region"
+                    role="region"
+                    aria-label={`${comparePlayersContent.heading} table`}
+                    tabIndex={0}
+                  >
                     <table className="match-centre-player-matchup__table">
                       <thead>
                         <tr>
-                          <th>{selectedHomeMatchup.playerName}</th>
-                          <th>Stat</th>
-                          <th>{selectedAwayMatchup.playerName}</th>
+                          <th scope="col">{selectedHomeMatchup.playerName}</th>
+                          <th scope="col">Stat</th>
+                          <th scope="col">{selectedAwayMatchup.playerName}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1318,10 +1344,8 @@ export default function MatchDetailPage() {
               <div className="match-centre-fan-pom__head">
                 <div>
                   <p className="match-centre-fan-pom__eyebrow">Fan vote</p>
-                  <h2 id="fan-player-of-match-title">Fan Player of the Match</h2>
-                  <p>
-                    Pick from the top 2 batters and top 2 bowlers from this match.
-                  </p>
+                  <h2 id="fan-player-of-match-title">{fanPlayerContent.heading}</h2>
+                  <ManagedSiteHtml html={fanPlayerContent.body_html} />
                 </div>
 
                 {fanVoteQ.data ? (
@@ -1428,8 +1452,9 @@ export default function MatchDetailPage() {
           >
             <div className="match-centre-scorecard__head">
               <h2 id="match-scorecard-title" className="match-centre-panel__h">
-                Scorecard
+                {scorecardContent.heading}
               </h2>
+              <ManagedSiteHtml html={scorecardContent.body_html} />
 
               <div
                 className="match-centre-tabs"
@@ -1498,7 +1523,12 @@ export default function MatchDetailPage() {
               aria-labelledby="match-report-title"
             >
               <p className="match-centre-match-report__eyebrow">Match report</p>
-              <h2 id="match-report-title">{matchReportContent.headline}</h2>
+              <h2 id="match-report-title">
+                {matchReportContent.headline === 'Match Report'
+                  ? matchReportSection.heading
+                  : matchReportContent.headline}
+              </h2>
+              <ManagedSiteHtml html={matchReportSection.body_html} />
 
               <div className="match-centre-match-report__body">
                 {matchReportContent.paragraphs.map((paragraph) => (

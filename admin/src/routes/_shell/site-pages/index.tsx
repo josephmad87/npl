@@ -29,7 +29,7 @@ import { getSession } from '@/lib/session'
 
 export const Route = createFileRoute('/_shell/site-pages/')({
   beforeLoad: () => {
-    if (getSession()?.role !== 'super_admin') {
+    if (!['super_admin', 'content_editor'].includes(getSession()?.role ?? '')) {
       throw redirect({ to: '/profile' })
     }
   },
@@ -40,34 +40,65 @@ const PAGE_OPTIONS: Array<{
   slug: SitePageSlug
   label: string
   publicPath: string
+  group: 'Website' | 'Templates' | 'Policy & information'
 }> = [
-  { slug: 'privacy', label: 'Privacy', publicPath: '/privacy' },
-  { slug: 'terms', label: 'Terms', publicPath: '/terms' },
-  { slug: 'support', label: 'Support', publicPath: '/support' },
+  { slug: 'home', label: 'Home', publicPath: '/', group: 'Website' },
+  { slug: 'mens', label: 'Mens Hub', publicPath: '/mens', group: 'Website' },
+  { slug: 'women', label: 'Women Hub', publicPath: '/women', group: 'Website' },
+  { slug: 'youth', label: 'Youth Hub', publicPath: '/youth', group: 'Website' },
+  { slug: 'fixtures', label: 'Fixtures', publicPath: '/fixtures', group: 'Website' },
+  { slug: 'results', label: 'Results', publicPath: '/results', group: 'Website' },
+  { slug: 'teams', label: 'Teams Lists', publicPath: '/mens/teams', group: 'Website' },
+  { slug: 'seasons', label: 'Season Lists', publicPath: '/mens/seasons', group: 'Website' },
+  { slug: 'news', label: 'News', publicPath: '/news', group: 'Website' },
+  { slug: 'gallery', label: 'Gallery', publicPath: '/gallery', group: 'Website' },
+  { slug: 'merchandise', label: 'Merchandise', publicPath: '/merchandise', group: 'Website' },
+  { slug: 'live', label: 'Live Scores', publicPath: '/live', group: 'Website' },
+  { slug: 'compare-teams', label: 'Compare Teams', publicPath: '/compare-teams', group: 'Website' },
+  { slug: 'about-us', label: 'About Us', publicPath: '/about-us', group: 'Website' },
+  { slug: 'contact-us', label: 'Contact Us', publicPath: '/contact-us', group: 'Website' },
+  { slug: 'search', label: 'Search', publicPath: '/search', group: 'Website' },
+  { slug: 'my-npl', label: 'My NPL', publicPath: '/my-npl', group: 'Website' },
+  { slug: 'site-footer', label: 'Site Footer', publicPath: '/', group: 'Website' },
+  { slug: 'not-found', label: '404 Page', publicPath: '/page-not-found-preview', group: 'Website' },
+  { slug: 'team-profile', label: 'Team Profile', publicPath: '/mens/teams', group: 'Templates' },
+  { slug: 'player-profile', label: 'Player Profile', publicPath: '/search', group: 'Templates' },
+  { slug: 'match-centre', label: 'Match Centre', publicPath: '/results', group: 'Templates' },
+  { slug: 'league-season', label: 'League / Season', publicPath: '/mens/seasons', group: 'Templates' },
+  { slug: 'merchandise-product', label: 'Product Detail', publicPath: '/merchandise', group: 'Templates' },
+  { slug: 'order-tracking', label: 'Order Tracking', publicPath: '/merchandise', group: 'Templates' },
+  { slug: 'privacy', label: 'Privacy', publicPath: '/privacy', group: 'Policy & information' },
+  { slug: 'terms', label: 'Terms', publicPath: '/terms', group: 'Policy & information' },
+  { slug: 'support', label: 'Support', publicPath: '/support', group: 'Policy & information' },
   {
     slug: 'account-deletion',
     label: 'Account deletion',
     publicPath: '/account-deletion',
+    group: 'Policy & information',
   },
   {
     slug: 'competition',
     label: 'Competition',
     publicPath: '/competition',
+    group: 'Policy & information',
   },
   {
     slug: 'safeguarding',
     label: 'Safeguarding',
     publicPath: '/safeguarding',
+    group: 'Policy & information',
   },
   {
     slug: 'scorecard-corrections',
     label: 'Corrections',
     publicPath: '/scorecard-corrections',
+    group: 'Policy & information',
   },
   {
     slug: 'supporters',
     label: 'Supporters',
     publicPath: '/supporters',
+    group: 'Policy & information',
   },
 ]
 
@@ -92,6 +123,7 @@ type SectionEditorProps = {
   onChange: (index: number, patch: Partial<SitePageSectionDto>) => void
   onMove: (index: number, direction: -1 | 1) => void
   onRemove: (index: number) => void
+  lockedStructure?: boolean
 }
 
 function SectionEditor({
@@ -102,6 +134,7 @@ function SectionEditor({
   onChange,
   onMove,
   onRemove,
+  lockedStructure = false,
 }: SectionEditorProps) {
   const handleBodyChange = useCallback(
     (bodyHtml: string) => onChange(index, { body_html: bodyHtml }),
@@ -115,7 +148,7 @@ function SectionEditor({
           <p>Section {index + 1}</p>
           <span>Anchor: #{section.id}</span>
         </div>
-        <div className="site-page-editor__section-actions">
+        {!lockedStructure ? <div className="site-page-editor__section-actions">
           <button
             type="button"
             className="btn-ghost btn--with-icon"
@@ -144,7 +177,7 @@ function SectionEditor({
             <Trash2 size={16} aria-hidden />
             Remove
           </button>
-        </div>
+        </div> : null}
       </header>
 
       <label className="settings-form__group">
@@ -172,7 +205,7 @@ function SectionEditor({
 
 function SitePagesAdminPage() {
   const queryClient = useQueryClient()
-  const [selectedSlug, setSelectedSlug] = useState<SitePageSlug>('privacy')
+  const [selectedSlug, setSelectedSlug] = useState<SitePageSlug>('home')
   const [title, setTitle] = useState('')
   const [subtitle, setSubtitle] = useState('')
   const [effectiveDate, setEffectiveDate] = useState('')
@@ -184,6 +217,11 @@ function SitePagesAdminPage() {
   const selectedOption = useMemo(
     () => PAGE_OPTIONS.find((option) => option.slug === selectedSlug)!,
     [selectedSlug],
+  )
+  const hasFlexibleStructure = selectedOption.group === 'Policy & information'
+  const pageGroups = useMemo(
+    () => ['Website', 'Templates', 'Policy & information'] as const,
+    [],
   )
 
   const pageQuery = useQuery({
@@ -337,28 +375,32 @@ function SitePagesAdminPage() {
           />
         </label>
 
-        <label className="settings-form__group">
-          <span className="settings-form__label">Effective date</span>
-          <input
-            value={effectiveDate}
-            onChange={(event) => setEffectiveDate(event.target.value)}
-            placeholder="For example, 23 July 2026"
-            maxLength={80}
-          />
-          <span className="settings-form__hint">
-            Leave blank when the page does not need an effective date.
-          </span>
-        </label>
+        {hasFlexibleStructure ? (
+          <>
+            <label className="settings-form__group">
+              <span className="settings-form__label">Effective date</span>
+              <input
+                value={effectiveDate}
+                onChange={(event) => setEffectiveDate(event.target.value)}
+                placeholder="For example, 23 July 2026"
+                maxLength={80}
+              />
+              <span className="settings-form__hint">
+                Leave blank when the page does not need an effective date.
+              </span>
+            </label>
 
-        <div className="settings-form__group">
-          <span className="settings-form__label">Introduction</span>
-          <RichTextEditor
-            key={`${selectedSlug}-intro-${pageQuery.data.updated_at}`}
-            initialHtml={pageQuery.data.intro_html}
-            onHtmlChange={setIntroHtml}
-            placeholder="Write the page introduction…"
-          />
-        </div>
+            <div className="settings-form__group">
+              <span className="settings-form__label">Introduction</span>
+              <RichTextEditor
+                key={`${selectedSlug}-intro-${pageQuery.data.updated_at}`}
+                initialHtml={pageQuery.data.intro_html}
+                onHtmlChange={setIntroHtml}
+                placeholder="Write the page introduction…"
+              />
+            </div>
+          </>
+        ) : null}
       </section>
 
       <section className="site-page-editor__sections">
@@ -366,18 +408,19 @@ function SitePagesAdminPage() {
           <div>
             <h2>Page sections</h2>
             <p>
-              Reorder sections with the controls. Headings also create the public
-              page navigation.
+              {hasFlexibleStructure
+                ? 'Reorder sections with the controls. Headings also create the public page navigation.'
+                : 'These section keys match the public layout. Change their headings and supporting text here.'}
             </p>
           </div>
-          <button
+          {hasFlexibleStructure ? <button
             type="button"
             className="btn-ghost btn--with-icon"
             onClick={addSection}
           >
             <Plus size={17} aria-hidden />
             Add section
-          </button>
+          </button> : null}
         </div>
 
         {sections.map((section, index) => (
@@ -390,6 +433,7 @@ function SitePagesAdminPage() {
             onChange={updateSection}
             onMove={moveSection}
             onRemove={removeSection}
+            lockedStructure={!hasFlexibleStructure}
           />
         ))}
       </section>
@@ -430,8 +474,8 @@ function SitePagesAdminPage() {
   return (
     <>
       <PageHeader
-        title="Policy, support & information pages"
-        description="Super-admin-only content management for the eight public policy, competition, safeguarding and supporter routes."
+        title="Website Content"
+        description="Edit public page headings, supporting text, template section labels, policy pages, and footer headings. Scores, form labels, and workflow controls remain protected system text."
         actions={
           <a
             className="btn-ghost btn--with-icon"
@@ -446,16 +490,23 @@ function SitePagesAdminPage() {
       />
 
       <nav className="site-page-tabs" aria-label="Managed pages">
-        {PAGE_OPTIONS.map((option) => (
-          <button
-            key={option.slug}
-            type="button"
-            className={option.slug === selectedSlug ? 'is-active' : ''}
-            aria-current={option.slug === selectedSlug ? 'page' : undefined}
-            onClick={() => setSelectedSlug(option.slug)}
-          >
-            {option.label}
-          </button>
+        {pageGroups.map((group) => (
+          <div className="site-page-tabs__group" key={group}>
+            <span className="site-page-tabs__group-label">{group}</span>
+            <div className="site-page-tabs__group-buttons">
+              {PAGE_OPTIONS.filter((option) => option.group === group).map((option) => (
+                <button
+                  key={option.slug}
+                  type="button"
+                  className={option.slug === selectedSlug ? 'is-active' : ''}
+                  aria-current={option.slug === selectedSlug ? 'page' : undefined}
+                  onClick={() => setSelectedSlug(option.slug)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 

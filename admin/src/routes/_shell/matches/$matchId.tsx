@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { ClipboardList, PlayCircle, Save, SquarePen, Table2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { formatTossSummary } from '@npl/ui/toss-summary'
 import type {
   LeagueDto,
   MatchDto,
@@ -294,7 +295,7 @@ function MatchDetailPage() {
         venue: merged.venue,
         match_date: merged.match_date,
         start_time: merged.start_time ?? null,
-        toss_info: merged.toss_info?.trim() || null,
+        toss_info: formatTossSummary(merged.toss_info) || null,
         umpires: merged.umpires?.trim() || null,
         description: merged.description?.trim() || null,
         status: merged.status,
@@ -813,7 +814,8 @@ function MatchDetailPage() {
                 <input
                   id="toss_info"
                   className="inline-edit__control"
-                  value={merged.toss_info ?? ''}
+                  value={formatTossSummary(merged.toss_info)}
+                  placeholder="e.g. Triangle Cricket Club opt to bat"
                   onChange={(e) =>
                     setPatch((p) => ({
                       ...p,
@@ -1129,7 +1131,7 @@ function MatchDetailPage() {
                   },
                   { label: 'Venue', value: match.venue ?? '—' },
                   { label: 'Title', value: match.title ?? '—' },
-                  { label: 'Toss', value: match.toss_info ?? '—' },
+                  { label: 'Toss', value: formatTossSummary(match.toss_info) || '—' },
                   { label: 'Umpires', value: match.umpires ?? '—' },
                   {
                     label: 'Notes',

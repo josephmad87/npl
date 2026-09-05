@@ -4,6 +4,8 @@ import { EmptyState } from './EmptyState'
 import type { MatchLite, TeamLite } from '../lib/hooks'
 import { fetchAllPaginatedList } from '../lib/publicApi'
 import { playerPlaceholderSrc, resolvePlayerPhotoSrc } from '../lib/playerPhotoSrc'
+import { managedSection, useSitePageContent } from '../lib/siteContent'
+import { ManagedSiteHtml } from './ManagedSiteHtml'
 import {
   buildBattingLeaderboard,
   buildBowlingLeaderboard,
@@ -158,6 +160,8 @@ export function LeagueStatsPanel({
   teamIds: number[]
   teamsMap: Record<number, TeamLite>
 }) {
+  const contentQ = useSitePageContent('league-season')
+  const topPerformersContent = managedSection(contentQ.data, 'top-performers', 'Top Performers')
   const { data: playerById = new Map<number, Pl>() } = useSeasonPlayerNames(teamIds)
   const [scope, setScope] = useState<Scope>('tournament')
   const [teamId, setTeamId] = useState<number | null>(() => teamIds[0] ?? null)
@@ -322,8 +326,9 @@ const bowlingPage = pagedStats(bowlRows, bowlingStatsPage)
         </div>
       </section>
 
-      <section className="league-stats-sec" aria-label="Top performers">
-        <h2 className="league-stats-sec__title">Top performers</h2>
+      <section className="league-stats-sec" aria-label={topPerformersContent.heading}>
+        <h2 className="league-stats-sec__title">{topPerformersContent.heading}</h2>
+        <ManagedSiteHtml html={topPerformersContent.body_html} className="ui-section-header-description managed-rich-text" />
         <div className="league-stats-top4">
           {(
             [
@@ -409,25 +414,30 @@ const bowlingPage = pagedStats(bowlRows, bowlingStatsPage)
                 </select>
               </label>
             </div>
-            <div className="league-stats-table-wrap">
+            <div
+              className="league-stats-table-wrap npl-table-region"
+              role="region"
+              aria-label="Batting leaderboard table"
+              tabIndex={0}
+            >
               <table className="league-stats-table">
                 <thead>
                   <tr>
-                    <th>Pos</th>
-                    <th>Player</th>
-                    <th>Team</th>
-                    <th>M</th>
-                    <th>R</th>
-                    <th>I</th>
-                    <th>NO</th>
-                    <th>HS</th>
-                    <th>Avg</th>
-                    <th>BF</th>
-                    <th>SR</th>
-                    <th>100</th>
-                    <th>50</th>
-                    <th>4s</th>
-                    <th>6s</th>
+                    <th scope="col">Pos</th>
+                    <th scope="col">Player</th>
+                    <th scope="col">Team</th>
+                    <th scope="col">M</th>
+                    <th scope="col">R</th>
+                    <th scope="col">I</th>
+                    <th scope="col">NO</th>
+                    <th scope="col">HS</th>
+                    <th scope="col">Avg</th>
+                    <th scope="col">BF</th>
+                    <th scope="col">SR</th>
+                    <th scope="col">100</th>
+                    <th scope="col">50</th>
+                    <th scope="col">4s</th>
+                    <th scope="col">6s</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -488,22 +498,27 @@ const bowlingPage = pagedStats(bowlRows, bowlingStatsPage)
                 </select>
               </label>
             </div>
-            <div className="league-stats-table-wrap">
+            <div
+              className="league-stats-table-wrap npl-table-region"
+              role="region"
+              aria-label="Bowling leaderboard table"
+              tabIndex={0}
+            >
               <table className="league-stats-table">
                 <thead>
                   <tr>
-                    <th>Pos</th>
-                    <th>Player</th>
-                    <th>Team</th>
-                    <th>Matches</th>
-                    <th>Overs</th>
-                    <th>Mdns</th>
-                    <th>Runs</th>
-                    <th>Wkts</th>
-                    <th>Econ</th>
-                    <th>SR</th>
-                    <th>Ct</th>
-                    <th>St</th>
+                    <th scope="col">Pos</th>
+                    <th scope="col">Player</th>
+                    <th scope="col">Team</th>
+                    <th scope="col">Matches</th>
+                    <th scope="col">Overs</th>
+                    <th scope="col">Mdns</th>
+                    <th scope="col">Runs</th>
+                    <th scope="col">Wkts</th>
+                    <th scope="col">Econ</th>
+                    <th scope="col">SR</th>
+                    <th scope="col">Ct</th>
+                    <th scope="col">St</th>
                   </tr>
                 </thead>
                 <tbody>

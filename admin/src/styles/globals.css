@@ -1271,7 +1271,7 @@ button {
   text-transform: uppercase;
   text-align: center;
   color: #fff;
-  background: linear-gradient(120deg, #e58b1b 0%, #a86a12 100%);
+  background: linear-gradient(120deg, #bf4927 0%, #985b0e 100%);
   transform: rotate(38deg);
   transform-origin: center;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.28);
@@ -2890,16 +2890,35 @@ table.data-table button.sort {
   opacity: 0.55;
 }
 
-/* Super-admin managed privacy, terms, support, and account-deletion pages. */
+/* Managed public website copy and policy pages. */
 .site-page-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.55rem;
+  gap: 0.8rem;
   margin: 0 0 1rem;
   padding: 0.4rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-panel);
+}
+
+.site-page-tabs__group {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.site-page-tabs__group-label {
+  color: var(--text-muted);
+  font: 700 0.72rem/1.2 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-page-tabs__group-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.45rem;
+  min-width: 0;
 }
 
 .site-page-tabs button {
@@ -2922,7 +2941,7 @@ table.data-table button.sort {
 .site-page-tabs button.is-active {
   color: #fff;
   border-color: rgba(229, 139, 27, 0.65);
-  background: linear-gradient(135deg, var(--accent), var(--accent-mid));
+  background: var(--accent);
   box-shadow: 0 7px 18px rgba(191, 73, 39, 0.2);
 }
 
@@ -3072,7 +3091,7 @@ table.data-table button.sort {
 }
 
 @media (max-width: 760px) {
-  .site-page-tabs {
+  .site-page-tabs__group-buttons {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

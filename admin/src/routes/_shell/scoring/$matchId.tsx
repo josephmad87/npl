@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { CloudUpload, ImagePlus, LockKeyhole, Pencil, RotateCcw, Save, Undo2, Wifi, WifiOff, X } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { parseTossSummary } from '@npl/ui/toss-summary'
 import type {
   LiveBallEventDto,
   LiveBallEventInput,
@@ -1198,11 +1199,17 @@ function LiveScoringPage() {
   useEffect(() => {
     if (!match?.toss_info || !matchTeams.length) return
     const lower = match.toss_info.toLowerCase()
-    const tossTeam = matchTeams.find((team) => lower.includes(team.name.toLowerCase()))
+    const parsed = parseTossSummary(match.toss_info)
+    const tossTeam = matchTeams.find((team) =>
+      parsed
+        ? team.name.localeCompare(parsed.teamName, undefined, { sensitivity: 'accent' }) === 0
+        : lower.includes(team.name.toLowerCase()),
+    )
     const battingTeam = matchTeams.find((team) => lower.includes(`${team.name.toLowerCase()} batting first`))
     if (tossTeam) setTossWinnerTeamId((current) => current || tossTeam.id)
-    if (lower.includes('bowl first')) setTossDecision('bowl')
-    if (lower.includes('bat first')) setTossDecision('bat')
+    if (parsed) setTossDecision(parsed.decision)
+    else if (lower.includes('bowl first')) setTossDecision('bowl')
+    else if (lower.includes('bat first')) setTossDecision('bat')
     if (battingTeam) setBattingFirstTeamId((current) => current || battingTeam.id)
   }, [match?.toss_info, matchTeams])
 

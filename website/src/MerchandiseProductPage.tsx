@@ -13,6 +13,8 @@ import {
 } from './lib/merchandise'
 import { fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { recordFanEngagement } from './lib/supporterApi'
+import { managedSection, useSitePageContent } from './lib/siteContent'
+import { ManagedSiteHtml } from './components/ManagedSiteHtml'
 
 export default function MerchandiseProductPage() {
   const { productId } = useParams({ from: '/merchandise/$productId' })
@@ -29,6 +31,8 @@ export default function MerchandiseProductPage() {
   const [isOrdering, setIsOrdering] = useState(
     () => window.location.hash === '#order',
   )
+  const contentQ = useSitePageContent('merchandise-product')
+  const optionsContent = managedSection(contentQ.data, 'available-options', 'Available Options')
 
   useEffect(() => {
     if (product?.id) recordFanEngagement('product_view', 'product', product.id)
@@ -100,7 +104,7 @@ export default function MerchandiseProductPage() {
             {product.price_text ? <p className="merchandise-product-page__price">{product.price_text}</p> : null}
             {product.description ? <p className="merchandise-product-page__description">{product.description}</p> : null}
             {product.sizes_text ? <p><strong>Sizes:</strong> {product.sizes_text}</p> : null}
-            {product.variants?.length ? <div className="merchandise-product-page__variants"><h2>Available options</h2><ul>{product.variants.filter((variant) => variant.status === 'active').map((variant) => <li key={variant.id}><span>{variant.label}</span><strong>{variant.price_text || product.price_text}</strong><small>{variant.stock_quantity == null ? 'Available to order' : variant.stock_quantity > 0 ? `${variant.stock_quantity} in stock` : variant.allow_backorder ? 'Available on backorder' : 'Out of stock'}</small></li>)}</ul></div> : null}
+            {product.variants?.length ? <div className="merchandise-product-page__variants"><h2>{optionsContent.heading}</h2><ManagedSiteHtml html={optionsContent.body_html} /><ul>{product.variants.filter((variant) => variant.status === 'active').map((variant) => <li key={variant.id}><span>{variant.label}</span><strong>{variant.price_text || product.price_text}</strong><small>{variant.stock_quantity == null ? 'Available to order' : variant.stock_quantity > 0 ? `${variant.stock_quantity} in stock` : variant.allow_backorder ? 'Available on backorder' : 'Out of stock'}</small></li>)}</ul></div> : null}
             <button type="button" className="hero-readmore-btn" onClick={() => setIsOrdering(true)}>Buy</button>
           </div>
         </div>

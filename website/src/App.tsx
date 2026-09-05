@@ -9,10 +9,13 @@ import { SectionHeader } from './components/SectionHeader'
 import { NplTvSection } from './components/NplTvSection'
 import { ResponsiveImage } from './components/ResponsiveImage'
 import { SponsorMarquee } from './components/SponsorMarquee'
+import { SeoHead } from './components/SeoHead'
 import type { ArticleLite, MatchLite, TeamLite } from './lib/hooks'
 import { formatCategoryLabel } from './lib/formatters'
 import { matchSeoPath } from './lib/matchUrls'
 import { fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { managedSection, useSitePageContent } from './lib/siteContent'
+import { ManagedSiteHtml } from './components/ManagedSiteHtml'
 
 type GalleryItem = GalleryLightboxItem
 
@@ -579,6 +582,14 @@ function bowlingAppearanceLine(
 }
 
 function App() {
+  const contentQ = useSitePageContent('home')
+  const fixtureContent = managedSection(contentQ.data, 'fixture-hub', 'Fixture Hub')
+  const newsContent = managedSection(contentQ.data, 'news', 'News')
+  const tvContent = managedSection(contentQ.data, 'npl-tv', 'NPL TV')
+  const galleryContent = managedSection(contentQ.data, 'gallery-preview', 'Gallery Preview')
+  const teamContent = managedSection(contentQ.data, 'follow-a-club', 'Follow a Club')
+  const playerContent = managedSection(contentQ.data, 'player-spotlight', 'Player Spotlight')
+  const partnersContent = managedSection(contentQ.data, 'partners', 'Partners & Sponsors')
   const {
     data: homepage,
     isLoading: isNewsLoading,
@@ -927,12 +938,18 @@ useEffect(() => {
   const activeHeroSlide = heroSlides[currentSlideIndex]
   
   return (
+    <>
+      <SeoHead
+        title={contentQ.data?.title || 'NPL Zimbabwe'}
+        description={contentQ.data?.subtitle || "Zimbabwe's National Premier League cricket hub."}
+        canonicalPath="/"
+      />
     <main className="container">
       <section className="hero-carousel" aria-label="Latest news highlights">
         {isNewsLoading ? (
           <article className="hero-slide hero-slide--loading is-active" aria-busy="true">
             <div className="hero-slide-overlay">
-              <p className="hero-slide-eyebrow">Latest News</p>
+              <p className="hero-slide-eyebrow">{newsContent.heading}</p>
               <h1>Loading latest news…</h1>
             </div>
           </article>
@@ -951,7 +968,7 @@ useEffect(() => {
               ) : null}
 
               <div className="hero-slide-overlay">
-                <p className="hero-slide-eyebrow">Latest News</p>
+                <p className="hero-slide-eyebrow">{newsContent.heading}</p>
                 <h1>{activeHeroSlide.title}</h1>
                 <p>
                   {activeHeroSlide.excerpt ??
@@ -990,7 +1007,7 @@ useEffect(() => {
         ) : (
           <article className="hero-slide is-active">
             <div className="hero-slide-overlay">
-              <p className="hero-slide-eyebrow">Latest News</p>
+              <p className="hero-slide-eyebrow">{newsContent.heading}</p>
               <h1>{isNewsError ? 'Latest news is temporarily unavailable' : 'No published news yet'}</h1>
               <p>
                 {isNewsError
@@ -1006,7 +1023,8 @@ useEffect(() => {
         <div className="home-fixture-hub__topline">
           <div>
             <p className="home-fixture-hub__eyebrow">Match centre</p>
-            <h2>Fixture Hub</h2>
+            <h2>{fixtureContent.heading}</h2>
+            <ManagedSiteHtml html={fixtureContent.body_html} className="home-fixture-hub__managed-copy" />
           </div>
 
           <Link
@@ -1135,15 +1153,20 @@ useEffect(() => {
         ) : null}
       </section>
 
-      <HomeNewsCarousel articles={newsArticles} isLoading={isNewsLoading} />
+      <HomeNewsCarousel
+        articles={newsArticles}
+        isLoading={isNewsLoading}
+        title={newsContent.heading}
+        description={<ManagedSiteHtml html={newsContent.body_html} />}
+      />
 
       {selectedSpotlightTeam ? (
         <section className="home-section home-team-spotlight">
           <div className="home-team-spotlight__head">
             <div>
               <p className="home-team-spotlight__eyebrow">Team spotlight</p>
-              <h2>Follow a Club</h2>
-              <p>See your favourite team's form, next fixture and latest result.</p>
+              <h2>{teamContent.heading}</h2>
+              <ManagedSiteHtml html={teamContent.body_html} />
             </div>
 
             
@@ -1264,7 +1287,7 @@ useEffect(() => {
           <div className="home-player-spotlight__body">
             <div className="home-player-spotlight__head">
               <div>
-                <p className="home-player-spotlight__eyebrow">Player spotlight</p>
+                <p className="home-player-spotlight__eyebrow">{playerContent.heading}</p>
                 <h2>{selectedSpotlightPlayer.full_name}</h2>
                 <p>
                   {spotlightPlayerTeamName} ·{' '}
@@ -1275,6 +1298,7 @@ useEffect(() => {
                   )}{' '}
                   · {playerRoleLabel(selectedSpotlightPlayer)}
                 </p>
+                <ManagedSiteHtml html={playerContent.body_html} className="home-player-spotlight__managed-copy" />
               </div>
 
               
@@ -1317,10 +1341,17 @@ useEffect(() => {
         </section>
       ) : null}
 
-      <NplTvSection />
+      <NplTvSection
+        title={tvContent.heading}
+        description={<ManagedSiteHtml html={tvContent.body_html} />}
+      />
 
   <section className="home-section home-gallery-wall">
-  <SectionHeader title="Gallery Preview" linkTo="/gallery" />
+  <SectionHeader
+    title={galleryContent.heading}
+    linkTo="/gallery"
+    description={<ManagedSiteHtml html={galleryContent.body_html} />}
+  />
 
   <div className="home-gallery-wall__grid">
     {galleryShowcaseItems.map((item, index) => {
@@ -1349,13 +1380,18 @@ useEffect(() => {
   </div>
 </section>
 
-      <SponsorMarquee sponsors={homepageSponsors} />
+      <SponsorMarquee
+        title={partnersContent.heading}
+        description={<ManagedSiteHtml html={partnersContent.body_html} />}
+        sponsors={homepageSponsors}
+      />
 
       <GalleryLightbox
         active={galleryActive}
         onClose={() => setGalleryActive(null)}
       />
     </main>
+    </>
   )
 }
 
