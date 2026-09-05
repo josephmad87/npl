@@ -96,6 +96,7 @@ export function SeoHead({
       ['og:type', type],
       ['og:site_name', SITE_NAME],
       ['og:image', shareImage],
+      ['og:image:secure_url', shareImage],
       ['twitter:card', 'summary_large_image'],
       ['twitter:title', resolvedTitle],
       ['twitter:description', resolvedDescription],

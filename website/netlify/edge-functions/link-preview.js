@@ -197,6 +197,20 @@ function absoluteUrl(raw, requestUrl) {
   return new URL(DEFAULT_IMAGE_PATH, requestUrl).toString()
 }
 
+function merchandiseShareImage(raw, requestUrl) {
+  const source = typeof raw === 'string' ? raw.trim() : ''
+  if (!source) {
+    return new URL(DEFAULT_IMAGE_PATH, requestUrl).toString()
+  }
+
+  const transformed = new URL('/.netlify/images', requestUrl)
+  transformed.searchParams.set('url', absoluteUrl(source, requestUrl))
+  transformed.searchParams.set('w', '1200')
+  transformed.searchParams.set('fm', 'jpg')
+  transformed.searchParams.set('q', '82')
+  return transformed.toString()
+}
+
 async function fetchApi(path) {
   try {
     const response = await fetch(`${apiBaseUrl()}${path}`, {
@@ -1085,7 +1099,8 @@ async function previewForMerchandiseProduct(productId, request) {
   return {
     title: name,
     description,
-    image: absoluteUrl(product.image_url, request.url),
+    image: merchandiseShareImage(product.image_url, request.url),
+    imageType: product.image_url ? 'image/jpeg' : undefined,
     type: 'product',
     entityKind: 'product',
     entity: product,
@@ -1263,6 +1278,7 @@ function metaTags(preview, request) {
   const description = preview.description || DEFAULT_DESCRIPTION
   const image =
     preview.image || new URL(DEFAULT_IMAGE_PATH, request.url).toString()
+  const imageType = cleanText(preview.imageType)
   const type = preview.type || 'website'
 
   return `
@@ -1276,6 +1292,8 @@ function metaTags(preview, request) {
 <meta property="og:title" content="${escapeHtml(title)}" />
 <meta property="og:description" content="${escapeHtml(description)}" />
 <meta property="og:image" content="${escapeHtml(image)}" />
+<meta property="og:image:secure_url" content="${escapeHtml(image)}" />
+${imageType ? `<meta property="og:image:type" content="${escapeHtml(imageType)}" />` : ''}
 <meta property="og:image:alt" content="${escapeHtml(title)}" />
 <meta property="og:url" content="${escapeHtml(url.href)}" />
 
