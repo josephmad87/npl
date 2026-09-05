@@ -56,8 +56,8 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     to: '/site-pages',
-    label: 'Policy & information pages',
-    roles: ['super_admin'],
+    label: 'Website Content',
+    roles: ['super_admin', 'content_editor'],
   },
   {
     to: '/discipline',

@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { formatTossSummary } from '@npl/ui/toss-summary'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
 import type { MatchLite } from '../lib/hooks'
 import { formatCategoryLabel, formatMatchDate } from '../lib/formatters'
+import { managedSection, useSitePageContent } from '../lib/siteContent'
+import { ManagedSiteHtml } from './ManagedSiteHtml'
 import { GalleryCard } from './GalleryCard'
 import { GalleryLightbox, type GalleryLightboxItem } from './GalleryLightbox'
 import { MatchStreamPanel } from './MatchStreamPanel'
@@ -1184,6 +1187,18 @@ export function LiveScorePanel({
   showEvents?: boolean
 }) {
   const isLive = String(matchStatus ?? '').toLowerCase() === 'live'
+  const contentQ = useSitePageContent('match-centre')
+  const liveMatchCentreContent = managedSection(contentQ.data, 'live-match-centre', 'Match Centre')
+  const scoringBreakdownContent = managedSection(contentQ.data, 'scoring-breakdown', 'Scoring Breakdown')
+  const partnershipsContent = managedSection(contentQ.data, 'partnerships', 'Partnerships')
+  const wormContent = managedSection(contentQ.data, 'worm', 'Worm')
+  const manhattanContent = managedSection(contentQ.data, 'manhattan', 'Manhattan')
+  const runRateContent = managedSection(contentQ.data, 'run-rate', 'Run Rate')
+  const winProbabilityContent = managedSection(contentQ.data, 'win-probability', 'Win Probability')
+  const photosContent = managedSection(contentQ.data, 'photos', 'Photos')
+  const matchInformationContent = managedSection(contentQ.data, 'match-information', 'Match Information')
+  const matchOfficialsContent = managedSection(contentQ.data, 'match-officials', 'Match Officials')
+  const playingConditionsContent = managedSection(contentQ.data, 'playing-conditions', 'Playing Conditions')
   const [activeTab, setActiveTab] = useState<LiveTab>('live')
   const [expandedOver, setExpandedOver] = useState<number | null>(null)
   const [activePhoto, setActivePhoto] = useState<GalleryLightboxItem | null>(null)
@@ -1454,7 +1469,12 @@ export function LiveScorePanel({
     if (!activeSummary) return null
     const currentBatters = dashboard.currentBatters.length ? dashboard.currentBatters : dashboard.batters.filter((row) => !row.isOut).slice(-2)
     return (
-      <div className="live-score-panel__scorecard">
+      <div
+        className="live-score-panel__scorecard npl-table-region"
+        role="region"
+        aria-label="Current batting and bowling figures"
+        tabIndex={0}
+      >
         <table className="live-score-panel__mini-table">
           <colgroup>
             <col className="live-score-panel__name-col" />
@@ -1462,12 +1482,12 @@ export function LiveScorePanel({
           </colgroup>
           <thead>
             <tr>
-              <th>Batters</th>
-              <th>R</th>
-              <th>B</th>
-              <th>4s</th>
-              <th>6s</th>
-              <th>SR</th>
+              <th scope="col">Batters</th>
+              <th scope="col">R</th>
+              <th scope="col">B</th>
+              <th scope="col">4s</th>
+              <th scope="col">6s</th>
+              <th scope="col">SR</th>
             </tr>
           </thead>
           <tbody>
@@ -1496,12 +1516,12 @@ export function LiveScorePanel({
           </colgroup>
           <thead>
             <tr>
-              <th>Bowlers</th>
-              <th>O</th>
-              <th>M</th>
-              <th>R</th>
-              <th>W</th>
-              <th>Econ</th>
+              <th scope="col">Bowlers</th>
+              <th scope="col">O</th>
+              <th scope="col">M</th>
+              <th scope="col">R</th>
+              <th scope="col">W</th>
+              <th scope="col">Econ</th>
             </tr>
           </thead>
           <tbody>
@@ -1557,8 +1577,9 @@ export function LiveScorePanel({
     if (partnershipInnings.length === 0) return null
 
     return (
-      <section className="live-score-panel__partnerships" aria-label="Partnerships">
-        <h3>Partnerships</h3>
+      <section className="live-score-panel__partnerships" aria-labelledby="live-partnerships-title">
+        <h3 id="live-partnerships-title">{partnershipsContent.heading}</h3>
+        <ManagedSiteHtml html={partnershipsContent.body_html} className="ui-section-header-description managed-rich-text" />
         {partnershipInnings.map((inningsDashboard, inningsIndex) => {
           const summary = inningsDashboard.summary
           if (!summary) return null
@@ -1644,8 +1665,9 @@ export function LiveScorePanel({
   }
 
   const renderWormChartPanel = () => (
-    <section className="live-score-panel__worm" aria-label="Runs worm">
-      <h3>Worm</h3>
+    <section className="live-score-panel__worm" aria-labelledby="live-worm-title">
+      <h3 id="live-worm-title">{wormContent.heading}</h3>
+      <ManagedSiteHtml html={wormContent.body_html} className="ui-section-header-description managed-rich-text" />
       <div className="live-score-panel__worm-legends">
         {wormSeries.map((series) => (
           <span key={series.innings} className="live-score-panel__worm-legend">
@@ -1735,7 +1757,8 @@ export function LiveScorePanel({
     return (
       <div className="live-score-panel__stats-tab">
         <section className="live-score-panel__stats-breakdown" aria-labelledby="live-stats-breakdown-title">
-          <h2 id="live-stats-breakdown-title">Scoring breakdown</h2>
+          <h2 id="live-stats-breakdown-title">{scoringBreakdownContent.heading}</h2>
+          <ManagedSiteHtml html={scoringBreakdownContent.body_html} className="ui-section-header-description managed-rich-text" />
           <div className="live-score-panel__stats-team-head">
             {scoringBreakdowns.map((series) => (
               <strong key={series.innings}>{renderTeamBadge(series.teamId, series.team)}</strong>
@@ -1754,7 +1777,8 @@ export function LiveScorePanel({
 
         <div className="live-score-panel__stats-chart-stack">
           <section className="live-score-panel__chart-card">
-            <h3>Manhattan</h3>
+            <h3>{manhattanContent.heading}</h3>
+            <ManagedSiteHtml html={manhattanContent.body_html} className="ui-section-header-description managed-rich-text" />
             <div
               className="live-score-panel__manhattan"
               role="img"
@@ -1786,7 +1810,8 @@ export function LiveScorePanel({
           </section>
 
           <section className="live-score-panel__chart-card">
-            <h3>Run rate</h3>
+            <h3>{runRateContent.heading}</h3>
+            <ManagedSiteHtml html={runRateContent.body_html} className="ui-section-header-description managed-rich-text" />
             <div className="live-score-panel__chart-legend">
               {inningsOverSeries.map((series) => (
                 <span key={series.innings}><i style={{ backgroundColor: series.color }} />{series.team}</span>
@@ -1903,7 +1928,8 @@ export function LiveScorePanel({
 
     return (
       <>
-        <h2 className="live-score-panel__match-centre-title">Match Centre</h2>
+        <h2 className="live-score-panel__match-centre-title">{liveMatchCentreContent.heading}</h2>
+        <ManagedSiteHtml html={liveMatchCentreContent.body_html} className="ui-section-header-description managed-rich-text" />
         <div className="live-score-panel__centre">
           <div className="live-score-panel__commentary-column">
             {dashboard.overGroups.map((group) => (
@@ -1947,7 +1973,7 @@ export function LiveScorePanel({
               aria-label="Live win probability"
             >
               <div className="live-score-panel__insight-heading">
-                <h3>Win probability</h3>
+                <h3>{winProbabilityContent.heading}</h3>
                 <span
                   title="Live estimate based on score, target, balls and wickets remaining, plus the available career form of the current batters and bowler."
                   aria-label="About win probability"
@@ -1955,6 +1981,7 @@ export function LiveScorePanel({
                   i
                 </span>
               </div>
+              <ManagedSiteHtml html={winProbabilityContent.body_html} className="ui-section-header-description managed-rich-text" />
               <div className="live-score-panel__probability-legends">
                 <span>
                   <i style={{ backgroundColor: '#0969c8' }} aria-hidden />
@@ -2037,8 +2064,9 @@ export function LiveScorePanel({
                 ) : null}
               </svg>
             </section>
-            <section className="live-score-panel__worm" aria-label="Runs worm">
-              <h3>Worm</h3>
+            <section className="live-score-panel__worm" aria-labelledby="commentary-worm-title">
+              <h3 id="commentary-worm-title">{wormContent.heading}</h3>
+              <ManagedSiteHtml html={wormContent.body_html} className="ui-section-header-description managed-rich-text" />
               <div className="live-score-panel__worm-legends">
                 {wormSeries.map((series) => (
                   <span key={series.innings} className="live-score-panel__worm-legend">
@@ -2144,7 +2172,12 @@ export function LiveScorePanel({
                 <h3>{renderTeamBadge(summary.batting_team_id, teamName(summary.batting_team_id, teamNames))}</h3>
                 <strong>{summary.runs}/{summary.wickets} ({summary.overs_label} ov)</strong>
               </div>
-              <div className="live-score-panel__table-wrap">
+              <div
+                className="live-score-panel__table-wrap npl-table-region"
+                role="region"
+                aria-label={`${teamName(summary.batting_team_id, teamNames)} batting scorecard`}
+                tabIndex={0}
+              >
                 <table className="live-score-panel__detail-table live-score-panel__detail-table--batting">
                   <colgroup>
                     <col className="live-score-panel__batter-column" />
@@ -2157,13 +2190,13 @@ export function LiveScorePanel({
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>Batter</th>
-                      <th>How out</th>
-                      <th>R</th>
-                      <th>B</th>
-                      <th>4s</th>
-                      <th>6s</th>
-                      <th>SR</th>
+                      <th scope="col">Batter</th>
+                      <th scope="col">How out</th>
+                      <th scope="col">R</th>
+                      <th scope="col">B</th>
+                      <th scope="col">4s</th>
+                      <th scope="col">6s</th>
+                      <th scope="col">SR</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2181,13 +2214,13 @@ export function LiveScorePanel({
                   </tbody>
                   <tfoot>
                     <tr className="live-score-panel__extras-row">
-                      <th colSpan={2}>Extras</th>
+                      <th scope="row" colSpan={2}>Extras</th>
                       <td colSpan={5}>
                         <strong>{extras.total}</strong> ({extras.breakdown})
                       </td>
                     </tr>
                     <tr className="live-score-panel__total-row">
-                      <th colSpan={2}>Total</th>
+                      <th scope="row" colSpan={2}>Total</th>
                       <td colSpan={5}>
                         <strong>{summary.runs}/{summary.wickets}</strong>{' '}
                         ({summary.overs_label} overs)
@@ -2215,7 +2248,12 @@ export function LiveScorePanel({
                       .join(', ')
                   : 'None'}
               </p>
-              <div className="live-score-panel__table-wrap live-score-panel__bowling-table-wrap">
+              <div
+                className="live-score-panel__table-wrap live-score-panel__bowling-table-wrap npl-table-region"
+                role="region"
+                aria-label={`${teamName(summary.bowling_team_id, teamNames)} bowling scorecard`}
+                tabIndex={0}
+              >
                 <table className="live-score-panel__detail-table live-score-panel__detail-table--bowling">
                   <colgroup>
                     <col className="live-score-panel__bowler-column" />
@@ -2230,15 +2268,15 @@ export function LiveScorePanel({
                   </colgroup>
                   <thead>
                     <tr>
-                      <th>Bowler</th>
-                      <th>O</th>
-                      <th>M</th>
-                      <th>R</th>
-                      <th>W</th>
-                      <th>Econ</th>
-                      <th>0s</th>
-                      <th>WD</th>
-                      <th>NB</th>
+                      <th scope="col">Bowler</th>
+                      <th scope="col">O</th>
+                      <th scope="col">M</th>
+                      <th scope="col">R</th>
+                      <th scope="col">W</th>
+                      <th scope="col">Econ</th>
+                      <th scope="col">0s</th>
+                      <th scope="col">WD</th>
+                      <th scope="col">NB</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2312,7 +2350,8 @@ export function LiveScorePanel({
     <section className="live-score-panel__photos-tab" aria-labelledby="match-photos-title">
       <header>
         <small>Official match photographs</small>
-        <h2 id="match-photos-title">Photos</h2>
+        <h2 id="match-photos-title">{photosContent.heading}</h2>
+        <ManagedSiteHtml html={photosContent.body_html} className="ui-section-header-description managed-rich-text" />
       </header>
       {photosQ.isLoading ? (
         <p className="live-score-panel__empty">Loading match photos…</p>
@@ -2359,14 +2398,15 @@ export function LiveScorePanel({
       ['Category', formatCategoryLabel(match.category ?? 'cricket')],
       ['Date', date],
       ['Venue', match.venue?.trim() || 'To be confirmed'],
-      ['Toss', match.toss_info?.trim() || 'Pending'],
+      ['Toss', formatTossSummary(match.toss_info) || 'Pending'],
     ]
 
     return (
       <section className="live-score-panel__info-tab" aria-labelledby="match-info-title">
         <header>
           <small>Official details</small>
-          <h2 id="match-info-title">Match information</h2>
+          <h2 id="match-info-title">{matchInformationContent.heading}</h2>
+          <ManagedSiteHtml html={matchInformationContent.body_html} className="ui-section-header-description managed-rich-text" />
         </header>
         <dl>
           {details.map(([label, value]) => (
@@ -2375,11 +2415,13 @@ export function LiveScorePanel({
         </dl>
         <div className="live-score-panel__info-panels">
           <article>
-            <h3>Match officials</h3>
+            <h3>{matchOfficialsContent.heading}</h3>
+            <ManagedSiteHtml html={matchOfficialsContent.body_html} className="ui-section-header-description managed-rich-text" />
             <p>{match.umpires?.trim() || 'Officials will appear once appointments are published.'}</p>
           </article>
           <article>
-            <h3>Playing conditions</h3>
+            <h3>{playingConditionsContent.heading}</h3>
+            <ManagedSiteHtml html={playingConditionsContent.body_html} className="ui-section-header-description managed-rich-text" />
             <p>{match.match_overs ? `${match.match_overs} overs per innings` : 'Overs per innings to be confirmed.'}</p>
             {match.description?.trim() ? <p>{match.description}</p> : null}
           </article>

@@ -1,6 +1,20 @@
 from app.schemas.site_page_content import SitePageBody, SitePageSlug
 
 
+FLEXIBLE_SITE_PAGE_SLUGS: frozenset[SitePageSlug] = frozenset(
+    {
+        "privacy",
+        "terms",
+        "support",
+        "account-deletion",
+        "competition",
+        "safeguarding",
+        "scorecard-corrections",
+        "supporters",
+    }
+)
+
+
 DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
     "privacy": {
         "title": "Privacy Policy",
@@ -657,5 +671,345 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
 }
 
 
+def _interface_page(
+    title: str,
+    subtitle: str,
+    sections: list[tuple[str, str, str]],
+) -> dict[str, object]:
+    """Build managed defaults for data-driven public page templates."""
+
+    return {
+        "title": title,
+        "subtitle": subtitle,
+        "effective_date": "",
+        "intro_html": f"<p>{subtitle}</p>" if subtitle else "<p>Official NPL Zimbabwe information.</p>",
+        "sections": [
+            {"id": section_id, "heading": heading, "body_html": body_html}
+            for section_id, heading, body_html in sections
+        ],
+    }
+
+
+# These entries control public-facing editorial headings and supporting copy on
+# data-driven templates. Match data, scores, form labels, validation messages,
+# and accessible control names intentionally remain code-controlled.
+DEFAULT_SITE_PAGES.update(
+    {
+        "home": _interface_page(
+            "NPL Zimbabwe",
+            "Zimbabwe's National Premier League cricket hub.",
+            [
+                ("fixture-hub", "Fixture Hub", "<p>Follow upcoming matches and the latest official results.</p>"),
+                ("news", "News", "<p>Latest NPL Zimbabwe stories and competition updates.</p>"),
+                ("npl-tv", "NPL TV", "<p>Watch official broadcasts, replays, and social updates.</p>"),
+                ("npl-tv-youtube", "NPL Zimbabwe on YouTube", "<p>Official live broadcasts and replays.</p>"),
+                ("npl-tv-social", "NPL Zimbabwe on X", "<p>Match updates, league news and announcements.</p>"),
+                ("gallery-preview", "Gallery Preview", "<p>Recent photographs from across the competition.</p>"),
+                (
+                    "follow-a-club",
+                    "Follow a Club",
+                    "<p>See your favourite team's form, next fixture and latest result.</p>",
+                ),
+                ("player-spotlight", "Player Spotlight", "<p>Discover players from across NPL Zimbabwe.</p>"),
+                ("partners", "Partners & Sponsors", "<p>Official NPL Zimbabwe partners and sponsors.</p>"),
+            ],
+        ),
+        "mens": _interface_page(
+            "Mens Cricket",
+            "Mens NPL Zimbabwe competitions, fixtures, results, standings and teams.",
+            [
+                ("teams", "Mens Teams", "<p>Browse mens club profiles.</p>"),
+                ("upcoming-fixtures", "Upcoming Fixtures", "<p>Upcoming mens matches.</p>"),
+                ("latest-results", "Latest Results", "<p>Latest completed mens matches.</p>"),
+                ("related-news", "Related News", "<p>Latest mens competition stories.</p>"),
+            ],
+        ),
+        "women": _interface_page(
+            "Women Cricket",
+            "Women NPL Zimbabwe competitions, fixtures, results, standings and teams.",
+            [
+                ("teams", "Women Teams", "<p>Browse women club profiles.</p>"),
+                ("upcoming-fixtures", "Upcoming Fixtures", "<p>Upcoming women matches.</p>"),
+                ("latest-results", "Latest Results", "<p>Latest completed women matches.</p>"),
+                ("related-news", "Related News", "<p>Latest women competition stories.</p>"),
+            ],
+        ),
+        "youth": _interface_page(
+            "Youth Cricket",
+            "Youth NPL Zimbabwe competitions, fixtures, results, standings and teams.",
+            [
+                ("teams", "Youth Teams", "<p>Browse youth club profiles.</p>"),
+                ("upcoming-fixtures", "Upcoming Fixtures", "<p>Upcoming youth matches.</p>"),
+                ("latest-results", "Latest Results", "<p>Latest completed youth matches.</p>"),
+                ("related-news", "Related News", "<p>Latest youth competition stories.</p>"),
+            ],
+        ),
+        "fixtures": _interface_page(
+            "Fixtures",
+            "Upcoming NPL Zimbabwe cricket fixtures, dates and venues.",
+            [
+                ("upcoming-fixtures", "Upcoming Fixtures", "<p>Browse scheduled matches.</p>"),
+                ("latest-results", "Latest Results", "<p>Recent completed matches.</p>"),
+            ],
+        ),
+        "results": _interface_page(
+            "Results",
+            "Latest official NPL Zimbabwe cricket results and scorecards.",
+            [("results", "Results", "<p>Browse completed matches and official scorecards.</p>")],
+        ),
+        "teams": _interface_page(
+            "Teams",
+            "Squads, home grounds, and club profiles.",
+            [("teams", "Teams", "<p>Browse published club profiles.</p>")],
+        ),
+        "seasons": _interface_page(
+            "Seasons",
+            "Browse by league and season.",
+            [("seasons", "Seasons", "<p>Explore current and previous competitions.</p>")],
+        ),
+        "news": _interface_page(
+            "News",
+            "Latest NPL Zimbabwe news and match reports.",
+            [
+                ("news", "News", "<p>Latest published stories from NPL Zimbabwe.</p>"),
+                ("related-news", "Related News", "<p>More stories from this competition.</p>"),
+                ("recent-news", "Recent News", "<p>More recent stories from NPL Zimbabwe.</p>"),
+            ],
+        ),
+        "gallery": _interface_page(
+            "Gallery",
+            "Photos and video highlights from NPL Zimbabwe cricket.",
+            [("gallery", "Gallery", "<p>Browse published photographs and videos.</p>")],
+        ),
+        "merchandise": _interface_page(
+            "Official NPL Merchandise",
+            "Browse official National Premier League merchandise.",
+            [
+                (
+                    "products",
+                    "Merchandise",
+                    "<p>Browse products and submit an order request for payment, collection or delivery.</p>",
+                )
+            ],
+        ),
+        "merchandise-product": _interface_page(
+            "Product",
+            "Official NPL Zimbabwe merchandise product information.",
+            [("available-options", "Available Options", "<p>Select an available product option before ordering.</p>")],
+        ),
+        "order-tracking": _interface_page(
+            "Track Order",
+            "Private NPL merchandise order tracking.",
+            [("updates", "Updates", "<p>Order status and fulfilment updates.</p>")],
+        ),
+        "live": _interface_page(
+            "Live Scores",
+            "Follow every live NPL match from one matchday hub.",
+            [("live-matches", "Live Matches", "<p>Ball-by-ball updates from matches in progress.</p>")],
+        ),
+        "compare-teams": _interface_page(
+            "Compare Teams",
+            "Compare NPL teams by results, points, recent form, and head-to-head record.",
+            [
+                ("season-record", "Season Record Comparison", "<p>Compare each team's published season record.</p>"),
+                ("recent-form", "Recent Form", "<p>Compare the teams' latest results.</p>"),
+                ("head-to-head", "Head-to-head", "<p>Published results between the selected teams.</p>"),
+            ],
+        ),
+        "about-us": _interface_page(
+            "About Us",
+            "About NPL Zimbabwe.",
+            [
+                ("mission", "Mission", ""),
+                ("vision", "Vision", ""),
+                ("history", "History", ""),
+                ("leadership-team", "Leadership & Team", ""),
+                ("contact", "Contact", ""),
+                ("physical-address", "Physical Address", ""),
+            ],
+        ),
+        "contact-us": _interface_page(
+            "Contact Us",
+            "Reach the Zimbabwe Cricket NPL team for media, support, and partnership enquiries.",
+            [
+                (
+                    "send-message",
+                    "Send Us a Message",
+                    "<p>Complete the form and the appropriate NPL team will respond.</p>",
+                ),
+                ("email", "Email", "<p>Published email addresses.</p>"),
+                ("phone", "Phone", "<p>Published telephone contacts.</p>"),
+                ("office-address", "Office Address", "<p>Published NPL office details.</p>"),
+                ("helpful-links", "Helpful Links", "<p>Support, privacy, and account information.</p>"),
+            ],
+        ),
+        "search": _interface_page(
+            "Search",
+            "Search NPL Zimbabwe teams, players, fixtures, results and news.",
+            [("results", "Search Results", "<p>Results that match your search.</p>")],
+        ),
+        "my-npl": _interface_page(
+            "My NPL",
+            "Follow teams and players, receive match alerts, vote, and see your orders.",
+            [
+                (
+                    "preferences",
+                    "Notification and Consent Choices",
+                    "<p>Manage optional alerts and analytics choices.</p>",
+                ),
+                ("following", "Following", "<p>Your followed teams and players.</p>"),
+                ("notifications", "Notifications", "<p>Your latest account notifications.</p>"),
+                ("orders", "Your Merchandise Orders", "<p>Orders linked to your supporter account.</p>"),
+                (
+                    "close-account",
+                    "Close Account",
+                    "<p>Closing anonymises your sign-in details, withdraws optional consent and removes push devices.</p>",
+                ),
+            ],
+        ),
+        "team-profile": _interface_page(
+            "Team Profile",
+            "Club information, fixtures, results, squad and statistics.",
+            [
+                ("season-snapshot", "Season Snapshot", "<p>The team's current competition position and record.</p>"),
+                ("leadership", "Leadership", "<p>Published team leadership.</p>"),
+                ("home-ground", "Home Ground", "<p>The club's published home venue.</p>"),
+                ("history", "History", "<p>Club history and honours.</p>"),
+                ("honours", "Honours", "<p>Published club honours.</p>"),
+                ("partners", "Partners & Sponsors", "<p>Published club partners and sponsors.</p>"),
+                ("season-records", "Season Records", "<p>Published records by season.</p>"),
+                ("team-statistics", "Team Statistics", "<p>Statistics from completed scorecards.</p>"),
+                ("batting-leaders", "Batting Leaders", "<p>Leading run scorers.</p>"),
+                ("bowling-leaders", "Bowling Leaders", "<p>Leading wicket takers.</p>"),
+                ("fixtures", "Fixtures", "<p>Upcoming team fixtures.</p>"),
+                ("results", "Results", "<p>Recent team results.</p>"),
+                ("squad", "Squad", "<p>Published squad members.</p>"),
+                ("gallery", "Gallery", "<p>Published team media.</p>"),
+                ("team-shop", "Team Shop", "<p>Merchandise linked to this team.</p>"),
+                ("team-photos", "Team Photos", "<p>Published team photographs.</p>"),
+            ],
+        ),
+        "player-profile": _interface_page(
+            "Player Profile",
+            "Player profile, form, career totals and match record.",
+            [
+                ("recent-form", "Recent Form", "<p>The player's latest scorecard appearances.</p>"),
+                ("profile", "Profile", "<p>Published player information.</p>"),
+                ("career-totals", "Career Totals", "<p>Automatically calculated from saved scorecards.</p>"),
+                ("career-milestones", "Career Milestones", "<p>Notable career achievements.</p>"),
+                ("career-record", "Career Record (by League)", "<p>Career statistics grouped by competition.</p>"),
+                ("match-log", "Match Log", "<p>Scorecard appearances and notes.</p>"),
+            ],
+        ),
+        "match-centre": _interface_page(
+            "Match Centre",
+            "Official match information, live scoring and scorecard.",
+            [
+                ("match-details", "Match Details", "<p>Official fixture information and match status.</p>"),
+                (
+                    "result-player-stats",
+                    "Result & Player Stats",
+                    "<p>Published result and individual match awards.</p>",
+                ),
+                ("top-performers", "Top Performers", "<p>Tap a card to jump to that player's scorecard row.</p>"),
+                (
+                    "compare-players",
+                    "Compare Players",
+                    "<p>Choose one player from each team and compare their match impact.</p>",
+                ),
+                (
+                    "fan-player-of-match",
+                    "Fan Player of the Match",
+                    "<p>Vote for an eligible player when voting is open.</p>",
+                ),
+                ("scorecard", "Scorecard", "<p>Official batting and bowling figures.</p>"),
+                ("match-report", "Match Report", "<p>Published match report.</p>"),
+                (
+                    "live-match-centre",
+                    "Match Centre",
+                    "<p>Ball-by-ball match coverage and live insights.</p>",
+                ),
+                (
+                    "scoring-breakdown",
+                    "Scoring Breakdown",
+                    "<p>How each innings was built.</p>",
+                ),
+                ("partnerships", "Partnerships", "<p>Runs added by each batting pair.</p>"),
+                ("worm", "Worm", "<p>Runs progression across the innings.</p>"),
+                ("manhattan", "Manhattan", "<p>Runs scored in each over.</p>"),
+                ("run-rate", "Run Rate", "<p>Run-rate progression by over.</p>"),
+                (
+                    "win-probability",
+                    "Win Probability",
+                    "<p>A live estimate based on the current match position.</p>",
+                ),
+                ("photos", "Photos", "<p>Official match photographs.</p>"),
+                (
+                    "match-information",
+                    "Match Information",
+                    "<p>Official competition, venue and match details.</p>",
+                ),
+                (
+                    "match-officials",
+                    "Match Officials",
+                    "<p>Published umpire and official appointments.</p>",
+                ),
+                (
+                    "playing-conditions",
+                    "Playing Conditions",
+                    "<p>Format and conditions for this match.</p>",
+                ),
+            ],
+        ),
+        "league-season": _interface_page(
+            "League and Season",
+            "Competition results, statistics and standings.",
+            [
+                ("results", "Results", "<p>Completed matches in this season.</p>"),
+                ("stats", "Stats", "<p>Player and team statistics for this season.</p>"),
+                (
+                    "top-performers",
+                    "Top Performers",
+                    "<p>Leading individual performances in this season.</p>",
+                ),
+                ("standings", "Standings", "<p>Current official points table.</p>"),
+            ],
+        ),
+        "site-footer": _interface_page(
+            "Explore the Competition",
+            "Footer navigation and headings.",
+            [
+                ("competitions", "Competitions", "<p>Competition navigation.</p>"),
+                ("media-updates", "Media & Updates", "<p>News and gallery navigation.</p>"),
+                ("about-support", "About & Support", "<p>Organisation and support navigation.</p>"),
+                ("social", "Social", "<p>Official social channels.</p>"),
+            ],
+        ),
+        "not-found": _interface_page(
+            "Page Not Found",
+            "The page may have moved, or the link may be incorrect.",
+            [("next-steps", "Find What You Need", "<p>Return home or use the main navigation.</p>")],
+        ),
+    }
+)
+
+
 def default_site_page_body(slug: SitePageSlug) -> SitePageBody:
     return SitePageBody.model_validate(DEFAULT_SITE_PAGES[slug])
+
+
+def merge_site_page_body_with_defaults(
+    slug: SitePageSlug,
+    body: SitePageBody,
+) -> SitePageBody:
+    """Add newly introduced fixed-template sections without overwriting edits."""
+
+    if slug in FLEXIBLE_SITE_PAGE_SLUGS:
+        return body
+
+    defaults = default_site_page_body(slug)
+    saved_by_id = {section.id: section for section in body.sections}
+    default_ids = {section.id for section in defaults.sections}
+    sections = [saved_by_id.get(section.id, section) for section in defaults.sections]
+    sections.extend(section for section in body.sections if section.id not in default_ids)
+    return body.model_copy(update={"sections": sections})

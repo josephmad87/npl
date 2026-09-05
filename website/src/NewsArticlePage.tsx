@@ -10,6 +10,8 @@ import { parseArticleCompetitionCategory } from './lib/competitionCategories'
 import { formatCategoryLabel } from './lib/formatters'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { sanitizeHtml } from './lib/sanitizeHtml'
+import { managedSection, useSitePageContent } from './lib/siteContent'
+import { ManagedSiteHtml } from './components/ManagedSiteHtml'
 
 type ApiNewsArticle = {
   id: number
@@ -74,6 +76,7 @@ function truncateShareText(value: string, max = 220): string {
 
 export default function NewsArticlePage() {
   const { slug } = useParams({ from: '/news/$slug' })
+  const contentQ = useSitePageContent('news')
 
   const { data: article, isLoading, isError } = useQuery({
     queryKey: ['public-news-article', slug],
@@ -84,6 +87,11 @@ export default function NewsArticlePage() {
   const relatedCategory = article
     ? parseArticleCompetitionCategory(article.category)
     : null
+  const sidebarContent = managedSection(
+    contentQ.data,
+    relatedCategory ? 'related-news' : 'recent-news',
+    relatedCategory ? 'Related News' : 'Recent News',
+  )
 
   const { data: recentNews = [] } = useQuery({
     queryKey: ['public-recent-news', relatedCategory ?? 'all'],
@@ -253,7 +261,8 @@ export default function NewsArticlePage() {
                 className="article-sidebar"
                 aria-label={relatedCategory ? 'Related news' : 'Recent news'}
               >
-                <h3>{relatedCategory ? 'Related News' : 'Recent News'}</h3>
+                <h3>{sidebarContent.heading}</h3>
+                <ManagedSiteHtml html={sidebarContent.body_html} className="ui-section-header-description managed-rich-text" />
 
                 <div className="article-sidebar-list">
                   {sidebarNews.map((item) => {

@@ -8,9 +8,13 @@
     "./accessibility": {
       "types": "./accessibility.d.ts",
       "default": "./accessibility.js"
+    },
+    "./toss-summary": {
+      "types": "./toss-summary.d.ts",
+      "default": "./toss-summary.js"
     }
   },
   "scripts": {
-    "test": "node --test accessibility.test.mjs"
+    "test": "node --test *.test.mjs"
   }
 }

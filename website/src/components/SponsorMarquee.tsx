@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { ResponsiveImage } from './ResponsiveImage'
 
 type Sponsor = {
@@ -11,11 +12,13 @@ type Sponsor = {
 
 type SponsorMarqueeProps = Readonly<{
   title?: string
+  description?: ReactNode
   sponsors: Sponsor[]
 }>
 
 export function SponsorMarquee({
   title = 'Partners & Sponsors',
+  description,
   sponsors,
 }: SponsorMarqueeProps) {
   const visibleSponsors = sponsors.filter((s) => s.image_url)
@@ -32,6 +35,7 @@ export function SponsorMarquee({
   return (
     <section className="sponsor-marquee-section">
       <h2>{title}</h2>
+      {description ? <div className="ui-section-header-description">{description}</div> : null}
 
       <div className="sponsor-marquee" aria-label={title}>
         <div className="sponsor-marquee__track">

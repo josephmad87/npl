@@ -11,10 +11,39 @@ from app.models.audit import AuditLog
 from app.models.site_page_content import SitePageContent
 from app.models.user import User
 from app.schemas.site_page_content import SitePageBody
-from app.services.site_pages import DEFAULT_SITE_PAGES, default_site_page_body
+from app.services.site_pages import (
+    DEFAULT_SITE_PAGES,
+    default_site_page_body,
+    merge_site_page_body_with_defaults,
+)
 
 
 EXPECTED_SLUGS = {
+    "home",
+    "mens",
+    "women",
+    "youth",
+    "fixtures",
+    "results",
+    "teams",
+    "seasons",
+    "news",
+    "gallery",
+    "merchandise",
+    "merchandise-product",
+    "order-tracking",
+    "live",
+    "compare-teams",
+    "about-us",
+    "contact-us",
+    "search",
+    "my-npl",
+    "team-profile",
+    "player-profile",
+    "match-centre",
+    "league-season",
+    "site-footer",
+    "not-found",
     "privacy",
     "terms",
     "support",
@@ -65,6 +94,48 @@ def test_section_ids_must_be_safe_html_anchors() -> None:
                 ],
             },
         )
+
+
+def test_fixed_template_content_gains_new_default_sections_without_losing_edits() -> None:
+    saved = SitePageBody.model_validate(
+        {
+            "title": "Edited match page",
+            "subtitle": "Edited subtitle",
+            "sections": [
+                {
+                    "id": "match-details",
+                    "heading": "Fixture Facts",
+                    "body_html": "<p>Edited copy.</p>",
+                }
+            ],
+        }
+    )
+
+    merged = merge_site_page_body_with_defaults("match-centre", saved)
+
+    assert merged.title == "Edited match page"
+    assert merged.sections[0].heading == "Fixture Facts"
+    assert merged.sections[0].body_html == "<p>Edited copy.</p>"
+    assert "live-match-centre" in {section.id for section in merged.sections}
+
+
+def test_flexible_policy_content_does_not_restore_removed_sections() -> None:
+    saved = SitePageBody.model_validate(
+        {
+            "title": "Privacy",
+            "sections": [
+                {
+                    "id": "custom",
+                    "heading": "Custom",
+                    "body_html": "<p>Only this section.</p>",
+                }
+            ],
+        }
+    )
+
+    merged = merge_site_page_body_with_defaults("privacy", saved)
+
+    assert [section.id for section in merged.sections] == ["custom"]
 
 
 class FakeSession:
@@ -143,7 +214,7 @@ def test_public_information_page_endpoint_returns_default_content() -> None:
     assert payload["sections"]
 
 
-def test_admin_page_endpoint_rejects_non_super_admin() -> None:
+def test_content_editor_can_manage_site_page_content() -> None:
     db = FakeSession(make_user("content_editor"))
     client = TestClient(make_test_app(db))
 
@@ -152,8 +223,20 @@ def test_admin_page_endpoint_rejects_non_super_admin() -> None:
         headers=authorization_header(),
     )
 
+    assert response.status_code == 200
+    assert response.json()["slug"] == "privacy"
+
+
+def test_scorer_cannot_manage_site_page_content() -> None:
+    db = FakeSession(make_user("scorer"))
+    client = TestClient(make_test_app(db))
+
+    response = client.get(
+        "/api/v1/admin/site-pages/privacy",
+        headers=authorization_header(),
+    )
+
     assert response.status_code == 403
-    assert response.json()["detail"]["message"] == "Super admin access required"
 
 
 def test_super_admin_can_save_managed_page_content() -> None:

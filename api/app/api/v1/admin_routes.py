@@ -136,16 +136,17 @@ from app.services.dls import (
     dls_revised_target,
     revised_resource_percentage,
 )
+from app.services.fan_notifications import dispatch_fan_notifications, queue_fan_match_notifications
+from app.services.match_toss import build_toss_summary
 from app.services.player_stats import (
     affected_player_ids_for_match,
     is_did_not_bat,
     recompute_all_player_career_stats,
     recompute_player_career_stats,
 )
-from app.services.site_pages import default_site_page_body
+from app.services.site_pages import default_site_page_body, merge_site_page_body_with_defaults
 from app.services.seo_redirects import record_seo_redirect
 from app.services.uploads import build_media_public_url, save_upload_file
-from app.services.fan_notifications import dispatch_fan_notifications, queue_fan_match_notifications
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -297,9 +298,7 @@ def _validate_merchandise_team_ids(db: Session, team_ids: list[int]) -> list[int
     if not unique_team_ids:
         return []
 
-    existing_team_ids = set(
-        db.scalars(select(Team.id).where(Team.id.in_(unique_team_ids))).all()
-    )
+    existing_team_ids = set(db.scalars(select(Team.id).where(Team.id.in_(unique_team_ids))).all())
     missing_team_ids = sorted(set(unique_team_ids) - existing_team_ids)
     if missing_team_ids:
         raise HTTPException(
@@ -357,7 +356,9 @@ def _merchandise_variants_by_product(
     rows = db.scalars(
         select(MerchandiseProductVariant)
         .where(MerchandiseProductVariant.product_id.in_(product_ids))
-        .order_by(MerchandiseProductVariant.product_id, MerchandiseProductVariant.sort_order, MerchandiseProductVariant.id)
+        .order_by(
+            MerchandiseProductVariant.product_id, MerchandiseProductVariant.sort_order, MerchandiseProductVariant.id
+        )
     ).all()
     for row in rows:
         grouped[row.product_id].append(row)
@@ -376,9 +377,7 @@ def _replace_merchandise_variants(
             detail={"code": "duplicate_sku", "message": "Each product option must have a unique SKU."},
         )
     existing_rows = list(
-        db.scalars(
-            select(MerchandiseProductVariant).where(MerchandiseProductVariant.product_id == product_id)
-        ).all()
+        db.scalars(select(MerchandiseProductVariant).where(MerchandiseProductVariant.product_id == product_id)).all()
     )
     existing_by_sku = {row.sku.upper(): row for row in existing_rows}
     rows: list[MerchandiseProductVariant] = []
@@ -402,6 +401,7 @@ def _replace_merchandise_variants(
         removed.status = "inactive"
     db.flush()
     return rows
+
 
 @router.get("/merchandise", response_model=dict)
 def admin_list_merchandise(
@@ -461,10 +461,7 @@ def admin_create_merchandise(
 
     db.add(product)
     db.flush()
-    db.add_all(
-        MerchandiseProductTeam(product_id=product.id, team_id=team_id)
-        for team_id in team_ids
-    )
+    db.add_all(MerchandiseProductTeam(product_id=product.id, team_id=team_id) for team_id in team_ids)
     variants = _replace_merchandise_variants(db, product.id, body.variants)
     db.commit()
     db.refresh(product)
@@ -662,10 +659,7 @@ def admin_update_merchandise(
                 MerchandiseProductTeam.product_id == product.id,
             ),
         )
-        db.add_all(
-            MerchandiseProductTeam(product_id=product.id, team_id=team_id)
-            for team_id in team_ids
-        )
+        db.add_all(MerchandiseProductTeam(product_id=product.id, team_id=team_id) for team_id in team_ids)
     else:
         team_ids = _merchandise_team_ids_by_product(db, [product.id]).get(product.id)
 
@@ -754,7 +748,9 @@ def admin_list_users(
 ) -> dict:
     stmt = select(User).order_by(User.email)
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
-    return to_paginated([UserMe.model_validate(r) for r in rows], total, page_params.page, page_params.page_size).model_dump()
+    return to_paginated(
+        [UserMe.model_validate(r) for r in rows], total, page_params.page, page_params.page_size
+    ).model_dump()
 
 
 @router.get("/audit-logs", response_model=dict)
@@ -883,8 +879,7 @@ def _regular_stage_is_complete(db: Session, season_id: int) -> bool:
         ).all(),
     )
     return bool(regular_fixtures) and all(
-        fixture.status in {"completed", "abandoned", "cancelled"}
-        for fixture in regular_fixtures
+        fixture.status in {"completed", "abandoned", "cancelled"} for fixture in regular_fixtures
     )
 
 
@@ -998,12 +993,9 @@ def create_admin_user(
     db.commit()
     return user
 
+
 def _active_super_admin_count(db: Session) -> int:
-    raw = db.scalar(
-        select(func.count())
-        .select_from(User)
-        .where(User.role == "super_admin", User.is_active.is_(True))
-    )
+    raw = db.scalar(select(func.count()).select_from(User).where(User.role == "super_admin", User.is_active.is_(True)))
     return int(raw or 0)
 
 
@@ -1191,7 +1183,9 @@ def admin_list_teams(
         stmt = stmt.where(or_(Team.name.ilike(like), Team.slug.ilike(like)))
     stmt = stmt.order_by(Team.name)
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
-    return to_paginated([TeamOut.model_validate(r) for r in rows], total, page_params.page, page_params.page_size).model_dump()
+    return to_paginated(
+        [TeamOut.model_validate(r) for r in rows], total, page_params.page, page_params.page_size
+    ).model_dump()
 
 
 @router.post("/teams", response_model=TeamOut, status_code=status.HTTP_201_CREATED)
@@ -1323,7 +1317,9 @@ def admin_bulk_archive_teams(
             continue
         team.status = "inactive"
         updated += 1
-        write_audit(db, actor_user_id=actor.id, action="archive", entity_type="team", entity_id=team.id, summary=team.name)
+        write_audit(
+            db, actor_user_id=actor.id, action="archive", entity_type="team", entity_id=team.id, summary=team.name
+        )
     db.commit()
     return {"updated": updated, "skipped": skipped}
 
@@ -1344,7 +1340,9 @@ def admin_list_players(
         stmt = stmt.where(or_(Player.full_name.ilike(like), Player.slug.ilike(like)))
     stmt = stmt.order_by(Player.full_name)
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
-    return to_paginated([PlayerOut.model_validate(r) for r in rows], total, page_params.page, page_params.page_size).model_dump()
+    return to_paginated(
+        [PlayerOut.model_validate(r) for r in rows], total, page_params.page, page_params.page_size
+    ).model_dump()
 
 
 @router.post("/players", response_model=PlayerOut, status_code=status.HTTP_201_CREATED)
@@ -1364,7 +1362,9 @@ def admin_create_player(
         db.rollback()
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Slug or data conflict"})
     db.refresh(player)
-    write_audit(db, actor_user_id=actor.id, action="create", entity_type="player", entity_id=player.id, summary=player.full_name)
+    write_audit(
+        db, actor_user_id=actor.id, action="create", entity_type="player", entity_id=player.id, summary=player.full_name
+    )
     db.commit()
     return player
 
@@ -1473,7 +1473,9 @@ def admin_update_player(
         db.rollback()
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Slug or data conflict"})
     db.refresh(player)
-    write_audit(db, actor_user_id=actor.id, action="update", entity_type="player", entity_id=player.id, summary=player.full_name)
+    write_audit(
+        db, actor_user_id=actor.id, action="update", entity_type="player", entity_id=player.id, summary=player.full_name
+    )
     db.commit()
     return player
 
@@ -1568,7 +1570,9 @@ def admin_create_league(
         db.rollback()
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Slug or data conflict"})
     db.refresh(league)
-    write_audit(db, actor_user_id=actor.id, action="create", entity_type="league", entity_id=league.id, summary=league.name)
+    write_audit(
+        db, actor_user_id=actor.id, action="create", entity_type="league", entity_id=league.id, summary=league.name
+    )
     db.commit()
     return league
 
@@ -1605,7 +1609,9 @@ def admin_update_league(
         db.rollback()
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Slug or data conflict"})
     db.refresh(league)
-    write_audit(db, actor_user_id=actor.id, action="update", entity_type="league", entity_id=league.id, summary=league.name)
+    write_audit(
+        db, actor_user_id=actor.id, action="update", entity_type="league", entity_id=league.id, summary=league.name
+    )
     db.commit()
     return league
 
@@ -1639,7 +1645,11 @@ def admin_list_seasons_for_league(
 ) -> dict:
     if db.get(League, league_id) is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "League not found"})
-    stmt = select(Season).where(Season.league_id == league_id).order_by(Season.start_date.desc().nullslast(), Season.id.desc())
+    stmt = (
+        select(Season)
+        .where(Season.league_id == league_id)
+        .order_by(Season.start_date.desc().nullslast(), Season.id.desc())
+    )
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
     items = [_season_public(db, r) for r in rows]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
@@ -1665,7 +1675,9 @@ def admin_create_season(
     _set_season_teams(db, season.id, body.team_ids)
     db.commit()
     db.refresh(season)
-    write_audit(db, actor_user_id=actor.id, action="create", entity_type="season", entity_id=season.id, summary=season.name)
+    write_audit(
+        db, actor_user_id=actor.id, action="create", entity_type="season", entity_id=season.id, summary=season.name
+    )
     db.commit()
     return _season_public(db, season)
 
@@ -1700,7 +1712,9 @@ def admin_update_season(
         db.rollback()
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Slug or data conflict"})
     db.refresh(season)
-    write_audit(db, actor_user_id=actor.id, action="update", entity_type="season", entity_id=season.id, summary=season.name)
+    write_audit(
+        db, actor_user_id=actor.id, action="update", entity_type="season", entity_id=season.id, summary=season.name
+    )
     db.commit()
     return _season_public(db, season)
 
@@ -1765,7 +1779,9 @@ def admin_list_matches(
     if team_id is not None:
         stmt = stmt.where(or_(Match.home_team_id == team_id, Match.away_team_id == team_id))
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
-    return to_paginated([MatchDetailOut.model_validate(r) for r in rows], total, page_params.page, page_params.page_size).model_dump()
+    return to_paginated(
+        [MatchDetailOut.model_validate(r) for r in rows], total, page_params.page, page_params.page_size
+    ).model_dump()
 
 
 @router.post("/matches", response_model=MatchDetailOut, status_code=status.HTTP_201_CREATED)
@@ -1817,10 +1833,14 @@ def admin_publish_draft_fixtures(
     if db.get(Season, body.season_id) is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Season not found"})
     _sync_playoff_fixture_teams(db, body.season_id)
-    updated = db.query(Match).filter(
-        Match.season_id == body.season_id,
-        Match.is_published.is_(False),
-    ).update({Match.is_published: True}, synchronize_session=False)
+    updated = (
+        db.query(Match)
+        .filter(
+            Match.season_id == body.season_id,
+            Match.is_published.is_(False),
+        )
+        .update({Match.is_published: True}, synchronize_session=False)
+    )
     db.commit()
     write_audit(
         db,
@@ -1834,7 +1854,9 @@ def admin_publish_draft_fixtures(
     return {"published": int(updated)}
 
 
-@router.post("/seasons/{season_id}/playoff-fixtures", response_model=list[MatchDetailOut], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/seasons/{season_id}/playoff-fixtures", response_model=list[MatchDetailOut], status_code=status.HTTP_201_CREATED
+)
 def admin_create_playoff_fixtures(
     season_id: int,
     body: PlayoffFixtureCreateIn,
@@ -1847,7 +1869,10 @@ def admin_create_playoff_fixtures(
     if len(seeds) < 4:
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": "Add at least four teams to the season before creating the playoff bracket."},
+            detail={
+                "code": "validation",
+                "message": "Add at least four teams to the season before creating the playoff bracket.",
+            },
         )
     existing = db.scalar(
         select(Match.id).where(Match.season_id == season_id, Match.fixture_stage == "qualifier_1"),
@@ -1942,11 +1967,7 @@ def admin_bulk_cancel_matches(
     if not match_ids:
         return {"deleted": 0}
 
-    matches = list(
-        db.scalars(
-            select(Match).where(Match.id.in_(match_ids))
-        )
-    )
+    matches = list(db.scalars(select(Match).where(Match.id.in_(match_ids))))
 
     if not matches:
         return {"deleted": 0}
@@ -1961,15 +1982,9 @@ def admin_bulk_cancel_matches(
             summary=f"Deleted fixture {match.id}",
         )
 
-    db.execute(
-        delete(MatchPlayerStat).where(MatchPlayerStat.match_id.in_(match_ids))
-    )
-    db.execute(
-        delete(MatchResult).where(MatchResult.match_id.in_(match_ids))
-    )
-    db.execute(
-        delete(Match).where(Match.id.in_(match_ids))
-    )
+    db.execute(delete(MatchPlayerStat).where(MatchPlayerStat.match_id.in_(match_ids)))
+    db.execute(delete(MatchResult).where(MatchResult.match_id.in_(match_ids)))
+    db.execute(delete(Match).where(Match.id.in_(match_ids)))
 
     db.commit()
 
@@ -2023,9 +2038,12 @@ def admin_update_match(
     next_status = payload.get("status", m.status)
     if next_status == "completed" and previous_status != "completed":
         has_result = m.result is not None
-        has_scorecard = db.scalar(
-            select(MatchPlayerStat.id).where(MatchPlayerStat.match_id == match_id).limit(1),
-        ) is not None
+        has_scorecard = (
+            db.scalar(
+                select(MatchPlayerStat.id).where(MatchPlayerStat.match_id == match_id).limit(1),
+            )
+            is not None
+        )
         if not has_result and not has_scorecard:
             raise HTTPException(
                 status_code=400,
@@ -2086,6 +2104,7 @@ def admin_recompute_player_stats(
     db.commit()
     return {"updated": count}
 
+
 @router.post("/matches/{match_id}/result", response_model=MatchDetailOut)
 def admin_set_match_result(
     match_id: int,
@@ -2094,9 +2113,7 @@ def admin_set_match_result(
     actor: User = Depends(require_competition_writer),
 ) -> Match:
     m = db.scalar(
-        select(Match)
-        .options(joinedload(Match.result), selectinload(Match.player_stats))
-        .where(Match.id == match_id),
+        select(Match).options(joinedload(Match.result), selectinload(Match.player_stats)).where(Match.id == match_id),
     )
 
     if m is None:
@@ -2312,7 +2329,9 @@ def admin_list_news(
     if status_filter:
         stmt = stmt.where(Article.status == status_filter)
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
-    return to_paginated([ArticleOut.model_validate(r) for r in rows], total, page_params.page, page_params.page_size).model_dump()
+    return to_paginated(
+        [ArticleOut.model_validate(r) for r in rows], total, page_params.page, page_params.page_size
+    ).model_dump()
 
 
 @router.post("/news", response_model=ArticleOut, status_code=status.HTTP_201_CREATED)
@@ -2329,7 +2348,9 @@ def admin_create_news(
         db.rollback()
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Slug conflict"})
     db.refresh(article)
-    write_audit(db, actor_user_id=actor.id, action="create", entity_type="article", entity_id=article.id, summary=article.title)
+    write_audit(
+        db, actor_user_id=actor.id, action="create", entity_type="article", entity_id=article.id, summary=article.title
+    )
     db.commit()
     return article
 
@@ -2362,7 +2383,9 @@ def admin_update_news(
         db.rollback()
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Slug conflict"})
     db.refresh(article)
-    write_audit(db, actor_user_id=actor.id, action="update", entity_type="article", entity_id=article.id, summary=article.title)
+    write_audit(
+        db, actor_user_id=actor.id, action="update", entity_type="article", entity_id=article.id, summary=article.title
+    )
     db.commit()
     return article
 
@@ -2393,7 +2416,9 @@ def admin_publish_news(
         article.published_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(article)
-    write_audit(db, actor_user_id=actor.id, action="publish", entity_type="article", entity_id=article.id, summary=article.title)
+    write_audit(
+        db, actor_user_id=actor.id, action="publish", entity_type="article", entity_id=article.id, summary=article.title
+    )
     db.commit()
     return article
 
@@ -2406,7 +2431,9 @@ def admin_list_gallery(
 ) -> dict:
     stmt = select(GalleryItem).order_by(GalleryItem.created_at.desc())
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
-    return to_paginated([GalleryItemOut.model_validate(r) for r in rows], total, page_params.page, page_params.page_size).model_dump()
+    return to_paginated(
+        [GalleryItemOut.model_validate(r) for r in rows], total, page_params.page, page_params.page_size
+    ).model_dump()
 
 
 @router.post("/gallery", response_model=GalleryItemOut, status_code=status.HTTP_201_CREATED)
@@ -2426,7 +2453,9 @@ def admin_create_gallery(
         db.rollback()
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Slug conflict"})
     db.refresh(item)
-    write_audit(db, actor_user_id=actor.id, action="create", entity_type="gallery_item", entity_id=item.id, summary=item.title)
+    write_audit(
+        db, actor_user_id=actor.id, action="create", entity_type="gallery_item", entity_id=item.id, summary=item.title
+    )
     db.commit()
     return item
 
@@ -2466,7 +2495,9 @@ def admin_update_gallery(
         db.rollback()
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Slug conflict"})
     db.refresh(item)
-    write_audit(db, actor_user_id=actor.id, action="update", entity_type="gallery_item", entity_id=item.id, summary=item.title)
+    write_audit(
+        db, actor_user_id=actor.id, action="update", entity_type="gallery_item", entity_id=item.id, summary=item.title
+    )
     db.commit()
     return item
 
@@ -2483,7 +2514,9 @@ def admin_delete_gallery(
     title = item.title
     db.delete(item)
     db.commit()
-    write_audit(db, actor_user_id=actor.id, action="delete", entity_type="gallery_item", entity_id=item_id, summary=title)
+    write_audit(
+        db, actor_user_id=actor.id, action="delete", entity_type="gallery_item", entity_id=item_id, summary=title
+    )
     db.commit()
 
 
@@ -2543,7 +2576,10 @@ def _get_or_create_site_page_row(db: Session, slug: SitePageSlug) -> SitePageCon
 def _coerce_site_page_body(slug: SitePageSlug, raw: object) -> SitePageBody:
     if raw and isinstance(raw, dict):
         try:
-            return SitePageBody.model_validate(raw)
+            return merge_site_page_body_with_defaults(
+                slug,
+                SitePageBody.model_validate(raw),
+            )
         except Exception:
             pass
     return default_site_page_body(slug)
@@ -2562,7 +2598,7 @@ def _site_page_row_to_out(row: SitePageContent, slug: SitePageSlug) -> SitePageO
 def admin_get_site_page(
     slug: SitePageSlug,
     db: Session = Depends(get_db),
-    _: User = Depends(require_super_admin),
+    _: User = Depends(require_content_writer),
 ) -> SitePageOut:
     row = _get_or_create_site_page_row(db, slug)
     return _site_page_row_to_out(row, slug)
@@ -2573,7 +2609,7 @@ def admin_patch_site_page(
     slug: SitePageSlug,
     body: SitePageBody,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_super_admin),
+    actor: User = Depends(require_content_writer),
 ) -> SitePageOut:
     row = _get_or_create_site_page_row(db, slug)
     row.body = body.model_dump(mode="json")
@@ -2668,10 +2704,7 @@ def admin_list_sponsors(
         .limit(page_params.page_size)
     )
     rows = list(db.execute(stmt).all())
-    items = [
-        _sponsor_out(sp, tn)
-        for sp, tn in rows
-    ]
+    items = [_sponsor_out(sp, tn) for sp, tn in rows]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
 
 
@@ -2681,14 +2714,9 @@ def admin_get_sponsor(
     db: Session = Depends(get_db),
     _: User = Depends(require_admin_reader),
 ) -> SponsorOut:
-    found = (
-        db.execute(
-            select(Sponsor, Team.name)
-            .outerjoin(Team, Sponsor.team_id == Team.id)
-            .where(Sponsor.id == sponsor_id),
-        )
-        .one_or_none()
-    )
+    found = db.execute(
+        select(Sponsor, Team.name).outerjoin(Team, Sponsor.team_id == Team.id).where(Sponsor.id == sponsor_id),
+    ).one_or_none()
     if found is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Sponsor not found"})
     sp, team_name = found[0], found[1]
@@ -2844,6 +2872,7 @@ def admin_update_contact_message(
 # Live scoring / scorer assignments
 # ---------------------------------------------------------------------------
 
+
 def _is_competition_actor(user: User) -> bool:
     return user.role in ("super_admin", "competition_manager")
 
@@ -2864,19 +2893,14 @@ def _match_assignment_duty(db: Session, match_id: int, user_id: int) -> str | No
 def _can_score_match(db: Session, match_id: int, actor: User) -> bool:
     if _is_competition_actor(actor):
         return True
-    return (
-        actor.role == "scorer"
-        and _match_assignment_duty(db, match_id, actor.id) in SCORING_ASSIGNMENT_DUTIES
-    )
+    return actor.role == "scorer" and _match_assignment_duty(db, match_id, actor.id) in SCORING_ASSIGNMENT_DUTIES
 
 
 def _can_comment_match(db: Session, match_id: int, actor: User) -> bool:
     if _is_competition_actor(actor):
         return True
     duty = _match_assignment_duty(db, match_id, actor.id)
-    return (
-        actor.role == "commentator" and duty == "commentator_only"
-    ) or (
+    return (actor.role == "commentator" and duty == "commentator_only") or (
         actor.role == "scorer" and duty == "score_and_commentary"
     )
 
@@ -3031,16 +3055,8 @@ def _scorecard_access(
 ) -> dict[str, object]:
     current_time = _as_utc(now) or datetime.now(timezone.utc)
     locks_at = _scorecard_locks_at(match)
-    locked = (
-        match.status == "completed"
-        and locks_at is not None
-        and current_time >= locks_at
-    )
-    latest_request = (
-        _latest_scorecard_edit_request(db, match.id, actor.id)
-        if actor.role == "scorer"
-        else None
-    )
+    locked = match.status == "completed" and locks_at is not None and current_time >= locks_at
+    latest_request = _latest_scorecard_edit_request(db, match.id, actor.id) if actor.role == "scorer" else None
     access_until = _as_utc(latest_request.access_until) if latest_request is not None else None
     approved_access = (
         latest_request is not None
@@ -3051,9 +3067,7 @@ def _scorecard_access(
     # Assignment eligibility is enforced before opening or mutating the scoring
     # workbench. Keep lock-state calculation independent so it remains a pure
     # answer about an already-authorized scorer's edit window.
-    can_edit = actor.role != "commentator" and (
-        actor.role != "scorer" or not locked or approved_access
-    )
+    can_edit = actor.role != "commentator" and (actor.role != "scorer" or not locked or approved_access)
     return {
         "scorecard_finalized_at": _as_utc(match.scorecard_finalized_at),
         "scorecard_locks_at": locks_at,
@@ -3089,9 +3103,7 @@ def _assert_can_edit_score_match(
 def _lock_score_match(db: Session, match_id: int) -> Match:
     """Serialize all score mutations on the match row for this transaction."""
     match = db.scalar(
-        select(Match)
-        .where(Match.id == match_id)
-        .with_for_update(),
+        select(Match).where(Match.id == match_id).with_for_update(),
     )
     if match is None:
         raise HTTPException(
@@ -3157,11 +3169,7 @@ def _session_out(
     include_token: bool = False,
 ) -> ScoringSessionOut:
     owner = db.get(User, row.owner_user_id)
-    owner_name = (
-        (owner.full_name or owner.email)
-        if owner is not None
-        else f"User {row.owner_user_id}"
-    )
+    owner_name = (owner.full_name or owner.email) if owner is not None else f"User {row.owner_user_id}"
     is_owner = row.owner_user_id == actor.id
     return ScoringSessionOut(
         id=row.id,
@@ -3406,6 +3414,7 @@ def _live_ball_label(event: MatchBallEvent) -> str:
         label = f"{label} · {event.short_runs} short"
     return label
 
+
 def _live_overs_label(legal_balls: int) -> str:
     return f"{legal_balls // 6}.{legal_balls % 6}"
 
@@ -3494,11 +3503,17 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
         )
 
     if boundary_type == "four" and body.boundary_runs != 4:
-        raise HTTPException(status_code=400, detail={"code": "validation", "message": "A four boundary must have boundary_runs=4."})
+        raise HTTPException(
+            status_code=400, detail={"code": "validation", "message": "A four boundary must have boundary_runs=4."}
+        )
     if boundary_type == "six" and body.boundary_runs != 6:
-        raise HTTPException(status_code=400, detail={"code": "validation", "message": "A six boundary must have boundary_runs=6."})
+        raise HTTPException(
+            status_code=400, detail={"code": "validation", "message": "A six boundary must have boundary_runs=6."}
+        )
     if boundary_type is None and body.boundary_runs not in (0,):
-        raise HTTPException(status_code=400, detail={"code": "validation", "message": "boundary_runs requires a boundary_type."})
+        raise HTTPException(
+            status_code=400, detail={"code": "validation", "message": "boundary_runs requires a boundary_type."}
+        )
 
     if body.short_runs > body.completed_runs:
         raise HTTPException(
@@ -3529,16 +3544,24 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
 
     if body.is_dead_ball:
         if body.is_legal_delivery:
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Dead ball events are not legal deliveries."})
+            raise HTTPException(
+                status_code=400, detail={"code": "validation", "message": "Dead ball events are not legal deliveries."}
+            )
         if body.runs_batter or body.runs_extras:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "Dead ball events cannot record batter runs or extras. Use penalty fields only if needed."},
+                detail={
+                    "code": "validation",
+                    "message": "Dead ball events cannot record batter runs or extras. Use penalty fields only if needed.",
+                },
             )
         if wicket_type and not (retirement_transition or non_delivery_dismissal):
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "Only a batter retirement, Timed out, or non-striker leaving early can be recorded without a delivery."},
+                detail={
+                    "code": "validation",
+                    "message": "Only a batter retirement, Timed out, or non-striker leaving early can be recorded without a delivery.",
+                },
             )
         if (retirement_transition or non_delivery_dismissal) and body.wicket_player_id is None:
             raise HTTPException(
@@ -3554,7 +3577,10 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
             if body.fielder_player_id is None:
                 raise HTTPException(
                     status_code=400,
-                    detail={"code": "validation", "message": "Choose the player who completed the non-striker run out."},
+                    detail={
+                        "code": "validation",
+                        "message": "Choose the player who completed the non-striker run out.",
+                    },
                 )
         return
 
@@ -3569,12 +3595,20 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
         if body.runs_batter or body.runs_extras:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "Penalty events use penalty fields, not batter runs or extras."},
+                detail={
+                    "code": "validation",
+                    "message": "Penalty events use penalty fields, not batter runs or extras.",
+                },
             )
         if not (body.penalty_runs_batting or body.penalty_runs_fielding):
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Penalty event must include penalty runs."})
+            raise HTTPException(
+                status_code=400, detail={"code": "validation", "message": "Penalty event must include penalty runs."}
+            )
         if body.is_legal_delivery:
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Standalone penalty events are not legal deliveries."})
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Standalone penalty events are not legal deliveries."},
+            )
 
     if extras_type == "wide":
         if body.is_legal_delivery:
@@ -3602,14 +3636,20 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
         if body.runs_extras != 1:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "A No-ball records exactly one penalty extra; use no_ball_bye or no_ball_leg_bye for additional non-batter runs."},
+                detail={
+                    "code": "validation",
+                    "message": "A No-ball records exactly one penalty extra; use no_ball_bye or no_ball_leg_bye for additional non-batter runs.",
+                },
             )
 
     if extras_type in {"bye", "leg_bye"}:
         if not body.is_legal_delivery:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "Use no_ball_bye or no_ball_leg_bye when byes/leg-byes happen on a No-ball."},
+                detail={
+                    "code": "validation",
+                    "message": "Use no_ball_bye or no_ball_leg_bye when byes/leg-byes happen on a No-ball.",
+                },
             )
         if body.runs_batter != 0:
             raise HTTPException(
@@ -3624,7 +3664,10 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
         if extras_type == "leg_bye" and not body.leg_bye_attempted:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "Confirm that the batter attempted to play the ball or was avoiding it before recording leg-byes."},
+                detail={
+                    "code": "validation",
+                    "message": "Confirm that the batter attempted to play the ball or was avoiding it before recording leg-byes.",
+                },
             )
 
     if extras_type in {"no_ball_bye", "no_ball_leg_bye"}:
@@ -3641,35 +3684,59 @@ def _validate_live_ball_event(body: LiveBallEventIn) -> None:
         if body.runs_extras < 2:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "No-ball byes/leg-byes must include the one-run No-ball penalty plus completed runs."},
+                detail={
+                    "code": "validation",
+                    "message": "No-ball byes/leg-byes must include the one-run No-ball penalty plus completed runs.",
+                },
             )
         if extras_type == "no_ball_leg_bye" and not body.leg_bye_attempted:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "Confirm that the batter attempted to play the ball or was avoiding it before recording leg-byes."},
+                detail={
+                    "code": "validation",
+                    "message": "Confirm that the batter attempted to play the ball or was avoiding it before recording leg-byes.",
+                },
             )
 
     if wicket_type:
         if wicket_type not in allowed_wickets:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown mode of dismissal."})
         if body.wicket_player_id is None:
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Choose the player who is out."})
+            raise HTTPException(
+                status_code=400, detail={"code": "validation", "message": "Choose the player who is out."}
+            )
         if wicket_type in {"caught", "run_out", "stumped", "non_striker_left_early"} and body.fielder_player_id is None:
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "This dismissal requires a fielder."})
+            raise HTTPException(
+                status_code=400, detail={"code": "validation", "message": "This dismissal requires a fielder."}
+            )
         if wicket_type in {"bowled", "lbw", "hit_wicket"} and body.fielder_player_id is not None:
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "This dismissal should not record a fielder."})
+            raise HTTPException(
+                status_code=400, detail={"code": "validation", "message": "This dismissal should not record a fielder."}
+            )
         if extras_type == "wide" and wicket_type not in {"hit_wicket", "obstructing_field", "run_out", "stumped"}:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "After a Wide, the batter can only be out hit wicket, obstructing the field, run out, or stumped."},
+                detail={
+                    "code": "validation",
+                    "message": "After a Wide, the batter can only be out hit wicket, obstructing the field, run out, or stumped.",
+                },
             )
-        if extras_type in {"no_ball", "no_ball_bye", "no_ball_leg_bye"} and wicket_type not in {"hit_ball_twice", "obstructing_field", "run_out"}:
+        if extras_type in {"no_ball", "no_ball_bye", "no_ball_leg_bye"} and wicket_type not in {
+            "hit_ball_twice",
+            "obstructing_field",
+            "run_out",
+        }:
             raise HTTPException(
                 status_code=400,
-                detail={"code": "validation", "message": "After a No-ball, the batter can only be out hit the ball twice, obstructing the field, or run out."},
+                detail={
+                    "code": "validation",
+                    "message": "After a No-ball, the batter can only be out hit the ball twice, obstructing the field, or run out.",
+                },
             )
         if wicket_type == "run_out" and body.wicket_end is None:
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Run out requires the wicket end."})
+            raise HTTPException(
+                status_code=400, detail={"code": "validation", "message": "Run out requires the wicket end."}
+            )
 
 
 def _assert_bowler_can_bowl_current_over(db: Session, match_id: int, body: LiveBallEventIn) -> None:
@@ -3750,14 +3817,10 @@ def _assert_live_ball_payload(
     # substitute is a like-for-like player who is eligible to bat and bowl.
     active_roles = {"playing_xi", "concussion_substitute"}
     batting_allowed = (
-        {player_id for player_id, role in batting_roles.items() if role in active_roles}
-        if batting_roles
-        else None
+        {player_id for player_id, role in batting_roles.items() if role in active_roles} if batting_roles else None
     )
     bowling_allowed = (
-        {player_id for player_id, role in bowling_roles.items() if role in active_roles}
-        if bowling_roles
-        else None
+        {player_id for player_id, role in bowling_roles.items() if role in active_roles} if bowling_roles else None
     )
     fielding_allowed = set(bowling_roles) or None
 
@@ -3808,7 +3871,10 @@ def _assert_live_ball_payload(
             status_code=400,
             detail={"code": "validation", "message": "Replacement batter can only be set on a wicket ball."},
         )
-    if body.replacement_player_id and body.replacement_player_id in {body.striker_player_id, body.non_striker_player_id}:
+    if body.replacement_player_id and body.replacement_player_id in {
+        body.striker_player_id,
+        body.non_striker_player_id,
+    }:
         raise HTTPException(
             status_code=400,
             detail={"code": "validation", "message": "Replacement batter must be different from the current batters."},
@@ -3824,11 +3890,7 @@ def _assert_live_ball_payload(
         dismissed_stmt = dismissed_stmt.where(
             MatchBallEvent.sequence_number < before_sequence_number,
         )
-    dismissed_player_ids = {
-        player_id
-        for player_id in db.scalars(dismissed_stmt).all()
-        if player_id is not None
-    }
+    dismissed_player_ids = {player_id for player_id in db.scalars(dismissed_stmt).all() if player_id is not None}
     _assert_live_players_not_dismissed(body, dismissed_player_ids)
     _assert_bowler_can_bowl_current_over(db, match.id, body)
 
@@ -3883,10 +3945,7 @@ def _live_score_state(
         last_rows = [
             event
             for event in rows
-            if not (
-                event.is_dead_ball
-                and event.wicket_type in {"retired_hurt", "retired_out", "retired_not_out"}
-            )
+            if not (event.is_dead_ball and event.wicket_type in {"retired_hurt", "retired_out", "retired_not_out"})
         ][-6:]
 
         summaries.append(
@@ -3930,14 +3989,11 @@ def _live_score_state(
         summaries=summaries,
         events=[_live_event_out(event) for event in events],
         scoring_version=_score_version(match),
-        scorecard_reconciled_version=int(
-            getattr(match, "scorecard_reconciled_version", 0) or 0
-        ),
+        scorecard_reconciled_version=int(getattr(match, "scorecard_reconciled_version", 0) or 0),
         scorecard_reconciled_at=getattr(match, "scorecard_reconciled_at", None),
         scorecard_reconciliation_status=(
             getattr(match, "scorecard_reconciliation_status", "in_sync")
-            if int(getattr(match, "scorecard_reconciled_version", 0) or 0)
-            == _score_version(match)
+            if int(getattr(match, "scorecard_reconciled_version", 0) or 0) == _score_version(match)
             else "out_of_sync"
         ),
     )
@@ -3952,11 +4008,7 @@ def _live_score_state(
         update={
             **_scorecard_access(db, match, actor),
             "can_edit_commentary": _can_comment_match(db, match.id, actor),
-            "scoring_session": (
-                _session_out(db, active_session, actor)
-                if active_session is not None
-                else None
-            ),
+            "scoring_session": (_session_out(db, active_session, actor) if active_session is not None else None),
         },
     )
 
@@ -4050,8 +4102,11 @@ def report_match_incident(
     db.add(row)
     db.flush()
     write_audit(
-        db, actor_user_id=actor.id, action="report_match_incident",
-        entity_type="discipline_case", entity_id=row.id,
+        db,
+        actor_user_id=actor.id,
+        action="report_match_incident",
+        entity_type="discipline_case",
+        entity_id=row.id,
         summary=f"Reported {row.category} incident for match {match.id}",
     )
     db.commit()
@@ -4086,8 +4141,11 @@ def create_discipline_case(
     db.add(row)
     db.flush()
     write_audit(
-        db, actor_user_id=actor.id, action="create_discipline_case",
-        entity_type="discipline_case", entity_id=row.id,
+        db,
+        actor_user_id=actor.id,
+        action="create_discipline_case",
+        entity_type="discipline_case",
+        entity_id=row.id,
         summary=f"Created {row.category} discipline case",
     )
     db.commit()
@@ -4120,21 +4178,28 @@ def decide_discipline_case(
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Case not found"})
     if body.override_outcome is not None:
         if row.match is None:
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "A result override requires a linked match."})
+            raise HTTPException(
+                status_code=400, detail={"code": "validation", "message": "A result override requires a linked match."}
+            )
         match = row.match
         if body.override_outcome == "win" and body.winning_team_id not in (match.home_team_id, match.away_team_id):
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Awarded winner must be one of the fixture teams."})
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Awarded winner must be one of the fixture teams."},
+            )
         if body.override_outcome != "win" and body.winning_team_id is not None:
-            raise HTTPException(status_code=400, detail={"code": "validation", "message": "Only a win may name a winning team."})
+            raise HTTPException(
+                status_code=400, detail={"code": "validation", "message": "Only a win may name a winning team."}
+            )
         result = match.result
         if result is None:
             result = MatchResult(match_id=match.id)
             db.add(result)
         result.outcome = body.override_outcome
         result.winning_team_id = body.winning_team_id if body.override_outcome == "win" else None
-        result.margin_text = ((body.margin_text or "").strip() or (
+        result.margin_text = (body.margin_text or "").strip() or (
             "Match awarded following official determination" if body.override_outcome == "win" else "No result"
-        ))
+        )
         result.result_status = "administrative_determination"
         result.nrr_excluded = body.nrr_excluded
         match.status = "completed"
@@ -4154,18 +4219,27 @@ def decide_discipline_case(
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown sanction team."})
         if sanction.player_id is not None and db.get(Player, sanction.player_id) is None:
             raise HTTPException(status_code=400, detail={"code": "validation", "message": "Unknown sanctioned player."})
-        db.add(DisciplineSanction(
-            case_id=row.id,
-            sanction_type=sanction.sanction_type.strip().lower().replace(" ", "_"),
-            team_id=sanction.team_id, player_id=sanction.player_id,
-            points_delta=sanction.points_delta, fine_amount=sanction.fine_amount,
-            currency=(sanction.currency or "").strip().upper() or None,
-            match_count=sanction.match_count, starts_at=sanction.starts_at,
-            ends_at=sanction.ends_at, notes=(sanction.notes or "").strip() or None,
-        ))
+        db.add(
+            DisciplineSanction(
+                case_id=row.id,
+                sanction_type=sanction.sanction_type.strip().lower().replace(" ", "_"),
+                team_id=sanction.team_id,
+                player_id=sanction.player_id,
+                points_delta=sanction.points_delta,
+                fine_amount=sanction.fine_amount,
+                currency=(sanction.currency or "").strip().upper() or None,
+                match_count=sanction.match_count,
+                starts_at=sanction.starts_at,
+                ends_at=sanction.ends_at,
+                notes=(sanction.notes or "").strip() or None,
+            )
+        )
     write_audit(
-        db, actor_user_id=actor.id, action="decide_discipline_case",
-        entity_type="discipline_case", entity_id=row.id,
+        db,
+        actor_user_id=actor.id,
+        action="decide_discipline_case",
+        entity_type="discipline_case",
+        entity_id=row.id,
         summary=f"Set discipline case {row.id} to {row.status}",
     )
     db.commit()
@@ -4390,9 +4464,7 @@ def admin_set_match_scorers(
             detail={"code": "validation", "message": f"Unknown scorer user id(s): {missing_ids}"},
         )
 
-    invalid_users = [
-        user.email for user in users if user.role not in ("scorer", "commentator")
-    ]
+    invalid_users = [user.email for user in users if user.role not in ("scorer", "commentator")]
     if invalid_users:
         raise HTTPException(
             status_code=400,
@@ -4404,26 +4476,14 @@ def admin_set_match_scorers(
 
     if not requested_duties:
         requested_duties = {
-            user.id: (
-                "commentator_only"
-                if user.role == "commentator"
-                else "score_and_commentary"
-            )
-            for user in users
+            user.id: ("commentator_only" if user.role == "commentator" else "score_and_commentary") for user in users
         }
 
     invalid_duties = [
         user.email
         for user in users
-        if (
-            user.role == "commentator"
-            and requested_duties[user.id] != "commentator_only"
-        )
-        or (
-            user.role == "scorer"
-            and requested_duties[user.id]
-            not in ("scorer_only", "score_and_commentary")
-        )
+        if (user.role == "commentator" and requested_duties[user.id] != "commentator_only")
+        or (user.role == "scorer" and requested_duties[user.id] not in ("scorer_only", "score_and_commentary"))
     ]
     if invalid_duties:
         raise HTTPException(
@@ -4437,12 +4497,8 @@ def admin_set_match_scorers(
             },
         )
 
-    scoring_count = sum(
-        duty in SCORING_ASSIGNMENT_DUTIES for duty in requested_duties.values()
-    )
-    commentary_count = sum(
-        duty in COMMENTARY_ASSIGNMENT_DUTIES for duty in requested_duties.values()
-    )
+    scoring_count = sum(duty in SCORING_ASSIGNMENT_DUTIES for duty in requested_duties.values())
+    commentary_count = sum(duty in COMMENTARY_ASSIGNMENT_DUTIES for duty in requested_duties.values())
     if scoring_count > 1 or commentary_count > 1:
         raise HTTPException(
             status_code=400,
@@ -4475,9 +4531,7 @@ def admin_set_match_scorers(
         entity_id=match_id,
         summary=(
             f"Assigned match {match_id} duties: "
-            + ", ".join(
-                f"{user.email}={requested_duties[user.id]}" for user in users
-            )
+            + ", ".join(f"{user.email}={requested_duties[user.id]}" for user in users)
         ),
     )
     db.commit()
@@ -4556,10 +4610,7 @@ def admin_save_match_day_squad(
                     status_code=400,
                     detail={
                         "code": "validation",
-                        "message": (
-                            "Squad role must be playing_xi, substitute, "
-                            "or concussion_substitute."
-                        ),
+                        "message": ("Squad role must be playing_xi, substitute, or concussion_substitute."),
                     },
                 )
 
@@ -4658,10 +4709,7 @@ def admin_acquire_scoring_session(
     )
 
     if active is not None:
-        same_device = (
-            active.owner_user_id == actor.id
-            and active.device_id == body.device_id
-        )
+        same_device = active.owner_user_id == actor.id and active.device_id == body.device_id
         if same_device:
             active.last_seen_at = now
             active.expires_at = now + SCORING_SESSION_LEASE
@@ -4836,7 +4884,9 @@ def admin_save_live_match_setup(
     )
     _assert_live_team_ids(match, body.toss_winner_team_id, body.batting_first_team_id)
 
-    bowling_first_team_id = match.away_team_id if body.batting_first_team_id == match.home_team_id else match.home_team_id
+    bowling_first_team_id = (
+        match.away_team_id if body.batting_first_team_id == match.home_team_id else match.home_team_id
+    )
     if body.toss_decision == "bat" and body.batting_first_team_id != body.toss_winner_team_id:
         raise HTTPException(
             status_code=400,
@@ -4845,7 +4895,10 @@ def admin_save_live_match_setup(
     if body.toss_decision == "bowl" and body.batting_first_team_id == body.toss_winner_team_id:
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": "If the toss winner chose to bowl, the other team must bat first."},
+            detail={
+                "code": "validation",
+                "message": "If the toss winner chose to bowl, the other team must bat first.",
+            },
         )
 
     toss_team = db.get(Team, body.toss_winner_team_id)
@@ -4854,8 +4907,7 @@ def admin_save_live_match_setup(
     if toss_team is None or batting_team is None or bowling_team is None:
         raise HTTPException(status_code=400, detail={"code": "validation", "message": "Invalid setup team."})
 
-    decision_text = "bat first" if body.toss_decision == "bat" else "bowl first"
-    match.toss_info = f"{toss_team.name} won the toss and chose to {decision_text}. {batting_team.name} batting first."
+    match.toss_info = build_toss_summary(toss_team.name, body.toss_decision)
     match.match_overs = _match_overs_decimal(body.match_overs)
 
     umpire_names = [
@@ -5247,6 +5299,7 @@ def admin_delete_live_ball(
     db.refresh(match)
     return _live_score_state(db, match, actor)
 
+
 OUT_DISMISSALS = {
     "bowled",
     "caught",
@@ -5348,9 +5401,7 @@ def _dismissal_text_for_live_event(
         return f"run out ({fielder_name})" if fielder_name else "run out"
     if wicket_type == "non_striker_left_early":
         return (
-            f"run out ({fielder_name}), non-striker left early"
-            if fielder_name
-            else "run out, non-striker left early"
+            f"run out ({fielder_name}), non-striker left early" if fielder_name else "run out, non-striker left early"
         )
     if wicket_type == "stumped":
         return f"st {fielder_name or 'wicketkeeper'} b {bowler_name}"
@@ -5402,11 +5453,7 @@ def _live_top_performers_text(
         return f"{wickets}/{conceded} ({_live_overs_label(balls)} overs)"
 
     batters = sorted(
-        (
-            row
-            for row in stat_rows
-            if int(row["runs"]) > 0 or int(row["balls_faced"]) > 0
-        ),
+        (row for row in stat_rows if int(row["runs"]) > 0 or int(row["balls_faced"]) > 0),
         key=lambda row: (
             -int(row["runs"]),
             int(row["balls_faced"]),
@@ -5496,7 +5543,9 @@ def _finalize_live_match_result(
     batting_order = {match.home_team_id: 1, match.away_team_id: 1}
     bowling_order = {match.home_team_id: 1, match.away_team_id: 1}
 
-    def ensure_row(player_id: int | None, team_id: int | None = None, from_squad: bool = False) -> dict[str, object] | None:
+    def ensure_row(
+        player_id: int | None, team_id: int | None = None, from_squad: bool = False
+    ) -> dict[str, object] | None:
         if player_id is None:
             return None
         player = player_by_id.get(player_id)
@@ -5566,7 +5615,9 @@ def _finalize_live_match_result(
     for event in events:
         innings = innings_meta.get(event.innings)
         if innings is not None:
-            event_runs = int(event.runs_batter or 0) + int(event.runs_extras or 0) + int(event.penalty_runs_batting or 0)
+            event_runs = (
+                int(event.runs_batter or 0) + int(event.runs_extras or 0) + int(event.penalty_runs_batting or 0)
+            )
             innings["runs"] = int(innings["runs"]) + event_runs
             total_runs_by_team[event.batting_team_id] += event_runs
             if event.penalty_runs_fielding:
@@ -5577,7 +5628,9 @@ def _finalize_live_match_result(
                 innings["wickets"] = int(innings["wickets"]) + 1
 
         extras_type = (event.extras_type or "").strip().lower()
-        team_extras = extras_by_team.setdefault(event.batting_team_id, {"wides": 0, "byes": 0, "no_balls": 0, "leg_byes": 0})
+        team_extras = extras_by_team.setdefault(
+            event.batting_team_id, {"wides": 0, "byes": 0, "no_balls": 0, "leg_byes": 0}
+        )
         if extras_type == "wide":
             team_extras["wides"] += int(event.runs_extras or 0)
         elif extras_type == "no_ball":
@@ -5809,9 +5862,7 @@ def _finalize_live_match_result(
 def _reconcile_live_scorecard(db: Session, match: Match) -> None:
     """Rebuild the materialized scorecard from the authoritative ball ledger."""
     has_events = db.scalar(
-        select(MatchBallEvent.id)
-        .where(MatchBallEvent.match_id == match.id)
-        .limit(1),
+        select(MatchBallEvent.id).where(MatchBallEvent.match_id == match.id).limit(1),
     )
     if has_events is not None:
         _finalize_live_match_result(

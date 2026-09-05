@@ -31,6 +31,8 @@ import {
   useUpcomingFixtures,
 } from './lib/hooks'
 import { extractList, fetchAllPaginatedList, fetchJson, postJson, resolveMediaUrl } from './lib/publicApi'
+import { managedSection, useSitePageContent } from './lib/siteContent'
+import { ManagedSiteHtml } from './components/ManagedSiteHtml'
 
 type GalleryItem = {
   id: number
@@ -47,32 +49,40 @@ function CategoryHomePage({ category }: { category: string }) {
   const { data: fixtures = [] } = useUpcomingFixtures(category, 10)
   const { data: results = [] } = useLatestResults(category, 10)
   const { data: news = [] } = useRecentNews(4, category)
+  const contentQ = useSitePageContent(category as 'mens' | 'women' | 'youth')
+  const teamsContent = managedSection(contentQ.data, 'teams', `${categoryLabel} Teams`)
+  const fixturesContent = managedSection(contentQ.data, 'upcoming-fixtures', 'Upcoming Fixtures')
+  const resultsContent = managedSection(contentQ.data, 'latest-results', 'Latest Results')
+  const newsContent = managedSection(contentQ.data, 'related-news', 'Related News')
 
   return (
     <>
       <PageHero
         variant="siteLogo"
-        title={`${categoryLabel} Cricket`}
+        title={contentQ.data?.title || `${categoryLabel} Cricket`}
+        subtitle={contentQ.data?.subtitle}
       />
     <main className="container">
         <FeaturedTeamsCarousel
           teams={featuredTeams}
-          title={`${categoryLabel} Teams`}
+          title={teamsContent.heading}
           linkTo={`/${category}/teams`}
+          description={<ManagedSiteHtml html={teamsContent.body_html} />}
         />
       <section className="home-section home-match-carousel-section">
         {fixtures.length > 0 ? (
           <MatchCarousel
-            title="Upcoming Fixtures"
+            title={fixturesContent.heading}
             linkTo={`/${category}/fixtures`}
             matches={fixtures}
             teamsMap={teamsMap}
             mode="fixture"
+            description={<ManagedSiteHtml html={fixturesContent.body_html} />}
           />
         ) : null}
         {fixtures.length === 0 ? (
           <>
-            <SectionHeader title="Upcoming Fixtures" linkTo={`/${category}/fixtures`} />
+            <SectionHeader title={fixturesContent.heading} linkTo={`/${category}/fixtures`} description={<ManagedSiteHtml html={fixturesContent.body_html} />} />
             <EmptyState title="No upcoming fixtures yet" />
           </>
         ) : null}
@@ -80,22 +90,23 @@ function CategoryHomePage({ category }: { category: string }) {
         <section className="home-section home-match-carousel-section home-match-carousel-section--category-results">
           {results.length > 0 ? (
             <MatchCarousel
-              title="Latest Results"
+              title={resultsContent.heading}
               linkTo={`/${category}/results`}
               matches={results}
               teamsMap={teamsMap}
               mode="result"
+              description={<ManagedSiteHtml html={resultsContent.body_html} />}
             />
           ) : null}
           {results.length === 0 ? (
             <>
-        <SectionHeader title="Latest Results" linkTo={`/${category}/results`} />
+        <SectionHeader title={resultsContent.heading} linkTo={`/${category}/results`} description={<ManagedSiteHtml html={resultsContent.body_html} />} />
               <EmptyState title="No results yet" />
             </>
           ) : null}
       </section>
       <section className="home-section">
-        <SectionHeader title="Related News" linkTo="/news" linkSearch={{ q: '' }} />
+        <SectionHeader title={newsContent.heading} linkTo="/news" linkSearch={{ q: '' }} description={<ManagedSiteHtml html={newsContent.body_html} />} />
         <div className="home-grid home-grid--news">
           {news.map((article) => (
             <NewsCard key={article.id} article={article} />
@@ -125,12 +136,13 @@ function resultLeagueLabel(match: MatchLite): string {
 }
 
 function FixturesPageContent({ category }: { category?: string }) {
-  const title = `${category ? `${formatCategoryLabel(category)} ` : ''}Fixtures`
+  const contentQ = useSitePageContent('fixtures')
+  const title = `${category ? `${formatCategoryLabel(category)} ` : ''}${contentQ.data?.title || 'Fixtures'}`
   const pageSubtitle = category === 'mens'
     ? undefined
     : category
       ? `Upcoming and scheduled ${formatCategoryLabel(category).toLowerCase()} matches.`
-      : 'Upcoming and scheduled matches across all competitions.'
+      : contentQ.data?.subtitle || 'Upcoming and scheduled matches across all competitions.'
   return (
     <>
       <PageHero variant="siteLogo" title={title} subtitle={pageSubtitle} />
@@ -161,14 +173,13 @@ function ResultsPageContentStateful({ category }: { category?: string }) {
   })
 
   const { map: teamsMap } = useTeamsMap()
-  const title = `${category ? `${formatCategoryLabel(category)} ` : ''}Results`
+  const contentQ = useSitePageContent('results')
+  const resultsContent = managedSection(contentQ.data, 'results', 'Results')
+  const title = `${category ? `${formatCategoryLabel(category)} ` : ''}${contentQ.data?.title || 'Results'}`
 
-  const pageSubtitle = useMemo(() => {
-    const cat = category ? formatCategoryLabel(category).toLowerCase() : null
-    return cat
-      ? `Completed ${cat} match results and scorelines.`
-      : 'Completed match results and scorelines across all competitions.'
-  }, [category])
+  const pageSubtitle =
+    contentQ.data?.subtitle ||
+    'Completed match results and scorelines across all competitions.'
 
   const [requestedYear, setSelectedYear] = useState('all')
   const [requestedLeague, setSelectedLeague] = useState('all')
@@ -244,6 +255,10 @@ function ResultsPageContentStateful({ category }: { category?: string }) {
 
       <main className="container">
         <section className="menu-page listings-page">
+          <SectionHeader
+            title={resultsContent.heading}
+            description={<ManagedSiteHtml html={resultsContent.body_html} />}
+          />
           {isLoading ? <Spinner label="Loading results…" /> : null}
 
           {isError ? (
@@ -450,16 +465,22 @@ function TeamsListPage({ category }: { category: string }) {
   })
   const highlightedSlug = new URLSearchParams(globalThis.location.search).get('teamSlug')
   const label = formatCategoryLabel(category)
+  const contentQ = useSitePageContent('teams')
+  const teamsContent = managedSection(contentQ.data, 'teams', 'Teams')
 
   return (
     <>
       <PageHero
         variant="siteLogo"
-        title={`${label} Teams`}
-        subtitle="Squads, home grounds, and club profiles"
+        title={`${label} ${contentQ.data?.title || 'Teams'}`}
+        subtitle={contentQ.data?.subtitle || 'Squads, home grounds, and club profiles'}
       />
     <main className="container">
         <section className="menu-page teams-page">
+          <SectionHeader
+            title={`${label} ${teamsContent.heading}`}
+            description={<ManagedSiteHtml html={teamsContent.body_html} />}
+          />
           {isLoading ? <Spinner label="Loading teams…" /> : null}
           {isError ? <ErrorNotice message="Could not load teams." /> : null}
           {!isLoading && !isError && data.length === 0 ? (
@@ -497,6 +518,9 @@ function CategorySeasonsPage({
   category: CompetitionCategory
   searchPath: '/mens/seasons' | '/women/seasons' | '/youth/seasons'
 }) {
+  const contentQ = useSitePageContent('seasons')
+  const seasonsTitle = `${formatCategoryLabel(category)} ${contentQ.data?.title || 'Seasons'}`
+  const seasonsSubtitle = contentQ.data?.subtitle || 'Browse by league and season'
   const { leagueSlug } = useSearch({ from: searchPath })
   const navigate = useNavigate({ from: searchPath })
   const { data: leagues = [], isLoading: leaguesLoading } = useQuery({
@@ -521,8 +545,8 @@ function CategorySeasonsPage({
       <>
         <PageHero
           variant="siteLogo"
-          title={`${formatCategoryLabel(category)} Seasons`}
-          subtitle="Browse by league and season"
+          title={seasonsTitle}
+          subtitle={seasonsSubtitle}
         />
         <main className="container">
           <section className="menu-page">
@@ -538,8 +562,8 @@ function CategorySeasonsPage({
       <>
         <PageHero
           variant="siteLogo"
-          title={`${formatCategoryLabel(category)} Seasons`}
-          subtitle="Browse by league and season"
+          title={seasonsTitle}
+          subtitle={seasonsSubtitle}
         />
     <main className="container">
       <section className="menu-page">
@@ -558,8 +582,8 @@ function CategorySeasonsPage({
       <>
         <PageHero
           variant="siteLogo"
-          title={`${formatCategoryLabel(category)} Seasons`}
-          subtitle="Browse by league and season"
+          title={seasonsTitle}
+          subtitle={seasonsSubtitle}
         />
         <main className="container">
           <Spinner label="Loading…" />
@@ -593,16 +617,23 @@ function NewsListPage() {
       ),
     retry: 1,
   })
+  const contentQ = useSitePageContent('news')
+  const newsContent = managedSection(contentQ.data, 'news', 'News')
 
   return (
     <>
       <PageHero
         fullWidth
-        title="News"
+        title={contentQ.data?.title || 'News'}
+        subtitle={contentQ.data?.subtitle}
         imageUrl={resolveMediaUrl(news[0]?.featured_image_url)}
       />
     <main className="container">
         <section className="menu-page news-page">
+          <SectionHeader
+            title={newsContent.heading}
+            description={<ManagedSiteHtml html={newsContent.body_html} />}
+          />
           <div className="news-page__search">
             <label htmlFor="news-search" className="news-page__search-label">
               Search articles
@@ -650,6 +681,8 @@ function SearchResultsPageImpl() {
   const encodedQuery = encodeURIComponent(query)
   const activeFilter = type as SearchFilter
   const { map: teamsMap } = useTeamsMap()
+  const contentQ = useSitePageContent('search')
+  const searchResultsContent = managedSection(contentQ.data, 'results', 'Search Results')
 
   const resultsQ = useQuery({
     queryKey: ['site-search', query],
@@ -753,11 +786,15 @@ function SearchResultsPageImpl() {
     <>
       <PageHero
         variant="siteLogo"
-        title="Search"
-        subtitle={hasQuery ? `Results for "${query}"` : 'Find news, teams, players, and leagues'}
+        title={contentQ.data?.title || 'Search'}
+        subtitle={hasQuery ? `Results for "${query}"` : contentQ.data?.subtitle || 'Find news, teams, players, and leagues'}
       />
       <main className="container">
         <section className="menu-page search-page">
+          <SectionHeader
+            title={searchResultsContent.heading}
+            description={<ManagedSiteHtml html={searchResultsContent.body_html} />}
+          />
           <form
             className="search-page__form"
             onSubmit={(e) => {
@@ -882,18 +919,24 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
   })
   const [active, setActive] = useState<GalleryItem | null>(null)
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const heroTitle = mediaType ? `${formatCategoryLabel(mediaType)}s` : 'Gallery'
+  const contentQ = useSitePageContent('gallery')
+  const galleryContent = managedSection(contentQ.data, 'gallery', 'Gallery')
+  const heroTitle = mediaType ? `${formatCategoryLabel(mediaType)}s` : contentQ.data?.title || 'Gallery'
   const heroSubtitle = mediaType
     ? mediaType === 'image'
       ? 'Photos from matches, events, and behind the scenes'
       : 'Match highlights and event coverage'
-    : 'Photos and video from across the National Premier League'
+    : contentQ.data?.subtitle || 'Photos and video from across the National Premier League'
 
   return (
     <>
       <PageHero variant="siteLogo" title={heroTitle} subtitle={heroSubtitle} />
     <main className="container">
         <section className="menu-page gallery-page">
+          <SectionHeader
+            title={galleryContent.heading}
+            description={<ManagedSiteHtml html={galleryContent.body_html} />}
+          />
           <nav className="gallery-subnav" aria-label="Gallery categories">
             <Link
               to="/gallery"
@@ -1083,6 +1126,10 @@ function compareMatchDate(match: MatchLite): string {
 }
 
 function CompareTeamsPageImpl() {
+  const contentQ = useSitePageContent('compare-teams')
+  const seasonRecordContent = managedSection(contentQ.data, 'season-record', 'Season Record Comparison')
+  const recentFormContent = managedSection(contentQ.data, 'recent-form', 'Recent Form')
+  const headToHeadContent = managedSection(contentQ.data, 'head-to-head', 'Head-to-head')
   const { data: teams = [], isLoading: teamsLoading, isError: teamsError } = useQuery({
     queryKey: ['compare-teams-list'],
     queryFn: () =>
@@ -1159,8 +1206,8 @@ function CompareTeamsPageImpl() {
     <>
       <PageHero
         variant="siteLogo"
-        title="Compare Teams"
-        subtitle="Compare NPL teams by results, points, recent form, and head-to-head record."
+        title={contentQ.data?.title || 'Compare Teams'}
+        subtitle={contentQ.data?.subtitle || 'Compare NPL teams by results, points, recent form, and head-to-head record.'}
       />
 
       <main className="container">
@@ -1224,14 +1271,20 @@ function CompareTeamsPageImpl() {
                   </div>
 
                   <div className="compare-teams-panel">
-                    <h2>Season record comparison</h2>
-                    <div className="compare-teams-table-wrap">
+                    <h2>{seasonRecordContent.heading}</h2>
+                    <ManagedSiteHtml html={seasonRecordContent.body_html} className="muted managed-rich-text" />
+                    <div
+                      className="compare-teams-table-wrap npl-table-region"
+                      role="region"
+                      aria-label={`${seasonRecordContent.heading} table`}
+                      tabIndex={0}
+                    >
                       <table className="compare-teams-table">
                         <thead>
                           <tr>
-                            <th>{selectedTeamA.name}</th>
-                            <th>Stat</th>
-                            <th>{selectedTeamB.name}</th>
+                            <th scope="col">{selectedTeamA.name}</th>
+                            <th scope="col">Stat</th>
+                            <th scope="col">{selectedTeamB.name}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1249,7 +1302,8 @@ function CompareTeamsPageImpl() {
 
                   <div className="compare-teams-form-grid">
                     <article className="compare-teams-panel">
-                      <h2>{selectedTeamA.name} recent form</h2>
+                      <h2>{selectedTeamA.name} — {recentFormContent.heading}</h2>
+                      <ManagedSiteHtml html={recentFormContent.body_html} className="muted managed-rich-text" />
                       <div className="compare-team-form">
                         {comparison.teamAForm.length > 0 ? (
                           comparison.teamAForm.map((item, index) => (
@@ -1268,7 +1322,8 @@ function CompareTeamsPageImpl() {
                     </article>
 
                     <article className="compare-teams-panel">
-                      <h2>{selectedTeamB.name} recent form</h2>
+                      <h2>{selectedTeamB.name} — {recentFormContent.heading}</h2>
+                      <ManagedSiteHtml html={recentFormContent.body_html} className="muted managed-rich-text" />
                       <div className="compare-team-form">
                         {comparison.teamBForm.length > 0 ? (
                           comparison.teamBForm.map((item, index) => (
@@ -1288,7 +1343,8 @@ function CompareTeamsPageImpl() {
                   </div>
 
                   <div className="compare-teams-panel">
-                    <h2>Head-to-head</h2>
+                    <h2>{headToHeadContent.heading}</h2>
+                    <ManagedSiteHtml html={headToHeadContent.body_html} className="muted managed-rich-text" />
                     {comparison.headToHead.length === 0 ? (
                       <p className="muted">No published head-to-head results yet.</p>
                     ) : (
@@ -1397,10 +1453,12 @@ function AboutInlineImage({
 function AboutTextSection({
   title,
   text,
+  descriptionHtml,
   className,
 }: {
   title: string
   text: string
+  descriptionHtml?: string
   className?: string
 }) {
   const body = text.trim()
@@ -1412,6 +1470,7 @@ function AboutTextSection({
   return (
     <section className={`about-page__story-card${className ? ` ${className}` : ''}`}>
       <h2 className="about-page__story-title">{title}</h2>
+      {descriptionHtml ? <ManagedSiteHtml html={descriptionHtml} /> : null}
       <div className="about-page__story-body">
         {paragraphs.map((paragraph) => (
           <p key={paragraph}>{paragraph}</p>
@@ -1422,6 +1481,13 @@ function AboutTextSection({
 }
 
 function AboutPageImpl() {
+  const contentQ = useSitePageContent('about-us')
+  const missionContent = managedSection(contentQ.data, 'mission', 'Mission')
+  const visionContent = managedSection(contentQ.data, 'vision', 'Vision')
+  const historyContent = managedSection(contentQ.data, 'history', 'History')
+  const leadershipContent = managedSection(contentQ.data, 'leadership-team', 'Leadership & Team')
+  const contactContent = managedSection(contentQ.data, 'contact', 'Contact')
+  const addressContent = managedSection(contentQ.data, 'physical-address', 'Physical Address')
   const aboutQ = useQuery({
     queryKey: ['public-about'],
     queryFn: () => fetchJson<PublicAboutContent>('/public/about'),
@@ -1430,7 +1496,8 @@ function AboutPageImpl() {
 
   const about = aboutQ.data
 
-  const heroSubtitle = ''
+  const pageTitle = contentQ.data?.title || 'About Us'
+  const heroSubtitle = contentQ.data?.subtitle || ''
 
   const teamMembers = useMemo(() => {
     const rows = about?.team ?? []
@@ -1463,7 +1530,7 @@ function AboutPageImpl() {
       <>
         <PageHero
           variant="siteLogo"
-          title="About us"
+          title={pageTitle}
           subtitle="Loading official page content…"
           imageUrl=""
           fallbackMode="none"
@@ -1482,8 +1549,8 @@ function AboutPageImpl() {
       <>
         <PageHero
           variant="siteLogo"
-          title="About us"
-          subtitle="Official league information"
+          title={pageTitle}
+          subtitle={heroSubtitle || 'Official league information'}
           imageUrl=""
           fallbackMode="none"
         />
@@ -1502,7 +1569,7 @@ function AboutPageImpl() {
     <>
       <PageHero
         variant="siteLogo"
-        title="About us"
+        title={pageTitle}
         subtitle={heroSubtitle}
         imageUrl=""
         fallbackMode="none"
@@ -1519,20 +1586,23 @@ function AboutPageImpl() {
           <section className="about-page__story-layout">
             <div className="about-page__story-row about-page__story-row--duo">
               <AboutTextSection
-                title="Mission"
+                title={missionContent.heading}
                 text={about.mission}
+                descriptionHtml={missionContent.body_html}
                 className="about-page__story-card--mission"
               />
               <AboutTextSection
-                title="Vision"
+                title={visionContent.heading}
                 text={about.vision}
+                descriptionHtml={visionContent.body_html}
                 className="about-page__story-card--vision"
               />
             </div>
             <div className="about-page__story-row about-page__story-row--single">
               <AboutTextSection
-                title="History"
+                title={historyContent.heading}
                 text={about.history}
+                descriptionHtml={historyContent.body_html}
                 className="about-page__story-card--history"
               />
             </div>
@@ -1540,7 +1610,8 @@ function AboutPageImpl() {
 
           {teamMembers.length > 0 ? (
             <section className="about-page__block about-page__block--card">
-              <h2 className="about-page__block-title">Leadership &amp; team</h2>
+              <h2 className="about-page__block-title">{leadershipContent.heading}</h2>
+              <ManagedSiteHtml html={leadershipContent.body_html} />
               <ul className="about-page__team-grid">
                 {teamMembers.map((row, i) => (
                   <li key={`${row.position ?? ''}-${i}`} className="about-page__team-card">
@@ -1560,7 +1631,8 @@ function AboutPageImpl() {
 
           {hasContactBlock ? (
             <section className="about-page__block about-page__block--card">
-              <h2 className="about-page__block-title">Contact</h2>
+              <h2 className="about-page__block-title">{contactContent.heading}</h2>
+              <ManagedSiteHtml html={contactContent.body_html} />
               <ul className="about-page__contact-list">
                 {(about.contacts?.emails ?? [])
                   .map((e) => e.trim())
@@ -1583,7 +1655,8 @@ function AboutPageImpl() {
               ) : null}
               {about.physical_address?.trim() ? (
                 <>
-                  <h3 className="about-page__address-label">Physical address</h3>
+                  <h3 className="about-page__address-label">{addressContent.heading}</h3>
+                  <ManagedSiteHtml html={addressContent.body_html} />
                   <div className="about-page__prose about-page__prose--address">
                     {about.physical_address.trim()}
                   </div>
@@ -1600,6 +1673,12 @@ function AboutPageImpl() {
 }
 
 function ContactUsPageImpl() {
+  const contentQ = useSitePageContent('contact-us')
+  const sendMessageContent = managedSection(contentQ.data, 'send-message', 'Send Us a Message')
+  const emailContent = managedSection(contentQ.data, 'email', 'Email')
+  const phoneContent = managedSection(contentQ.data, 'phone', 'Phone')
+  const addressContent = managedSection(contentQ.data, 'office-address', 'Office Address')
+  const linksContent = managedSection(contentQ.data, 'helpful-links', 'Helpful Links')
   const aboutQ = useQuery({
     queryKey: ['public-about'],
     queryFn: () => fetchJson<PublicAboutContent>('/public/about'),
@@ -1656,8 +1735,8 @@ function ContactUsPageImpl() {
     <>
       <PageHero
         variant="siteLogo"
-        title="Contact Us"
-        subtitle="Reach the Zimbabwe Cricket NPL team for media, support, and partnership enquiries."
+        title={contentQ.data?.title || 'Contact Us'}
+        subtitle={contentQ.data?.subtitle || 'Reach the Zimbabwe Cricket NPL team for media, support, and partnership enquiries.'}
       />
       <main className="container">
         <section className="menu-page contact-page">
@@ -1675,7 +1754,8 @@ function ContactUsPageImpl() {
           {!aboutQ.isLoading && !aboutQ.isError && hasAnyContact ? (
             <div className="contact-page__content">
               <section className="contact-page__message-box">
-                <h2>Send us a message</h2>
+                <h2>{sendMessageContent.heading}</h2>
+                <ManagedSiteHtml html={sendMessageContent.body_html} className="muted managed-rich-text" />
                 <form className="contact-page__message-form" onSubmit={(e) => void handleMessageSubmit(e)}>
                   <input
                     type="text"
@@ -1758,7 +1838,8 @@ function ContactUsPageImpl() {
               </section>
               <div className="contact-page__cards-column">
                 <article className="contact-page__card">
-                  <h2>Email</h2>
+                  <h2>{emailContent.heading}</h2>
+                  <ManagedSiteHtml html={emailContent.body_html} className="muted managed-rich-text" />
                   {emails.length === 0 ? <p className="muted">No email published yet.</p> : null}
                   <ul className="contact-page__list">
                     {emails.map((email) => (
@@ -1770,7 +1851,8 @@ function ContactUsPageImpl() {
                 </article>
 
                 <article className="contact-page__card">
-                  <h2>Phone</h2>
+                  <h2>{phoneContent.heading}</h2>
+                  <ManagedSiteHtml html={phoneContent.body_html} className="muted managed-rich-text" />
                   {phone ? (
                     <p className="contact-page__single">
                       <a href={`tel:${phone.replace(/\s+/g, '')}`}>{phone}</a>
@@ -1781,7 +1863,8 @@ function ContactUsPageImpl() {
                 </article>
 
                 <article className="contact-page__card">
-                  <h2>Office address</h2>
+                  <h2>{addressContent.heading}</h2>
+                  <ManagedSiteHtml html={addressContent.body_html} className="muted managed-rich-text" />
                   {address ? (
                     <p className="contact-page__single contact-page__single--multiline">{address}</p>
                   ) : (
@@ -1790,7 +1873,8 @@ function ContactUsPageImpl() {
                 </article>
 
                 <article className="contact-page__card contact-page__card--wide">
-                  <h2>Helpful links</h2>
+                  <h2>{linksContent.heading}</h2>
+                  <ManagedSiteHtml html={linksContent.body_html} className="muted managed-rich-text" />
                   <div className="contact-page__links">
                     <Link to="/about-us">About us</Link>
                     <Link to="/news" search={{ q: '' }}>

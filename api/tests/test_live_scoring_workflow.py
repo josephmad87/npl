@@ -19,7 +19,12 @@ from app.models.match import Match, MatchBallEvent, MatchPlayerStat, MatchScorer
 from app.models.player import Player
 from app.models.team import Team
 from app.models.user import User
-from app.schemas.matches import LiveBallEventIn, LiveScoreCompleteIn, ScoringSessionAcquireIn
+from app.schemas.matches import (
+    LiveBallEventIn,
+    LiveScoreCompleteIn,
+    MatchLiveSetupIn,
+    ScoringSessionAcquireIn,
+)
 
 
 @compiles(JSONB, "sqlite")
@@ -165,6 +170,42 @@ def record(
     row = db.get(MatchBallEvent, saved.id)
     assert row is not None
     return row
+
+
+@pytest.mark.parametrize(
+    ("decision", "winner_side", "expected"),
+    [
+        ("bat", "home", "Home Club opt to bat"),
+        ("bowl", "away", "Away Club opt to bowl"),
+    ],
+)
+def test_live_setup_saves_concise_toss_summary(
+    decision: str,
+    winner_side: str,
+    expected: str,
+) -> None:
+    with scoring_database() as (db, match, actor, _home_players, _away_players):
+        token = acquire(db, match, actor)
+        winner_id = match.home_team_id if winner_side == "home" else match.away_team_id
+        batting_first_id = winner_id
+        if decision == "bowl":
+            batting_first_id = match.away_team_id if winner_id == match.home_team_id else match.home_team_id
+
+        saved = admin_routes.admin_save_live_match_setup(
+            match_id=match.id,
+            body=MatchLiveSetupIn(
+                toss_winner_team_id=winner_id,
+                toss_decision=decision,
+                batting_first_team_id=batting_first_id,
+                match_overs=40,
+            ),
+            score_version=match.scoring_version,
+            scoring_session_token=token,
+            db=db,
+            actor=actor,
+        )
+
+        assert saved.toss_info == expected
 
 
 def test_match_duties_keep_scoring_and_commentary_permissions_separate() -> None:
@@ -635,6 +676,9 @@ def test_full_scoring_workflow_reconciles_scorecard_and_player_statistics() -> N
         )
         assert recovered.scorecard_reconciliation_status == "in_sync"
         assert recovered.scorecard_reconciled_version == recovered.scoring_version
-        assert db.scalar(
-            select(MatchPlayerStat.id).where(MatchPlayerStat.match_id == match.id),
-        ) is not None
+        assert (
+            db.scalar(
+                select(MatchPlayerStat.id).where(MatchPlayerStat.match_id == match.id),
+            )
+            is not None
+        )

@@ -27,6 +27,8 @@ import {
   formatStandingsNrr,
   oversFieldToBalls,
 } from './lib/leagueSeasonAggregates'
+import { managedSection, useSitePageContent } from './lib/siteContent'
+import { ManagedSiteHtml } from './components/ManagedSiteHtml'
 
 type TeamDetail = {
   id: number
@@ -268,6 +270,23 @@ function TeamMerchandiseCard({
 }
 
 function TeamDetailPageContent({ slug }: Readonly<{ slug: string }>) {
+  const contentQ = useSitePageContent('team-profile')
+  const snapshotContent = managedSection(contentQ.data, 'season-snapshot', 'Season Snapshot')
+  const leadershipContent = managedSection(contentQ.data, 'leadership', 'Leadership')
+  const homeGroundContent = managedSection(contentQ.data, 'home-ground', 'Home Ground')
+  const historyContent = managedSection(contentQ.data, 'history', 'History')
+  const honoursContent = managedSection(contentQ.data, 'honours', 'Honours')
+  const partnersContent = managedSection(contentQ.data, 'partners', 'Partners & Sponsors')
+  const seasonRecordsContent = managedSection(contentQ.data, 'season-records', 'Season Records')
+  const statisticsContent = managedSection(contentQ.data, 'team-statistics', 'Team Statistics')
+  const battingLeadersContent = managedSection(contentQ.data, 'batting-leaders', 'Batting Leaders')
+  const bowlingLeadersContent = managedSection(contentQ.data, 'bowling-leaders', 'Bowling Leaders')
+  const fixturesContent = managedSection(contentQ.data, 'fixtures', 'Fixtures')
+  const resultsContent = managedSection(contentQ.data, 'results', 'Results')
+  const squadContent = managedSection(contentQ.data, 'squad', 'Squad')
+  const galleryContent = managedSection(contentQ.data, 'gallery', 'Gallery')
+  const shopContent = managedSection(contentQ.data, 'team-shop', 'Team Shop')
+  const teamPhotosContent = managedSection(contentQ.data, 'team-photos', 'Team Photos')
   const { data, isLoading, isError } = useQuery({
     queryKey: ['team-detail', slug],
     queryFn: () => fetchJson<TeamDetail>(`/public/teams/${slug}`),
@@ -605,21 +624,34 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
   const teamTabs = useMemo(
     () =>
       [
-        { id: 'leadership', label: 'Leadership' },
-        { id: 'home-ground', label: 'Home ground' },
-        { id: 'history', label: 'History' },
-        { id: 'season-records', label: 'Season records' },
-        { id: 'statistics', label: 'Statistics' },
-        { id: 'fixtures', label: 'Fixtures' },
-        { id: 'results', label: 'Results' },
-        { id: 'squad', label: 'Squad' },
-        { id: 'gallery', label: 'Gallery' },
-        { id: 'shop', label: 'Shop' },
+        { id: 'leadership', label: leadershipContent.heading },
+        { id: 'home-ground', label: homeGroundContent.heading },
+        { id: 'history', label: historyContent.heading },
+        { id: 'season-records', label: seasonRecordsContent.heading },
+        { id: 'statistics', label: statisticsContent.heading },
+        { id: 'fixtures', label: fixturesContent.heading },
+        { id: 'results', label: resultsContent.heading },
+        { id: 'squad', label: squadContent.heading },
+        { id: 'gallery', label: galleryContent.heading },
+        { id: 'shop', label: shopContent.heading },
         ...(data && (data.team_photo_urls ?? []).length > 0
-          ? [{ id: 'team-photos', label: 'Team photos' }]
+          ? [{ id: 'team-photos', label: teamPhotosContent.heading }]
           : []),
       ] as Array<{ id: TeamSectionTabId; label: string }>,
-    [data],
+    [
+      data,
+      fixturesContent.heading,
+      galleryContent.heading,
+      historyContent.heading,
+      homeGroundContent.heading,
+      leadershipContent.heading,
+      resultsContent.heading,
+      seasonRecordsContent.heading,
+      shopContent.heading,
+      squadContent.heading,
+      statisticsContent.heading,
+      teamPhotosContent.heading,
+    ],
   )
 
   const activeTab = teamTabs.some((tab) => tab.id === requestedActiveTab)
@@ -696,8 +728,9 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
   >
     <div className="team-page__snapshot-head">
       <div>
-        <p className="team-page__snapshot-kicker">Season snapshot</p>
+        <p className="team-page__snapshot-kicker">{snapshotContent.heading}</p>
         <h2 id="team-season-snapshot-title">{teamSeasonSnapshot.label}</h2>
+        <ManagedSiteHtml html={snapshotContent.body_html} />
       </div>
 
       {teamSeasonSnapshot.leagueSlug && teamSeasonSnapshot.seasonSlug ? (
@@ -790,8 +823,8 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
               >
 
               {activeTab === 'leadership' ? (
-  <section className="team-page__section" aria-label="Leadership">
-    <SectionHeader title="Leadership" />
+  <section className="team-page__section" aria-label={leadershipContent.heading}>
+    <SectionHeader title={leadershipContent.heading} description={<ManagedSiteHtml html={leadershipContent.body_html} />} />
 
     <div className="team-page__staff-grid">
       <StaffCard
@@ -817,7 +850,7 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
 {teamMerchandise.length > 0 ? (
   <section className="team-merchandise-strip">
     <div className="team-merchandise-strip__header">
-      <h3>Team shop</h3>
+      <h3>{shopContent.heading}</h3>
 
       <Link
         to="/merchandise/teams/$teamSlug"
@@ -846,15 +879,16 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
     
 
     <SponsorMarquee
-      title={`${data.name} Partners & Sponsors`}
+      title={`${data.name} · ${partnersContent.heading}`}
+      description={<ManagedSiteHtml html={partnersContent.body_html} />}
       sponsors={teamSponsors}
     />
   </section>
 ) : null}
 
               {activeTab === 'home-ground' ? (
-                <section className="team-page__section" aria-label="Home ground">
-                <SectionHeader title="Home ground" />
+                <section className="team-page__section" aria-label={homeGroundContent.heading}>
+                <SectionHeader title={homeGroundContent.heading} description={<ManagedSiteHtml html={homeGroundContent.body_html} />} />
                 <div className="team-page__home-card">
                   <div className="team-page__home-visual">
                     {homeGroundImg ? (
@@ -881,8 +915,8 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
               ) : null}
 
               {activeTab === 'history' ? (
-                <section className="team-page__section" aria-label="History">
-                <SectionHeader title="History" />
+                <section className="team-page__section" aria-label={historyContent.heading}>
+                <SectionHeader title={historyContent.heading} description={<ManagedSiteHtml html={historyContent.body_html} />} />
                 <div className="team-page__prose">
                   <p>
                     {data.history ??
@@ -897,7 +931,8 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
                 </div>
                 {(data.trophies ?? []).length > 0 ? (
                   <>
-                    <h3 className="team-page__subheading">Honours</h3>
+                    <h3 className="team-page__subheading">{honoursContent.heading}</h3>
+                    <ManagedSiteHtml html={honoursContent.body_html} />
                     <div className="team-detail-chips">
                       {(data.trophies ?? []).map((trophy, idx) => (
                         <span key={`${trophy}-${idx}`} className="team-detail-chip">
@@ -911,12 +946,8 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
               ) : null}
 
               {activeTab === 'season-records' ? (
-                <section className="team-page__section" aria-label="Season records">
-                <SectionHeader title="Season records" />
-                <p className="team-page__hint muted">
-                  Wins, losses, and no-results from completed matches, by league
-                  and season.
-                </p>
+                <section className="team-page__section" aria-label={seasonRecordsContent.heading}>
+                <SectionHeader title={seasonRecordsContent.heading} description={<ManagedSiteHtml html={seasonRecordsContent.body_html} />} />
                 {seasonRecordsQ.isLoading ? (
                   <Spinner label="Loading records…" />
                 ) : null}
@@ -941,7 +972,12 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
                             {league.league_name}
                           </Link>
                         </h3>
-                        <div className="table-wrap team-page__table-wrap">
+                        <div
+                          className="table-wrap team-page__table-wrap npl-table-region"
+                          role="region"
+                          aria-label={`${league.league_name} season records table`}
+                          tabIndex={0}
+                        >
                           <table className="team-page__standings-table">
                             <thead>
                               <tr>
@@ -990,11 +1026,8 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
               ) : null}
 
               {activeTab === 'statistics' ? (
-                <section className="team-page__section" aria-label="Team statistics">
-                  <SectionHeader title="Team statistics" />
-                  <p className="team-page__hint muted">
-                    Career figures from completed scorecards, including all recorded club matches.
-                  </p>
+                <section className="team-page__section" aria-label={statisticsContent.heading}>
+                  <SectionHeader title={statisticsContent.heading} description={<ManagedSiteHtml html={statisticsContent.body_html} />} />
                   {resultsQ.isLoading ? <Spinner label="Calculating team figures…" /> : null}
                   {!resultsQ.isLoading && (!teamStatistics || teamStatistics.matches === 0) ? (
                     <p className="muted">Statistics will appear once the team has completed scorecards.</p>
@@ -1020,10 +1053,16 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
 
                       <div className="team-page__statistics-leaders">
                         <div>
-                          <h3>Batting leaders</h3>
-                          <div className="table-wrap team-page__table-wrap">
+                          <h3>{battingLeadersContent.heading}</h3>
+                          <ManagedSiteHtml html={battingLeadersContent.body_html} />
+                          <div
+                            className="table-wrap team-page__table-wrap npl-table-region"
+                            role="region"
+                            aria-label={`${battingLeadersContent.heading} table`}
+                            tabIndex={0}
+                          >
                             <table className="team-page__standings-table team-page__statistics-table">
-                              <thead><tr><th>Player</th><th>Runs</th><th>BF</th><th>4s</th><th>6s</th></tr></thead>
+                              <thead><tr><th scope="col">Player</th><th scope="col">Runs</th><th scope="col">BF</th><th scope="col">4s</th><th scope="col">6s</th></tr></thead>
                               <tbody>
                                 {teamStatistics.battingLeaders.map((row) => (
                                   <tr key={row.playerId}><td>{row.name}</td><td>{row.runs}</td><td>{row.balls}</td><td>{row.fours}</td><td>{row.sixes}</td></tr>
@@ -1033,10 +1072,16 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
                           </div>
                         </div>
                         <div>
-                          <h3>Bowling leaders</h3>
-                          <div className="table-wrap team-page__table-wrap">
+                          <h3>{bowlingLeadersContent.heading}</h3>
+                          <ManagedSiteHtml html={bowlingLeadersContent.body_html} />
+                          <div
+                            className="table-wrap team-page__table-wrap npl-table-region"
+                            role="region"
+                            aria-label={`${bowlingLeadersContent.heading} table`}
+                            tabIndex={0}
+                          >
                             <table className="team-page__standings-table team-page__statistics-table">
-                              <thead><tr><th>Player</th><th>Wkts</th><th>Runs</th><th>Overs</th><th>Econ</th></tr></thead>
+                              <thead><tr><th scope="col">Player</th><th scope="col">Wkts</th><th scope="col">Runs</th><th scope="col">Overs</th><th scope="col">Econ</th></tr></thead>
                               <tbody>
                                 {teamStatistics.bowlingLeaders.map((row) => {
                                   const economy = row.balls > 0 ? (row.conceded * 6) / row.balls : null
@@ -1053,8 +1098,8 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
               ) : null}
 
               {activeTab === 'fixtures' ? (
-                <section className="team-page__section" aria-label="Fixtures">
-                <SectionHeader title="Fixtures" />
+                <section className="team-page__section" aria-label={fixturesContent.heading}>
+                <SectionHeader title={fixturesContent.heading} description={<ManagedSiteHtml html={fixturesContent.body_html} />} />
                 {fixturesQ.isLoading ? <Spinner label="Loading fixtures…" /> : null}
                 {teamFixturesSorted.length === 0 && !fixturesQ.isLoading ? (
                   <p className="muted">No upcoming fixtures listed.</p>
@@ -1071,9 +1116,9 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
               ) : null}
 
               {activeTab === 'results' ? (
-  <section className="team-page__section" aria-label="Results">
+  <section className="team-page__section" aria-label={resultsContent.heading}>
     <div className="team-page__results-head">
-      <SectionHeader title="Results" />
+      <SectionHeader title={resultsContent.heading} description={<ManagedSiteHtml html={resultsContent.body_html} />} />
 
       {teamResults.length > TEAM_RESULTS_PAGE_SIZE ? (
         <div className="team-page__results-controls" aria-label="Results pages">
@@ -1130,8 +1175,8 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
 ) : null}
 
               {activeTab === 'squad' ? (
-                <section className="team-page__section" aria-label="Squad">
-                <SectionHeader title="Squad" />
+                <section className="team-page__section" aria-label={squadContent.heading}>
+                <SectionHeader title={squadContent.heading} description={<ManagedSiteHtml html={squadContent.body_html} />} />
                 {playersQ.isLoading ? <Spinner label="Loading players…" /> : null}
                 {playersSorted.length === 0 && !playersQ.isLoading ? (
                   <p className="muted">Squad list coming soon.</p>
@@ -1155,9 +1200,10 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
               ) : null}
 
               {activeTab === 'gallery' ? (
-                <section className="team-page__section" aria-label="Gallery">
+                <section className="team-page__section" aria-label={galleryContent.heading}>
                 <SectionHeader
-                  title="Gallery"
+                  title={galleryContent.heading}
+                  description={<ManagedSiteHtml html={galleryContent.body_html} />}
                   linkTo="/gallery"
                   linkLabel="Full gallery"
                 />
@@ -1183,11 +1229,8 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
               {activeTab === 'shop' ? (
   <section className="team-shop-panel">
     <div className="team-shop-panel__header">
-      <h2>{data.name} shop</h2>
-      <p>
-        Merchandise linked to {data.name}. Select an item to place an order
-        request.
-      </p>
+      <h2>{data.name} · {shopContent.heading}</h2>
+      <ManagedSiteHtml html={shopContent.body_html} />
     </div>
 
     {merchandiseQ.isLoading ? (
@@ -1212,8 +1255,8 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
 ) : null}
 
               {activeTab === 'team-photos' && (data.team_photo_urls ?? []).length > 0 ? (
-                <section className="team-page__section" aria-label="Team photos">
-                  <SectionHeader title="Team photos" />
+                <section className="team-page__section" aria-label={teamPhotosContent.heading}>
+                  <SectionHeader title={teamPhotosContent.heading} description={<ManagedSiteHtml html={teamPhotosContent.body_html} />} />
                   <div className="home-grid home-grid--gallery">
                     {(data.team_photo_urls ?? []).map((photoUrl, idx) => (
                       <article

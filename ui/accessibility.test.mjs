@@ -132,3 +132,51 @@ test('decorative page hero imagery does not duplicate the visible heading', () =
   assert.ok(responsiveImages.length >= 2)
   for (const image of responsiveImages) assert.match(image, /alt=""/)
 })
+
+test('public data tables expose scoped headers and named keyboard-scroll regions', () => {
+  const paths = [
+    'website/src/MatchDetailPage.tsx',
+    'website/src/MenuPages.tsx',
+    'website/src/PlayerDetailPage.tsx',
+    'website/src/TeamDetailPage.tsx',
+    'website/src/components/InningsScorecardPanels.tsx',
+    'website/src/components/LeagueSeasonHub.tsx',
+    'website/src/components/LeagueStatsPanel.tsx',
+    'website/src/components/LiveScorePanel.tsx',
+  ]
+  const combined = paths.map(source).join('\n')
+  const headerCells = combined.match(/<th(?:\s|>)[\s\S]*?>/g) ?? []
+  assert.ok(headerCells.length > 0)
+  for (const header of headerCells) assert.match(header, /scope="(?:col|row)"/)
+  assert.match(combined, /className="[^"]*npl-table-region[^"]*"/)
+  assert.match(combined, /role="region"/)
+  assert.match(combined, /tabIndex=\{0\}/)
+})
+
+test('data-driven public templates use admin-managed page content', () => {
+  const managedPages = [
+    'website/src/App.tsx',
+    'website/src/LiveScoresPage.tsx',
+    'website/src/MatchDetailPage.tsx',
+    'website/src/MenuPages.tsx',
+    'website/src/MerchandiseOrderTrackingPage.tsx',
+    'website/src/MerchandisePage.tsx',
+    'website/src/MerchandiseProductPage.tsx',
+    'website/src/NotFoundPage.tsx',
+    'website/src/PlayerDetailPage.tsx',
+    'website/src/SiteFooter.tsx',
+    'website/src/SupporterAccountPage.tsx',
+    'website/src/TeamDetailPage.tsx',
+    'website/src/components/FixturesListing.tsx',
+    'website/src/components/LeagueSeasonHub.tsx',
+    'website/src/components/LiveScorePanel.tsx',
+  ]
+  for (const path of managedPages) {
+    assert.match(source(path), /useSitePageContent\(/, path)
+  }
+
+  const editor = source('admin/src/routes/_shell/site-pages/index.tsx')
+  assert.match(editor, /title="Website Content"/)
+  assert.match(editor, /content_editor/)
+  assert.match(editor, /Change their headings and supporting text here/)
+})

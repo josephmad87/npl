@@ -19,6 +19,8 @@ import {
   isBattingOut,
   oversFieldToBalls,
 } from './lib/cricket'
+import { managedSection, useSitePageContent } from './lib/siteContent'
+import { ManagedSiteHtml } from './components/ManagedSiteHtml'
 
 type PlayerDetail = {
   id: number
@@ -171,6 +173,13 @@ function recentFormCode(row: PlayerMatchAppearance): {
 
 export default function PlayerDetailPage() {
   const { slug } = useParams({ from: '/players/$slug' })
+  const contentQ = useSitePageContent('player-profile')
+  const recentFormContent = managedSection(contentQ.data, 'recent-form', 'Recent Form')
+  const profileContent = managedSection(contentQ.data, 'profile', 'Profile')
+  const careerTotalsContent = managedSection(contentQ.data, 'career-totals', 'Career Totals')
+  const milestonesContent = managedSection(contentQ.data, 'career-milestones', 'Career Milestones')
+  const careerRecordContent = managedSection(contentQ.data, 'career-record', 'Career Record (by League)')
+  const matchLogContent = managedSection(contentQ.data, 'match-log', 'Match Log')
   const { map: teamsMap } = useTeamsMap()
   const { data, isLoading, isError } = useQuery({
     queryKey: ['player-detail', slug],
@@ -515,10 +524,7 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
     className="player-public-section player-public-form"
     aria-label="Recent player form"
   >
-    <SectionHeader title="Recent form" />
-    <p className="player-public-hint muted">
-      Automatically generated from this player’s latest scorecard appearances.
-    </p>
+    <SectionHeader title={recentFormContent.heading} description={<ManagedSiteHtml html={recentFormContent.body_html} />} />
 
     <div className="player-public-form__grid">
       {recentFormBadges.map((badge) => (
@@ -536,8 +542,8 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
   </section>
 ) : null}
 
-<section className="player-public-section" aria-label="Biography">
-              <SectionHeader title="Profile" />
+<section className="player-public-section" aria-label={profileContent.heading}>
+              <SectionHeader title={profileContent.heading} description={<ManagedSiteHtml html={profileContent.body_html} />} />
               <div className="player-public-prose">
                 <p>
                   {data.bio ??
@@ -547,11 +553,8 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
               </div>
             </section>
 
-            <section className="player-public-section" aria-label="Career totals from profile">
-              <SectionHeader title="Career totals" />
-              <p className="player-public-hint muted">
-                Updated automatically when match scorecards are saved.
-              </p>
+            <section className="player-public-section" aria-label={careerTotalsContent.heading}>
+              <SectionHeader title={careerTotalsContent.heading} description={<ManagedSiteHtml html={careerTotalsContent.body_html} />} />
               <div className="player-public-stat-grid">
                 <div className="player-public-stat-card">
                   <span className="player-public-stat-card__label">Matches</span>
@@ -628,11 +631,8 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
               </div>
             </section>
 
-            <section className="player-public-section" aria-label="Career milestones">
-              <SectionHeader title="Career milestones" />
-              <p className="player-public-hint muted">
-                Additional batting, bowling, and fielding achievements calculated from completed scorecards.
-              </p>
+            <section className="player-public-section" aria-label={milestonesContent.heading}>
+              <SectionHeader title={milestonesContent.heading} description={<ManagedSiteHtml html={milestonesContent.body_html} />} />
               <div className="player-public-stat-grid player-public-stat-grid--milestones">
                 {[
                   ['50s', playerMilestones.fifties],
@@ -650,32 +650,34 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
               </div>
             </section>
 
-            <section className="player-public-section" aria-label="Career by league">
-              <SectionHeader title="Career record (by league)" />
-              <p className="player-public-hint muted">
-                Derived from scorecard rows in the match log, grouped by league.
-              </p>
+            <section className="player-public-section" aria-label={careerRecordContent.heading}>
+              <SectionHeader title={careerRecordContent.heading} description={<ManagedSiteHtml html={careerRecordContent.body_html} />} />
               {appearancesQ.isLoading ? (
                 <Spinner label="Loading scorecard data…" />
               ) : (
-                <div className="player-public-table-wrap">
+                <div
+                  className="player-public-table-wrap npl-table-region"
+                  role="region"
+                  aria-label={`${careerRecordContent.heading} table`}
+                  tabIndex={0}
+                >
                   <table className="player-public-table">
                     <thead>
                       <tr>
-                        <th>League</th>
-                        <th>Matches</th>
-                        <th>Runs</th>
-                        <th>Avg</th>
-                        <th>SR</th>
-                        <th>HS</th>
-                        <th>Wkts</th>
-                        <th>Bowl avg</th>
-                        <th>Econ</th>
-                        <th>Best</th>
-                        <th>Ct</th>
-                        <th>St</th>
-                        <th>RO</th>
-                        <th>POTM</th>
+                        <th scope="col">League</th>
+                        <th scope="col">Matches</th>
+                        <th scope="col">Runs</th>
+                        <th scope="col">Avg</th>
+                        <th scope="col">SR</th>
+                        <th scope="col">HS</th>
+                        <th scope="col">Wkts</th>
+                        <th scope="col">Bowl avg</th>
+                        <th scope="col">Econ</th>
+                        <th scope="col">Best</th>
+                        <th scope="col">Ct</th>
+                        <th scope="col">St</th>
+                        <th scope="col">RO</th>
+                        <th scope="col">POTM</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -711,16 +713,17 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
               )}
             </section>
 
-            <section className="player-public-section" aria-label="Match log">
-              <SectionHeader title={`Match log (${scorecardCount})`} />
-              <p className="player-public-hint muted">
-                One row per fixture where this player appears on the submitted
-                scorecard. Open a match for full detail.
-              </p>
+            <section className="player-public-section" aria-label={matchLogContent.heading}>
+              <SectionHeader title={`${matchLogContent.heading} (${scorecardCount})`} description={<ManagedSiteHtml html={matchLogContent.body_html} />} />
               {appearances.length === 0 && !appearancesQ.isLoading ? (
                 <p className="muted">No scorecard rows yet.</p>
               ) : appearances.length > 0 ? (
-                <div className="player-public-table-wrap player-public-table-wrap--wide">
+                <div
+                  className="player-public-table-wrap player-public-table-wrap--wide npl-table-region"
+                  role="region"
+                  aria-label={`${matchLogContent.heading} table`}
+                  tabIndex={0}
+                >
                   <table className="player-public-table player-public-table--compact player-public-table--match-log">
                     <colgroup>
                       <col className="player-public-match-log__date" />
@@ -734,22 +737,22 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                     </colgroup>
                     <thead>
                       <tr>
-                        <th>Date</th>
-                        <th>Season</th>
-                        <th>Fixture</th>
-                        <th>R</th>
-                        <th>BF</th>
-                        <th>4s</th>
-                        <th>6s</th>
-                        <th>How out</th>
-                        <th>Ov</th>
-                        <th>M</th>
-                        <th>Conc</th>
-                        <th>W</th>
-                        <th>Ct</th>
-                        <th>St</th>
-                        <th>RO</th>
-                        <th>Notes</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">Season</th>
+                        <th scope="col">Fixture</th>
+                        <th scope="col">R</th>
+                        <th scope="col">BF</th>
+                        <th scope="col">4s</th>
+                        <th scope="col">6s</th>
+                        <th scope="col">How out</th>
+                        <th scope="col">Ov</th>
+                        <th scope="col">M</th>
+                        <th scope="col">Conc</th>
+                        <th scope="col">W</th>
+                        <th scope="col">Ct</th>
+                        <th scope="col">St</th>
+                        <th scope="col">RO</th>
+                        <th scope="col">Notes</th>
                       </tr>
                     </thead>
                     <tbody>

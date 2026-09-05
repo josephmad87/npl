@@ -9,6 +9,8 @@ import type { MatchLite, TeamLite } from '../lib/hooks'
 import { useTeamsMap } from '../lib/hooks'
 import { fetchAllPaginatedList } from '../lib/publicApi'
 import { sortFixturesByDateAsc } from '../lib/sortFixtures'
+import { managedSection, useSitePageContent } from '../lib/siteContent'
+import { ManagedSiteHtml } from './ManagedSiteHtml'
 
 type FixturesListingProps = Readonly<{
   category?: string
@@ -24,6 +26,9 @@ function resultsLinkForCategory(category?: string): string {
 }
 
 export function FixturesListing({ category }: FixturesListingProps) {
+  const contentQ = useSitePageContent('fixtures')
+  const fixturesContent = managedSection(contentQ.data, 'upcoming-fixtures', 'Upcoming Fixtures')
+  const resultsContent = managedSection(contentQ.data, 'latest-results', 'Latest Results')
   const [selectedTeamId, setSelectedTeamId] = useState<number | ''>('')
   const { map: teamsMap } = useTeamsMap()
   const resultsLink = resultsLinkForCategory(category)
@@ -118,7 +123,8 @@ export function FixturesListing({ category }: FixturesListingProps) {
       >
         <header className="fixtures-listing__header">
           <div className="fixtures-listing__heading">
-            <h2 className="fixtures-listing__title">Upcoming Fixtures</h2>
+            <h2 className="fixtures-listing__title">{fixturesContent.heading}</h2>
+            <ManagedSiteHtml html={fixturesContent.body_html} />
             {!fixturesLoading && !fixturesError && fixtures.length > 0 ? (
               <p className="fixtures-listing__subtitle">
                 {fixtures.length} scheduled — nearest first · scroll for more
@@ -167,7 +173,11 @@ export function FixturesListing({ category }: FixturesListingProps) {
 
         {!resultsQ.isLoading && !resultsQ.isError && latestResults.length === 0 ? (
           <>
-            <SectionHeader title="Latest Results" linkTo={resultsLink} />
+            <SectionHeader
+              title={resultsContent.heading}
+              description={<ManagedSiteHtml html={resultsContent.body_html} />}
+              linkTo={resultsLink}
+            />
             <EmptyState
               title="No results yet"
               description="Completed matches will appear here once results are published."
@@ -177,7 +187,8 @@ export function FixturesListing({ category }: FixturesListingProps) {
 
         {!resultsQ.isLoading && !resultsQ.isError && latestResults.length > 0 ? (
           <MatchCarousel
-            title="Latest Results"
+            title={resultsContent.heading}
+            description={<ManagedSiteHtml html={resultsContent.body_html} />}
             linkTo={resultsLink}
             matches={latestResults}
             teamsMap={teamsMap}

@@ -13,6 +13,8 @@ export function LeagueHeroBar({
   section,
   onSectionChange,
   disabled,
+  accessibleTitle,
+  sectionLabels,
 }: {
   seasons: SeasonOpt[]
   leagues: LeagueOpt[]
@@ -23,12 +25,15 @@ export function LeagueHeroBar({
   section: Section
   onSectionChange: (s: Section) => void
   disabled?: boolean
+  accessibleTitle?: string
+  sectionLabels?: Partial<Record<Section, string>>
 }) {
   const isDisabled = disabled ?? false
 
   return (
     <section className="league-hero" aria-label="League season and view">
       <div className="league-hero__inner">
+        {accessibleTitle ? <h1 className="npl-sr-only">{accessibleTitle}</h1> : null}
         <div className="league-hero__pickers">
           <label className="league-hero__select-wrap">
             <span className="league-hero__select-label sr-only">Season</span>
@@ -70,9 +75,9 @@ export function LeagueHeroBar({
         <div className="league-hero__tabs" role="tablist" aria-label="League view">
           {(
             [
-              ['results', 'Results'],
-              ['stats', 'Stats'],
-              ['standings', 'Standings'],
+              ['results', sectionLabels?.results || 'Results'],
+              ['stats', sectionLabels?.stats || 'Stats'],
+              ['standings', sectionLabels?.standings || 'Standings'],
             ] as const
           ).map(([key, label]) => (
             <button

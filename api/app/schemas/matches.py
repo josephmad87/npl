@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.common import ORMModel
+from app.services.match_toss import normalize_toss_summary
 
 
 class MatchBase(BaseModel):
@@ -40,6 +41,11 @@ class MatchBase(BaseModel):
         if parsed.scheme.lower() not in {"https", "http"} or not parsed.netloc:
             raise ValueError("Broadcast URL must begin with https:// or http://")
         return normalized
+
+    @field_validator("toss_info")
+    @classmethod
+    def normalize_toss_info(cls, value: str | None) -> str | None:
+        return normalize_toss_summary(value)
 
 
 class MatchCreate(MatchBase):
@@ -79,6 +85,11 @@ class MatchUpdate(BaseModel):
         if parsed.scheme.lower() not in {"https", "http"} or not parsed.netloc:
             raise ValueError("Broadcast URL must begin with https:// or http://")
         return normalized
+
+    @field_validator("toss_info")
+    @classmethod
+    def normalize_toss_info(cls, value: str | None) -> str | None:
+        return normalize_toss_summary(value)
 
 
 class MatchPlayerStatIn(BaseModel):
@@ -125,6 +136,7 @@ class MatchPlayerStatOut(ORMModel):
     stumpings: int
     run_outs: int
     notes: str | None
+
 
 class FanPlayerMatchVoteIn(BaseModel):
     player_id: int = Field(ge=1)
@@ -242,8 +254,6 @@ class ScorecardEditRequestOut(BaseModel):
     access_until: datetime | None = None
     home_team_id: int
     away_team_id: int
-
-
 
 
 class MatchLiveSetupIn(BaseModel):
@@ -609,6 +619,11 @@ class MatchDetailOut(ORMModel):
     result: MatchResultOut | None
     player_stats: list[MatchPlayerStatOut] = Field(default_factory=list)
     season: SeasonBriefOut | None = None
+
+    @field_validator("toss_info")
+    @classmethod
+    def normalize_toss_info(cls, value: str | None) -> str | None:
+        return normalize_toss_summary(value)
 
 
 class PlayoffFixtureCreateIn(BaseModel):

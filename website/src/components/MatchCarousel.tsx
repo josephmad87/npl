@@ -13,6 +13,7 @@ export function MatchCarousel({
   showHeader = true,
   layout = 'default',
   filterSlot,
+  description,
 }: {
   title?: string
   linkTo?: string
@@ -22,6 +23,7 @@ export function MatchCarousel({
   showHeader?: boolean
   layout?: 'default' | 'fixtures-page'
   filterSlot?: ReactNode
+  description?: ReactNode
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
 
@@ -46,7 +48,7 @@ export function MatchCarousel({
       <div className="match-carousel__toolbar">
         {showHeader && title && linkTo ? (
           <div className="match-carousel__header-wrap">
-            <SectionHeader title={title} linkTo={linkTo} />
+            <SectionHeader title={title} linkTo={linkTo} description={description} />
           </div>
         ) : null}
         {filterSlot ? (

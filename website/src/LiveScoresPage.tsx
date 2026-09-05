@@ -7,6 +7,7 @@ import { PageHero } from './components/PageHero'
 import { Spinner } from './components/Spinner'
 import { fetchAllPaginatedList } from './lib/publicApi'
 import { useTeamsMap } from './lib/hooks'
+import { managedSection, useSitePageContent } from './lib/siteContent'
 
 type LiveFixture = {
   id: number
@@ -25,6 +26,8 @@ function isLiveMatch(match: LiveFixture): boolean {
 
 export default function LiveScoresPage() {
   const { map: teamsMap } = useTeamsMap()
+  const contentQ = useSitePageContent('live')
+  const liveContent = managedSection(contentQ.data, 'live-matches', 'Live Matches')
 
   const fixturesQ = useQuery({
     queryKey: ['public-live-fixtures'],
@@ -46,8 +49,8 @@ export default function LiveScoresPage() {
     <>
       <PageHero
         variant="siteLogo"
-        title="Live Scores"
-        subtitle="Follow every live NPL match from one matchday hub."
+        title={contentQ.data?.title || 'Live Scores'}
+        subtitle={contentQ.data?.subtitle || 'Follow every live NPL match from one matchday hub.'}
       />
 
       <main className="container">
@@ -55,7 +58,7 @@ export default function LiveScoresPage() {
           <div className="live-scores-page__head">
             <div>
               <p className="live-score-panel__eyebrow">Ball-by-ball updates</p>
-              <h1>Live matches</h1>
+              <h2>{liveContent.heading}</h2>
             </div>
             <span>{liveMatches.length} live</span>
           </div>

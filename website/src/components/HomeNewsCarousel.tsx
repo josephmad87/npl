@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { preferredScrollBehavior } from '@npl/ui/accessibility'
@@ -127,9 +127,13 @@ function HomeNewsCarouselTrack({
 export function HomeNewsCarousel({
   articles,
   isLoading = false,
+  title = 'News',
+  description,
 }: {
   articles: ArticleLite[]
   isLoading?: boolean
+  title?: string
+  description?: ReactNode
 }) {
   const [activeFilter, setActiveFilter] = useState('all')
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -163,11 +167,12 @@ export function HomeNewsCarousel({
       <header className="home-news-carousel__header">
         <div className="home-news-carousel__title-row">
           <h2 id="home-news-heading" className="home-news-carousel__title">
-            News
+            {title}
           </h2>
           <span className="home-news-carousel__title-rule" aria-hidden="true" />
         </div>
         <p className="home-news-carousel__subtitle">{subtitle}</p>
+        {description ? <div className="home-news-carousel__description">{description}</div> : null}
       </header>
 
       <div className="home-news-carousel__toolbar">

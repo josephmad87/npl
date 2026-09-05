@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { preferredScrollBehavior } from '@npl/ui/accessibility'
 import { SectionHeader } from './SectionHeader'
@@ -11,10 +11,12 @@ export function FeaturedTeamsCarousel({
   teams,
   title = 'Featured Teams',
   linkTo = '/mens/teams',
+  description,
 }: {
   teams: TeamLite[]
   title?: string
   linkTo?: string
+  description?: ReactNode
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
 
@@ -33,7 +35,7 @@ export function FeaturedTeamsCarousel({
     <section className="home-section home-featured-teams" aria-label={title}>
       <div className="featured-teams-carousel__toolbar">
         <div className="featured-teams-carousel__header-wrap">
-          <SectionHeader title={title} linkTo={linkTo} />
+          <SectionHeader title={title} linkTo={linkTo} description={description} />
         </div>
         <div className="featured-teams-carousel__nav" aria-label="Scroll teams">
           <button type="button" className="featured-teams-carousel__nav-btn" aria-label="Scroll left" onClick={() => scrollBy(-1)}>
