@@ -159,6 +159,51 @@ test('numeric merchandise URLs redirect to a descriptive canonical path', async 
   )
 })
 
+test('WhatsApp receives an optimised main product image in Open Graph metadata', async (context) => {
+  const originalFetch = globalThis.fetch
+  context.after(() => {
+    globalThis.fetch = originalFetch
+  })
+  const product = {
+    id: 69,
+    name: 'Takashinga Flame Jersey',
+    description: 'Official Takashinga Flame Jersey.',
+    image_url: 'https://images.example.com/flame-jersey.png',
+    image_url_2: '',
+    image_url_3: '',
+  }
+  globalThis.fetch = async (rawUrl) => {
+    assert.match(String(rawUrl), /\/public\/merchandise\/69$/)
+    return Response.json(product)
+  }
+
+  const response = await handler(
+    new Request('https://npl.co.zw/merchandise/takashinga-flame-jersey-69', {
+      headers: { 'user-agent': 'WhatsApp/2.26.1' },
+    }),
+    htmlContext(),
+  )
+  const html = await response.text()
+
+  assert.equal(response.status, 200)
+  assert.match(
+    html,
+    /<link rel="canonical" href="https:\/\/npl\.co\.zw\/merchandise\/takashinga-flame-jersey-69"/,
+  )
+  assert.match(
+    html,
+    /<meta property="og:image" content="https:\/\/npl\.co\.zw\/\.netlify\/images\?url=https%3A%2F%2Fimages\.example\.com%2Fflame-jersey\.png&amp;w=1200&amp;fm=jpg&amp;q=82"/,
+  )
+  assert.match(
+    html,
+    /<meta property="og:image:secure_url" content="https:\/\/npl\.co\.zw\/\.netlify\/images\?url=https%3A%2F%2Fimages\.example\.com%2Fflame-jersey\.png&amp;w=1200&amp;fm=jpg&amp;q=82"/,
+  )
+  assert.match(
+    html,
+    /<meta property="og:image:type" content="image\/jpeg"/,
+  )
+})
+
 test('registered historical slugs redirect directly to the current URL', async (context) => {
   const originalFetch = globalThis.fetch
   context.after(() => {
