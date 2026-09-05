@@ -107,6 +107,7 @@ from app.schemas.merchandise import (
     MerchandiseOrderUpdate,
     MerchandiseProductCreate,
     MerchandiseProductOut,
+    MerchandiseProductVariantIn,
     MerchandiseProductVariantOut,
     MerchandiseProductUpdate,
 )
@@ -366,7 +367,7 @@ def _merchandise_variants_by_product(
 def _replace_merchandise_variants(
     db: Session,
     product_id: int,
-    variants: list,
+    variants: list[MerchandiseProductVariantIn],
 ) -> list[MerchandiseProductVariant]:
     skus = [variant.sku.strip().upper() for variant in variants]
     if len(skus) != len(set(skus)):
@@ -642,8 +643,11 @@ def admin_update_merchandise(
             },
         )
 
-    patch = body.model_dump(exclude_unset=True)
-    variants_patch = patch.pop("variants", None)
+    # Keep nested variants as validated Pydantic models. A recursive model_dump()
+    # turns them into dictionaries, which cannot be handled by the replacement
+    # helper and previously caused merchandise edits to return HTTP 500.
+    variants_patch = body.variants if "variants" in body.model_fields_set else None
+    patch = body.model_dump(exclude_unset=True, exclude={"variants"})
     team_ids_provided = "team_ids" in patch
     team_id_provided = "team_id" in patch
     if team_ids_provided or team_id_provided:
