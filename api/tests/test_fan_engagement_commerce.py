@@ -332,3 +332,80 @@ def test_variant_stock_and_private_order_tracking() -> None:
     finally:
         app.dependency_overrides.pop(get_db, None)
         engine.dispose()
+
+
+def test_admin_can_update_merchandise_with_variants() -> None:
+    client, sessions, engine = _client_and_session()
+    try:
+        with sessions() as db:
+            administrator = User(
+                email="merch-editor@example.com",
+                hashed_password="unused",
+                full_name="Merchandise Editor",
+                role="super_admin",
+                is_active=True,
+            )
+            product = MerchandiseProduct(
+                name="Club shirt",
+                description="Original description",
+                status="active",
+                price_text="USD 20",
+            )
+            db.add_all([administrator, product])
+            db.flush()
+            db.add(
+                MerchandiseProductVariant(
+                    product_id=product.id,
+                    sku="SHIRT-M",
+                    label="Medium",
+                    size="M",
+                    price_text="USD 20",
+                    stock_quantity=5,
+                )
+            )
+            db.commit()
+            administrator_id = administrator.id
+            product_id = product.id
+
+        response = client.patch(
+            f"/api/v1/admin/merchandise/{product_id}",
+            headers={"Authorization": f"Bearer {create_access_token(str(administrator_id))}"},
+            json={
+                "name": "Updated club shirt",
+                "description": "Updated description",
+                "variants": [
+                    {
+                        "sku": "shirt-m",
+                        "label": "Medium shirt",
+                        "size": "M",
+                        "price_text": "USD 22",
+                        "currency": "usd",
+                        "stock_quantity": 8,
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        updated = response.json()
+        assert updated["name"] == "Updated club shirt"
+        assert updated["description"] == "Updated description"
+        assert len(updated["variants"]) == 1
+        assert updated["variants"][0]["sku"] == "SHIRT-M"
+        assert updated["variants"][0]["label"] == "Medium shirt"
+        assert updated["variants"][0]["price_text"] == "USD 22"
+        assert updated["variants"][0]["currency"] == "USD"
+        assert updated["variants"][0]["stock_quantity"] == 8
+        with sessions() as db:
+            variant = db.scalar(
+                select(MerchandiseProductVariant).where(
+                    MerchandiseProductVariant.product_id == product_id,
+                    MerchandiseProductVariant.sku == "SHIRT-M",
+                )
+            )
+            assert variant is not None
+            assert variant.label == "Medium shirt"
+            assert variant.stock_quantity == 8
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        engine.dispose()
