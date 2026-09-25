@@ -10,6 +10,10 @@ import { BackNavLink } from '@/components/BackNavLink'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
 import { PageHeader } from '@/components/PageHeader'
+import {
+  fixtureStartTimeError,
+  fixtureStartTimeForApi,
+} from '@/lib/fixture-start-time'
 
 type NewMatchRouteSearch = {
   seasonId?: number | null
@@ -59,6 +63,7 @@ function NewMatchPage() {
   const [awayTeamId, setAwayTeamId] = useState<number | null>(null)
   const [venue, setVenue] = useState('')
   const [matchDate, setMatchDate] = useState('')
+  const [startTime, setStartTime] = useState('')
   const [status, setStatus] =
     useState<(typeof STATUSES)[number]>('scheduled')
   const [isPublished, setIsPublished] = useState(true)
@@ -115,6 +120,11 @@ function NewMatchPage() {
       setSaveError('Select a season (create one under Leagues if needed).')
       return
     }
+    const startTimeError = fixtureStartTimeError(matchDate, startTime)
+    if (startTimeError) {
+      setSaveError(startTimeError)
+      return
+    }
     const broadcastUrl = streamUrl.trim()
     if (broadcastUrl) {
       try {
@@ -137,6 +147,7 @@ function NewMatchPage() {
         title: null,
         venue: venue.trim() || null,
         match_date: matchDate.trim() || null,
+        start_time: fixtureStartTimeForApi(matchDate, startTime),
         status,
         is_published: isPublished,
         cover_image_url: coverImageUrl?.trim() ?? null,
@@ -300,6 +311,29 @@ function NewMatchPage() {
                 value={matchDate}
                 onChange={(e) => setMatchDate(e.target.value)}
               />
+            ),
+          },
+          {
+            id: 'start_time',
+            label: 'Start time (optional)',
+            control: (
+              <div>
+                <input
+                  id="start_time"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  className="inline-edit__control"
+                  value={startTime}
+                  placeholder="HH:MM"
+                  maxLength={5}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  aria-describedby="start_time_help"
+                />
+                <span id="start_time_help" className="muted">
+                  Enter a 24-hour time, for example 14:30. It does not change the fixture date.
+                </span>
+              </div>
             ),
           },
           {

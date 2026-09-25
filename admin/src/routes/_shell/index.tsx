@@ -22,6 +22,7 @@ import type { NavItem } from '@/lib/nav'
 import { matchResultSummaryLine } from '@/lib/match-winner'
 import { navVisibleForRole } from '@/lib/nav'
 import { getSession } from '@/lib/session'
+import { formatFixtureWhen } from '@/lib/fixture-start-time'
 
 export const Route = createFileRoute('/_shell/')({
   component: DashboardHome,
@@ -81,9 +82,7 @@ type MatchRow = MatchDto & {
 }
 
 function formatWhen(m: MatchDto): string {
-  if (m.match_date) return m.match_date
-  if (m.start_time) return String(m.start_time).slice(0, 16).replace('T', ' ')
-  return '—'
+  return formatFixtureWhen(m)
 }
 
 function matchTimeMs(m: MatchDto): number {

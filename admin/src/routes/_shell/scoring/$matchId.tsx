@@ -24,6 +24,7 @@ import { adminGet, adminPost, scorerUploadMatchPhoto } from '@/lib/admin-client'
 import { ApiError, apiFetch } from '@/lib/api'
 import { getSession } from '@/lib/session'
 import { oversFieldToBalls } from '@/lib/cricket'
+import { formatFixtureWhen } from '@/lib/fixture-start-time'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { resolveAdminMediaUrl } from '@/lib/media-url'
@@ -293,9 +294,7 @@ async function publicListAll<T>(path: string): Promise<T[]> {
 }
 
 function matchWhen(match: MatchDto): string {
-  if (match.match_date) return match.match_date
-  if (match.start_time) return String(match.start_time).slice(0, 16).replace('T', ' ')
-  return '—'
+  return formatFixtureWhen(match)
 }
 
 function dateTimeLabel(value: string | null | undefined): string {

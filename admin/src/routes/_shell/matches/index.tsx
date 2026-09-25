@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useListViewMode } from '@/hooks/useListViewMode'
 import { matchResultSummaryLine, matchWinnerSide } from '@/lib/match-winner'
+import { formatFixtureWhen } from '@/lib/fixture-start-time'
 
 type MatchStatusTab = 'active' | 'completed' | 'other'
 
@@ -89,9 +90,7 @@ const STATUS_TABS: readonly {
 ]
 
 function formatWhen(m: MatchDto): string {
-  if (m.match_date) return m.match_date
-  if (m.start_time) return String(m.start_time).slice(0, 16).replace('T', ' ')
-  return '—'
+  return formatFixtureWhen(m)
 }
 
 function statusTabForMatch(status: string): MatchStatusTab {

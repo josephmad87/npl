@@ -37,6 +37,12 @@ import { parseDetailRouteSearch } from '@/lib/detail-route-search'
 import { formatExtrasBreakdown } from '@/lib/match-extras'
 import { getInningsSides, type InningsNumber } from '@/lib/cricket'
 import { matchResultSummaryLine, matchWinnerSide } from '@/lib/match-winner'
+import {
+  fixtureStartTimeError,
+  fixtureStartTimeForApi,
+  fixtureStartTimeValue,
+  formatFixtureWhen,
+} from '@/lib/fixture-start-time'
 
 export const Route = createFileRoute('/_shell/matches/$matchId')({
   validateSearch: parseDetailRouteSearch,
@@ -218,6 +224,7 @@ function MatchDetailPage() {
   const isResultMode = mode === 'result'
   const [scorecardInnings, setScorecardInnings] = useState<InningsNumber>(1)
   const [patch, setPatch] = useState<Partial<MatchDto>>({})
+  const [startTime, setStartTime] = useState('')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [selectedAssignments, setSelectedAssignments] = useState<
     Record<number, ScorerAssignmentDuty>
@@ -242,6 +249,7 @@ function MatchDetailPage() {
   const beginEdit = () => {
     if (!match) return
     setPatch({ category: normalizeCompetitionCategory(match.category) })
+    setStartTime(fixtureStartTimeValue(match.start_time))
     setSaveError(null)
     void navigate({
       to: '/matches/$matchId',
@@ -273,6 +281,15 @@ function MatchDetailPage() {
       setSaveError('Use Result & scorecard to mark a match completed.')
       return
     }
+    const startTimeError = fixtureStartTimeError(
+      merged.match_date,
+      startTime,
+      match.start_time,
+    )
+    if (startTimeError) {
+      setSaveError(startTimeError)
+      return
+    }
     const broadcastUrl = merged.stream_url?.trim() || null
     if (broadcastUrl) {
       try {
@@ -294,7 +311,11 @@ function MatchDetailPage() {
         title: merged.title?.trim() || null,
         venue: merged.venue,
         match_date: merged.match_date,
-        start_time: merged.start_time ?? null,
+        start_time: fixtureStartTimeForApi(
+          merged.match_date,
+          startTime,
+          match.start_time,
+        ),
         toss_info: formatTossSummary(merged.toss_info) || null,
         umpires: merged.umpires?.trim() || null,
         description: merged.description?.trim() || null,
@@ -333,6 +354,14 @@ function MatchDetailPage() {
       ),
     )
   }, [scorersQ.data])
+
+  const loadedStartTime = match?.start_time
+
+  useEffect(() => {
+    if (isEditing && loadedStartTime !== undefined) {
+      setStartTime(fixtureStartTimeValue(loadedStartTime))
+    }
+  }, [isEditing, loadedStartTime])
 
   const assignedScorerNames = useMemo(() => {
     const rows = scorersQ.data ?? []
@@ -787,24 +816,23 @@ function MatchDetailPage() {
               id: 'start_time',
               label: 'Start time (optional)',
               control: (
-                <input
-                  id="start_time"
-                  type="datetime-local"
-                  className="inline-edit__control"
-                  value={
-                    merged.start_time
-                      ? merged.start_time.slice(0, 16)
-                      : ''
-                  }
-                  onChange={(e) =>
-                    setPatch((p) => ({
-                      ...p,
-                      start_time: e.target.value
-                        ? new Date(e.target.value).toISOString()
-                        : null,
-                    }))
-                  }
-                />
+                <div>
+                  <input
+                    id="start_time"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    className="inline-edit__control"
+                    value={startTime}
+                    placeholder="HH:MM"
+                    maxLength={5}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    aria-describedby="start_time_help"
+                  />
+                  <span id="start_time_help" className="muted">
+                    Enter a 24-hour time, for example 14:30. It does not change the fixture date.
+                  </span>
+                </div>
               ),
             },
             {
@@ -1127,7 +1155,7 @@ function MatchDetailPage() {
                   },
                   {
                     label: 'When',
-                    value: match.match_date ?? match.start_time ?? '—',
+                    value: formatFixtureWhen(match),
                   },
                   { label: 'Venue', value: match.venue ?? '—' },
                   { label: 'Title', value: match.title ?? '—' },

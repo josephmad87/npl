@@ -2377,8 +2377,10 @@ export function LiveScorePanel({
     const season = match.season?.name ?? '—'
     const date = match.start_time
       ? new Intl.DateTimeFormat('en-ZW', {
+          timeZone: 'Africa/Harare',
           dateStyle: 'long',
           timeStyle: 'short',
+          hourCycle: 'h23',
         }).format(new Date(match.start_time))
       : match.match_date
         ? formatMatchDate(match.match_date)

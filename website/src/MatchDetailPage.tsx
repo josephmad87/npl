@@ -14,7 +14,7 @@ import { Spinner } from './components/Spinner'
 import { Breadcrumbs } from './components/Breadcrumbs'
 import { SeoHead } from './components/SeoHead'
 import { getInningsSides, oversFieldToBalls, type InningsNumber } from './lib/cricket'
-import { formatCategoryLabel, formatMatchDate } from './lib/formatters'
+import { formatCategoryLabel, formatMatchDate, toTimeShort } from './lib/formatters'
 import { type MatchLite, useTeamsMap } from './lib/hooks'
 import {
   matchResultSummaryLine,
@@ -800,7 +800,8 @@ export default function MatchDetailPage() {
 
     if (!dateToken) return '—'
 
-    return formatMatchDate(dateToken)
+    const date = formatMatchDate(dateToken)
+    return data.start_time ? `${date} · ${toTimeShort(data.start_time)}` : date
   }, [data])
 
   const displayStatus = publicDisplayMatchStatus(data?.status, data?.match_date)

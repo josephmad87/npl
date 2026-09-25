@@ -44,12 +44,14 @@ export function toTimeShort(value: string | null | undefined): string {
   const date = new Date(value)
   if (Number.isNaN(date.valueOf())) return value
   return new Intl.DateTimeFormat('en-ZW', {
+    timeZone: 'Africa/Harare',
     hour: '2-digit',
     minute: '2-digit',
+    hourCycle: 'h23',
   }).format(date)
 }
 
-/** e.g. "27 Apr 2025 10:00 am" for result cards (uses start_time when set). */
+/** e.g. "27 Apr 2025 10:00" for result cards (uses start_time when set). */
 export function formatMatchDateTimeForResultCard(match: {
   match_date?: string | null
   start_time?: string | null
@@ -59,15 +61,17 @@ export function formatMatchDateTimeForResultCard(match: {
   const d = new Date(iso)
   if (Number.isNaN(d.valueOf())) return 'TBC'
   const datePart = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Harare',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
   }).format(d)
   if (match.start_time) {
     const timePart = new Intl.DateTimeFormat('en-GB', {
-      hour: 'numeric',
+      timeZone: 'Africa/Harare',
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true,
+      hourCycle: 'h23',
     }).format(d)
     return `${datePart} ${timePart}`
   }

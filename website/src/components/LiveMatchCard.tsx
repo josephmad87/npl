@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchJson, resolveMediaUrl } from '../lib/publicApi'
 import { matchSeoPath } from '../lib/matchUrls'
+import { toTimeShort } from '../lib/formatters'
 import type { LiveScoreState, LiveInningsSummary } from './LiveScorePanel'
 
 type TeamLookup = Record<
@@ -65,7 +66,7 @@ function liveTimeLabel(match: LiveMatchLite): string {
   const raw = match.start_time ?? match.match_date ?? ''
   if (!raw) return 'Time TBC'
   if (raw.length <= 10) return raw
-  return raw.slice(0, 16).replace('T', ' ')
+  return toTimeShort(raw)
 }
 
 function TeamBadge({ name, logoUrl }: { name: string; logoUrl: string | null }) {

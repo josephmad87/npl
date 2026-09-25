@@ -34,6 +34,7 @@ import { parseDetailRouteSearch } from '@/lib/detail-route-search'
 import { resolveAdminMediaUrl } from '@/lib/media-url'
 import { normalizeCompetitionCategory } from '@/lib/competitionCategories'
 import { matchResultSummaryLine } from '@/lib/match-winner'
+import { formatFixtureWhen } from '@/lib/fixture-start-time'
 
 export const Route = createFileRoute('/_shell/teams/$teamId')({
   validateSearch: parseDetailRouteSearch,
@@ -1236,11 +1237,7 @@ function TeamDetailPage() {
                         const oppId = home ? m.away_team_id : m.home_team_id
                         const oppName =
                           teamById.get(oppId)?.name ?? `#${oppId}`
-                        const when =
-                          m.match_date ??
-                          (m.start_time
-                            ? String(m.start_time).slice(0, 16).replace('T', ' ')
-                            : '—')
+                        const when = formatFixtureWhen(m)
                         let resultCell: ReactNode = '—'
                         if (m.status === 'completed' && m.result) {
                           const w = m.result.winning_team_id
