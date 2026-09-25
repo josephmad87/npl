@@ -111,7 +111,7 @@ from app.schemas.merchandise import (
     MerchandiseProductVariantOut,
     MerchandiseProductUpdate,
 )
-from app.schemas.supporters import FanEngagementReportOut
+from app.schemas.supporters import FanEngagementReportOut, SupporterAdminOut
 from app.schemas.media_upload import MediaUploadOut
 from app.schemas.platform_settings import PlatformSettingsOut, PlatformSettingsPatch
 from app.schemas.site_page_content import SitePageBody, SitePageOut, SitePageSlug
@@ -167,6 +167,31 @@ def _bounded_report_dates(
             detail={"code": "invalid_range", "message": "Choose a report range between one minute and 366 days."},
         )
     return start, end
+
+
+@router.get("/supporters", response_model=dict)
+def admin_list_supporters(
+    db: Session = Depends(get_db),
+    page_params: PageParams = Depends(),
+    q: str | None = Query(default=None, max_length=120),
+    _: User = Depends(require_admin_reader),
+) -> dict:
+    """Contact directory for registered fans; consent detail remains private to the report."""
+
+    stmt = select(SupporterAccount)
+    if q:
+        term = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                SupporterAccount.display_name.ilike(term),
+                SupporterAccount.email.ilike(term),
+                SupporterAccount.phone.ilike(term),
+            )
+        )
+    stmt = stmt.order_by(SupporterAccount.created_at.desc(), SupporterAccount.id.desc())
+    rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
+    items = [SupporterAdminOut.model_validate(row) for row in rows]
+    return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()
 
 
 @router.get("/fan-engagement/report", response_model=FanEngagementReportOut)
@@ -830,14 +855,33 @@ def _assert_match_teams_in_season(db: Session, season_id: int | None, home_id: i
 def _season_standing_team_ids(db: Session, season_id: int) -> list[int]:
     """Return the current table order for knockout seeding.
 
-    The points rules intentionally match the public long standings: win 4,
-    tie 3 and no result 2.  Points, wins and stable team id make the order
-    deterministic while a season is still in progress.
+    The points rules intentionally match the public long standings. Super40
+    awards 4/3/2/0 for win/tie/no result/loss; T20 Blast awards 2/1/1/0 plus
+    the documented 200-run batting and chase bonuses. Points, wins and stable
+    team id make the order deterministic while a season is still in progress.
     """
     team_ids = _season_team_ids(db, season_id)
     table = {team_id: {"points": 0, "wins": 0} for team_id in team_ids}
     if not table:
         return []
+
+    season = db.get(Season, season_id)
+    league = db.get(League, season.league_id) if season is not None else None
+    competition_text = " ".join(
+        value
+        for value in (
+            season.name if season is not None else None,
+            season.slug if season is not None else None,
+            league.name if league is not None else None,
+            league.slug if league is not None else None,
+        )
+        if value
+    ).lower()
+    is_t20_blast = "t20 blast" in competition_text
+    is_super40 = "super40" in competition_text or "super 40" in competition_text
+    win_points = 4 if is_super40 else 2
+    tie_points = 3 if is_super40 else 1
+    no_result_points = 2 if is_super40 else 1
 
     rows = db.execute(
         select(Match, MatchResult)
@@ -853,14 +897,73 @@ def _season_standing_team_ids(db: Session, season_id: int) -> list[int]:
             continue
         outcome = (result.outcome or "").strip().lower()
         if outcome == "win" and result.winning_team_id in table:
-            table[result.winning_team_id]["points"] += 4
+            table[result.winning_team_id]["points"] += win_points
             table[result.winning_team_id]["wins"] += 1
         elif outcome == "tie":
-            table[match.home_team_id]["points"] += 3
-            table[match.away_team_id]["points"] += 3
+            table[match.home_team_id]["points"] += tie_points
+            table[match.away_team_id]["points"] += tie_points
         elif outcome == "no_result":
-            table[match.home_team_id]["points"] += 2
-            table[match.away_team_id]["points"] += 2
+            table[match.home_team_id]["points"] += no_result_points
+            table[match.away_team_id]["points"] += no_result_points
+
+        if not is_t20_blast:
+            continue
+
+        player_runs = dict(
+            db.execute(
+                select(MatchPlayerStat.team_id, func.coalesce(func.sum(MatchPlayerStat.runs), 0))
+                .where(MatchPlayerStat.match_id == match.id)
+                .group_by(MatchPlayerStat.team_id),
+            ).all(),
+        )
+        home_extras = sum(
+            getattr(result, field)
+            for field in (
+                "home_extras_wides",
+                "home_extras_byes",
+                "home_extras_no_balls",
+                "home_extras_leg_byes",
+            )
+        )
+        away_extras = sum(
+            getattr(result, field)
+            for field in (
+                "away_extras_wides",
+                "away_extras_byes",
+                "away_extras_no_balls",
+                "away_extras_leg_byes",
+            )
+        )
+        home_total = int(player_runs.get(match.home_team_id, 0)) + home_extras
+        away_total = int(player_runs.get(match.away_team_id, 0)) + away_extras
+
+        if home_total >= 200:
+            table[match.home_team_id]["points"] += 1
+        if away_total >= 200:
+            table[match.away_team_id]["points"] += 1
+
+        batting_first = result.batting_first_team_id
+        batting_second = (
+            match.away_team_id
+            if batting_first == match.home_team_id
+            else match.home_team_id
+            if batting_first == match.away_team_id
+            else None
+        )
+        first_innings_total = (
+            home_total
+            if batting_first == match.home_team_id
+            else away_total
+            if batting_first == match.away_team_id
+            else 0
+        )
+        chase_target = match.revised_target_runs or first_innings_total + 1
+        if (
+            batting_second is not None
+            and result.winning_team_id == batting_second
+            and chase_target >= 200
+        ):
+            table[batting_second]["points"] += 1
 
     return sorted(
         table,

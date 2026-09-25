@@ -134,18 +134,20 @@ function TeamLogoBadge({
         .filter(Boolean)
         .join(' ')}
     >
-      <ResponsiveImage
-        src={src}
-        alt=""
-        className="ui-match-card__logo"
-        widths={[64, 96, 128]}
-        sizes="64px"
-        fallbackWidth={96}
-        onError={(event) => {
-          event.currentTarget.onerror = null
-          event.currentTarget.src = nplLogoUrl
-        }}
-      />
+      <span className="ui-match-card__crest">
+        <ResponsiveImage
+          src={src}
+          alt=""
+          className="ui-match-card__logo"
+          widths={[64, 96, 128]}
+          sizes="64px"
+          fallbackWidth={96}
+          onError={(event) => {
+            event.currentTarget.onerror = null
+            event.currentTarget.src = nplLogoUrl
+          }}
+        />
+      </span>
 
       {isWinner ? (
         <span

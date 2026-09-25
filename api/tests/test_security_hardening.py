@@ -96,6 +96,11 @@ def test_production_settings_accept_explicit_secure_values() -> None:
         secret_key="a-unique-production-key-with-more-than-32-characters",
         cors_origins="https://npl.co.zw,https://admin.npl.co.zw",
         public_base_url="https://api.npl.co.zw",
+        supporter_public_site_url="https://npl.co.zw",
+        supporter_email_from="noreply@npl.co.zw",
+        supporter_smtp_host="smtp.example",
+        supporter_smtp_username="npl",
+        supporter_smtp_password="smtp-password",
     )
     assert settings.app_environment == "production"
 

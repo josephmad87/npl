@@ -12,6 +12,7 @@ class SupporterRegisterIn(BaseModel):
     email: EmailLike
     password: str = Field(min_length=12, max_length=128)
     display_name: str = Field(min_length=1, max_length=255)
+    phone: str = Field(min_length=7, max_length=32)
     accept_terms: bool
     accept_privacy: bool
     policy_version: str = Field(min_length=1, max_length=32)
@@ -24,6 +25,14 @@ class SupporterRegisterIn(BaseModel):
         if not self.accept_terms or not self.accept_privacy:
             raise ValueError("The Terms and Privacy Policy must be accepted.")
         return self
+
+    @field_validator("phone")
+    @classmethod
+    def normalise_phone(cls, value: str) -> str:
+        phone = value.strip()
+        if len(phone) < 7:
+            raise ValueError("Enter a valid phone number.")
+        return phone
 
 
 class SupporterLoginIn(BaseModel):
@@ -41,10 +50,23 @@ class SupporterTokenOut(BaseModel):
     token_type: str = "bearer"
 
 
+class SupporterRegistrationOut(BaseModel):
+    message: str
+
+
+class SupporterEmailVerificationIn(BaseModel):
+    token: str = Field(min_length=20, max_length=512)
+
+
+class SupporterVerificationResendIn(BaseModel):
+    email: EmailLike
+
+
 class SupporterAccountOut(ORMModel):
     id: int
     email: str
     display_name: str
+    phone: str | None
     email_verified_at: datetime | None
     policy_version: str
     marketing_consent: bool
@@ -55,6 +77,7 @@ class SupporterAccountOut(ORMModel):
 
 class SupporterAccountPatchIn(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=255)
+    phone: str | None = Field(default=None, min_length=7, max_length=32)
     marketing_consent: bool | None = None
     push_consent: bool | None = None
     analytics_consent: bool | None = None
@@ -144,3 +167,14 @@ class FanEngagementReportOut(BaseModel):
     top_followed_teams: list[dict[str, Any]]
     top_followed_players: list[dict[str, Any]]
     top_products: list[dict[str, Any]]
+
+
+class SupporterAdminOut(ORMModel):
+    id: int
+    display_name: str
+    email: str
+    phone: str | None
+    email_verified_at: datetime | None
+    is_active: bool
+    created_at: datetime
+    last_login_at: datetime | None

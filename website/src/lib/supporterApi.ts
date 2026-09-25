@@ -6,6 +6,10 @@ export type SupporterSession = {
   refreshToken: string
 }
 
+export type SupporterRegistrationResponse = {
+  message: string
+}
+
 const STORAGE_KEY = 'npl_supporter_session_v1'
 const ANALYTICS_KEY = 'npl_supporter_analytics_consent'
 const listeners = new Set<() => void>()
@@ -116,12 +120,25 @@ export async function supporterLogin(email: string, password: string): Promise<v
   setSupporterSession({ accessToken: token.access_token, refreshToken: token.refresh_token })
 }
 
-export async function supporterRegister(body: Record<string, unknown>): Promise<void> {
-  const token = await rawRequest<{ access_token: string; refresh_token: string }>(
+export async function supporterRegister(body: Record<string, unknown>): Promise<SupporterRegistrationResponse> {
+  return rawRequest<SupporterRegistrationResponse>(
     '/supporters/auth/register',
     { method: 'POST', body: JSON.stringify(body) },
   )
-  setSupporterSession({ accessToken: token.access_token, refreshToken: token.refresh_token })
+}
+
+export async function supporterVerifyEmail(token: string): Promise<SupporterRegistrationResponse> {
+  return rawRequest<SupporterRegistrationResponse>(
+    '/supporters/auth/verify-email',
+    { method: 'POST', body: JSON.stringify({ token }) },
+  )
+}
+
+export async function supporterResendVerification(email: string): Promise<SupporterRegistrationResponse> {
+  return rawRequest<SupporterRegistrationResponse>(
+    '/supporters/auth/resend-verification',
+    { method: 'POST', body: JSON.stringify({ email }) },
+  )
 }
 
 function anonymousAnalyticsId(): string {

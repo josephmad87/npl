@@ -69,6 +69,7 @@ export type MatchLite = {
   venue?: string | null
   match_date?: string | null
   start_time?: string | null
+  revised_target_runs?: number | null
   toss_info?: string | null
   status?: string
   cover_image_url?: string | null

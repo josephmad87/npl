@@ -1511,6 +1511,22 @@
   box-sizing: border-box;
 }
 
+.league-hero--branded {
+  position: relative;
+  isolation: isolate;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.league-hero--branded::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(100deg, rgba(28, 0, 6, 0.94), rgba(57, 4, 15, 0.82));
+}
+
 .league-hero__inner {
   max-width: 1200px;
   margin: 0 auto;
@@ -1518,6 +1534,24 @@
   flex-direction: column;
   align-items: center;
   gap: 1.1rem;
+}
+
+.league-hero__title {
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+}
+
+.league-hero__title h1 {
+  margin: 0;
+  color: inherit;
+  font-size: clamp(1.55rem, 3vw, 2.45rem);
+}
+
+.league-hero__title p {
+  margin: 0.25rem 0 0;
+  color: inherit;
+  font-weight: 700;
 }
 
 .league-hero__pickers {
@@ -2477,6 +2511,316 @@ table.league-stats-table {
 .league-season-results__load-more:focus-visible {
   background: var(--color-highlight);
   border-color: var(--color-highlight);
+}
+
+.competition-directory,
+.competition-detail {
+  padding-bottom: 3rem;
+}
+
+.competition-directory__lead {
+  max-width: 48rem;
+  margin: 1rem 0 1.5rem;
+  color: var(--color-muted);
+  font-size: 1.08rem;
+}
+
+.competition-directory__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+}
+
+.competition-card {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: var(--color-surface);
+  box-shadow: 0 0.55rem 1.5rem rgba(0, 0, 0, 0.14);
+}
+
+.competition-card__logo-link {
+  display: grid;
+  min-height: 10.5rem;
+  place-items: center;
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--npl-neutral-200);
+  background: var(--npl-neutral-50);
+}
+
+.competition-card__logo {
+  max-width: min(100%, 14rem);
+  max-height: 7.2rem;
+  object-fit: contain;
+}
+
+.competition-card--npl-t20-blast .competition-card__logo-link,
+.competition-card--npl-womens-super40 .competition-card__logo-link {
+  background: var(--npl-surface-raised);
+}
+
+.competition-card--npl-t20-blast .competition-card__logo-link {
+  min-height: 12.5rem;
+  padding: 0.85rem;
+}
+
+.competition-card__logo--npl-t20-blast {
+  max-width: min(100%, 21rem);
+  max-height: 10.5rem;
+}
+
+.competition-card__logo--npl-age-groups {
+  max-width: min(100%, 14rem);
+  max-height: 7.2rem;
+  transform: scale(1.4);
+}
+
+.competition-card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 1.25rem;
+}
+
+.competition-directory__grid--age-groups {
+  margin-top: 1rem;
+}
+
+.competition-card--compact {
+  display: grid;
+  min-height: 8rem;
+  place-items: center;
+  gap: 0.6rem;
+  padding: 1rem;
+  color: var(--color-primary);
+  font-weight: 800;
+  text-align: center;
+}
+
+.competition-card--compact .competition-card__logo {
+  max-height: 4.5rem;
+}
+
+.competition-card__body h2,
+.competition-detail__section h2 {
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.competition-card__body p:not(.competition-card__eyebrow) {
+  flex: 1;
+  color: var(--color-muted);
+}
+
+.competition-card__body a,
+.competition-detail__season-link {
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.competition-card__eyebrow {
+  margin: 0 0 0.4rem;
+  color: var(--color-accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.competition-detail__hero .ui-page-hero-overlay {
+  background: linear-gradient(90deg, rgba(26, 0, 6, 0.9), rgba(26, 0, 6, 0.72));
+}
+
+.competition-detail__hero {
+  background: var(--npl-surface-raised);
+}
+
+.competition-detail__hero > .responsive-picture > img {
+  object-fit: contain;
+  padding: clamp(0.9rem, 2.5vw, 1.75rem);
+}
+
+.competition-detail__intro {
+  display: grid;
+  grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
+  gap: clamp(1rem, 3vw, 2rem);
+  align-items: center;
+  margin: 1.5rem 0;
+  padding: clamp(1rem, 3vw, 2rem);
+  border-radius: 1rem;
+  background: var(--color-surface);
+}
+
+.competition-detail__intro > img {
+  width: 100%;
+  max-height: 10rem;
+  object-fit: contain;
+}
+
+.competition-detail__logo--npl-t20-blast,
+.competition-detail__logo--npl-super40,
+.competition-detail__logo--npl-womens-super40 {
+  max-height: 13rem;
+  transform: scale(1.12);
+}
+
+.competition-detail__intro h1 {
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.competition-detail__intro p:not(.competition-card__eyebrow) {
+  color: var(--color-muted);
+}
+
+.competition-detail__section {
+  margin: 1rem 0;
+  padding: clamp(1rem, 2.5vw, 1.65rem);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: var(--color-surface);
+}
+
+.competition-detail__section h2 {
+  margin-bottom: 0.75rem;
+}
+
+.competition-detail__format,
+.competition-detail__section ul {
+  display: grid;
+  gap: 0.6rem;
+  padding-left: 1.25rem;
+}
+
+.competition-detail__rules {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.competition-detail__rules > div {
+  display: grid;
+  place-items: center;
+  gap: 0.2rem;
+  padding: 0.8rem 0.4rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--color-primary) 9%, white);
+  text-align: center;
+}
+
+.competition-detail__rules strong {
+  color: var(--color-primary);
+  font-size: 1.4rem;
+}
+
+.competition-detail__rules span {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.competition-detail__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.8rem;
+}
+
+.competition-detail__facts p {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.9rem;
+  border-left: 0.25rem solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-primary) 6%, white);
+}
+
+.competition-detail__facts span {
+  color: var(--color-muted);
+}
+
+.competition-match-tabs__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.competition-match-tabs__heading p {
+  margin-bottom: 0;
+  color: var(--color-muted);
+}
+
+.competition-match-tabs__tablist {
+  display: flex;
+  gap: 0.55rem;
+  margin: 1.1rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.competition-match-tabs__tablist button {
+  margin-bottom: -1px;
+  padding: 0.7rem 1rem;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 0.65rem 0.65rem 0 0;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.competition-match-tabs__tablist button:hover,
+.competition-match-tabs__tablist button:focus-visible {
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 6%, white);
+}
+
+.competition-match-tabs__tablist button.is-active {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
+.competition-match-tabs__grid {
+  display: flex;
+  gap: 0.9rem;
+  overflow-x: auto;
+  padding: 0.15rem 0.1rem 0.8rem;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.competition-match-tabs__grid > .ui-match-card {
+  flex: 0 0 min(19rem, 82vw);
+  scroll-snap-align: start;
+}
+
+/* Result cards have a scoreboard and a result summary side-by-side, so they
+   need a wider scroll slot than the simpler fixture cards. */
+.competition-match-tabs__grid > .ui-match-card--result-sheet {
+  flex-basis: min(36rem, 92vw);
+}
+
+@media (max-width: 620px) {
+  .competition-detail__intro {
+    grid-template-columns: 1fr;
+  }
+
+  .competition-detail__intro > img {
+    max-width: 13rem;
+  }
+
+  .competition-detail__rules {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .competition-match-tabs__heading {
+    flex-direction: column;
+  }
 }
 
 @media (min-width: 821px) {
@@ -7543,6 +7887,36 @@ table.player-public-table--match-log {
   width: 1.28rem;
   height: 1.28rem;
   font-size: 0.82rem;
+}
+
+/* Keep every club mark inside one consistent circular crest. The clip belongs
+   to this inner layer, so a winner's trophy can still sit outside the crest. */
+.ui-match-card--duo .ui-match-card__logo-wrap {
+  border-radius: 50%;
+}
+
+.ui-match-card__crest {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  overflow: hidden;
+  border-radius: inherit;
+  background: #fff;
+}
+
+.ui-match-card__logo-wrap--round .ui-match-card__crest {
+  border-radius: 50%;
+}
+
+.ui-match-card__crest .ui-match-card__logo {
+  display: block;
+  width: 76%;
+  height: 76%;
+  max-width: 76%;
+  max-height: 76%;
+  object-fit: contain;
+  object-position: center;
 }
 /* NPL TV homepage section */
 .npl-tv-section {

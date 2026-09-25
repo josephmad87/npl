@@ -10,6 +10,8 @@ export type StandingRow = {
   tied: number
   /** No-result (abandoned) — 0 until season includes those fixtures in API */
   nr: number
+  battingBonusPoints: number
+  chaseBonusPoints: number
   points: number
   runsFor: number
   ballsFaced: number
@@ -282,10 +284,6 @@ export function computeSeasonStandings(
   teamIds: number[],
   pointsAdjustments: Record<number, number> = {},
 ): StandingRow[] {
-  const WIN_POINTS = 4
-  const TIE_POINTS = 3
-  const NO_RESULT_POINTS = 2
-
   const inSeason = new Set(teamIds)
 
   type MatchOutcome = 'win' | 'tie' | 'no_result'
@@ -296,6 +294,9 @@ export function computeSeasonStandings(
     lost: number
     tied: number
     nr: number
+    basePoints: number
+    battingBonusPoints: number
+    chaseBonusPoints: number
     runsFor: number
     ballsFaced: number
     runsAgainst: number
@@ -311,6 +312,9 @@ export function computeSeasonStandings(
       lost: 0,
       tied: 0,
       nr: 0,
+      basePoints: 0,
+      battingBonusPoints: 0,
+      chaseBonusPoints: 0,
       runsFor: 0,
       ballsFaced: 0,
       runsAgainst: 0,
@@ -433,6 +437,28 @@ export function computeSeasonStandings(
     )
   }
 
+  function competitionSearchText(match: MatchLite): string {
+    return [
+      match.season?.league?.slug,
+      match.season?.league?.name,
+      match.season?.slug,
+      match.season?.name,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+  }
+
+  function isT20Blast(match: MatchLite): boolean {
+    return competitionSearchText(match)
+      .includes('t20 blast')
+  }
+
+  function isSuper40(match: MatchLite): boolean {
+    const text = competitionSearchText(match)
+    return text.includes('super40') || text.includes('super 40')
+  }
+
   for (const m of matches) {
     const noResultMatch = isNoResultMatch(m)
 
@@ -453,30 +479,33 @@ export function computeSeasonStandings(
 
     const winnerId = m.result?.winning_team_id ?? null
     const tiedMatch = isTieMatch(m)
+    const scoring = isSuper40(m)
+      ? { win: 4, tie: 3, noResult: 2 }
+      : { win: 2, tie: 1, noResult: 1 }
 
     if (noResultMatch) {
       h.nr += 1
       a.nr += 1
-      continue
-    }
-
-    if (tiedMatch) {
+      h.basePoints += scoring.noResult
+      a.basePoints += scoring.noResult
+    } else if (tiedMatch) {
       h.tied += 1
       a.tied += 1
+      h.basePoints += scoring.tie
+      a.basePoints += scoring.tie
     } else if (winnerId === home) {
       h.won += 1
       a.lost += 1
+      h.basePoints += scoring.win
     } else if (winnerId === away) {
       a.won += 1
       h.lost += 1
+      a.basePoints += scoring.win
     } else {
       h.nr += 1
       a.nr += 1
-      continue
-    }
-
-    if (m.result?.nrr_excluded === true) {
-      continue
+      h.basePoints += scoring.noResult
+      a.basePoints += scoring.noResult
     }
 
     const homeBatting = battingPlayerTotals(m, home)
@@ -486,6 +515,39 @@ export function computeSeasonStandings(
 
     const homeTotalRuns = homeBatting.runs + homeExtras
     const awayTotalRuns = awayBatting.runs + awayExtras
+
+    if (isT20Blast(m)) {
+      if (homeTotalRuns >= 200) h.battingBonusPoints += 1
+      if (awayTotalRuns >= 200) a.battingBonusPoints += 1
+
+      const battingFirstTeamId = m.result?.batting_first_team_id ?? null
+      const battingSecondTeamId = battingFirstTeamId === home
+        ? away
+        : battingFirstTeamId === away
+          ? home
+          : null
+      const firstInningsRuns = battingFirstTeamId === home
+        ? homeTotalRuns
+        : battingFirstTeamId === away
+          ? awayTotalRuns
+          : 0
+      const revisedTarget = Number(m.revised_target_runs)
+      const chaseTarget = Number.isFinite(revisedTarget) && revisedTarget > 0
+        ? revisedTarget
+        : firstInningsRuns + 1
+
+      if (
+        battingSecondTeamId != null &&
+        winnerId === battingSecondTeamId &&
+        chaseTarget >= 200
+      ) {
+        byId.get(battingSecondTeamId)!.chaseBonusPoints += 1
+      }
+    }
+
+    if (m.result?.nrr_excluded === true) {
+      continue
+    }
 
     const homeBowlingBalls = bowlingBallsForTeam(m, home)
     const awayBowlingBalls = bowlingBallsForTeam(m, away)
@@ -533,6 +595,9 @@ export function computeSeasonStandings(
       lost: 0,
       tied: 0,
       nr: 0,
+      basePoints: 0,
+      battingBonusPoints: 0,
+      chaseBonusPoints: 0,
       runsFor: 0,
       ballsFaced: 0,
       runsAgainst: 0,
@@ -540,9 +605,9 @@ export function computeSeasonStandings(
     }
 
     const points =
-      r.won * WIN_POINTS +
-      r.tied * TIE_POINTS +
-      r.nr * NO_RESULT_POINTS +
+      r.basePoints +
+      r.battingBonusPoints +
+      r.chaseBonusPoints +
       (pointsAdjustments[teamId] ?? 0)
 
     const nrr = nrrFrom(
@@ -559,6 +624,8 @@ export function computeSeasonStandings(
       lost: r.lost,
       tied: r.tied,
       nr: r.nr,
+      battingBonusPoints: r.battingBonusPoints,
+      chaseBonusPoints: r.chaseBonusPoints,
       points,
       runsFor: r.runsFor,
       ballsFaced: r.ballsFaced,

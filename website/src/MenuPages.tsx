@@ -1071,13 +1071,13 @@ function compareTeamStats(matches: MatchLite[], teamId: number): CompareStats {
 
       if (outcome === 'W') {
         stats.won += 1
-        stats.points += 4
+        stats.points += 2
       } else if (outcome === 'T') {
         stats.tied += 1
-        stats.points += 3
+        stats.points += 1
       } else if (outcome === 'NR') {
         stats.nr += 1
-        stats.points += 2
+        stats.points += 1
       } else {
         stats.lost += 1
       }

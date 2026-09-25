@@ -76,6 +76,14 @@ def get_current_supporter(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "supporter_auth_required", "message": "Sign in with a supporter account to continue."},
         )
+    if supporter.email_verified_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "email_verification_required",
+                "message": "Verify your email address before accessing supporter features.",
+            },
+        )
     return supporter
 
 
