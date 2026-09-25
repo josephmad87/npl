@@ -3,7 +3,7 @@ import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table'
 import type { LeagueDto, MatchDto, SeasonDto, TeamDto } from '@/lib/api-types'
-import { adminListAll, adminPost } from '@/lib/admin-client'
+import { adminListAll, adminPatch, adminPost } from '@/lib/admin-client'
 import { invalidateCompetitionDataQueries } from '@/lib/invalidate-competition-data'
 import { BadgeImage } from '@/components/BadgeImage'
 import { MatchTableTeamCell } from '@/components/MatchTableTeamCell'
@@ -125,6 +125,7 @@ function MatchesPage() {
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [isPublishing, setIsPublishing] = useState(false)
 
   const matchListSearch = useMemo(
     () => ({
@@ -359,6 +360,16 @@ function MatchesPage() {
         />
       ),
     },
+    {
+      id: 'website_visibility',
+      header: 'Website',
+      cell: ({ row }) =>
+        row.original.is_published === false ? (
+          <StatusBadge status="draft" />
+        ) : (
+          <span className="badge badge--published">Published</span>
+        ),
+    },
   ]
 
   const loading =
@@ -413,34 +424,85 @@ function MatchesPage() {
     [rowSelection],
   )
 
- const bulkCancel = async () => {
-  if (selectedMatchIds.length === 0) return
-
-  const selected = queryFilteredRows.filter((m) =>
-    selectedMatchIds.includes(m.id),
-  )
-
-  const completedCount = selected.filter((m) => m.status === 'completed').length
-
-  let msg = `Permanently delete ${selectedMatchIds.length} fixture(s)? This cannot be undone.`
-
-  if (completedCount > 0) {
-    msg += `\n\n${completedCount} completed match(es) will also be removed from standings and player statistics.`
+  const selectAllVisibleFixtures = () => {
+    setRowSelection(
+      Object.fromEntries(queryFilteredRows.map((fixture) => [fixture.id, true])),
+    )
   }
 
-  if (!confirm(msg)) return
+  const bulkPublish = async () => {
+    if (selectedMatchIds.length === 0 || isPublishing) return
 
-  try {
-    await adminPost('/admin/matches/bulk-cancel', {
-      match_ids: selectedMatchIds,
-    })
-    await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
-    await invalidateCompetitionDataQueries(queryClient)
-    setRowSelection({})
-  } catch (e: unknown) {
-    alert(e instanceof Error ? e.message : 'Delete failed')
+    const selected = queryFilteredRows.filter((match) =>
+      selectedMatchIds.includes(match.id),
+    )
+    const unpublishedCount = selected.filter(
+      (match) => match.is_published === false,
+    ).length
+
+    if (unpublishedCount === 0) {
+      alert('The selected fixtures are already published on the website.')
+      return
+    }
+
+    if (
+      !confirm(
+        `Publish ${unpublishedCount} selected fixture(s) on the public website?`,
+      )
+    ) {
+      return
+    }
+
+    setIsPublishing(true)
+    try {
+      await Promise.all(
+        selected
+          .filter((match) => match.is_published === false)
+          .map((match) =>
+            adminPatch<MatchDto>(`/admin/matches/${match.id}`, {
+              is_published: true,
+            }),
+          ),
+      )
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
+      await invalidateCompetitionDataQueries(queryClient)
+      setRowSelection({})
+      alert(`${unpublishedCount} fixture(s) published on the website.`)
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Publish failed')
+    } finally {
+      setIsPublishing(false)
+    }
   }
-}
+
+  const bulkCancel = async () => {
+    if (selectedMatchIds.length === 0) return
+
+    const selected = queryFilteredRows.filter((m) =>
+      selectedMatchIds.includes(m.id),
+    )
+
+    const completedCount = selected.filter((m) => m.status === 'completed').length
+
+    let msg = `Permanently delete ${selectedMatchIds.length} fixture(s)? This cannot be undone.`
+
+    if (completedCount > 0) {
+      msg += `\n\n${completedCount} completed match(es) will also be removed from standings and player statistics.`
+    }
+
+    if (!confirm(msg)) return
+
+    try {
+      await adminPost('/admin/matches/bulk-cancel', {
+        match_ids: selectedMatchIds,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches'] })
+      await invalidateCompetitionDataQueries(queryClient)
+      setRowSelection({})
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Delete failed')
+    }
+  }
 
   const renderMatchCard = (m: MatchRow) => {
     const winner = matchWinnerSide(m)
@@ -587,7 +649,27 @@ function MatchesPage() {
               placeholder="Search fixtures…"
               aria-label="Filter results"
             />
-            <div className="catalog-toolbar__extras">{toolbarFilters}</div>
+            <div className="catalog-toolbar__extras">
+              {toolbarFilters}
+              {mode === 'table' ? (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={
+                    selectedMatchIds.length === queryFilteredRows.length &&
+                    queryFilteredRows.length > 0
+                      ? () => setRowSelection({})
+                      : selectAllVisibleFixtures
+                  }
+                  disabled={queryFilteredRows.length === 0 || isPublishing}
+                >
+                  {selectedMatchIds.length === queryFilteredRows.length &&
+                  queryFilteredRows.length > 0
+                    ? 'Clear selection'
+                    : `Select all ${queryFilteredRows.length} shown`}
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
@@ -644,13 +726,26 @@ function MatchesPage() {
                 rowSelection={rowSelection}
                 onRowSelectionChange={setRowSelection}
                 bulkActions={
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    onClick={() => void bulkCancel()}
-                  >
-                    Delete selected
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => void bulkPublish()}
+                      disabled={isPublishing}
+                    >
+                      {isPublishing
+                        ? 'Publishing…'
+                        : 'Publish selected to website'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => void bulkCancel()}
+                      disabled={isPublishing}
+                    >
+                      Delete selected
+                    </button>
+                  </>
                 }
                 onRowClick={(row) =>
                   void navigate({
