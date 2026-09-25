@@ -319,7 +319,7 @@ function CompetitionMatchTabs({ league, competitionTitle }: { league: LeagueLite
         <EmptyState title={`No ${label} yet`} description={activeTab === 'fixtures' ? 'Check back once the next matches are published.' : 'Completed matches will appear here once results are published.'} />
       ) : null}
       {matches.length > 0 ? (
-        <div className="competition-match-tabs__grid" role="tabpanel">
+        <div className={`competition-match-tabs__grid competition-match-tabs__grid--${activeTab}`} role="tabpanel">
           {matches.map((match) => <MatchCard key={match.id} match={match} teamsMap={teamsMap} mode={activeTab === 'fixtures' ? 'fixture' : 'result'} compact />)}
         </div>
       ) : null}
