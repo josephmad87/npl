@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
@@ -76,13 +75,14 @@ def _client_and_session():
     return TestClient(app), sessions, engine
 
 
-def _register(client: TestClient, *, push: bool = True, analytics: bool = True) -> str:
+def _register(client: TestClient, sessions, *, push: bool = True, analytics: bool = True) -> str:
     response = client.post(
         "/api/v1/supporters/auth/register",
         json={
             "email": "fan@example.com",
             "password": "a-strong-fan-password",
             "display_name": "NPL Fan",
+            "phone": "+263700000000",
             "accept_terms": True,
             "accept_privacy": True,
             "policy_version": "2026-09",
@@ -92,18 +92,45 @@ def _register(client: TestClient, *, push: bool = True, analytics: bool = True) 
         },
     )
     assert response.status_code == 201, response.text
-    return response.json()["access_token"]
+    login = client.post(
+        "/api/v1/supporters/auth/login",
+        json={"email": "fan@example.com", "password": "a-strong-fan-password"},
+    )
+    assert login.status_code == 200, login.text
+    return login.json()["access_token"]
 
 
 def test_supporter_registration_consent_and_admin_boundary() -> None:
     clear_rate_limits()
     client, sessions, engine = _client_and_session()
     try:
-        token = _register(client)
+        registration = client.post(
+            "/api/v1/supporters/auth/register",
+            json={
+                "email": "fan@example.com",
+                "password": "a-strong-fan-password",
+                "display_name": "NPL Fan",
+                "phone": "+263700000000",
+                "accept_terms": True,
+                "accept_privacy": True,
+                "policy_version": "2026-09",
+                "push_consent": True,
+                "marketing_consent": False,
+                "analytics_consent": True,
+            },
+        )
+        assert registration.status_code == 201, registration.text
+        token = registration.json()["access_token"]
+        login = client.post(
+            "/api/v1/supporters/auth/login",
+            json={"email": "fan@example.com", "password": "a-strong-fan-password"},
+        )
+        assert login.status_code == 200, login.text
         headers = {"Authorization": f"Bearer {token}"}
         me = client.get("/api/v1/supporters/me", headers=headers)
         assert me.status_code == 200
         assert me.json()["display_name"] == "NPL Fan"
+        assert me.json()["phone"] == "+263700000000"
         assert me.json()["push_consent"] is True
 
         # A public supporter token must never resolve to a privileged admin user.
@@ -156,7 +183,7 @@ def test_match_stream_url_requires_a_supporter_session() -> None:
         anonymous_stream = client.get(f"/api/v1/public/matches/{match_id}/stream")
         assert anonymous_stream.status_code == 401
 
-        token = _register(client)
+        token = _register(client, sessions)
         stream = client.get(
             f"/api/v1/public/matches/{match_id}/stream",
             headers={"Authorization": f"Bearer {token}"},
@@ -197,7 +224,7 @@ def test_following_secure_fan_vote_and_notification_idempotency() -> None:
             db.commit()
             home_id, match_id, player_id = home.id, match.id, player.id
 
-        token = _register(client)
+        token = _register(client, sessions)
         headers = {"Authorization": f"Bearer {token}"}
         assert client.put(f"/api/v1/supporters/follows/teams/{home_id}", headers=headers).status_code == 204
         follows = client.get("/api/v1/supporters/follows", headers=headers).json()

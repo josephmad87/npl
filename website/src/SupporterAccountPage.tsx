@@ -17,6 +17,7 @@ type Account = {
   id: number
   email: string
   display_name: string
+  phone: string | null
   marketing_consent: boolean
   push_consent: boolean
   analytics_consent: boolean
@@ -32,6 +33,7 @@ function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [phone, setPhone] = useState('')
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [acceptPrivacy, setAcceptPrivacy] = useState(false)
   const [marketing, setMarketing] = useState(false)
@@ -48,6 +50,7 @@ function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
       else {
         await supporterRegister({
           email: email.trim(), password, display_name: displayName.trim(), accept_terms: acceptTerms,
+          phone: phone.trim(),
           accept_privacy: acceptPrivacy, policy_version: '2026-09', marketing_consent: marketing,
           push_consent: push, analytics_consent: analytics,
         })
@@ -70,6 +73,7 @@ function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
       <p>{subtitle}</p>
       <div className="supporter-form">
         {mode === 'register' ? <label>Display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" /></label> : null}
+        {mode === 'register' ? <label>Phone number<input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" /></label> : null}
         <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
         <label>Password<input type="password" minLength={mode === 'register' ? 12 : 1} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} /></label>
         {mode === 'register' ? <>
@@ -80,7 +84,7 @@ function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
           <label className="supporter-form__check"><input type="checkbox" checked={analytics} onChange={(event) => setAnalytics(event.target.checked)} /><span>Allow consent-based engagement analytics.</span></label>
         </> : null}
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <button type="button" className="hero-readmore-btn" onClick={() => void submit()} disabled={busy || !email || !password || (mode === 'register' && (!displayName || !acceptTerms || !acceptPrivacy))}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
+        <button type="button" className="hero-readmore-btn" onClick={() => void submit()} disabled={busy || !email || !password || (mode === 'register' && (!displayName || !phone || !acceptTerms || !acceptPrivacy))}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
       </div>
     </section>
   )
@@ -127,7 +131,7 @@ export default function SupporterAccountPage() {
   return <main className="container supporter-account-page">
     <SeoHead title={pageTitle} description={pageSubtitle} canonicalPath="/my-npl" noIndex />
     {!session ? <AuthPanel title={pageTitle} subtitle={pageSubtitle} /> : accountQ.isLoading ? <p>Loading your supporter account…</p> : accountQ.isError || !account ? <section><h1>{pageTitle}</h1><p className="form-error">Could not load your account.</p><button type="button" onClick={() => setSupporterSession(null)}>Sign out</button></section> : <>
-      <header className="supporter-account-page__head"><div><p className="eyebrow">Supporter account</p><h1>{pageTitle}</h1><p>Welcome, {account.display_name} · {account.email}</p></div><button type="button" className="supporter-link-button" onClick={() => setSupporterSession(null)}>Sign out</button></header>
+      <header className="supporter-account-page__head"><div><p className="eyebrow">Supporter account</p><h1>{pageTitle}</h1><p>Welcome, {account.display_name} · {account.email}{account.phone ? ` · ${account.phone}` : ''}</p></div><button type="button" className="supporter-link-button" onClick={() => setSupporterSession(null)}>Sign out</button></header>
       <div className="supporter-dashboard">
         <section className="supporter-dashboard__card"><h2>{preferencesContent.heading}</h2><ManagedSiteHtml html={preferencesContent.body_html} /><label className="supporter-form__check"><input type="checkbox" checked={account.push_consent} onChange={(event) => void setPreference('push_consent', event.target.checked)} /><span>Match reminders 24 hours and one hour before, plus results</span></label><label className="supporter-form__check"><input type="checkbox" checked={account.marketing_consent} onChange={(event) => void setPreference('marketing_consent', event.target.checked)} /><span>NPL news and supporter offers</span></label><label className="supporter-form__check"><input type="checkbox" checked={account.analytics_consent} onChange={(event) => void setPreference('analytics_consent', event.target.checked)} /><span>Consent-based engagement analytics</span></label><p className="muted">You can change these at any time. The mobile apps register their push device only when match alerts are enabled.</p></section>
         <section className="supporter-dashboard__card"><h2>{followingContent.heading}</h2><ManagedSiteHtml html={followingContent.body_html} /><h3>Teams</h3>{followsQ.data?.teams.length ? <ul>{followsQ.data.teams.map((item) => <li key={item.id}><Link to="/teams/$slug" params={{ slug: item.slug }}>{item.name}</Link><button type="button" onClick={() => void removeFollow('team', item.id)}>Unfollow</button></li>)}</ul> : <p className="muted">No teams followed yet.</p>}<h3>Players</h3>{followsQ.data?.players.length ? <ul>{followsQ.data.players.map((item) => <li key={item.id}><Link to="/players/$slug" params={{ slug: item.slug }}>{item.name}</Link><button type="button" onClick={() => void removeFollow('player', item.id)}>Unfollow</button></li>)}</ul> : <p className="muted">No players followed yet.</p>}</section>

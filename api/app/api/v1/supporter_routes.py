@@ -88,6 +88,7 @@ def register_supporter(body: SupporterRegisterIn, db: Session = Depends(get_db))
         email=_normalise_email(body.email),
         hashed_password=hash_password(body.password),
         display_name=body.display_name.strip(),
+        phone=body.phone.strip(),
         terms_accepted_at=current,
         privacy_accepted_at=current,
         policy_version=body.policy_version.strip(),
@@ -167,6 +168,8 @@ def update_supporter_me(
     patch = body.model_dump(exclude_unset=True)
     if "display_name" in patch and patch["display_name"] is not None:
         account.display_name = patch["display_name"].strip()
+    if "phone" in patch and patch["phone"] is not None:
+        account.phone = patch["phone"].strip()
     for field, consent_type in (
         ("marketing_consent", "marketing"),
         ("push_consent", "push"),

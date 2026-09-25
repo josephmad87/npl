@@ -3649,6 +3649,11 @@ video.article-view__hero-img {
 .fan-report__ranking ol { display: grid; gap: .65rem; padding-left: 1.4rem; }
 .fan-report__ranking li { padding-left: .25rem; }
 .fan-report__ranking li span { display: inline-block; width: calc(100% - 3rem); }
+.fan-report__supporters { display: grid; gap: 1rem; padding: 1rem; border: 1px solid var(--border, rgba(255,255,255,.18)); border-radius: .8rem; background: rgba(255,255,255,.04); }
+.fan-report__supporters-head { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; align-items: end; }
+.fan-report__supporters-head h2 { margin: 0; }
+.fan-report__supporters-head p { margin: .25rem 0 0; }
+.fan-report__search { display: grid; gap: .35rem; min-width: min(100%, 16rem); }
 @media (max-width: 850px) { .merchandise-variant-editor__row, .fan-report__rankings { grid-template-columns: 1fr; } }
 .order-fulfilment { position: relative; }
 .order-fulfilment summary { cursor: pointer; font-weight: 800; }

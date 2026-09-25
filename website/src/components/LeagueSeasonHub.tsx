@@ -21,6 +21,7 @@ import { type LeagueLite, type MatchLite, useTeamsMap } from '../lib/hooks'
 import { extractList, fetchAllPaginatedList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
 import { managedSection, useSitePageContent } from '../lib/siteContent'
 import { ManagedSiteHtml } from './ManagedSiteHtml'
+import nplT20BlastLogoUrl from '../assets/npl-t20-blast-logo.jpg'
 
 type LeagueDetail = {
   id: number
@@ -53,6 +54,7 @@ type SeasonDetail = {
 type StandingAdjustment = { team_id: number; points_delta: number }
 
 type StandingSortMode = 'points' | 'nrr' | 'wins' | 'played' | 'form' | 'team'
+type SeasonSection = 'fixtures' | 'results' | 'stats' | 'standings'
 
 type StandingRowItem = ReturnType<typeof computeSeasonStandings>[number]
 
@@ -124,9 +126,8 @@ function teamRecentForm(matches: MatchLite[], teamId: number): Array<'W' | 'L' |
 
 function teamFormPoints(form: Array<'W' | 'L' | 'T' | 'NR'>): number {
   return form.reduce((total, item) => {
-    if (item === 'W') return total + 4
-    if (item === 'T') return total + 3
-    if (item === 'NR') return total + 2
+    if (item === 'W') return total + 2
+    if (item === 'T' || item === 'NR') return total + 1
     return total
   }, 0)
 }
@@ -186,12 +187,14 @@ export function LeagueSeasonHub({
 }) {
   const { map: teamsMap } = useTeamsMap()
   const [selectedSeasonSlug, setSelectedSeasonSlug] = useState<string | null>(null)
-  const [section, setSection] = useState<'results' | 'stats' | 'standings'>('results')
+  const [section, setSection] = useState<SeasonSection>('fixtures')
   const [visibleResultCount, setVisibleResultCount] = useState(SEASON_RESULTS_BATCH_SIZE)
+  const [visibleFixtureCount, setVisibleFixtureCount] = useState(SEASON_RESULTS_BATCH_SIZE)
 
   const [standingsSort, setStandingsSort] = useState<StandingSortMode>('points')
   const contentQ = useSitePageContent('league-season')
   const resultsContent = managedSection(contentQ.data, 'results', 'Results')
+  const fixturesContent = managedSection(contentQ.data, 'fixtures', 'Fixtures')
   const statsContent = managedSection(contentQ.data, 'stats', 'Stats')
   const standingsContent = managedSection(contentQ.data, 'standings', 'Standings')
 
@@ -266,6 +269,16 @@ export function LeagueSeasonHub({
     retry: 1,
   })
 
+  const fixturesQ = useQuery({
+    queryKey: ['league-page-fixtures', seasonId],
+    queryFn: async () =>
+      fetchAllPaginatedList<MatchLite>(
+        (page) => `/public/fixtures?page=${page}&page_size=100&season_id=${seasonId}`,
+      ),
+    enabled: seasonId != null && seasonId > 0,
+    retry: 1,
+  })
+
   const adjustmentsQ = useQuery({
     queryKey: ['league-page-standing-adjustments', seasonId],
     queryFn: () => fetchJson<StandingAdjustment[]>(`/public/seasons/${seasonId}/standing-adjustments`),
@@ -282,6 +295,16 @@ export function LeagueSeasonHub({
     [resultMatches, visibleResultCount],
   )
   const hasMoreResults = visibleResultCount < resultMatches.length
+  const fixtureMatches = useMemo(
+    () => [...(fixturesQ.data ?? [])].sort((a, b) => matchTimeValue(a) - matchTimeValue(b)),
+    [fixturesQ.data],
+  )
+  const visibleFixtureMatches = useMemo(
+    () => fixtureMatches.slice(0, visibleFixtureCount),
+    [fixtureMatches, visibleFixtureCount],
+  )
+  const hasMoreFixtures = visibleFixtureCount < fixtureMatches.length
+  const isNplT20Blast = data?.slug === 'npl-t20-blast'
 
   const pointsAdjustments = useMemo(
     () => Object.fromEntries((adjustmentsQ.data ?? []).map((row) => [row.team_id, row.points_delta])),
@@ -345,6 +368,7 @@ export function LeagueSeasonHub({
           selectedLeagueSlug={leagueSlug}
           onSeasonSlugChange={(s) => {
             setVisibleResultCount(SEASON_RESULTS_BATCH_SIZE)
+            setVisibleFixtureCount(SEASON_RESULTS_BATCH_SIZE)
             if (onSeasonSlugNavigate) {
               onSeasonSlugNavigate(s)
             } else {
@@ -356,7 +380,11 @@ export function LeagueSeasonHub({
           onSectionChange={setSection}
           disabled={isLoading}
           accessibleTitle={activeSeason ? `${activeSeason.name} — ${data.name}` : data.name}
+          displayTitle={isNplT20Blast ? data.name : undefined}
+          displaySubtitle={isNplT20Blast ? activeSeason?.name : undefined}
+          backgroundImageUrl={isNplT20Blast ? nplT20BlastLogoUrl : undefined}
           sectionLabels={{
+            fixtures: fixturesContent.heading,
             results: resultsContent.heading,
             stats: statsContent.heading,
             standings: standingsContent.heading,
@@ -408,6 +436,40 @@ export function LeagueSeasonHub({
                 <ErrorNotice message="Could not load the selected season." />
               ) : !seasonId || seasonDetailQ.isLoading ? (
                 <Spinner label="Loading season..." />
+              ) : section === 'fixtures' ? (
+                fixturesQ.isLoading ? (
+                  <Spinner label="Loading fixtures..." />
+                ) : fixtureMatches.length === 0 ? (
+                  <EmptyState
+                    title="No upcoming fixtures for this season"
+                    description="Fixtures will appear here once they are published."
+                  />
+                ) : (
+                  <div className="league-season-results">
+                    <ManagedSiteHtml html={fixturesContent.body_html} className="muted managed-rich-text" />
+                    <div className="league-season-results__list">
+                      {visibleFixtureMatches.map((match) => (
+                        <MatchCard
+                          key={match.id}
+                          match={match}
+                          teamsMap={teamsMap}
+                          mode="fixture"
+                        />
+                      ))}
+                    </div>
+                    {hasMoreFixtures ? (
+                      <button
+                        type="button"
+                        className="league-season-results__load-more"
+                        onClick={() => {
+                          setVisibleFixtureCount((current) => current + SEASON_RESULTS_BATCH_SIZE)
+                        }}
+                      >
+                        Load More
+                      </button>
+                    ) : null}
+                  </div>
+                )
               ) : section === 'results' ? (
                 resultsQ.isLoading ? (
                   <Spinner label="Loading results..." />
@@ -478,6 +540,8 @@ export function LeagueSeasonHub({
     <th scope="col">For</th>
     <th scope="col">Against</th>
     <th scope="col">NRR</th>
+    <th scope="col">Bat BP</th>
+    <th scope="col">Chase BP</th>
     <th scope="col">Pts</th>
     <th scope="col">Form</th>
   </tr>
@@ -505,6 +569,8 @@ export function LeagueSeasonHub({
           {formatRunsOversLine(row.runsAgainst, row.ballsBowled)}
         </td>
         <td>{formatStandingsNrr(row.nrr)}</td>
+        <td>{row.battingBonusPoints}</td>
+        <td>{row.chaseBonusPoints}</td>
         <td className="league-standings-table__pts">{row.points}</td>
         <td className="league-standings-table__form">
           {form.length > 0 ? (
@@ -537,8 +603,10 @@ export function LeagueSeasonHub({
       </div>
     </div>
     <p className="league-standings-footnote muted small">
-      Points: 4 for a win, 3 for a tie, 2 for no result, 0 for a loss. Form shows each
-      team’s latest five published results.
+      Points: 2 for a win, 1 for a tie or no result, 0 for a loss. In NPL T20 Blast,
+      a team that reaches 200 earns one batting bonus point, and a successful chase of
+      200 or more earns an additional chase bonus point. Form shows each team’s latest
+      five published results.
     </p>
   </div>
 )}

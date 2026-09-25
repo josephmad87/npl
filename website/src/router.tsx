@@ -61,7 +61,8 @@ const AccountDeletionPage = legalPage('AccountDeletionPage')
 const PrivacyPage = legalPage('PrivacyPage')
 const SupportPage = legalPage('SupportPage')
 const TermsPage = legalPage('TermsPage')
-const CompetitionInformationPage = legalPage('CompetitionInformationPage')
+const CompetitionDirectoryPage = lazyRouteComponent(() => import('./CompetitionPages'), 'CompetitionDirectoryPage')
+const CompetitionDetailPage = lazyRouteComponent(() => import('./CompetitionPages'), 'CompetitionDetailPage')
 const SafeguardingPage = legalPage('SafeguardingPage')
 const ScorecardCorrectionsPage = legalPage('ScorecardCorrectionsPage')
 const SupporterInformationPage = legalPage('SupporterInformationPage')
@@ -306,7 +307,12 @@ const accountDeletionRoute = createRoute({
 const competitionInformationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/competition',
-  component: CompetitionInformationPage,
+  component: CompetitionDirectoryPage,
+})
+const competitionDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/competition/$competitionSlug',
+  component: CompetitionDetailPage,
 })
 const safeguardingRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -415,6 +421,7 @@ const routeTree = rootRoute.addChildren([
   supportRoute,
   accountDeletionRoute,
   competitionInformationRoute,
+  competitionDetailRoute,
   safeguardingRoute,
   scorecardCorrectionsRoute,
   supporterInformationRoute,

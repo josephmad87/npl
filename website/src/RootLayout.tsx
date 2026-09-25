@@ -31,6 +31,7 @@ const STATIC_SEO: Record<string, { title: string; description: string }> = {
   '/gallery/video': { title: 'Video Gallery', description: 'Video highlights from NPL Zimbabwe cricket.' },
   '/merchandise': { title: 'Official NPL Merchandise', description: 'Browse official National Premier League supporter merchandise.' },
   '/my-npl': { title: 'My NPL', description: 'Manage your NPL Zimbabwe supporter account, follows, notifications and orders.' },
+  '/competition': { title: 'NPL Competitions', description: 'Explore NPL Super40, NPL T20 Blast, NPL Women’s Super40 and NPL age-group cricket.' },
   '/about-us': { title: 'About NPL Zimbabwe', description: 'Learn about National Premier League cricket in Zimbabwe.' },
   '/contact-us': { title: 'Contact NPL Zimbabwe', description: 'Contact NPL Zimbabwe about competitions, scores, media, support or merchandise.' },
   '/compare-teams': { title: 'Compare Teams', description: 'Compare NPL Zimbabwe cricket team records and performance.' },

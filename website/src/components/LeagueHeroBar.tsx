@@ -1,4 +1,4 @@
-type Section = 'results' | 'stats' | 'standings'
+type Section = 'fixtures' | 'results' | 'stats' | 'standings'
 
 type SeasonOpt = { id: number; name: string; slug: string }
 type LeagueOpt = { id: number; name: string; slug: string }
@@ -14,6 +14,9 @@ export function LeagueHeroBar({
   onSectionChange,
   disabled,
   accessibleTitle,
+  displayTitle,
+  displaySubtitle,
+  backgroundImageUrl,
   sectionLabels,
 }: {
   seasons: SeasonOpt[]
@@ -26,14 +29,29 @@ export function LeagueHeroBar({
   onSectionChange: (s: Section) => void
   disabled?: boolean
   accessibleTitle?: string
+  /** A visible heading is used on branded competition pages. */
+  displayTitle?: string
+  displaySubtitle?: string
+  /** Optional artwork is darkened in CSS so the white navigation remains legible. */
+  backgroundImageUrl?: string
   sectionLabels?: Partial<Record<Section, string>>
 }) {
   const isDisabled = disabled ?? false
 
   return (
-    <section className="league-hero" aria-label="League season and view">
+    <section
+      className={`league-hero${backgroundImageUrl ? ' league-hero--branded' : ''}`}
+      aria-label="League season and view"
+      style={backgroundImageUrl ? { backgroundImage: `url("${backgroundImageUrl}")` } : undefined}
+    >
       <div className="league-hero__inner">
         {accessibleTitle ? <h1 className="npl-sr-only">{accessibleTitle}</h1> : null}
+        {displayTitle ? (
+          <div className="league-hero__title">
+            <h1>{displayTitle}</h1>
+            {displaySubtitle ? <p>{displaySubtitle}</p> : null}
+          </div>
+        ) : null}
         <div className="league-hero__pickers">
           <label className="league-hero__select-wrap">
             <span className="league-hero__select-label sr-only">Season</span>
@@ -75,6 +93,7 @@ export function LeagueHeroBar({
         <div className="league-hero__tabs" role="tablist" aria-label="League view">
           {(
             [
+              ['fixtures', sectionLabels?.fixtures || 'Fixtures'],
               ['results', sectionLabels?.results || 'Results'],
               ['stats', sectionLabels?.stats || 'Stats'],
               ['standings', sectionLabels?.standings || 'Standings'],

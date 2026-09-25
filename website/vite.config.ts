@@ -23,7 +23,18 @@ function googleSiteVerification(token: string | undefined): Plugin {
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim()
   return {
     plugins: [react(), googleSiteVerification(env.VITE_GOOGLE_SITE_VERIFICATION)],
+    server: apiProxyTarget
+      ? {
+          proxy: {
+            '/api/v1': {
+              target: apiProxyTarget,
+              changeOrigin: true,
+            },
+          },
+        }
+      : undefined,
   }
 })

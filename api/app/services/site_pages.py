@@ -261,9 +261,8 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
                 "id": "fan-accounts",
                 "heading": "Fan accounts",
                 "body_html": (
-                    "<p>For sign-in help, check the email used to register and look "
-                    "in spam or junk folders for verification messages. Never share "
-                    "a password or verification code with support.</p>"
+                    "<p>For sign-in help, check the email used to register. Never "
+                    "share a password with support.</p>"
                 ),
             },
             {

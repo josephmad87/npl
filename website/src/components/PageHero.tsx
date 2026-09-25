@@ -55,6 +55,7 @@ export function PageHero({
   const explicitImage = imageUrl?.trim() ?? ''
   const coverSrc = explicitImage || (fallbackMode === 'related' ? randomHeroImage : null)
   const showSiteLogoMark = isSiteLogo && !coverSrc
+  const hasTitleContent = Boolean(title || subtitle || badgeSrc)
   const titleBlockClass =
     titleAlign === 'center'
       ? 'ui-page-hero__title-block ui-page-hero__title-block--center'
@@ -91,25 +92,27 @@ export function PageHero({
           />
         </div>
       ) : null}
-      <div
-        className={`ui-page-hero-overlay${
-          isSiteLogo && titleAlign === 'start' && badgeSrc
-            ? ' ui-page-hero-overlay--site-logo-title-start'
-            : ''
-        }`}
-      >
-        <div className={titleBlockClass}>
-          {badgeSrc ? (
-            <img
-              className="ui-page-hero__badge"
-              src={badgeSrc}
-              alt={`${title} crest`}
-            />
-          ) : null}
-          <h1>{title}</h1>
-          {subtitle ? <p>{subtitle}</p> : null}
+      {hasTitleContent ? (
+        <div
+          className={`ui-page-hero-overlay${
+            isSiteLogo && titleAlign === 'start' && badgeSrc
+              ? ' ui-page-hero-overlay--site-logo-title-start'
+              : ''
+          }`}
+        >
+          <div className={titleBlockClass}>
+            {badgeSrc ? (
+              <img
+                className="ui-page-hero__badge"
+                src={badgeSrc}
+                alt={`${title} crest`}
+              />
+            ) : null}
+            {title ? <h1>{title}</h1> : null}
+            {subtitle ? <p>{subtitle}</p> : null}
+          </div>
         </div>
-      </div>
+      ) : null}
     </section>
   )
 }

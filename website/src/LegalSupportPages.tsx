@@ -768,9 +768,8 @@ export function SupportPage() {
           <span>Fan accounts</span>
           <h2>Sign-in and profile help</h2>
           <p>
-            Check the email used to register, request a password reset, and look in
-            spam or junk folders for verification messages. Never share a password or
-            verification code with support.
+            Check the email used to register and never share your password with
+            support.
           </p>
           <Link to="/account-deletion">Delete an account</Link>
         </article>
