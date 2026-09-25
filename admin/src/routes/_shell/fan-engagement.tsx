@@ -98,19 +98,18 @@ function FanEngagementPage() {
             {supportersQ.isLoading ? <p className="muted">Loading supporters…</p> : supportersQ.isError ? <p className="form-error">Could not load fan contact details.</p> : (
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Email verified</th><th>Last sign-in</th><th>Status</th></tr></thead>
+                  <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Last sign-in</th><th>Status</th></tr></thead>
                   <tbody>
                     {supporters.map((supporter) => (
                       <tr key={supporter.id}>
                         <td>{supporter.display_name}</td>
                         <td><a href={`mailto:${supporter.email}`}>{supporter.email}</a></td>
                         <td>{supporter.phone || '—'}</td>
-                        <td>{supporter.email_verified_at ? 'Verified' : 'Pending'}</td>
                         <td>{supporter.last_login_at ? new Date(supporter.last_login_at).toLocaleString() : '—'}</td>
                         <td>{supporter.is_active ? 'Active' : 'Inactive'}</td>
                       </tr>
                     ))}
-                    {supporters.length === 0 ? <tr><td colSpan={6}>No supporters match this search.</td></tr> : null}
+                    {supporters.length === 0 ? <tr><td colSpan={5}>No supporters match this search.</td></tr> : null}
                   </tbody>
                 </table>
               </div>

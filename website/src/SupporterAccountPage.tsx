@@ -6,9 +6,7 @@ import {
   setSupporterSession,
   supporterFetch,
   supporterLogin,
-  supporterResendVerification,
   supporterRegister,
-  supporterVerifyEmail,
   useSupporterSession,
 } from './lib/supporterApi'
 import { SeoHead } from './components/SeoHead'
@@ -43,41 +41,23 @@ function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
   const [analytics, setAnalytics] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
 
   const submit = async () => {
     setBusy(true)
     setError(null)
-    setMessage(null)
     try {
       if (mode === 'login') await supporterLogin(email.trim(), password)
       else {
-        const response = await supporterRegister({
+        await supporterRegister({
           email: email.trim(), password, display_name: displayName.trim(), accept_terms: acceptTerms,
           phone: phone.trim(),
           accept_privacy: acceptPrivacy, policy_version: '2026-09', marketing_consent: marketing,
           push_consent: push, analytics_consent: analytics,
         })
         setSupporterAnalyticsConsent(analytics)
-        setMessage(response.message)
-        setMode('login')
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not sign in.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const resendVerification = async () => {
-    if (!email.trim()) return
-    setBusy(true)
-    setError(null)
-    try {
-      const response = await supporterResendVerification(email.trim())
-      setMessage(response.message)
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not resend the verification email.')
     } finally {
       setBusy(false)
     }
@@ -104,9 +84,7 @@ function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
           <label className="supporter-form__check"><input type="checkbox" checked={analytics} onChange={(event) => setAnalytics(event.target.checked)} /><span>Allow consent-based engagement analytics.</span></label>
         </> : null}
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        {message ? <p className="success-message" role="status">{message}</p> : null}
         <button type="button" className="hero-readmore-btn" onClick={() => void submit()} disabled={busy || !email || !password || (mode === 'register' && (!displayName || !phone || !acceptTerms || !acceptPrivacy))}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
-        {mode === 'login' ? <button type="button" className="supporter-link-button" onClick={() => void resendVerification()} disabled={busy || !email}>Resend verification email</button> : null}
       </div>
     </section>
   )
@@ -114,9 +92,6 @@ function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
 
 export default function SupporterAccountPage() {
   const session = useSupporterSession()
-  const [verify] = useState(() => new URLSearchParams(globalThis.location.search).get('verify')?.trim() ?? '')
-  const [verificationMessage, setVerificationMessage] = useState<string | null>(null)
-  const [verificationError, setVerificationError] = useState<string | null>(null)
   const contentQ = useSitePageContent('my-npl')
   const queryClient = useQueryClient()
   const accountQ = useQuery({ queryKey: ['supporter', 'me'], queryFn: () => supporterFetch<Account>('/supporters/me'), enabled: Boolean(session) })
@@ -132,22 +107,6 @@ export default function SupporterAccountPage() {
   const notificationsContent = managedSection(contentQ.data, 'notifications', 'Notifications')
   const ordersContent = managedSection(contentQ.data, 'orders', 'Your Merchandise Orders')
   const closeAccountContent = managedSection(contentQ.data, 'close-account', 'Close Account')
-
-  useEffect(() => {
-    if (!verify || session) return
-    let cancelled = false
-    void supporterVerifyEmail(verify)
-      .then((response) => {
-        if (!cancelled) setVerificationMessage(response.message)
-      })
-      .catch((caught) => {
-        if (!cancelled) setVerificationError(caught instanceof Error ? caught.message : 'Could not verify your email.')
-      })
-      .finally(() => {
-        if (!cancelled) window.history.replaceState({}, '', '/my-npl')
-      })
-    return () => { cancelled = true }
-  }, [session, verify])
 
   useEffect(() => {
     if (account) setSupporterAnalyticsConsent(account.analytics_consent)
@@ -171,7 +130,7 @@ export default function SupporterAccountPage() {
 
   return <main className="container supporter-account-page">
     <SeoHead title={pageTitle} description={pageSubtitle} canonicalPath="/my-npl" noIndex />
-    {!session ? <>{verificationMessage ? <p className="success-message" role="status">{verificationMessage}</p> : null}{verificationError ? <p className="form-error" role="alert">{verificationError}</p> : null}<AuthPanel title={pageTitle} subtitle={pageSubtitle} /></> : accountQ.isLoading ? <p>Loading your supporter account…</p> : accountQ.isError || !account ? <section><h1>{pageTitle}</h1><p className="form-error">Could not load your account.</p><button type="button" onClick={() => setSupporterSession(null)}>Sign out</button></section> : <>
+    {!session ? <AuthPanel title={pageTitle} subtitle={pageSubtitle} /> : accountQ.isLoading ? <p>Loading your supporter account…</p> : accountQ.isError || !account ? <section><h1>{pageTitle}</h1><p className="form-error">Could not load your account.</p><button type="button" onClick={() => setSupporterSession(null)}>Sign out</button></section> : <>
       <header className="supporter-account-page__head"><div><p className="eyebrow">Supporter account</p><h1>{pageTitle}</h1><p>Welcome, {account.display_name} · {account.email}{account.phone ? ` · ${account.phone}` : ''}</p></div><button type="button" className="supporter-link-button" onClick={() => setSupporterSession(null)}>Sign out</button></header>
       <div className="supporter-dashboard">
         <section className="supporter-dashboard__card"><h2>{preferencesContent.heading}</h2><ManagedSiteHtml html={preferencesContent.body_html} /><label className="supporter-form__check"><input type="checkbox" checked={account.push_consent} onChange={(event) => void setPreference('push_consent', event.target.checked)} /><span>Match reminders 24 hours and one hour before, plus results</span></label><label className="supporter-form__check"><input type="checkbox" checked={account.marketing_consent} onChange={(event) => void setPreference('marketing_consent', event.target.checked)} /><span>NPL news and supporter offers</span></label><label className="supporter-form__check"><input type="checkbox" checked={account.analytics_consent} onChange={(event) => void setPreference('analytics_consent', event.target.checked)} /><span>Consent-based engagement analytics</span></label><p className="muted">You can change these at any time. The mobile apps register their push device only when match alerts are enabled.</p></section>

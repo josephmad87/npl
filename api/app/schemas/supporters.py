@@ -50,24 +50,11 @@ class SupporterTokenOut(BaseModel):
     token_type: str = "bearer"
 
 
-class SupporterRegistrationOut(BaseModel):
-    message: str
-
-
-class SupporterEmailVerificationIn(BaseModel):
-    token: str = Field(min_length=20, max_length=512)
-
-
-class SupporterVerificationResendIn(BaseModel):
-    email: EmailLike
-
-
 class SupporterAccountOut(ORMModel):
     id: int
     email: str
     display_name: str
     phone: str | None
-    email_verified_at: datetime | None
     policy_version: str
     marketing_consent: bool
     push_consent: bool
@@ -174,7 +161,6 @@ class SupporterAdminOut(ORMModel):
     display_name: str
     email: str
     phone: str | None
-    email_verified_at: datetime | None
     is_active: bool
     created_at: datetime
     last_login_at: datetime | None

@@ -1,6 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
-
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
@@ -27,7 +25,6 @@ from app.models.supporter import (
     FanPushDevice,
     SupporterAccount,
     SupporterConsentEvent,
-    SupporterEmailVerification,
     SupporterPlayerFollow,
     SupporterTeamFollow,
 )
@@ -55,7 +52,6 @@ def _client_and_session():
         MatchPlayerStat.__table__,
         SupporterAccount.__table__,
         SupporterConsentEvent.__table__,
-        SupporterEmailVerification.__table__,
         SupporterTeamFollow.__table__,
         SupporterPlayerFollow.__table__,
         FanPushDevice.__table__,
@@ -96,11 +92,6 @@ def _register(client: TestClient, sessions, *, push: bool = True, analytics: boo
         },
     )
     assert response.status_code == 201, response.text
-    with sessions() as db:
-        account = db.scalar(select(SupporterAccount).where(SupporterAccount.email == "fan@example.com"))
-        assert account is not None
-        account.email_verified_at = datetime.now(timezone.utc)
-        db.commit()
     login = client.post(
         "/api/v1/supporters/auth/login",
         json={"email": "fan@example.com", "password": "a-strong-fan-password"},
@@ -113,41 +104,28 @@ def test_supporter_registration_consent_and_admin_boundary() -> None:
     clear_rate_limits()
     client, sessions, engine = _client_and_session()
     try:
-        captured: dict[str, str] = {}
-        with patch("app.api.v1.supporter_routes.send_supporter_verification_email") as send_verification:
-            send_verification.side_effect = lambda _settings, **kwargs: captured.update(token=kwargs["token"]) or True
-            registration = client.post(
-                "/api/v1/supporters/auth/register",
-                json={
-                    "email": "fan@example.com",
-                    "password": "a-strong-fan-password",
-                    "display_name": "NPL Fan",
-                    "phone": "+263700000000",
-                    "accept_terms": True,
-                    "accept_privacy": True,
-                    "policy_version": "2026-09",
-                    "push_consent": True,
-                    "marketing_consent": False,
-                    "analytics_consent": True,
-                },
-            )
+        registration = client.post(
+            "/api/v1/supporters/auth/register",
+            json={
+                "email": "fan@example.com",
+                "password": "a-strong-fan-password",
+                "display_name": "NPL Fan",
+                "phone": "+263700000000",
+                "accept_terms": True,
+                "accept_privacy": True,
+                "policy_version": "2026-09",
+                "push_consent": True,
+                "marketing_consent": False,
+                "analytics_consent": True,
+            },
+        )
         assert registration.status_code == 201, registration.text
-        assert "verify" in registration.json()["message"].lower()
-        assert captured["token"]
-        unverified_login = client.post(
+        token = registration.json()["access_token"]
+        login = client.post(
             "/api/v1/supporters/auth/login",
             json={"email": "fan@example.com", "password": "a-strong-fan-password"},
         )
-        assert unverified_login.status_code == 403
-        assert unverified_login.json()["detail"]["code"] == "email_verification_required"
-        verified = client.post("/api/v1/supporters/auth/verify-email", json={"token": captured["token"]})
-        assert verified.status_code == 200, verified.text
-        token_response = client.post(
-            "/api/v1/supporters/auth/login",
-            json={"email": "fan@example.com", "password": "a-strong-fan-password"},
-        )
-        assert token_response.status_code == 200, token_response.text
-        token = token_response.json()["access_token"]
+        assert login.status_code == 200, login.text
         headers = {"Authorization": f"Bearer {token}"}
         me = client.get("/api/v1/supporters/me", headers=headers)
         assert me.status_code == 200

@@ -35,7 +35,6 @@ from app.models.supporter import (
     FanPushDevice,
     SupporterAccount,
     SupporterConsentEvent,
-    SupporterEmailVerification,
     SupporterPlayerFollow,
     SupporterTeamFollow,
 )
@@ -75,7 +74,6 @@ __all__ = [
     "FanPushDevice",
     "SupporterAccount",
     "SupporterConsentEvent",
-    "SupporterEmailVerification",
     "SupporterPlayerFollow",
     "SupporterTeamFollow",
 ]

@@ -36,14 +36,6 @@ class Settings(BaseSettings):
     # If unset, rows remain in the in-app notification inbox/outbox.
     fan_push_gateway_url: str | None = None
     fan_push_gateway_token: str | None = None
-    # Supporter email verification. Production must provide a working SMTP relay.
-    supporter_public_site_url: str = "http://localhost:5174"
-    supporter_email_from: str | None = None
-    supporter_smtp_host: str | None = None
-    supporter_smtp_port: int = 587
-    supporter_smtp_username: str | None = None
-    supporter_smtp_password: str | None = None
-    supporter_smtp_use_tls: bool = True
 
     @field_validator("app_environment")
     @classmethod
@@ -88,18 +80,6 @@ class Settings(BaseSettings):
         if bool(self.fan_push_gateway_url) != bool(self.fan_push_gateway_token):
             raise ValueError("FAN_PUSH_GATEWAY_URL and FAN_PUSH_GATEWAY_TOKEN must be set together")
 
-        email_values = (
-            self.supporter_email_from,
-            self.supporter_smtp_host,
-            self.supporter_smtp_username,
-            self.supporter_smtp_password,
-        )
-        if any(email_values) and not all(email_values):
-            raise ValueError(
-                "SUPPORTER_EMAIL_FROM, SUPPORTER_SMTP_HOST, SUPPORTER_SMTP_USERNAME, and "
-                "SUPPORTER_SMTP_PASSWORD must be set together",
-            )
-
         if self.app_environment not in {"staging", "production"}:
             return self
 
@@ -117,10 +97,6 @@ class Settings(BaseSettings):
             errors.append("CORS_ORIGINS must explicitly list the deployed browser origins")
         if self.app_environment == "production" and any(not origin.startswith("https://") for origin in origins):
             errors.append("Production CORS_ORIGINS must use HTTPS")
-        if not all(email_values):
-            errors.append("Supporter email verification requires SMTP configuration")
-        if not self.supporter_public_site_url.startswith("https://"):
-            errors.append("SUPPORTER_PUBLIC_SITE_URL must use HTTPS in production")
         if (
             self.app_environment == "production"
             and self.public_base_url

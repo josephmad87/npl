@@ -32,21 +32,6 @@ class SupporterAccount(Base):
     )
 
 
-class SupporterEmailVerification(Base):
-    """One-time, time-limited email-verification links for supporter accounts."""
-
-    __tablename__ = "supporter_email_verifications"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    supporter_id: Mapped[int] = mapped_column(
-        ForeignKey("supporter_accounts.id", ondelete="CASCADE"), index=True, nullable=False
-    )
-    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-
 class SupporterConsentEvent(Base):
     __tablename__ = "supporter_consent_events"
 

@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from hashlib import sha256
 import hmac
-import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import delete, select
@@ -21,7 +20,6 @@ from app.models.supporter import (
     FanPushDevice,
     SupporterAccount,
     SupporterConsentEvent,
-    SupporterEmailVerification,
     SupporterPlayerFollow,
     SupporterTeamFollow,
 )
@@ -34,17 +32,13 @@ from app.schemas.supporters import (
     FanPushDeviceOut,
     SupporterAccountOut,
     SupporterAccountPatchIn,
-    SupporterEmailVerificationIn,
     SupporterFollowsOut,
     SupporterFollowOut,
     SupporterLoginIn,
     SupporterRegisterIn,
-    SupporterRegistrationOut,
     SupporterTokenOut,
     SupporterTokenRefreshIn,
-    SupporterVerificationResendIn,
 )
-from app.services.supporter_email import SupporterEmailDeliveryError, send_supporter_verification_email
 
 router = APIRouter(prefix="/supporters", tags=["supporters"])
 DUMMY_PASSWORD_HASH = "$2b$12$VJp5D0ojQ2kQiN1lCyUG0.qHHQ0WWCOmc5GWzqVJibhdMb4RiAGMK"
@@ -87,46 +81,8 @@ def _record_initial_consents(db: Session, account: SupporterAccount, body: Suppo
     )
 
 
-def _create_email_verification(db: Session, account: SupporterAccount) -> str:
-    """Replace outstanding links so only the newest verification email can be used."""
-
-    db.execute(
-        delete(SupporterEmailVerification).where(
-            SupporterEmailVerification.supporter_id == account.id,
-            SupporterEmailVerification.consumed_at.is_(None),
-        )
-    )
-    token = secrets.token_urlsafe(32)
-    db.add(
-        SupporterEmailVerification(
-            supporter_id=account.id,
-            token_hash=sha256(token.encode()).hexdigest(),
-            expires_at=_now() + timedelta(hours=24),
-        )
-    )
-    return token
-
-
-def _send_email_verification(account: SupporterAccount, token: str) -> None:
-    try:
-        send_supporter_verification_email(
-            get_settings(),
-            recipient=account.email,
-            display_name=account.display_name,
-            token=token,
-        )
-    except SupporterEmailDeliveryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "code": "verification_delivery_unavailable",
-                "message": "We could not send the verification email. Please try again shortly.",
-            },
-        ) from exc
-
-
-@router.post("/auth/register", response_model=SupporterRegistrationOut, status_code=status.HTTP_201_CREATED)
-def register_supporter(body: SupporterRegisterIn, db: Session = Depends(get_db)) -> SupporterRegistrationOut:
+@router.post("/auth/register", response_model=SupporterTokenOut, status_code=status.HTTP_201_CREATED)
+def register_supporter(body: SupporterRegisterIn, db: Session = Depends(get_db)) -> SupporterTokenOut:
     current = _now()
     account = SupporterAccount(
         email=_normalise_email(body.email),
@@ -151,53 +107,8 @@ def register_supporter(body: SupporterRegisterIn, db: Session = Depends(get_db))
             detail={"code": "email_in_use", "message": "A supporter account already uses this email."},
         ) from exc
     _record_initial_consents(db, account, body)
-    verification_token = _create_email_verification(db, account)
     db.commit()
-    _send_email_verification(account, verification_token)
-    return SupporterRegistrationOut(message="Check your inbox to verify your email before signing in.")
-
-
-@router.post("/auth/verify-email", response_model=SupporterRegistrationOut)
-def verify_supporter_email(
-    body: SupporterEmailVerificationIn,
-    db: Session = Depends(get_db),
-) -> SupporterRegistrationOut:
-    verification = db.scalar(
-        select(SupporterEmailVerification).where(
-            SupporterEmailVerification.token_hash == sha256(body.token.encode()).hexdigest(),
-            SupporterEmailVerification.consumed_at.is_(None),
-            SupporterEmailVerification.expires_at >= _now(),
-        )
-    )
-    if verification is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "invalid_verification", "message": "This verification link is invalid or has expired."},
-        )
-    account = db.get(SupporterAccount, verification.supporter_id)
-    if account is None or not account.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "invalid_verification", "message": "This verification link is no longer available."},
-        )
-    current = _now()
-    verification.consumed_at = current
-    account.email_verified_at = current
-    db.commit()
-    return SupporterRegistrationOut(message="Email verified. You can now sign in and watch NPL broadcasts.")
-
-
-@router.post("/auth/resend-verification", response_model=SupporterRegistrationOut, status_code=status.HTTP_202_ACCEPTED)
-def resend_supporter_verification(
-    body: SupporterVerificationResendIn,
-    db: Session = Depends(get_db),
-) -> SupporterRegistrationOut:
-    account = db.scalar(select(SupporterAccount).where(SupporterAccount.email == _normalise_email(body.email)))
-    if account is not None and account.is_active and account.email_verified_at is None:
-        verification_token = _create_email_verification(db, account)
-        db.commit()
-        _send_email_verification(account, verification_token)
-    return SupporterRegistrationOut(message="If an unverified account uses this email, we have sent a verification link.")
+    return _tokens(account)
 
 
 @router.post("/auth/login", response_model=SupporterTokenOut)
@@ -216,14 +127,6 @@ def login_supporter(body: SupporterLoginIn, db: Session = Depends(get_db)) -> Su
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "account_inactive", "message": "This supporter account is unavailable."},
-        )
-    if account.email_verified_at is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": "email_verification_required",
-                "message": "Verify your email address before signing in. Check your inbox or request a new link.",
-            },
         )
     account.last_login_at = _now()
     db.commit()
@@ -246,7 +149,7 @@ def refresh_supporter(body: SupporterTokenRefreshIn, db: Session = Depends(get_d
     except ValueError as exc:
         raise HTTPException(status_code=401, detail={"code": "invalid_refresh", "message": "Invalid refresh token."}) from exc
     account = db.get(SupporterAccount, supporter_id)
-    if account is None or not account.is_active or account.email_verified_at is None:
+    if account is None or not account.is_active:
         raise HTTPException(status_code=401, detail={"code": "invalid_refresh", "message": "Invalid refresh token."})
     return _tokens(account)
 
