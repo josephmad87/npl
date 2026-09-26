@@ -1,3 +1,4 @@
+import { useState, type CSSProperties } from 'react'
 import { formatMatchDate, toTimeShort } from '../lib/formatters'
 import { matchSeoPath } from '../lib/matchUrls'
 import { publicDisplayMatchStatus } from '../lib/matchStatus'
@@ -113,6 +114,100 @@ function matchTeamLogo(
   )
 }
 
+type CrestPresentation = {
+  scale: number
+  translateX: number
+  translateY: number
+}
+
+const DEFAULT_CREST_PRESENTATION: CrestPresentation = {
+  scale: 0.76,
+  translateX: 0,
+  translateY: 0,
+}
+
+/**
+ * Uploaded club marks are a mixture of tightly cropped transparent PNGs and
+ * older JPGs with uneven white borders. Measure the visible artwork itself so
+ * the mark, rather than the file canvas, is centered inside the round crest.
+ */
+function measureCrestPresentation(image: HTMLImageElement): CrestPresentation | null {
+  const { naturalWidth, naturalHeight } = image
+  if (!naturalWidth || !naturalHeight || typeof document === 'undefined') {
+    return null
+  }
+
+  try {
+    const longestEdge = Math.max(naturalWidth, naturalHeight)
+    const sampleScale = Math.min(1, 192 / longestEdge)
+    const width = Math.max(1, Math.round(naturalWidth * sampleScale))
+    const height = Math.max(1, Math.round(naturalHeight * sampleScale))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) return null
+
+    context.drawImage(image, 0, 0, width, height)
+    const pixels = context.getImageData(0, 0, width, height).data
+    const pixelOffset = (x: number, y: number) => (y * width + x) * 4
+    const isNearlyWhite = (offset: number) =>
+      pixels[offset + 3] > 230 &&
+      pixels[offset] > 245 &&
+      pixels[offset + 1] > 245 &&
+      pixels[offset + 2] > 245
+
+    const corners = [
+      pixelOffset(0, 0),
+      pixelOffset(width - 1, 0),
+      pixelOffset(0, height - 1),
+      pixelOffset(width - 1, height - 1),
+    ]
+    const hasWhiteBackdrop = corners.filter(isNearlyWhite).length >= 3
+
+    let minX = width
+    let minY = height
+    let maxX = -1
+    let maxY = -1
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const offset = pixelOffset(x, y)
+        const isVisible =
+          pixels[offset + 3] > 20 &&
+          (!hasWhiteBackdrop || !isNearlyWhite(offset))
+        if (!isVisible) continue
+
+        minX = Math.min(minX, x)
+        minY = Math.min(minY, y)
+        maxX = Math.max(maxX, x)
+        maxY = Math.max(maxY, y)
+      }
+    }
+
+    if (maxX < minX || maxY < minY) return null
+
+    const renderedWidth = (naturalWidth / longestEdge) * 100
+    const renderedHeight = (naturalHeight / longestEdge) * 100
+    const visibleWidth = ((maxX - minX + 1) / width) * renderedWidth
+    const visibleHeight = ((maxY - minY + 1) / height) * renderedHeight
+    const visibleCentreX =
+      (100 - renderedWidth) / 2 + ((minX + maxX + 1) / (2 * width)) * renderedWidth
+    const visibleCentreY =
+      (100 - renderedHeight) / 2 + ((minY + maxY + 1) / (2 * height)) * renderedHeight
+    const scale = Math.min(2.5, Math.max(0.72, 76 / Math.max(visibleWidth, visibleHeight)))
+
+    return {
+      scale,
+      translateX: -(visibleCentreX - 50) * scale,
+      translateY: -(visibleCentreY - 50) * scale,
+    }
+  } catch {
+    // Keep the consistent default scale when a remote image cannot be sampled.
+    return null
+  }
+}
+
 function TeamLogoBadge({
   logoUrl,
   variant = 'default',
@@ -123,6 +218,12 @@ function TeamLogoBadge({
   isWinner?: boolean
 }) {
   const src = resolveMediaUrl(logoUrl) ?? nplLogoUrl
+  const [crestPresentation, setCrestPresentation] = useState(DEFAULT_CREST_PRESENTATION)
+  const crestStyle = {
+    '--team-crest-scale': crestPresentation.scale,
+    '--team-crest-translate-x': `${crestPresentation.translateX}%`,
+    '--team-crest-translate-y': `${crestPresentation.translateY}%`,
+  } as CSSProperties
 
   return (
     <span
@@ -139,9 +240,21 @@ function TeamLogoBadge({
           src={src}
           alt=""
           className="ui-match-card__logo"
+          style={crestStyle}
           widths={[64, 96, 128]}
           sizes="64px"
           fallbackWidth={96}
+          onLoad={(event) => {
+            const measured = measureCrestPresentation(event.currentTarget)
+            if (!measured) return
+            setCrestPresentation((current) =>
+              Math.abs(current.scale - measured.scale) < 0.01 &&
+              Math.abs(current.translateX - measured.translateX) < 0.01 &&
+              Math.abs(current.translateY - measured.translateY) < 0.01
+                ? current
+                : measured,
+            )
+          }}
           onError={(event) => {
             event.currentTarget.onerror = null
             event.currentTarget.src = nplLogoUrl
