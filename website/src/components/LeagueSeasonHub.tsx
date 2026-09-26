@@ -447,7 +447,7 @@ export function LeagueSeasonHub({
                 ) : (
                   <div className="league-season-results">
                     <ManagedSiteHtml html={fixturesContent.body_html} className="muted managed-rich-text" />
-                    <div className="league-season-results__list">
+                    <div className="league-season-results__list league-season-results__list--fixtures">
                       {visibleFixtureMatches.map((match) => (
                         <MatchCard
                           key={match.id}
