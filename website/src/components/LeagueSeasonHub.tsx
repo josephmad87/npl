@@ -64,6 +64,8 @@ type MatchResultLike = {
 }
 
 const SEASON_RESULTS_BATCH_SIZE = 6
+const SEASON_FIXTURES_INITIAL_COUNT = 8
+const SEASON_FIXTURES_BATCH_SIZE = 4
 
 const standingSortOptions: Array<{ value: StandingSortMode; label: string }> = [
   { value: 'points', label: 'Points' },
@@ -189,7 +191,7 @@ export function LeagueSeasonHub({
   const [selectedSeasonSlug, setSelectedSeasonSlug] = useState<string | null>(null)
   const [section, setSection] = useState<SeasonSection>('fixtures')
   const [visibleResultCount, setVisibleResultCount] = useState(SEASON_RESULTS_BATCH_SIZE)
-  const [visibleFixtureCount, setVisibleFixtureCount] = useState(SEASON_RESULTS_BATCH_SIZE)
+  const [visibleFixtureCount, setVisibleFixtureCount] = useState(SEASON_FIXTURES_INITIAL_COUNT)
 
   const [standingsSort, setStandingsSort] = useState<StandingSortMode>('points')
   const contentQ = useSitePageContent('league-season')
@@ -368,7 +370,7 @@ export function LeagueSeasonHub({
           selectedLeagueSlug={leagueSlug}
           onSeasonSlugChange={(s) => {
             setVisibleResultCount(SEASON_RESULTS_BATCH_SIZE)
-            setVisibleFixtureCount(SEASON_RESULTS_BATCH_SIZE)
+            setVisibleFixtureCount(SEASON_FIXTURES_INITIAL_COUNT)
             if (onSeasonSlugNavigate) {
               onSeasonSlugNavigate(s)
             } else {
@@ -462,7 +464,7 @@ export function LeagueSeasonHub({
                         type="button"
                         className="league-season-results__load-more"
                         onClick={() => {
-                          setVisibleFixtureCount((current) => current + SEASON_RESULTS_BATCH_SIZE)
+                          setVisibleFixtureCount((current) => current + SEASON_FIXTURES_BATCH_SIZE)
                         }}
                       >
                         Load More
