@@ -37,7 +37,26 @@ export function countsBattingInnings(
 
 export function formatDismissalDisplay(dismissal: string | null | undefined): string {
   if (!dismissal?.trim()) return '—'
-  return dismissal.trim()
+
+  const value = dismissal.trim()
+  const legacyFielderDismissal = value.match(
+    /^(caught(?:\s*(?:&|and)\s*bowled)?|stumped|run out)\s*(?:[·•,:-]\s*)?fielder\s*:\s*(.+)$/i,
+  )
+
+  if (!legacyFielderDismissal) return value
+
+  const dismissalType = legacyFielderDismissal[1]
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+  const fielder = legacyFielderDismissal[2].trim()
+
+  if (!fielder) return value
+  if (dismissalType === 'caught') return `c ${fielder}`
+  if (dismissalType === 'caught & bowled' || dismissalType === 'caught and bowled') {
+    return `c & b ${fielder}`
+  }
+  if (dismissalType === 'stumped') return `st ${fielder}`
+  return `run out (${fielder})`
 }
 
 export function normalizeCricketOversInput(value: string): string {
