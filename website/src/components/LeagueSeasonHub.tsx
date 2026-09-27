@@ -76,6 +76,17 @@ const standingSortOptions: Array<{ value: StandingSortMode; label: string }> = [
   { value: 'team', label: 'Team' },
 ]
 
+function isGenericResultsDescription(html: string): boolean {
+  const text = html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+
+  return text === 'completed matches in this season.'
+}
+
 function teamDisplayName(
   teamsMap: Record<number, { name?: string | null } | undefined>,
   teamId: number,
@@ -479,7 +490,9 @@ export function LeagueSeasonHub({
                   <EmptyState title="No results for this season yet" />
                 ) : (
                   <div className="league-season-results">
-                    <ManagedSiteHtml html={resultsContent.body_html} className="muted managed-rich-text" />
+                    {!isGenericResultsDescription(resultsContent.body_html) ? (
+                      <ManagedSiteHtml html={resultsContent.body_html} className="muted managed-rich-text" />
+                    ) : null}
                     <div className="league-season-results__list">
                       {visibleResultMatches.map((match) => (
                         <MatchCard

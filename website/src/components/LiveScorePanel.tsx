@@ -5,6 +5,7 @@ import { formatTossSummary } from '@npl/ui/toss-summary'
 import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
 import type { MatchLite } from '../lib/hooks'
 import { formatCategoryLabel, formatMatchDate } from '../lib/formatters'
+import { formatDismissalDisplay } from '../lib/cricket'
 import { managedSection, useSitePageContent } from '../lib/siteContent'
 import { ManagedSiteHtml } from './ManagedSiteHtml'
 import { GalleryCard } from './GalleryCard'
@@ -787,9 +788,9 @@ function computeMiniDashboard(
       const outStat = event.wicket_player_id ? batterStats.get(event.wicket_player_id) : null
       if (outStat) {
         outStat.isOut = true
-        outStat.dismissal =
-          event.dismissal_text?.trim() ||
-          dismissalLabel(event.wicket_type)
+        outStat.dismissal = event.dismissal_text?.trim()
+          ? formatDismissalDisplay(event.dismissal_text)
+          : dismissalLabel(event.wicket_type)
       }
       lastBatText = `${outName} ${outRuns} (${outBalls}b)`
       fowText = `${inningsRuns}/${inningsWickets} (${oversLabelFromBalls(legalBalls)} ov)`
@@ -2203,7 +2204,7 @@ export function LiveScorePanel({
                     {inningsDashboard.batters.map((stat) => (
                       <tr key={stat.playerId}>
                         <td>{playerName(playerById, stat.playerId)}</td>
-                        <td>{stat.isOut ? stat.dismissal || 'Out' : 'not out'}</td>
+                        <td>{stat.isOut ? formatDismissalDisplay(stat.dismissal) : 'not out'}</td>
                         <td>{stat.runs}</td>
                         <td>{stat.balls}</td>
                         <td>{stat.fours}</td>

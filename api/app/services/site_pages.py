@@ -964,7 +964,7 @@ DEFAULT_SITE_PAGES.update(
             "League and Season",
             "Competition results, statistics and standings.",
             [
-                ("results", "Results", "<p>Completed matches in this season.</p>"),
+                ("results", "Results", ""),
                 ("stats", "Stats", "<p>Player and team statistics for this season.</p>"),
                 (
                     "top-performers",
