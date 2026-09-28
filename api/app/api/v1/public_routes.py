@@ -16,7 +16,7 @@ from app.models.about_content import AboutContent
 from app.models.contact_message import ContactMessage
 from app.models.article import Article
 from app.models.gallery import GalleryItem
-from app.models.league import League, Season, SeasonTeam
+from app.models.league import League, Season, SeasonPlayer, SeasonTeam
 from app.models.match import (
     DisciplineCase,
     DisciplineSanction,
@@ -86,6 +86,7 @@ from app.schemas.teams import TeamOut, TeamSeasonRecordOut
 from app.services.dls import dls_g50_for_category, dls_par_score
 from app.services.site_pages import default_site_page_body, merge_site_page_body_with_defaults
 from app.services.seo_redirects import normalise_public_path
+from app.services.season_rosters import match_team_players
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -570,6 +571,31 @@ def get_team(slug: str, db: Session = Depends(get_db)) -> TeamOut:
             out = out.model_copy(update={"captain_profile_photo_url": cap.profile_photo_url})
     return out
 
+
+@router.get("/teams/{slug}/season-players", response_model=list[PlayerOut])
+def team_season_players(
+    slug: str,
+    season_id: int = Query(),
+    db: Session = Depends(get_db),
+) -> list[PlayerOut]:
+    team = db.scalar(select(Team).where(Team.slug == slug, Team.status == "active"))
+    if team is None or db.get(Season, season_id) is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Team or season not found"})
+    if db.get(SeasonTeam, (season_id, team.id)) is None:
+        return []
+    players = db.scalars(
+        select(Player)
+        .join(SeasonPlayer, SeasonPlayer.player_id == Player.id)
+        .where(
+            SeasonPlayer.season_id == season_id,
+            SeasonPlayer.team_id == team.id,
+            SeasonPlayer.role == "registered",
+            Player.status == "active",
+        )
+        .order_by(Player.full_name)
+    ).all()
+    return [PlayerOut.model_validate(player) for player in players]
+
 @router.get("/teams/{slug}/season-records", response_model=list[TeamSeasonRecordOut])
 def team_season_records(slug: str, db: Session = Depends(get_db)) -> list[TeamSeasonRecordOut]:
     """Wins / losses / no-result counts from completed matches, grouped by season."""
@@ -692,7 +718,24 @@ def get_player(slug: str, db: Session = Depends(get_db)) -> PlayerOut:
     player = db.scalar(select(Player).where(Player.slug == slug, Player.status == "active"))
     if player is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Player not found"})
-    return PlayerOut.model_validate(player)
+    out = PlayerOut.model_validate(player)
+    registrations = db.execute(
+        select(SeasonPlayer.team_id, Season)
+        .join(Season, SeasonPlayer.season_id == Season.id)
+        .join(League, Season.league_id == League.id)
+        .where(
+            SeasonPlayer.player_id == player.id,
+            SeasonPlayer.role == "registered",
+            League.slug == "npl-t20-blast",
+            Season.status != "archived",
+        )
+    ).all()
+    for team_id, season in registrations:
+        if "2026" in season.name or "2026" in season.slug or (
+            season.start_date is not None and season.start_date.year == 2026
+        ):
+            return out.model_copy(update={"blast_2026_team_id": team_id})
+    return out
 
 
 def _public_player_match_appearance_rows(db: Session, player_id: int) -> list[PlayerMatchAppearanceOut]:
@@ -1219,6 +1262,35 @@ def submit_fan_player_vote(
 
     return _fan_player_vote_summary(match_id, db, supporter.id)
 
+
+
+@router.get("/matches/{match_id}/eligible-players", response_model=list[PlayerOut])
+def public_match_eligible_players(match_id: int, db: Session = Depends(get_db)) -> list[PlayerOut]:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    players_by_side = {
+        team_id: {player.id: player for player in match_team_players(db, match, team_id)}
+        for team_id in (match.home_team_id, match.away_team_id)
+    }
+    recorded = list(db.execute(
+        select(MatchDaySquadPlayer.player_id, MatchDaySquadPlayer.team_id)
+        .where(MatchDaySquadPlayer.match_id == match_id)
+    ).all())
+    recorded.extend(db.execute(
+        select(MatchPlayerStat.player_id, MatchPlayerStat.team_id)
+        .where(MatchPlayerStat.match_id == match_id)
+    ).all())
+    for player_id, team_id in recorded:
+        if team_id in players_by_side and player_id not in players_by_side[team_id]:
+            player = db.get(Player, player_id)
+            if player is not None:
+                players_by_side[team_id][player_id] = player
+    return [
+        PlayerOut.model_validate(player).model_copy(update={"team_id": team_id})
+        for team_id, players in players_by_side.items()
+        for player in sorted(players.values(), key=lambda player: player.full_name)
+    ]
 
 
 @router.get("/matches/{match_id}/squads", response_model=MatchSquadOut)

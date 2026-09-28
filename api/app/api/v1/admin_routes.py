@@ -28,7 +28,7 @@ from app.models.audit import AuditLog
 from app.models.contact_message import ContactMessage
 from app.models.gallery import GalleryItem
 from app.models.sponsor import Sponsor
-from app.models.league import League, Season, SeasonTeam
+from app.models.league import League, Season, SeasonPlayer, SeasonTeam
 from app.models.match import (
     DisciplineCase,
     DisciplineSanction,
@@ -68,7 +68,9 @@ from app.schemas.audit import AuditLogOut
 from app.schemas.auth import AdminUserCreate, AdminUserUpdate, UserMe
 from app.schemas.gallery import GalleryItemCreate, GalleryItemOut, GalleryItemUpdate
 from app.schemas.leagues import LeagueCreate, LeagueOut, LeagueUpdate
-from app.schemas.seasons import SeasonCreate, SeasonOut, SeasonPublicOut, SeasonUpdate
+from app.schemas.seasons import (
+    SeasonCreate, SeasonOut, SeasonPlayerRosterIn, SeasonPlayerRosterOut, SeasonPublicOut, SeasonUpdate,
+)
 from app.schemas.matches import (
     LiveBallCommentaryIn,
     LiveBallEventIn,
@@ -128,6 +130,7 @@ from app.schemas.players import (
 from app.schemas.teams import TeamBulkArchiveIn, TeamCreate, TeamOut, TeamUpdate
 from app.services.audit import write_audit
 from app.services.cricket_overs import normalize_cricket_overs
+from app.services.season_rosters import player_can_represent_match_team
 from app.services.dls import (
     cricket_overs_to_balls,
     dls_g50_for_category,
@@ -825,6 +828,7 @@ def _season_team_ids(db: Session, season_id: int) -> list[int]:
 def _set_season_teams(db: Session, season_id: int, team_ids: list[int] | None) -> None:
     if team_ids is None:
         return
+    db.execute(delete(SeasonPlayer).where(SeasonPlayer.season_id == season_id, SeasonPlayer.team_id.notin_(team_ids)))
     db.execute(delete(SeasonTeam).where(SeasonTeam.season_id == season_id))
     for tid in team_ids:
         db.add(SeasonTeam(season_id=season_id, team_id=tid))
@@ -1855,6 +1859,83 @@ def admin_season_mark_non_roster_inactive(
     )
     db.commit()
     return {"updated": len(players), "team_ids_affected": sorted(team_ids_affected)}
+
+
+@router.get("/seasons/{season_id}/teams/{team_id}/players", response_model=SeasonPlayerRosterOut)
+def admin_get_season_players(
+    season_id: int,
+    team_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_reader),
+) -> SeasonPlayerRosterOut:
+    if db.get(Season, season_id) is None or db.get(Team, team_id) is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Season or team not found"})
+    rows = db.scalars(
+        select(SeasonPlayer).where(SeasonPlayer.season_id == season_id, SeasonPlayer.team_id == team_id)
+    ).all()
+    players = {
+        player.id: PlayerOut.model_validate(player)
+        for player in db.scalars(select(Player).where(Player.id.in_([row.player_id for row in rows]))).all()
+    } if rows else {}
+    return SeasonPlayerRosterOut(
+        season_id=season_id,
+        team_id=team_id,
+        registered_player_ids=[row.player_id for row in rows if row.role == "registered"],
+        standby_player_ids=[row.player_id for row in rows if row.role == "standby"],
+        registered_players=[players[row.player_id] for row in rows if row.role == "registered" and row.player_id in players],
+        standby_players=[players[row.player_id] for row in rows if row.role == "standby" and row.player_id in players],
+    )
+
+
+@router.put("/seasons/{season_id}/teams/{team_id}/players", response_model=SeasonPlayerRosterOut)
+def admin_save_season_players(
+    season_id: int,
+    team_id: int,
+    body: SeasonPlayerRosterIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_competition_writer),
+) -> SeasonPlayerRosterOut:
+    season = db.get(Season, season_id)
+    team = db.get(Team, team_id)
+    if season is None or team is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Season or team not found"})
+    if db.get(SeasonTeam, (season_id, team_id)) is None:
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "Add this club to the season first."})
+    ids = body.registered_player_ids + body.standby_player_ids
+    if len(ids) != len(set(ids)):
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "A player can only have one season roster role."})
+    players = db.scalars(select(Player).where(Player.id.in_(ids))).all() if ids else []
+    if len(players) != len(ids):
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "One or more selected players were not found."})
+    if any(player.status != "active" for player in players):
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "Activate selected players before adding them to the season roster."})
+    assigned_elsewhere = db.scalar(
+        select(SeasonPlayer).where(
+            SeasonPlayer.season_id == season_id,
+            SeasonPlayer.player_id.in_(ids),
+            SeasonPlayer.team_id != team_id,
+        ).limit(1)
+    ) if ids else None
+    if assigned_elsewhere is not None:
+        other_team = db.get(Team, assigned_elsewhere.team_id)
+        raise HTTPException(status_code=409, detail={
+            "code": "conflict",
+            "message": f"A selected player is already registered for {other_team.name if other_team else 'another club'} in this season. Remove that registration first.",
+        })
+    db.execute(delete(SeasonPlayer).where(SeasonPlayer.season_id == season_id, SeasonPlayer.team_id == team_id))
+    db.add_all(
+        [SeasonPlayer(season_id=season_id, team_id=team_id, player_id=pid, role="registered")
+         for pid in body.registered_player_ids]
+        + [SeasonPlayer(season_id=season_id, team_id=team_id, player_id=pid, role="standby")
+           for pid in body.standby_player_ids]
+    )
+    db.commit()
+    write_audit(
+        db, actor_user_id=actor.id, action="save_player_roster", entity_type="season", entity_id=season_id,
+        summary=f"{team.name}: {len(body.registered_player_ids)} registered and {len(body.standby_player_ids)} standby for {season.name}",
+    )
+    db.commit()
+    return admin_get_season_players(season_id, team_id, db, actor)
 
 
 @router.get("/matches", response_model=dict)
@@ -3403,18 +3484,18 @@ def _match_day_squad_roles(
 
 def _assert_live_player(
     db: Session,
+    match: Match,
     player_id: int | None,
-    team_ids: set[int],
+    team_id: int,
     allowed_player_ids: set[int] | None = None,
     label: str = "Player",
 ) -> None:
     if player_id is None:
         return
-    player = db.get(Player, player_id)
-    if player is None or player.team_id not in team_ids:
+    if not player_can_represent_match_team(db, match, team_id, player_id):
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": f"{label} must belong to the correct match team."},
+            detail={"code": "validation", "message": f"{label} must be eligible for the correct match team."},
         )
     if allowed_player_ids is not None and allowed_player_ids and player_id not in allowed_player_ids:
         raise HTTPException(
@@ -3457,11 +3538,10 @@ def _validate_squad_player(db: Session, match: Match, team_id: int, player_id: i
             status_code=400,
             detail={"code": "validation", "message": "Squad team ids must belong to this match."},
         )
-    player = db.get(Player, player_id)
-    if player is None or player.team_id != team_id:
+    if not player_can_represent_match_team(db, match, team_id, player_id):
         raise HTTPException(
             status_code=400,
-            detail={"code": "validation", "message": "Squad players must belong to the selected team."},
+            detail={"code": "validation", "message": "Squad players must be eligible for the selected team."},
         )
 
 
@@ -3929,43 +4009,49 @@ def _assert_live_ball_payload(
 
     _assert_live_player(
         db,
+        match,
         body.striker_player_id,
-        {body.batting_team_id},
+        body.batting_team_id,
         batting_allowed,
         "Striker",
     )
     _assert_live_player(
         db,
+        match,
         body.non_striker_player_id,
-        {body.batting_team_id},
+        body.batting_team_id,
         batting_allowed,
         "Non-striker",
     )
     _assert_live_player(
         db,
+        match,
         body.bowler_player_id,
-        {body.bowling_team_id},
+        body.bowling_team_id,
         bowling_allowed,
         "Bowler",
     )
     _assert_live_player(
         db,
+        match,
         body.wicket_player_id,
-        {body.batting_team_id},
+        body.batting_team_id,
         batting_allowed,
         "Player out",
     )
     _assert_live_player(
         db,
+        match,
         body.fielder_player_id,
-        {body.bowling_team_id},
+        body.bowling_team_id,
         fielding_allowed,
         "Fielder",
     )
     _assert_live_player(
         db,
+        match,
         body.replacement_player_id,
-        {body.batting_team_id},
+        body.batting_team_id,
         batting_allowed,
         "Replacement batter",
     )

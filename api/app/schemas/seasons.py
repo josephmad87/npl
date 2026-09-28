@@ -3,6 +3,7 @@ from datetime import date
 from pydantic import BaseModel, Field
 
 from app.schemas.common import ORMModel
+from app.schemas.players import PlayerOut
 
 
 class SeasonBase(BaseModel):
@@ -55,3 +56,15 @@ class SeasonSummaryOut(ORMModel):
 
 class SeasonPublicOut(SeasonOut):
     team_ids: list[int] = Field(default_factory=list)
+
+
+class SeasonPlayerRosterIn(BaseModel):
+    registered_player_ids: list[int] = Field(default_factory=list, max_length=15)
+    standby_player_ids: list[int] = Field(default_factory=list, max_length=5)
+
+
+class SeasonPlayerRosterOut(SeasonPlayerRosterIn):
+    season_id: int
+    team_id: int
+    registered_players: list[PlayerOut] = Field(default_factory=list)
+    standby_players: list[PlayerOut] = Field(default_factory=list)

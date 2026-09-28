@@ -80,6 +80,9 @@ type PlayerRow = {
   profile_photo_url: string | null
 }
 
+type CompetitionSeason = { id: number; name: string; slug: string; start_date: string | null }
+type CompetitionDetail = { seasons: CompetitionSeason[] }
+
 type PublicSponsor = {
   id: number
   name: string
@@ -304,14 +307,20 @@ function TeamDetailPageContent({ slug }: Readonly<{ slug: string }>) {
     retry: 1,
   })
 
+  const blastSeasonsQ = useQuery({
+    queryKey: ['npl-t20-blast-seasons'],
+    queryFn: () => fetchJson<CompetitionDetail>('/public/leagues/npl-t20-blast'),
+    retry: 1,
+  })
+  const blast2026Season = blastSeasonsQ.data?.seasons.find(
+    (season) => /(?:^|\D)2026(?:\D|$)/.test(`${season.name} ${season.slug}`) || season.start_date?.startsWith('2026'),
+  )
+
   const playersQ = useQuery({
-    queryKey: ['team-players', data?.id ?? 'none'],
+    queryKey: ['team-season-players', slug, blast2026Season?.id ?? 'none'],
     queryFn: () =>
-      fetchAllPaginatedList<PlayerRow>(
-        (page) =>
-          `/public/players?page=${page}&page_size=100&team_id=${data?.id ?? -1}`,
-      ),
-    enabled: Boolean(data?.id),
+      fetchJson<PlayerRow[]>(`/public/teams/${encodeURIComponent(slug)}/season-players?season_id=${blast2026Season!.id}`),
+    enabled: Boolean(data?.id && blast2026Season?.id),
     retry: 1,
   })
 
@@ -609,17 +618,14 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
   )
 }, [sponsorsQ.data, data])
 
-  const captainPhotoUrl = useMemo(() => {
+  const registeredCaptain = useMemo(() => {
     if (!data) return null
-    if (data.captain_profile_photo_url?.trim()) {
-      return data.captain_profile_photo_url.trim()
-    }
     if (data.captain_player_id != null) {
-      const row = playersSorted.find((p) => p.id === data.captain_player_id)
-      return row?.profile_photo_url?.trim() ?? null
+      return playersSorted.find((player) => player.id === data.captain_player_id) ?? null
     }
-    return null
+    return playersSorted.find((player) => player.full_name === data.captain?.trim()) ?? null
   }, [data, playersSorted])
+  const captainPhotoUrl = registeredCaptain?.profile_photo_url?.trim() ?? null
 
   const teamTabs = useMemo(
     () =>
@@ -829,7 +835,7 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
     <div className="team-page__staff-grid">
       <StaffCard
         role="Captain"
-        name={data.captain}
+        name={registeredCaptain?.full_name ?? null}
         imageUrl={captainPhotoUrl}
         placeholderKind="player"
       />
@@ -1176,11 +1182,13 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
 
               {activeTab === 'squad' ? (
                 <section className="team-page__section" aria-label={squadContent.heading}>
-                <SectionHeader title={squadContent.heading} description={<ManagedSiteHtml html={squadContent.body_html} />} />
-                {playersQ.isLoading ? <Spinner label="Loading players…" /> : null}
-                {playersSorted.length === 0 && !playersQ.isLoading ? (
-                  <p className="muted">Squad list coming soon.</p>
-                ) : (
+                <SectionHeader title={blast2026Season ? `${squadContent.heading} · ${blast2026Season.name}` : squadContent.heading} description={<ManagedSiteHtml html={squadContent.body_html} />} />
+                {blastSeasonsQ.isLoading || playersQ.isLoading ? <Spinner label="Loading players…" /> : null}
+                {blastSeasonsQ.isError || playersQ.isError ? <ErrorNotice message="Could not load the NPL T20 Blast 2026 squad." /> : null}
+                {playersSorted.length === 0 && !blastSeasonsQ.isLoading && !playersQ.isLoading && !blastSeasonsQ.isError && !playersQ.isError ? (
+                  <p className="muted">{blast2026Season ? 'No players registered for the NPL T20 Blast 2026 season yet.' : 'The NPL T20 Blast 2026 squad has not been set up yet.'}</p>
+                ) : null}
+                {playersSorted.length > 0 ? (
                   <div className="home-grid home-grid--players">
                     {playersSorted.map((player) => (
                       <PlayerCard
@@ -1195,7 +1203,7 @@ const canGoNextResults = resultsPageIndex < teamResultsPageCount - 1
                       />
                     ))}
                   </div>
-                )}
+                ) : null}
                 </section>
               ) : null}
 

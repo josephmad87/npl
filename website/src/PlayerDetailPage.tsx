@@ -28,6 +28,7 @@ type PlayerDetail = {
   slug: string
   profile_photo_url: string | null
   team_id: number
+  blast_2026_team_id: number | null
   category: string
   date_of_birth: string | null
   nationality: string | null
@@ -198,6 +199,7 @@ export default function PlayerDetailPage() {
   })
 
   const team = data ? teamsMap[data.team_id] : null
+  const blastTeam = data?.blast_2026_team_id ? teamsMap[data.blast_2026_team_id] : null
   const appearances = useMemo(
     () => appearancesQ.data ?? [],
     [appearancesQ.data],
@@ -444,7 +446,7 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                 </p>
                 <FollowButton kind="player" entityId={data.id} name={data.full_name} />
                 <div className="player-public-row">
-                  <span className="player-public-row__label">Team</span>
+                  <span className="player-public-row__label">Home club</span>
                   <span className="player-public-row__value">
                     {team ? (
                       <Link
@@ -466,6 +468,16 @@ const recentFormBadges = useMemo<PlayerRecentFormBadge[]>(
                     )}
                   </span>
                 </div>
+                {blastTeam ? (
+                  <div className="player-public-row">
+                    <span className="player-public-row__label">NPL T20 Blast 2026 club</span>
+                    <span className="player-public-row__value">
+                      <Link to="/teams/$slug" params={{ slug: blastTeam.slug }} className="player-public-team-link">
+                        <span>{blastTeam.name}</span>
+                      </Link>
+                    </span>
+                  </div>
+                ) : null}
                 <div className="player-public-row">
                   <span className="player-public-row__label">Category</span>
                   <span className="player-public-row__value">

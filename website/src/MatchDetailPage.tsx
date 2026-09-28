@@ -21,7 +21,7 @@ import {
   matchWinnerSide,
 } from './lib/match-result'
 import { formatExtrasBreakdown } from './lib/match-extras'
-import { fetchAllPaginatedList, fetchJson, resolveMediaUrl } from './lib/publicApi'
+import { fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { matchSeoPath } from './lib/matchUrls'
 import { supporterFetch, useSupporterSession } from './lib/supporterApi'
 import { managedSection, useSitePageContent } from './lib/siteContent'
@@ -95,7 +95,7 @@ type MatchDetail = {
   } | null
 }
 
-type PublicPlayerRow = { id: number; full_name: string; slug?: string | null }
+type PublicPlayerRow = { id: number; full_name: string; team_id: number; slug?: string | null }
 
 type FanPlayerVoteChoice = {
   player_id: number
@@ -606,61 +606,46 @@ export default function MatchDetailPage() {
   const homeName = home?.name ?? `Team ${data?.home_team_id ?? ''}`
   const awayName = away?.name ?? `Team ${data?.away_team_id ?? ''}`
 
-  const homePlayersQ = useQuery({
-    queryKey: ['match-players', 'home', data?.home_team_id],
-    queryFn: async () =>
-      fetchAllPaginatedList<PublicPlayerRow>((page) =>
-        `/public/players?page=${page}&page_size=100&team_id=${
-          data?.home_team_id ?? -1
-        }&include_inactive=true`,
-      ),
-    enabled: Boolean(data?.home_team_id),
+  const matchPlayersQ = useQuery({
+    queryKey: ['match-players', matchId],
+    queryFn: () => fetchJson<PublicPlayerRow[]>(`/public/matches/${matchId}/eligible-players`),
+    enabled: Boolean(matchId),
     retry: 1,
   })
-
-  const awayPlayersQ = useQuery({
-    queryKey: ['match-players', 'away', data?.away_team_id],
-    queryFn: async () =>
-      fetchAllPaginatedList<PublicPlayerRow>((page) =>
-        `/public/players?page=${page}&page_size=100&team_id=${
-          data?.away_team_id ?? -1
-        }&include_inactive=true`,
-      ),
-    enabled: Boolean(data?.away_team_id),
-    retry: 1,
-  })
+  const homePlayers = (matchPlayersQ.data ?? []).filter((player) => player.team_id === data?.home_team_id)
+  const awayPlayers = (matchPlayersQ.data ?? []).filter((player) => player.team_id === data?.away_team_id)
 
   const playerById = useMemo(() => {
     const m = new Map<number, string>()
 
-    for (const p of homePlayersQ.data ?? []) {
+    for (const p of homePlayers) {
       m.set(p.id, p.full_name)
     }
 
-    for (const p of awayPlayersQ.data ?? []) {
+    for (const p of awayPlayers) {
       m.set(p.id, p.full_name)
     }
 
     return m
-  }, [homePlayersQ.data, awayPlayersQ.data])
+  }, [homePlayers, awayPlayers])
 
   const playerHrefById = useMemo(() => {
     const m = new Map<number, string>()
 
-    for (const p of homePlayersQ.data ?? []) {
+    for (const p of homePlayers) {
       if (p.slug) {
         m.set(p.id, '/players/' + p.slug)
       }
     }
 
-    for (const p of awayPlayersQ.data ?? []) {
+    for (const p of awayPlayers) {
       if (p.slug) {
         m.set(p.id, '/players/' + p.slug)
       }
     }
 
     return m
-  }, [homePlayersQ.data, awayPlayersQ.data])
+  }, [homePlayers, awayPlayers])
 
   const playerStats = data?.player_stats ?? NO_PLAYER_STATS
   const battingFirstTeamId = data?.result?.batting_first_team_id ?? null
@@ -808,7 +793,7 @@ export default function MatchDetailPage() {
 
   const showResultBlock =
     data != null && (data.result != null || playerStats.length > 0)
-  const playersLoading = homePlayersQ.isLoading || awayPlayersQ.isLoading
+  const playersLoading = matchPlayersQ.isLoading
 
   const canShowFanPlayerVote =
     data?.status === 'completed' && data.result != null && playerStats.length > 0
