@@ -1011,17 +1011,8 @@ function LiveScoringPage() {
   })
 
   const playersQ = useQuery({
-    queryKey: ['public', 'players', 'match-scoring', match?.home_team_id, match?.away_team_id],
-    queryFn: async () => {
-      if (!match) return []
-      const homePlayers = await publicListAll<PlayerDto>(
-        `/public/players?team_id=${match.home_team_id}&include_inactive=true`,
-      )
-      const awayPlayers = await publicListAll<PlayerDto>(
-        `/public/players?team_id=${match.away_team_id}&include_inactive=true`,
-      )
-      return [...homePlayers, ...awayPlayers]
-    },
+    queryKey: ['public', 'players', 'match-scoring', mid],
+    queryFn: () => adminGet<PlayerDto[]>(`/public/matches/${mid}/eligible-players`),
     enabled: Boolean(match),
     retry: 1,
   })

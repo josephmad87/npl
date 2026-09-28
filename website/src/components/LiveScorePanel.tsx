@@ -1228,17 +1228,7 @@ export function LiveScorePanel({
 
   const playersQ = useQuery({
     queryKey: ['public-live-score-players', matchId, homeTeamId, awayTeamId],
-    queryFn: async () => {
-      const [homePlayers, awayPlayers] = await Promise.all([
-        fetchAllPaginatedList<PublicPlayer>(
-          (page) => `/public/players?team_id=${homeTeamId}&include_inactive=true&page=${page}&page_size=100`,
-        ),
-        fetchAllPaginatedList<PublicPlayer>(
-          (page) => `/public/players?team_id=${awayTeamId}&include_inactive=true&page=${page}&page_size=100`,
-        ),
-      ])
-      return [...homePlayers, ...awayPlayers]
-    },
+    queryFn: () => fetchJson<PublicPlayer[]>(`/public/matches/${matchId}/eligible-players`),
     enabled: Number.isFinite(matchId),
     retry: 1,
   })

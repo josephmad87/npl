@@ -3,7 +3,7 @@ from app.models.contact_message import ContactMessage
 from app.models.article import Article
 from app.models.audit import AuditLog
 from app.models.gallery import GalleryItem
-from app.models.league import League, Season, SeasonTeam
+from app.models.league import League, Season, SeasonPlayer, SeasonTeam
 from app.models.match import (
     DisciplineCase,
     DisciplineSanction,
@@ -65,6 +65,7 @@ __all__ = [
     "SitePageContent",
     "SeoRedirect",
     "Season",
+    "SeasonPlayer",
     "Sponsor",
     "SeasonTeam",
     "Team",

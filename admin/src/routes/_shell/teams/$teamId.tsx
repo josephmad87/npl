@@ -1,4 +1,4 @@
-import { useQueries, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import {
   CalendarPlus,
@@ -10,7 +10,7 @@ import {
   Archive,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type {
   LeagueDto,
   MatchDto,
@@ -22,7 +22,7 @@ import logoFallbackSrc from '@/assets/logo.png'
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { BackNavLink } from '@/components/BackNavLink'
 import { DetailFields } from '@/components/DetailFields'
-import { adminDelete, adminGet, adminListAll, adminPatch, adminPost } from '@/lib/admin-client'
+import { adminDelete, adminGet, adminListAll, adminPatch, adminPost, adminPut } from '@/lib/admin-client'
 import { BadgeImage } from '@/components/BadgeImage'
 import { InlineEditForm } from '@/components/InlineEditForm'
 import { MediaUrlField } from '@/components/MediaUrlField'
@@ -44,6 +44,133 @@ export const Route = createFileRoute('/_shell/teams/$teamId')({
 const STATUSES = ['active', 'inactive'] as const
 type TeamDetailTab = 'profile' | 'rosters' | 'fixtures' | 'completed' | 'players'
 const TEAM_TAB_ROWS = 10
+
+type SeasonPlayerRoster = {
+  season_id: number
+  team_id: number
+  registered_player_ids: number[]
+  standby_player_ids: number[]
+  registered_players: PlayerDto[]
+  standby_players: PlayerDto[]
+}
+type SeasonPlayerRole = '' | 'registered' | 'standby'
+
+function SeasonPlayerEditor({ season, teamId, players, teams }: {
+  season: SeasonDto
+  teamId: number
+  players: PlayerDto[]
+  teams: TeamDto[]
+}) {
+  const queryClient = useQueryClient()
+  const [roles, setRoles] = useState<Record<number, SeasonPlayerRole>>({})
+  const [knownPlayers, setKnownPlayers] = useState<Record<number, PlayerDto>>({})
+  const [search, setSearch] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const rosterQ = useQuery({
+    queryKey: ['admin', 'season-player-roster', season.id, teamId],
+    queryFn: () => adminGet<SeasonPlayerRoster>(`/admin/seasons/${season.id}/teams/${teamId}/players`),
+  })
+  const searchQ = useQuery({
+    queryKey: ['admin', 'season-player-search', search.trim()],
+    queryFn: () => adminListAll<PlayerDto>(`/admin/players?q=${encodeURIComponent(search.trim())}`, 100, 10),
+    enabled: search.trim().length >= 2,
+  })
+  useEffect(() => {
+    if (!rosterQ.data) return
+    const next: Record<number, SeasonPlayerRole> = {}
+    for (const id of rosterQ.data.registered_player_ids) next[id] = 'registered'
+    for (const id of rosterQ.data.standby_player_ids) next[id] = 'standby'
+    setRoles(next)
+    setKnownPlayers((current) => ({
+      ...current,
+      ...Object.fromEntries([...rosterQ.data.registered_players, ...rosterQ.data.standby_players].map((player) => [player.id, player])),
+    }))
+  }, [rosterQ.data])
+  useEffect(() => {
+    if (!searchQ.data) return
+    setKnownPlayers((current) => ({
+      ...current,
+      ...Object.fromEntries(searchQ.data.map((player) => [player.id, player])),
+    }))
+  }, [searchQ.data])
+  const registeredIds = Object.entries(roles).filter(([, role]) => role === 'registered').map(([id]) => Number(id))
+  const standbyIds = Object.entries(roles).filter(([, role]) => role === 'standby').map(([id]) => Number(id))
+  const candidates = Array.from(new Map<number, PlayerDto>(
+    [...players, ...Object.values(knownPlayers)].map((player) => [player.id, player]),
+  ).values())
+  const displayedPlayers = candidates
+    .filter((player) => Boolean(roles[player.id]) || (search.trim().length >= 2
+      ? (searchQ.data ?? []).some((found) => found.id === player.id)
+      : player.team_id === teamId))
+    .sort((a, b) => (roles[b.id] ? 1 : 0) - (roles[a.id] ? 1 : 0)
+      || a.full_name.localeCompare(b.full_name))
+  const teamById = new Map(teams.map((team) => [team.id, team.name]))
+
+  const save = async () => {
+    if (registeredIds.length > 15 || standbyIds.length > 5) {
+      setError('Choose up to 15 registered players and 5 standby players.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await adminPut<SeasonPlayerRoster>(`/admin/seasons/${season.id}/teams/${teamId}/players`, {
+        registered_player_ids: registeredIds,
+        standby_player_ids: standbyIds,
+      })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'season-player-roster', season.id, teamId] })
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not save player roster')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="team-hub-section" aria-label={`${season.name} player roster`}>
+      <h3 className="team-hub-section__title">{season.name} player roster</h3>
+      <p className="muted">Search players from any club and assign them to this season roster. Their original club stays unchanged. Choose up to 15 registered players and 5 standby players; only registered players appear on the public club squad. Selected players must be active.</p>
+      <p><strong>{registeredIds.length}/15 registered · {standbyIds.length}/5 standby</strong></p>
+      {rosterQ.isLoading ? <p className="muted">Loading roster…</p> : null}
+      {rosterQ.isError ? <p className="login-error">{rosterQ.error.message}</p> : null}
+      {error ? <p className="login-error">{error}</p> : null}
+      {rosterQ.data ? (
+        <>
+          <label className="team-hub-add-roster__field">
+            <span>Search all players</span>
+            <input className="inline-edit__control" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Enter at least 2 letters" />
+          </label>
+          {searchQ.isFetching ? <p className="muted">Searching players…</p> : null}
+          {searchQ.isError ? <p className="login-error">Could not search players.</p> : null}
+          {search.trim().length >= 2 && !searchQ.isFetching && searchQ.data?.length === 0 ? <p className="muted">No matching players found.</p> : null}
+          <div className="table-wrap"><div className="table-scroll"><table className="data-table">
+            <thead><tr><th>Player</th><th>Current club</th><th>Season role</th></tr></thead>
+            <tbody>{displayedPlayers.map((player) => (
+              <tr key={player.id}>
+                <td>{player.full_name}{player.status !== 'active' ? ` (${player.status})` : ''}</td>
+                <td>{teamById.get(player.team_id) ?? `Club #${player.team_id}`}</td>
+                <td><select
+                  className="inline-edit__control"
+                  aria-label={`${player.full_name} season role`}
+                  value={roles[player.id] ?? ''}
+                  onChange={(event) => setRoles((current) => ({ ...current, [player.id]: event.target.value as SeasonPlayerRole }))}
+                >
+                  <option value="">Not taking part</option>
+                  <option value="registered" disabled={player.status !== 'active'}>Registered</option>
+                  <option value="standby" disabled={player.status !== 'active'}>Standby</option>
+                </select></td>
+              </tr>
+            ))}</tbody>
+          </table></div></div>
+          <button type="button" className="btn-ghost" disabled={saving || registeredIds.length > 15 || standbyIds.length > 5} onClick={() => void save()}>
+            {saving ? 'Saving…' : 'Save player roster'}
+          </button>
+        </>
+      ) : null}
+    </section>
+  )
+}
 
 function parseLines(value: string): string[] | null {
   const rows = value
@@ -73,6 +200,7 @@ function TeamDetailPage() {
   const queryClient = useQueryClient()
   const [pickLeagueId, setPickLeagueId] = useState<number | ''>('')
   const [pickSeasonId, setPickSeasonId] = useState<number | ''>('')
+  const [playerRosterSeasonId, setPlayerRosterSeasonId] = useState<number | ''>('')
   const [activeTab, setActiveTab] = useState<TeamDetailTab>('profile')
   const [rosterError, setRosterError] = useState<string | null>(null)
   const [rosterBusy, setRosterBusy] = useState(false)
@@ -146,6 +274,11 @@ function TeamDetailPage() {
         return a.season.name.localeCompare(b.season.name)
       })
   }, [seasonsQ.data, tid, leagueById])
+  const defaultBlastSeason = seasonsWithRoster.find(({ season, league }) =>
+    league?.slug === 'npl-t20-blast' && (/(?:^|\D)2026(?:\D|$)/.test(`${season.name} ${season.slug}`) || season.start_date?.startsWith('2026')),
+  )?.season
+  const selectedPlayerSeason = seasonsWithRoster.find(({ season }) => season.id === playerRosterSeasonId)?.season
+    ?? defaultBlastSeason
 
   const seasonsAvailableToJoin = useMemo(() => {
     if (!Number.isFinite(tid)) return []
@@ -1199,6 +1332,27 @@ function TeamDetailPage() {
                 </button>
               </div>
             </div>
+            {seasonsWithRoster.length > 0 ? (
+              <div className="team-hub-add-roster">
+                <h3 className="team-hub-add-roster__title">Assign season players</h3>
+                <label className="team-hub-add-roster__field">
+                  <span>Season</span>
+                  <select
+                    className="inline-edit__control"
+                    value={selectedPlayerSeason?.id ?? ''}
+                    onChange={(event) => setPlayerRosterSeasonId(event.target.value ? Number(event.target.value) : '')}
+                  >
+                    <option value="">— Select season —</option>
+                    {seasonsWithRoster.map(({ season, league }) => (
+                      <option key={season.id} value={season.id}>{league?.name ?? 'League'} · {season.name}</option>
+                    ))}
+                  </select>
+                </label>
+                {selectedPlayerSeason ? (
+                  <SeasonPlayerEditor key={selectedPlayerSeason.id} season={selectedPlayerSeason} teamId={tid} players={playersSorted} teams={teamsListQ.data ?? []} />
+                ) : null}
+              </div>
+            ) : null}
             </section>
           ) : null}
 
