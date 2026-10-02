@@ -405,6 +405,7 @@ export type TokenResponse = {
 }
 
 export type LoginResponse =
+  | TokenResponse
   | { status: 'mfa_required'; challenge_token: string }
   | { status: 'mfa_enrollment_required'; challenge_token: string }
 

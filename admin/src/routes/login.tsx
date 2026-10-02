@@ -94,6 +94,10 @@ function LoginPage() {
         method: 'POST',
         body: JSON.stringify({ email: email.trim(), password }),
       })
+      if ('access_token' in result) {
+        await completeSignIn(result)
+        return
+      }
       setChallengeToken(result.challenge_token)
       setPassword('')
       if (result.status === 'mfa_required') {
