@@ -36,6 +36,12 @@ async def security_headers(request: Request, call_next):
             prefix = settings.api_v1_prefix
             if path == f"{prefix}/auth/login":
                 check_rate_limit(request, scope="auth-login", limit=20, window_seconds=15 * 60)
+            elif path in {
+                f"{prefix}/auth/mfa/enroll",
+                f"{prefix}/auth/mfa/confirm-enrollment",
+                f"{prefix}/auth/mfa/verify",
+            }:
+                check_rate_limit(request, scope="auth-mfa", limit=20, window_seconds=15 * 60)
             elif path == f"{prefix}/auth/refresh":
                 check_rate_limit(request, scope="auth-refresh", limit=120, window_seconds=15 * 60)
             elif path == f"{prefix}/public/contact":
