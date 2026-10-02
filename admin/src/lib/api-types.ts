@@ -404,12 +404,29 @@ export type TokenResponse = {
   token_type: string
 }
 
+export type LoginResponse =
+  | TokenResponse
+  | { status: 'mfa_required'; challenge_token: string }
+  | { status: 'mfa_enrollment_required'; challenge_token: string }
+
+export type MfaEnrollmentOut = {
+  secret: string
+  otpauth_uri: string
+  qr_data_uri: string
+}
+
+export type MfaEnrollmentConfirmOut = {
+  tokens: TokenResponse
+  recovery_codes: string[]
+}
+
 export type UserMe = {
   id: number
   email: string
   full_name: string | null
   role: string
   is_active: boolean
+  mfa_enabled: boolean
   created_at: string
 }
 
