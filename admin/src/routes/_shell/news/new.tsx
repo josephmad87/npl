@@ -35,6 +35,7 @@ function NewArticlePage() {
         body: values.body,
         featured_image_url: values.featured_image_url,
         body_image_url: values.body_image_url,
+        body_image_caption: values.body_image_caption,
         author_name: values.author_name,
         status: values.status,
         category: values.category,

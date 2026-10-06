@@ -75,6 +75,7 @@ function ArticleDetailPage() {
         body: values.body,
         featured_image_url: values.featured_image_url,
         body_image_url: values.body_image_url,
+        body_image_caption: values.body_image_caption,
         author_name: values.author_name,
         status: values.status,
         category: values.category,
@@ -167,6 +168,9 @@ function ArticleDetailPage() {
                   alt=""
                   onError={() => setBodyImageFailedFor(bodyImgSrc)}
                 />
+                {article.body_image_caption ? (
+                  <figcaption>{article.body_image_caption}</figcaption>
+                ) : null}
               </figure>
             ) : null}
             {safeBody ? (
