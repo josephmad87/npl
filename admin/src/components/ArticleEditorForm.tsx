@@ -18,6 +18,7 @@ export type ArticleEditorValues = {
   body: string | null
   featured_image_url: string | null
   body_image_url: string | null
+  body_image_caption: string | null
   author_name: string | null
   status: (typeof STATUSES)[number]
   category: CompetitionCategoryValue
@@ -53,6 +54,7 @@ function emptyArticleValues(): ArticleEditorValues {
     body: null,
     featured_image_url: null,
     body_image_url: null,
+    body_image_caption: null,
     author_name: null,
     status: 'draft',
     category: 'mens',
@@ -70,6 +72,7 @@ function fromArticle(a: ArticleDto): ArticleEditorValues {
     body: a.body,
     featured_image_url: a.featured_image_url,
     body_image_url: a.body_image_url ?? null,
+    body_image_caption: a.body_image_caption ?? null,
     author_name: a.author_name,
     status: STATUSES.find((s) => s === a.status) ?? 'draft',
     category: normalizeCompetitionCategory(a.category),
@@ -114,6 +117,9 @@ export function ArticleEditorForm({
   const [bodyImageUrl, setBodyImageUrl] = useState(
     initial.body_image_url ?? '',
   )
+  const [bodyImageCaption, setBodyImageCaption] = useState(
+    initial.body_image_caption ?? '',
+  )
   const [authorName, setAuthorName] = useState(initial.author_name ?? '')
   const [category, setCategory] = useState<CompetitionCategoryValue>(initial.category)
   const [status, setStatus] = useState<(typeof STATUSES)[number]>(initial.status)
@@ -146,6 +152,7 @@ export function ArticleEditorForm({
         bodyHtml.trim() && bodyHtml.trim() !== '<p></p>' ? bodyHtml : null,
       featured_image_url: featuredImageUrl.trim() || null,
       body_image_url: bodyImageUrl.trim() || null,
+      body_image_caption: bodyImageCaption.trim() || null,
       author_name: authorName.trim() || null,
       status,
       category: normalizeCompetitionCategory(category),
@@ -305,6 +312,19 @@ export function ArticleEditorForm({
             accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
             value={bodyImageUrl}
             onChange={(next) => setBodyImageUrl(next ?? '')}
+            disabled={isSubmitting}
+          />
+          <label className="article-editor__label" htmlFor="article-body-image-caption">
+            Body image caption
+          </label>
+          <textarea
+            id="article-body-image-caption"
+            className="inline-edit__control article-editor__textarea"
+            value={bodyImageCaption}
+            onChange={(e) => setBodyImageCaption(e.target.value)}
+            rows={2}
+            maxLength={512}
+            placeholder="Optional caption or photo credit…"
             disabled={isSubmitting}
           />
         </div>

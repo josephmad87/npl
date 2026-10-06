@@ -51,6 +51,7 @@ def test_rich_html_is_sanitised_on_input_and_legacy_output() -> None:
             "body": hostile,
             "featured_image_url": None,
             "body_image_url": None,
+            "body_image_caption": None,
             "author_name": None,
             "status": "published",
             "category": "mens",

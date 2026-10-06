@@ -21,6 +21,7 @@ type ApiNewsArticle = {
   body: string | null
   featured_image_url: string | null
   body_image_url: string | null
+  body_image_caption: string | null
   author_name: string | null
   published_at: string | null
   created_at: string | null
@@ -244,6 +245,9 @@ export default function NewsArticlePage() {
                       sizes="(max-width: 900px) 100vw, 70vw"
                       fallbackWidth={1024}
                     />
+                    {article.body_image_caption ? (
+                      <figcaption>{article.body_image_caption}</figcaption>
+                    ) : null}
                   </figure>
                 ) : null}
 

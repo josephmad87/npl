@@ -20,6 +20,7 @@ class ArticleBase(BaseModel):
     body: str | None = None
     featured_image_url: str | None = None
     body_image_url: str | None = None
+    body_image_caption: str | None = Field(default=None, max_length=512)
     author_name: str | None = None
     status: str = "draft"
     category: str | None = None
@@ -51,6 +52,7 @@ class ArticleUpdate(BaseModel):
     body: str | None = None
     featured_image_url: str | None = None
     body_image_url: str | None = None
+    body_image_caption: str | None = Field(default=None, max_length=512)
     author_name: str | None = None
     status: str | None = None
     category: CompetitionArticleCategory | None = None
@@ -74,6 +76,7 @@ class ArticleOut(ORMModel):
     body: str | None
     featured_image_url: str | None
     body_image_url: str | None
+    body_image_caption: str | None
     author_name: str | None
     status: str
     category: str | None

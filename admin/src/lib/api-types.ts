@@ -231,6 +231,7 @@ export type ArticleDto = {
   body: string | null
   featured_image_url: string | null
   body_image_url?: string | null
+  body_image_caption?: string | null
   author_name: string | null
   status: string
   category: string | null

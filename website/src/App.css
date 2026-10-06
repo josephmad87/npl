@@ -733,7 +733,7 @@
 
 .article-hero {
   position: relative;
-  height: clamp(380px, 60vw, 640px);
+  height: clamp(18rem, 42vw, 27.5rem);
   overflow: hidden;
   background: #fff;
   margin-left: calc(-1 * var(--page-content-pad));
@@ -814,6 +814,13 @@
   height: auto;
   border-radius: 0.65rem;
   object-fit: cover;
+}
+
+.article-body-image figcaption {
+  margin-top: 0.5rem;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
 }
 
 .article-page__content {
@@ -4969,7 +4976,7 @@ table.player-public-table--match-log {
   }
 
   .article-hero img {
-    height: clamp(200px, 52vw, 300px);
+    height: clamp(11rem, 46vw, 14rem);
     flex-shrink: 0;
   }
 
