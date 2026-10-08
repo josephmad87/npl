@@ -4801,6 +4801,7 @@ def admin_save_match_day_squad(
     )
 
     allowed_team_ids = {match.home_team_id, match.away_team_id}
+    seen_team_ids: set[int] = set()
     seen_players: set[int] = set()
     normalized: list[tuple[int, int, str, int, bool, bool]] = []
 
@@ -4810,9 +4811,17 @@ def admin_save_match_day_squad(
                 status_code=400,
                 detail={"code": "validation", "message": "Squad team ids must belong to this match."},
             )
+        if team.team_id in seen_team_ids:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Each team can appear only once in a match day squad."},
+            )
+        seen_team_ids.add(team.team_id)
 
         playing_count = 0
         substitute_count = 0
+        captain_count = 0
+        wicketkeeper_count = 0
         for idx, item in enumerate(team.players):
             if item.player_id in seen_players:
                 raise HTTPException(
@@ -4837,6 +4846,15 @@ def admin_save_match_day_squad(
                     },
                 )
 
+            if item.is_captain or item.is_wicketkeeper:
+                if item.role != "playing_xi":
+                    raise HTTPException(
+                        status_code=400,
+                        detail={"code": "validation", "message": "Captain and wicketkeeper must be in the Playing XI."},
+                    )
+                captain_count += int(item.is_captain)
+                wicketkeeper_count += int(item.is_wicketkeeper)
+
             normalized.append(
                 (
                     team.team_id,
@@ -4857,6 +4875,11 @@ def admin_save_match_day_squad(
             raise HTTPException(
                 status_code=400,
                 detail={"code": "validation", "message": "Substitutes cannot contain more than 4 players."},
+            )
+        if captain_count > 1 or wicketkeeper_count > 1:
+            raise HTTPException(
+                status_code=400,
+                detail={"code": "validation", "message": "Choose at most one captain and one wicketkeeper per team."},
             )
 
     db.execute(delete(MatchDaySquadPlayer).where(MatchDaySquadPlayer.match_id == match_id))
