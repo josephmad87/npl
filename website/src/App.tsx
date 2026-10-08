@@ -597,7 +597,8 @@ function App() {
   } = useQuery({
     queryKey: ['homepage'],
     queryFn: () => fetchJson<HomepagePayload>('/public/homepage'),
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
     retry: 1,
   })
   const newsArticles = homepage?.news ?? EMPTY_NEWS
@@ -651,7 +652,6 @@ function App() {
 
   const homepageSponsors = sponsors.filter((sponsor) => sponsor.team_id == null)
 
-  const [activeSlideIndex, setActiveSlideIndex] = useState(0)
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
   const [galleryWindowIndex, setGalleryWindowIndex] = useState(0)
   const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
@@ -659,21 +659,8 @@ function App() {
   const [fixtureCategory, setFixtureCategory] =
     useState<HomeFixtureCategory>('all')
 
-  const heroSlides = useMemo(
-    () =>
-      [...newsArticles]
-        .sort((a, b) => {
-          const aTime = Date.parse(a.published_at ?? a.created_at ?? '')
-          const bTime = Date.parse(b.published_at ?? b.created_at ?? '')
-          return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime)
-        })
-        .slice(0, 5)
-        .map((article) => ({
-          ...article,
-          heroImage: resolveMediaUrl(article.featured_image_url),
-        })),
-    [newsArticles],
-  )
+  const latestHeroArticle = newsArticles[0]
+  const latestHeroImage = resolveMediaUrl(latestHeroArticle?.featured_image_url)
 
   const fixtureTabs: { id: HomeFixtureTab; label: string }[] = [
     { id: 'matchday', label: 'Matchday' },
@@ -905,16 +892,6 @@ const selectedSpotlightTeam = useMemo(() => {
     return () => globalThis.clearInterval(timer)
   }, [])
 
-  useEffect(() => {
-    if (heroSlides.length < 2) return
-
-    const timer = globalThis.setInterval(() => {
-      setActiveSlideIndex((current) => (current + 1) % heroSlides.length)
-    }, 5000)
-
-    return () => globalThis.clearInterval(timer)
-  }, [heroSlides.length])
-
 const galleryShowcaseItems = useMemo(() => {
   if (gallery.length <= 4) return gallery
 
@@ -933,10 +910,6 @@ useEffect(() => {
   return () => globalThis.clearInterval(timer)
 }, [gallery.length])
   
-  const currentSlideIndex =
-    heroSlides.length > 0 ? activeSlideIndex % heroSlides.length : 0
-  const activeHeroSlide = heroSlides[currentSlideIndex]
-  
   return (
     <>
       <SeoHead
@@ -945,7 +918,7 @@ useEffect(() => {
         canonicalPath="/"
       />
     <main className="container">
-      <section className="hero-carousel" aria-label="Latest news highlights">
+      <section className="hero-carousel" aria-label="Latest news story">
         {isNewsLoading ? (
           <article className="hero-slide hero-slide--loading is-active" aria-busy="true">
             <div className="hero-slide-overlay">
@@ -953,57 +926,38 @@ useEffect(() => {
               <h1>Loading latest news…</h1>
             </div>
           </article>
-        ) : activeHeroSlide ? (
-          <>
-            <article key={activeHeroSlide.id} className="hero-slide is-active">
-              {activeHeroSlide.heroImage ? (
-                <ResponsiveImage
-                  src={activeHeroSlide.heroImage}
-                  alt={activeHeroSlide.title}
-                  widths={[480, 768, 1024, 1280, 1600, 1920]}
-                  sizes="100vw"
-                  fallbackWidth={1600}
-                  priority
-                />
-              ) : null}
-
-              <div className="hero-slide-overlay">
-                <p className="hero-slide-eyebrow">{newsContent.heading}</p>
-                <h1>{activeHeroSlide.title}</h1>
-                <p>
-                  {activeHeroSlide.excerpt ??
-                    'Catch up on the latest match analysis and updates.'}
-                </p>
-
-                {activeHeroSlide.slug ? (
-                  <Link
-                    to="/news/$slug"
-                    params={{ slug: activeHeroSlide.slug }}
-                    className="hero-readmore-btn"
-                  >
-                    Read More
-                  </Link>
-                ) : null}
-              </div>
-            </article>
-
-            {heroSlides.length > 1 ? (
-              <div className="hero-carousel-dots" aria-hidden="true">
-                {heroSlides.map((slide, index) => (
-                  <button
-                    key={slide.id}
-                    type="button"
-                    className={`hero-carousel-dot${
-                      index === currentSlideIndex ? ' is-active' : ''
-                    }`}
-                    onClick={() => setActiveSlideIndex(index)}
-                  >
-                    <span className="sr-only">Show slide {index + 1}</span>
-                  </button>
-                ))}
-              </div>
+        ) : latestHeroArticle ? (
+          <article key={latestHeroArticle.id} className="hero-slide is-active">
+            {latestHeroImage ? (
+              <ResponsiveImage
+                src={latestHeroImage}
+                alt={latestHeroArticle.title}
+                widths={[480, 768, 1024, 1280, 1600, 1920]}
+                sizes="100vw"
+                fallbackWidth={1600}
+                priority
+              />
             ) : null}
-          </>
+
+            <div className="hero-slide-overlay">
+              <p className="hero-slide-eyebrow">{newsContent.heading}</p>
+              <h1>{latestHeroArticle.title}</h1>
+              <p>
+                {latestHeroArticle.excerpt ??
+                  'Catch up on the latest match analysis and updates.'}
+              </p>
+
+              {latestHeroArticle.slug ? (
+                <Link
+                  to="/news/$slug"
+                  params={{ slug: latestHeroArticle.slug }}
+                  className="hero-readmore-btn"
+                >
+                  Read More
+                </Link>
+              ) : null}
+            </div>
+          </article>
         ) : (
           <article className="hero-slide is-active">
             <div className="hero-slide-overlay">
