@@ -8,7 +8,7 @@ export type StandingRow = {
   won: number
   lost: number
   tied: number
-  /** No-result (abandoned) — 0 until season includes those fixtures in API */
+  /** Matches with no result, including abandoned fixtures. */
   nr: number
   battingBonusPoints: number
   chaseBonusPoints: number
@@ -516,7 +516,11 @@ export function computeSeasonStandings(
     const homeTotalRuns = homeBatting.runs + homeExtras
     const awayTotalRuns = awayBatting.runs + awayExtras
 
-    if (isT20Blast(m)) {
+    const definitiveResult = m.status === 'completed' && !noResultMatch && (
+      tiedMatch || winnerId === home || winnerId === away
+    )
+
+    if (isT20Blast(m) && definitiveResult) {
       if (homeTotalRuns >= 200) h.battingBonusPoints += 1
       if (awayTotalRuns >= 200) a.battingBonusPoints += 1
 
@@ -545,7 +549,9 @@ export function computeSeasonStandings(
       }
     }
 
-    if (m.result?.nrr_excluded === true) {
+    // A washed-out or otherwise undecided match can retain scorecard figures,
+    // but none of its runs or balls belong in either side's NRR totals.
+    if (!definitiveResult || m.result?.nrr_excluded === true) {
       continue
     }
 
