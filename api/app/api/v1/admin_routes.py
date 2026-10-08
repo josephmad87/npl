@@ -3645,6 +3645,11 @@ def _live_event_out(
 
 
 def _validate_live_ball_event(body: LiveBallEventIn) -> None:
+    if body.non_striker_player_id is not None and body.striker_player_id == body.non_striker_player_id:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "validation", "message": "Striker and non-striker must be different players."},
+        )
     extras_type = (body.extras_type or "").strip().lower() or None
     boundary_type = (body.boundary_type or "").strip().lower() or None
     wicket_type = (body.wicket_type or "").strip().lower() or None

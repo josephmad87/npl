@@ -482,6 +482,15 @@ def test_wicket_ball_does_not_require_a_replacement_batter() -> None:
     assert body.replacement_player_id is None
 
 
+def test_live_ball_rejects_same_striker_and_non_striker() -> None:
+    body = _wicket_ball(non_striker_player_id=10)
+
+    with pytest.raises(HTTPException) as error:
+        _validate_live_ball_event(body)
+
+    assert error.value.status_code == 400
+
+
 def test_live_ball_rejects_already_dismissed_replacement_batter() -> None:
     body = _wicket_ball(replacement_player_id=12)
 
