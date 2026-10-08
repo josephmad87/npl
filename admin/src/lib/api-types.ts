@@ -39,6 +39,7 @@ export type TeamDto = {
 
 export type PlayerDto = {
   id: number
+  season_roster_role?: 'registered' | 'standby' | null
   full_name: string
   slug: string
   profile_photo_url: string | null

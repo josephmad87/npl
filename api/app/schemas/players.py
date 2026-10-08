@@ -126,6 +126,7 @@ class SeasonMarkNonRosterInactiveIn(BaseModel):
 class PlayerOut(ORMModel):
     id: int
     blast_2026_team_id: int | None = None
+    season_roster_role: str | None = None
     full_name: str
     slug: str
     profile_photo_url: str | None
