@@ -42,6 +42,9 @@ def test_season_roster_shows_registered_players_and_keeps_other_players() -> Non
             ])
             players = [Player(full_name=f"Player {i}", slug=f"player-{i}", team_id=team.id, category="mens") for i in range(21)]
             outsider = Player(full_name="Outsider", slug="outsider", team_id=other.id, category="mens")
+            players[0].status = "inactive"
+            players[15].status = "inactive"
+            outsider.status = "inactive"
             db.add_all([*players, outsider])
             db.commit()
 
@@ -51,6 +54,8 @@ def test_season_roster_shows_registered_players_and_keeps_other_players() -> Non
             saved = admin_save_season_players(season.id, team.id, body, db, user)
             assert len(saved.registered_player_ids) == 15
             assert len(saved.standby_player_ids) == 5
+            assert db.get(Player, players[0].id).status == "active"
+            assert db.get(Player, players[15].id).status == "inactive"
             assert admin_get_season_players(season.id, team.id, db, user).standby_player_ids == standby
             assert {player.id for player in team_season_players("club", season.id, db)} == set(registered)
             assert len(db.scalars(select(Player)).all()) == 22
@@ -71,6 +76,7 @@ def test_season_roster_shows_registered_players_and_keeps_other_players() -> Non
             )
             admin_save_season_players(season.id, team.id, guest_roster, db, user)
             assert outsider.team_id == other.id
+            assert outsider.status == "active"
             assert outsider.id in {player.id for player in team_season_players("club", season.id, db)}
             assert get_player("outsider", db).blast_2026_team_id == team.id
             match = Match(season_id=season.id, category="mens", home_team_id=team.id, away_team_id=other.id)
