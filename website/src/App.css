@@ -11190,6 +11190,21 @@ table.league-standings-table .league-standings-table__form {
   font: inherit;
 }
 
+.supporter-form input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.supporter-form .form-error {
+  margin: -0.5rem 0 0;
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.supporter-form__check input[aria-invalid='true'] {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 2px;
+}
+
 .supporter-form__check {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

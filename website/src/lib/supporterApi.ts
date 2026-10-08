@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { getApiBaseUrl } from './publicApi'
+import { supporterApiMessage as apiMessage } from './supporterValidation'
 
 export type SupporterSession = {
   accessToken: string
@@ -47,15 +48,6 @@ export function useSupporterSession(): SupporterSession | null {
 export function setSupporterAnalyticsConsent(enabled: boolean) {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(ANALYTICS_KEY, enabled ? 'true' : 'false')
-}
-
-function apiMessage(payload: unknown, fallback: string): string {
-  if (payload && typeof payload === 'object') {
-    const detail = (payload as { detail?: unknown }).detail
-    if (detail && typeof detail === 'object' && 'message' in detail) return String(detail.message)
-    if (typeof detail === 'string') return detail
-  }
-  return fallback
 }
 
 class SupporterApiError extends Error {
