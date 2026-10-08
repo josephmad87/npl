@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import './App.css'
@@ -12,6 +12,7 @@ import { SponsorMarquee } from './components/SponsorMarquee'
 import { SeoHead } from './components/SeoHead'
 import type { ArticleLite, MatchLite, TeamLite } from './lib/hooks'
 import { formatCategoryLabel } from './lib/formatters'
+import { imageCdnSrcSet, imageCdnUrl } from './lib/imageCdn'
 import { matchSeoPath } from './lib/matchUrls'
 import { fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { managedSection, useSitePageContent } from './lib/siteContent'
@@ -148,6 +149,8 @@ type HomeLiveCardText = {
 }
 
 const SPOTLIGHT_ROTATION_MS = 15 * 60 * 1000
+const HERO_IMAGE_WIDTHS = [480, 768, 960, 1280, 1600] as const
+const HERO_IMAGE_QUALITY = 68
 const EMPTY_NEWS: ArticleLite[] = []
 const EMPTY_MATCHES: MatchLite[] = []
 const EMPTY_SPOTLIGHT_TEAMS: HomeSpotlightTeam[] = []
@@ -666,6 +669,7 @@ function App() {
   const homepageSponsors = sponsors.filter((sponsor) => sponsor.team_id == null)
 
   const [heroSelection, setHeroSelection] = useState({ storyIds: '', index: 0 })
+  const prefetchedHeroImages = useRef(new Map<number, HTMLImageElement>())
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
   const [galleryWindowIndex, setGalleryWindowIndex] = useState(0)
   const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
@@ -683,6 +687,25 @@ function App() {
     ? heroSelection.index % heroSlides.length
     : 0
   const activeHeroSlide = heroSlides[currentSlideIndex]
+
+  const prefetchNextHeroImage = () => {
+    if (heroSlides.length < 2 || document.visibilityState !== 'visible') return
+    const nextSlide = heroSlides[(currentSlideIndex + 1) % heroSlides.length]
+    if (!nextSlide.heroImage || prefetchedHeroImages.current.has(nextSlide.id)) return
+
+    const image = new Image()
+    image.decoding = 'async'
+    image.fetchPriority = 'low'
+    image.sizes = '100vw'
+    image.srcset = imageCdnSrcSet(
+      nextSlide.heroImage,
+      'webp',
+      HERO_IMAGE_WIDTHS,
+      HERO_IMAGE_QUALITY,
+    ) ?? ''
+    image.src = imageCdnUrl(nextSlide.heroImage, 1280, undefined, HERO_IMAGE_QUALITY)
+    prefetchedHeroImages.current.set(nextSlide.id, image)
+  }
 
   const fixtureTabs: { id: HomeFixtureTab; label: string }[] = [
     { id: 'matchday', label: 'Matchday' },
@@ -970,12 +993,13 @@ useEffect(() => {
                 <ResponsiveImage
                   src={activeHeroSlide.heroImage}
                   alt={activeHeroSlide.title}
-                  widths={[480, 768, 960, 1280, 1600]}
+                  widths={HERO_IMAGE_WIDTHS}
                   sizes="100vw"
-                  quality={68}
+                  quality={HERO_IMAGE_QUALITY}
                   fallbackWidth={1280}
                   formats={['webp']}
                   priority
+                  onLoad={prefetchNextHeroImage}
                 />
               ) : null}
 
