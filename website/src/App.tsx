@@ -652,6 +652,7 @@ function App() {
 
   const homepageSponsors = sponsors.filter((sponsor) => sponsor.team_id == null)
 
+  const [heroSelection, setHeroSelection] = useState({ storyIds: '', index: 0 })
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
   const [galleryWindowIndex, setGalleryWindowIndex] = useState(0)
   const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
@@ -659,8 +660,16 @@ function App() {
   const [fixtureCategory, setFixtureCategory] =
     useState<HomeFixtureCategory>('all')
 
-  const latestHeroArticle = newsArticles[0]
-  const latestHeroImage = resolveMediaUrl(latestHeroArticle?.featured_image_url)
+  // The homepage API returns published stories newest first.
+  const heroSlides = newsArticles.slice(0, 5).map((article) => ({
+    ...article,
+    heroImage: resolveMediaUrl(article.featured_image_url),
+  }))
+  const heroStoryIds = heroSlides.map((article) => article.id).join(',')
+  const currentSlideIndex = heroSlides.length > 0 && heroSelection.storyIds === heroStoryIds
+    ? heroSelection.index % heroSlides.length
+    : 0
+  const activeHeroSlide = heroSlides[currentSlideIndex]
 
   const fixtureTabs: { id: HomeFixtureTab; label: string }[] = [
     { id: 'matchday', label: 'Matchday' },
@@ -892,6 +901,21 @@ const selectedSpotlightTeam = useMemo(() => {
     return () => globalThis.clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    if (heroSlides.length < 2) return
+
+    const timer = globalThis.setInterval(() => {
+      setHeroSelection((current) => ({
+        storyIds: heroStoryIds,
+        index: current.storyIds === heroStoryIds
+          ? (current.index + 1) % heroSlides.length
+          : 1,
+      }))
+    }, 5000)
+
+    return () => globalThis.clearInterval(timer)
+  }, [heroStoryIds, heroSlides.length])
+
 const galleryShowcaseItems = useMemo(() => {
   if (gallery.length <= 4) return gallery
 
@@ -918,7 +942,7 @@ useEffect(() => {
         canonicalPath="/"
       />
     <main className="container">
-      <section className="hero-carousel" aria-label="Latest news story">
+      <section className="hero-carousel" aria-label="Latest news highlights">
         {isNewsLoading ? (
           <article className="hero-slide hero-slide--loading is-active" aria-busy="true">
             <div className="hero-slide-overlay">
@@ -926,38 +950,55 @@ useEffect(() => {
               <h1>Loading latest news…</h1>
             </div>
           </article>
-        ) : latestHeroArticle ? (
-          <article key={latestHeroArticle.id} className="hero-slide is-active">
-            {latestHeroImage ? (
-              <ResponsiveImage
-                src={latestHeroImage}
-                alt={latestHeroArticle.title}
-                widths={[480, 768, 1024, 1280, 1600, 1920]}
-                sizes="100vw"
-                fallbackWidth={1600}
-                priority
-              />
-            ) : null}
-
-            <div className="hero-slide-overlay">
-              <p className="hero-slide-eyebrow">{newsContent.heading}</p>
-              <h1>{latestHeroArticle.title}</h1>
-              <p>
-                {latestHeroArticle.excerpt ??
-                  'Catch up on the latest match analysis and updates.'}
-              </p>
-
-              {latestHeroArticle.slug ? (
-                <Link
-                  to="/news/$slug"
-                  params={{ slug: latestHeroArticle.slug }}
-                  className="hero-readmore-btn"
-                >
-                  Read More
-                </Link>
+        ) : activeHeroSlide ? (
+          <>
+            <article key={activeHeroSlide.id} className="hero-slide is-active">
+              {activeHeroSlide.heroImage ? (
+                <ResponsiveImage
+                  src={activeHeroSlide.heroImage}
+                  alt={activeHeroSlide.title}
+                  widths={[480, 768, 1024, 1280, 1600, 1920]}
+                  sizes="100vw"
+                  fallbackWidth={1600}
+                  priority
+                />
               ) : null}
-            </div>
-          </article>
+
+              <div className="hero-slide-overlay">
+                <p className="hero-slide-eyebrow">{newsContent.heading}</p>
+                <h1>{activeHeroSlide.title}</h1>
+                <p>
+                  {activeHeroSlide.excerpt ??
+                    'Catch up on the latest match analysis and updates.'}
+                </p>
+
+                {activeHeroSlide.slug ? (
+                  <Link
+                    to="/news/$slug"
+                    params={{ slug: activeHeroSlide.slug }}
+                    className="hero-readmore-btn"
+                  >
+                    Read More
+                  </Link>
+                ) : null}
+              </div>
+            </article>
+
+            {heroSlides.length > 1 ? (
+              <div className="hero-carousel-dots" role="group" aria-label="Choose news story">
+                {heroSlides.map((slide, index) => (
+                  <button
+                    key={slide.id}
+                    type="button"
+                    className={`hero-carousel-dot${index === currentSlideIndex ? ' is-active' : ''}`}
+                    aria-label={`Show story ${index + 1}: ${slide.title}`}
+                    aria-current={index === currentSlideIndex ? 'true' : undefined}
+                    onClick={() => setHeroSelection({ storyIds: heroStoryIds, index })}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </>
         ) : (
           <article className="hero-slide is-active">
             <div className="hero-slide-overlay">
