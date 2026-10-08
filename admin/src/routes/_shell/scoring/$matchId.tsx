@@ -3438,9 +3438,25 @@ function LiveScoringPage() {
         .live-scorer-short-run .inline-edit__field {
           margin: 0;
         }
-        .live-scorer-short-run .btn-ghost {
+        .live-scorer-short-run__record {
           min-height: 2.7rem;
+          padding: 0.45rem 0.9rem;
+          border: 1px solid var(--npl-brand-600);
+          border-radius: 999px;
+          background: var(--npl-brand-500);
+          color: #fff;
+          font-weight: 800;
           white-space: nowrap;
+        }
+        .live-scorer-short-run__record:hover:not(:disabled) {
+          background: var(--npl-brand-600);
+          color: #fff;
+        }
+        .live-scorer-short-run__record:disabled {
+          border-color: var(--npl-brand-300);
+          background: var(--npl-brand-200);
+          color: var(--npl-brand-900);
+          cursor: not-allowed;
         }
         .live-scorer-record-grid {
           display: grid;
@@ -4826,7 +4842,7 @@ function LiveScoringPage() {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
           .live-scorer-short-run__title,
-          .live-scorer-short-run .btn-ghost {
+          .live-scorer-short-run__record {
             grid-column: 1 / -1;
           }
         }
@@ -6292,7 +6308,7 @@ function LiveScoringPage() {
               </label>
               <button
                 type="button"
-                className="btn-ghost"
+                className="live-scorer-short-run__record"
                 onClick={recordShortRun}
                 disabled={ballMutation.isPending}
               >
