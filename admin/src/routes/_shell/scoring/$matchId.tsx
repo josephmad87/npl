@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { CloudUpload, ImagePlus, LockKeyhole, Pencil, RotateCcw, Save, Undo2, Wifi, WifiOff, X } from 'lucide-react'
+import { ChevronDown, CloudUpload, ImagePlus, LockKeyhole, Pencil, RotateCcw, Save, Undo2, Wifi, WifiOff, X } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { parseTossSummary } from '@npl/ui/toss-summary'
 import type {
@@ -1822,20 +1822,33 @@ function LiveScoringPage() {
         payload.body,
         { headers: scoringWriteHeaders() },
       ),
-    onSuccess: async (created, payload) => {
+    onSuccess: (created, payload) => {
       setActionError(null)
       applyAcceptedBallUi(created, payload, true)
       queryClient.setQueryData<LiveScoreStateDto>(
         ['admin', 'matches', mid, 'live'],
-        (current) =>
-          current
-            ? {
-                ...current,
-                scoring_version: created.score_version ?? current.scoring_version,
-              }
-            : current,
+        (current) => {
+          if (!current) return current
+          const updated = appendOptimisticBall(current, payload, 0)
+          if (updated === current) {
+            return { ...current, scoring_version: created.score_version ?? current.scoring_version }
+          }
+          return {
+            ...updated,
+            events: [...updated.events.slice(0, -1), created],
+            summaries: updated.summaries.map((summary) =>
+              summary.innings === created.innings ? { ...summary, last_event: created } : summary,
+            ),
+            scoring_version: created.score_version ?? current.scoring_version,
+          }
+        },
       )
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
+      // The confirmed ball is already in the local score. The regular refresh
+      // reconciles with the server without keeping the score button busy.
+      void queryClient.invalidateQueries({
+        queryKey: ['admin', 'matches', mid, 'live'],
+        refetchType: 'none',
+      })
     },
     onError: (error: Error, payload) => {
       if (error instanceof ApiError && error.status < 500) {
@@ -2410,6 +2423,11 @@ function LiveScoringPage() {
       setActionError('Choose teams, striker and bowler first.')
       return
     }
+    if (nonStrikerPlayerId && strikerPlayerId === nonStrikerPlayerId) {
+      setActionError('Choose two different batters before recording a ball.')
+      setPlayerControlsOpen(true)
+      return
+    }
 
     const isLegalDelivery = input.isLegalDelivery ?? true
     const overCompleteOverride = input.overCompleteOverride ?? (
@@ -2874,7 +2892,7 @@ function LiveScoringPage() {
   )
   const scoringInningsEvents = allLiveEvents.filter((event) => event.innings === innings)
   const scoringScorecard = liveInningsScorecard(scoringInningsEvents)
-  const activeScoringBatters = [strikerPlayerId, nonStrikerPlayerId]
+  const activeScoringBatters = [...new Set([strikerPlayerId, nonStrikerPlayerId])]
     .map((playerId): LiveBatterScorecardRow | null => {
       if (!playerId) return null
       return scoringScorecard.batters.find((row) => row.playerId === playerId) ?? {
@@ -3283,6 +3301,29 @@ function LiveScoringPage() {
           border: 1px solid var(--npl-neutral-400);
           border-radius: 0.75rem;
           background: var(--npl-neutral-50);
+        }
+        .live-scorer-over-controls__toggle {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          list-style: none;
+          color: var(--npl-neutral-900);
+          cursor: pointer;
+        }
+        .live-scorer-over-controls__toggle::-webkit-details-marker {
+          display: none;
+        }
+        .live-scorer-over-controls__toggle svg {
+          flex: 0 0 auto;
+          transition: transform 160ms ease;
+        }
+        .live-scorer-over-controls[open] .live-scorer-over-controls__toggle svg {
+          transform: rotate(180deg);
+        }
+        .live-scorer-over-controls__body {
+          display: grid;
+          gap: 0.75rem;
         }
         .live-scorer-over-controls__head {
           display: grid;
@@ -5931,17 +5972,21 @@ function LiveScoringPage() {
             </div>
           </div>
 
-          {overControlsOpen ? (
-            <fieldset
+          <details
               id="official-over-controls"
               className="live-scorer-over-controls"
+              open={overControlsOpen}
+              onToggle={(event) => setOverControlsOpen(event.currentTarget.open)}
             >
-              <legend className="sr-only">Umpire over count</legend>
-              <div className="live-scorer-over-controls__head">
+              <summary className="live-scorer-over-controls__toggle">
                 <strong>Umpire over count</strong>
+                <ChevronDown size={20} aria-hidden="true" />
+              </summary>
+              <div className="live-scorer-over-controls__body">
+              <div className="live-scorer-over-controls__head">
                 <span>Choose how the next legal delivery affects this over. The selection resets after the ball is recorded.</span>
               </div>
-              <div className="live-scorer-over-controls__choices">
+              <div className="live-scorer-over-controls__choices" role="radiogroup" aria-label="Umpire over count">
                 <label className="live-scorer-final-confirm">
                   <input
                     type="radio"
@@ -6008,8 +6053,8 @@ function LiveScoringPage() {
                 />
                 <span>Replacement bowler is completing this over</span>
               </label>
-            </fieldset>
-          ) : null}
+              </div>
+            </details>
 
           <div className="live-scorer-record-grid">
             <div>
