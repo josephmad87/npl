@@ -788,7 +788,7 @@ function liveInningsScorecard(events: LiveBallEventDto[]) {
       dismissal: 'not out',
     }
     batter.runs += event.runs_batter
-    if (event.is_legal_delivery && event.extras_type !== 'wide') batter.balls += 1
+    if (countsAsBatterBall(event)) batter.balls += 1
     if (event.boundary_type === 'four' || event.runs_batter === 4) batter.fours += 1
     if (event.boundary_type === 'six' || event.runs_batter === 6) batter.sixes += 1
     batterRows.set(batter.playerId, batter)
