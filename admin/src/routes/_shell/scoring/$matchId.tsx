@@ -1078,7 +1078,7 @@ function LiveScoringPage() {
   const [umpireContinueOverAfterNextBall, setUmpireContinueOverAfterNextBall] = useState(false)
   const [umpireReplacementInOver, setUmpireReplacementInOver] = useState(false)
   const [overControlsOpen, setOverControlsOpen] = useState(true)
-  const [playerControlsOpen, setPlayerControlsOpen] = useState(false)
+  const [playerControlsOpen, setPlayerControlsOpen] = useState(true)
   const [finalReviewConfirmed, setFinalReviewConfirmed] = useState(false)
   const [bowlerChangeOpen, setBowlerChangeOpen] = useState(false)
   const [completedOverSummary, setCompletedOverSummary] = useState<EndOfOverSummary | null>(null)
@@ -3603,9 +3603,14 @@ function LiveScoringPage() {
           box-shadow: 0 16px 38px rgba(32, 0, 1, 0.1);
         }
         .live-scorer-workspace__controls {
+          display: flex;
+          flex-direction: column;
           min-width: 0;
           padding: 1rem;
           color: var(--npl-neutral-900);
+        }
+        .live-scorer-player-controls {
+          order: -1;
         }
         .live-scorer-workspace__controls .team-hub-section__title,
         .live-scorer-workspace__controls .inline-edit__label,
@@ -4537,15 +4542,12 @@ function LiveScoringPage() {
         }
         @media (min-width: 1100px) and (min-height: 700px) {
           .app-shell__content:has(.live-scorer-page--score) {
-            overflow: hidden;
+            overflow-y: auto;
             padding: 0.65rem 1rem 0.8rem;
           }
           .live-scorer-page--score {
             display: flex;
             flex-direction: column;
-            height: calc(100dvh - 6rem);
-            max-height: calc(100dvh - 6rem);
-            min-height: 0;
             gap: 0.5rem;
           }
           .live-scorer-page--score > .page-header,
@@ -4591,14 +4593,12 @@ function LiveScoringPage() {
             font-size: 0.65rem;
           }
           .live-scorer-score-section {
-            flex: 1 1 auto;
-            min-height: 0;
+            flex: 0 0 auto;
             margin-top: 0;
             padding-top: 0;
             border-top: 0;
-            display: grid;
-            grid-template-rows: auto auto minmax(0, 1fr) auto;
-            overflow: hidden;
+            display: block;
+            overflow: visible;
           }
           .live-scorer-score-section > .team-hub-section-head:first-child {
             display: none;
@@ -4616,11 +4616,10 @@ function LiveScoringPage() {
           }
           .live-scorer-workspace {
             margin-top: 0;
-            overflow: hidden;
+            overflow: visible;
           }
           .live-scorer-workspace__controls {
-            overflow-y: auto;
-            overscroll-behavior: contain;
+            overflow: visible;
             padding-right: 0.15rem;
           }
           .live-scorer-workspace__controls > .inline-edit__grid {
