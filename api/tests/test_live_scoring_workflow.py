@@ -251,6 +251,10 @@ def test_match_duties_keep_scoring_and_commentary_permissions_separate() -> None
         )
         db.commit()
 
+        assigned_match = admin_routes.scorer_assigned_matches(match.id, db, scorer_only)
+        assert [row.id for row in assigned_match] == [match.id]
+        assert admin_routes.scorer_assigned_matches(match.id + 1, db, scorer_only) == []
+
         assert admin_routes._can_score_match(db, match.id, scorer_only)
         assert not admin_routes._can_comment_match(db, match.id, scorer_only)
         assert admin_routes._can_score_match(db, match.id, combined)
