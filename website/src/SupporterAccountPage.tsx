@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
@@ -12,6 +12,14 @@ import {
 import { SeoHead } from './components/SeoHead'
 import { managedSection, useSitePageContent } from './lib/siteContent'
 import { ManagedSiteHtml } from './components/ManagedSiteHtml'
+import {
+  SUPPORTER_PASSWORD_MIN,
+  SUPPORTER_PASSWORD_MAX,
+  validateSupporterAuth,
+  type SupporterAuthMode,
+  type SupporterAuthFields,
+  type SupporterAuthErrors,
+} from './lib/supporterValidation'
 
 type Account = {
   id: number
@@ -29,7 +37,7 @@ type Page<T> = { items: T[] }
 type Order = { id: number; order_number: string; product_name: string; status: string; payment_status: string; created_at: string }
 
 function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [mode, setMode] = useState<SupporterAuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -41,23 +49,52 @@ function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
   const [analytics, setAnalytics] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<SupporterAuthErrors>({})
+  const formRef = useRef<HTMLFormElement>(null)
+
+  const changeMode = (next: SupporterAuthMode) => {
+    setMode(next)
+    setError(null)
+    setFieldErrors({})
+  }
+
+  const fieldProps = (field: keyof SupporterAuthFields) => ({
+    name: field,
+    'aria-invalid': Boolean(fieldErrors[field]),
+    'aria-describedby': fieldErrors[field] ? `supporter-${field}-error` : undefined,
+  })
+  const fieldError = (field: keyof SupporterAuthFields) => fieldErrors[field]
+    ? <small className="form-error" id={`supporter-${field}-error`}>{fieldErrors[field]}</small>
+    : null
 
   const submit = async () => {
-    setBusy(true)
+    if (busy) return
     setError(null)
+    const fields: SupporterAuthFields = {
+      email: email.trim(), password, display_name: displayName.trim(), phone: phone.trim(),
+      accept_terms: acceptTerms, accept_privacy: acceptPrivacy,
+    }
+    const validationErrors = validateSupporterAuth(mode, fields)
+    setFieldErrors(validationErrors)
+    const firstInvalidField = Object.keys(validationErrors)[0]
+    if (firstInvalidField) {
+      setError('Please correct the highlighted fields.')
+      const input = formRef.current?.elements.namedItem(firstInvalidField)
+      if (input instanceof HTMLElement) input.focus()
+      return
+    }
+    setBusy(true)
     try {
-      if (mode === 'login') await supporterLogin(email.trim(), password)
+      if (mode === 'login') await supporterLogin(fields.email, fields.password)
       else {
         await supporterRegister({
-          email: email.trim(), password, display_name: displayName.trim(), accept_terms: acceptTerms,
-          phone: phone.trim(),
-          accept_privacy: acceptPrivacy, policy_version: '2026-09', marketing_consent: marketing,
+          ...fields, policy_version: '2026-09', marketing_consent: marketing,
           push_consent: push, analytics_consent: analytics,
         })
         setSupporterAnalyticsConsent(analytics)
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not sign in.')
+      setError(caught instanceof Error ? caught.message : mode === 'register' ? 'Could not create your account.' : 'Could not sign in.')
     } finally {
       setBusy(false)
     }
@@ -66,26 +103,35 @@ function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <section className="supporter-auth-card">
       <div className="supporter-auth-card__tabs" role="tablist" aria-label="Supporter account">
-        <button type="button" role="tab" aria-selected={mode === 'login'} onClick={() => setMode('login')}>Sign in</button>
-        <button type="button" role="tab" aria-selected={mode === 'register'} onClick={() => setMode('register')}>Register</button>
+        <button type="button" role="tab" aria-selected={mode === 'login'} onClick={() => changeMode('login')} disabled={busy}>Sign in</button>
+        <button type="button" role="tab" aria-selected={mode === 'register'} onClick={() => changeMode('register')} disabled={busy}>Register</button>
       </div>
       <h1>{title}</h1>
       <p>{subtitle}</p>
-      <div className="supporter-form">
-        {mode === 'register' ? <label>Display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" /></label> : null}
-        {mode === 'register' ? <label>Phone number<input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" /></label> : null}
-        <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
-        <label>Password<input type="password" minLength={mode === 'register' ? 12 : 1} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} /></label>
+      <form ref={formRef} className="supporter-form" noValidate onSubmit={(event) => { event.preventDefault(); void submit() }}>
         {mode === 'register' ? <>
-          <label className="supporter-form__check"><input type="checkbox" checked={acceptTerms} onChange={(event) => setAcceptTerms(event.target.checked)} /><span>I accept the <Link to="/terms">Terms</Link>.</span></label>
-          <label className="supporter-form__check"><input type="checkbox" checked={acceptPrivacy} onChange={(event) => setAcceptPrivacy(event.target.checked)} /><span>I have read the <Link to="/privacy">Privacy Policy</Link>.</span></label>
+          <label>Display name<input {...fieldProps('display_name')} required value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" /></label>
+          {fieldError('display_name')}
+          <label>Phone number<input {...fieldProps('phone')} required type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="tel" /></label>
+          {fieldError('phone')}
+        </> : null}
+        <label>Email address<input {...fieldProps('email')} required type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
+        {fieldError('email')}
+        <label>Password<input {...fieldProps('password')} required type="password" minLength={mode === 'register' ? SUPPORTER_PASSWORD_MIN : 1} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} aria-describedby={[mode === 'register' ? 'supporter-password-help' : '', fieldProps('password')['aria-describedby']].filter(Boolean).join(' ') || undefined} /></label>
+        {mode === 'register' ? <small id="supporter-password-help">Use {SUPPORTER_PASSWORD_MIN} to {SUPPORTER_PASSWORD_MAX} characters for your password.</small> : null}
+        {fieldError('password')}
+        {mode === 'register' ? <>
+          <label className="supporter-form__check"><input {...fieldProps('accept_terms')} required type="checkbox" checked={acceptTerms} onChange={(event) => setAcceptTerms(event.target.checked)} /><span>I accept the <Link to="/terms">Terms</Link>.</span></label>
+          {fieldError('accept_terms')}
+          <label className="supporter-form__check"><input {...fieldProps('accept_privacy')} required type="checkbox" checked={acceptPrivacy} onChange={(event) => setAcceptPrivacy(event.target.checked)} /><span>I have read the <Link to="/privacy">Privacy Policy</Link>.</span></label>
+          {fieldError('accept_privacy')}
           <label className="supporter-form__check"><input type="checkbox" checked={push} onChange={(event) => setPush(event.target.checked)} /><span>Send team match reminders and results.</span></label>
           <label className="supporter-form__check"><input type="checkbox" checked={marketing} onChange={(event) => setMarketing(event.target.checked)} /><span>Send optional NPL news and offers.</span></label>
           <label className="supporter-form__check"><input type="checkbox" checked={analytics} onChange={(event) => setAnalytics(event.target.checked)} /><span>Allow consent-based engagement analytics.</span></label>
         </> : null}
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <button type="button" className="hero-readmore-btn" onClick={() => void submit()} disabled={busy || !email || !password || (mode === 'register' && (!displayName || !phone || !acceptTerms || !acceptPrivacy))}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
-      </div>
+        <button type="submit" className="hero-readmore-btn" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button>
+      </form>
     </section>
   )
 }
