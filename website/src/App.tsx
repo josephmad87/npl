@@ -592,8 +592,8 @@ function App() {
   const partnersContent = managedSection(contentQ.data, 'partners', 'Partners & Sponsors')
   const {
     data: homepage,
-    isLoading: isNewsLoading,
-    isError: isNewsError,
+    isLoading: isHomepageLoading,
+    isError: isHomepageError,
   } = useQuery({
     queryKey: ['homepage'],
     queryFn: () => fetchJson<HomepagePayload>('/public/homepage'),
@@ -601,7 +601,20 @@ function App() {
     refetchInterval: 30_000,
     retry: 1,
   })
-  const newsArticles = homepage?.news ?? EMPTY_NEWS
+  const {
+    data: heroNews,
+    isLoading: isHeroNewsLoading,
+    isError: isHeroNewsError,
+  } = useQuery({
+    queryKey: ['homepage-news'],
+    queryFn: () => fetchJson<ArticleLite[]>('/public/homepage-news'),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    retry: 1,
+  })
+  const newsArticles = heroNews ?? homepage?.news ?? EMPTY_NEWS
+  const isNewsLoading = isHeroNewsLoading && isHomepageLoading
+  const isNewsError = isHeroNewsError && isHomepageError
   const upcomingFixtures = homepage?.fixtures ?? EMPTY_MATCHES
   const latestResults = homepage?.results ?? EMPTY_MATCHES
   const spotlightTeams = homepage?.spotlight_teams ?? EMPTY_SPOTLIGHT_TEAMS
@@ -957,9 +970,11 @@ useEffect(() => {
                 <ResponsiveImage
                   src={activeHeroSlide.heroImage}
                   alt={activeHeroSlide.title}
-                  widths={[480, 768, 1024, 1280, 1600, 1920]}
+                  widths={[480, 768, 960, 1280, 1600]}
                   sizes="100vw"
-                  fallbackWidth={1600}
+                  quality={68}
+                  fallbackWidth={1280}
+                  formats={['webp']}
                   priority
                 />
               ) : null}

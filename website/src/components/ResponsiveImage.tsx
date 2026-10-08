@@ -1,11 +1,14 @@
 import type { ImgHTMLAttributes } from 'react'
-import { imageCdnSrcSet, imageCdnUrl } from '../lib/imageCdn'
+import { imageCdnSrcSet, imageCdnUrl, type ResponsiveImageFormat } from '../lib/imageCdn'
+
+const DEFAULT_FORMATS: readonly ResponsiveImageFormat[] = ['avif', 'webp']
 
 type ResponsiveImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'srcSet'> & {
   src: string
   widths?: readonly number[]
   quality?: number
   fallbackWidth?: number
+  formats?: readonly ResponsiveImageFormat[]
   priority?: boolean
 }
 
@@ -14,13 +17,14 @@ export function ResponsiveImage({
   widths,
   quality = 78,
   fallbackWidth = 1280,
+  formats = DEFAULT_FORMATS,
   priority = false,
   loading,
   decoding = 'async',
   ...imageProps
 }: ResponsiveImageProps) {
-  const avifSrcSet = imageCdnSrcSet(src, 'avif', widths, quality)
-  const webpSrcSet = imageCdnSrcSet(src, 'webp', widths, quality)
+  const avifSrcSet = formats.includes('avif') ? imageCdnSrcSet(src, 'avif', widths, quality) : undefined
+  const webpSrcSet = formats.includes('webp') ? imageCdnSrcSet(src, 'webp', widths, quality) : undefined
   const fallbackSrc = imageCdnUrl(src, fallbackWidth, undefined, quality)
 
   return (

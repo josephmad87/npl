@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError, SQLAlchemyError
 from starlette.requests import Request
@@ -77,7 +78,10 @@ async def security_headers(request: Request, call_next):
             or "/merchandise/order-tracking/" in request.url.path
         ):
             response.headers["Cache-Control"] = "no-store"
-        elif request.url.path == f"{public_prefix}/homepage":
+        elif request.url.path in {
+            f"{public_prefix}/homepage",
+            f"{public_prefix}/homepage-news",
+        }:
             response.headers["Cache-Control"] = "public, max-age=30, s-maxage=60, stale-while-revalidate=300"
         elif request.url.path in {
             f"{public_prefix}/navigation",
@@ -93,6 +97,9 @@ async def security_headers(request: Request, call_next):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
+
+# Compress larger API responses before sending them over slower connections.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # Add CORS last so it remains the outer middleware and includes CORS headers
 # on early rate-limit and security responses too.

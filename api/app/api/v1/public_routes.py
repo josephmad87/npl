@@ -353,6 +353,33 @@ def _published_article_filter(stmt: Select) -> Select:
     )
 
 
+def _latest_homepage_news(db: Session) -> list[HomepageArticleOut]:
+    rows = db.execute(
+        _published_article_filter(
+            select(
+                Article.id,
+                Article.title,
+                Article.slug,
+                Article.excerpt,
+                Article.featured_image_url,
+                Article.category,
+                Article.tags,
+                Article.published_at,
+                Article.created_at,
+            ),
+        )
+        .order_by(Article.published_at.desc().nullslast(), Article.created_at.desc())
+        .limit(5),
+    ).mappings()
+    return [HomepageArticleOut.model_validate(dict(row)) for row in rows]
+
+
+@router.get("/homepage-news", response_model=list[HomepageArticleOut])
+def get_homepage_news(db: Session = Depends(get_db)) -> list[HomepageArticleOut]:
+    """Small story payload so the homepage hero can start loading immediately."""
+    return _latest_homepage_news(db)
+
+
 @router.get("/homepage", response_model=HomepageOut)
 def get_homepage(db: Session = Depends(get_db)) -> HomepageOut:
     """One compact, cacheable payload for the public homepage.
@@ -363,13 +390,7 @@ def get_homepage(db: Session = Depends(get_db)) -> HomepageOut:
     """
     now = datetime.now(timezone.utc)
 
-    news = list(
-        db.scalars(
-            _published_article_filter(select(Article))
-            .order_by(Article.published_at.desc().nullslast(), Article.created_at.desc())
-            .limit(5),
-        ).all(),
-    )
+    news = _latest_homepage_news(db)
     match_options = (
         joinedload(Match.season).joinedload(Season.league),
         joinedload(Match.result),
@@ -448,7 +469,7 @@ def get_homepage(db: Session = Depends(get_db)) -> HomepageOut:
 
     return HomepageOut(
         generated_at=now,
-        news=[HomepageArticleOut.model_validate(row) for row in news],
+        news=news,
         fixtures=[HomepageMatchOut.model_validate(row) for row in fixtures],
         results=[HomepageMatchOut.model_validate(row) for row in results],
         teams=[HomepageTeamOut.model_validate(row) for row in teams],

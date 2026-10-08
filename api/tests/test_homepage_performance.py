@@ -50,6 +50,9 @@ def test_homepage_and_live_cache_policies() -> None:
     homepage = asyncio.run(
         security_headers(_get_request("/api/v1/public/homepage"), _ok_response),
     )
+    homepage_news = asyncio.run(
+        security_headers(_get_request("/api/v1/public/homepage-news"), _ok_response),
+    )
     live = asyncio.run(
         security_headers(_get_request("/api/v1/public/matches/7/live"), _ok_response),
     )
@@ -57,6 +60,7 @@ def test_homepage_and_live_cache_policies() -> None:
     assert homepage.headers["cache-control"] == (
         "public, max-age=30, s-maxage=60, stale-while-revalidate=300"
     )
+    assert homepage_news.headers["cache-control"] == homepage.headers["cache-control"]
     assert live.headers["cache-control"] == "no-store"
 
 
@@ -181,7 +185,11 @@ def test_compact_homepage_endpoint_excludes_heavy_fields() -> None:
 
     app.dependency_overrides[get_db] = override_db
     try:
-        response = TestClient(app).get("/api/v1/public/homepage")
+        response = TestClient(app).get(
+            "/api/v1/public/homepage",
+            headers={"Accept-Encoding": "gzip"},
+        )
+        news_response = TestClient(app).get("/api/v1/public/homepage-news")
         match_gallery_response = TestClient(app).get(
             f"/api/v1/public/gallery?match_id={fixture_id}",
         )
@@ -190,6 +198,7 @@ def test_compact_homepage_endpoint_excludes_heavy_fields() -> None:
         engine.dispose()
 
     assert response.status_code == 200
+    assert response.headers["content-encoding"] == "gzip"
     payload = response.json()
     assert len(payload["news"]) == 5
     assert [article["title"] for article in payload["news"]] == [
@@ -200,6 +209,8 @@ def test_compact_homepage_endpoint_excludes_heavy_fields() -> None:
         "News 4",
     ]
     assert "body" not in payload["news"][0]
+    assert news_response.status_code == 200
+    assert news_response.json() == payload["news"]
     assert len(payload["fixtures"]) == 1
     assert len(payload["results"]) == 1
     assert "player_stats" not in payload["results"][0]
