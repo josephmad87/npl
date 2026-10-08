@@ -1011,8 +1011,8 @@ function LiveScoringPage() {
   })
 
   const playersQ = useQuery({
-    queryKey: ['public', 'players', 'match-scoring', mid],
-    queryFn: () => adminGet<PlayerDto[]>(`/public/matches/${mid}/eligible-players`),
+    queryKey: ['admin', 'players', 'match-scoring', mid],
+    queryFn: () => adminGet<PlayerDto[]>(`/admin/matches/${mid}/eligible-players`),
     enabled: Boolean(match),
     retry: 1,
   })
@@ -1624,6 +1624,7 @@ function LiveScoringPage() {
       setActionError(null)
       setSquadDirty(false)
       setActiveScorerPanel('score')
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'players', 'match-scoring', mid] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'squads'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'matches', mid, 'live'] })
     },
@@ -5166,6 +5167,8 @@ function LiveScoringPage() {
             <h2 className="team-hub-section__title">Match day squad</h2>
             <p className="muted">
               Select up to 11 playing XI and up to 4 ordinary substitutes per team.
+              Season reserves can be selected for either role. An inactive reserve becomes
+              active when the match day squad is saved.
               Concussion substitutes can be added during a live match and are eligible to
               bat, bowl and field as soon as the squad is saved.
             </p>
@@ -5223,7 +5226,12 @@ function LiveScoringPage() {
                     <tbody>
                       {teamPlayers.map((player) => (
                         <tr key={player.id}>
-                          <td>{player.full_name}</td>
+                          <td>
+                            {player.full_name}
+                            {player.season_roster_role === 'standby' ? (
+                              <span className="muted"> · Reserve</span>
+                            ) : null}
+                          </td>
                           <td>
                             <select
                               className="inline-edit__control"

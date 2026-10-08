@@ -86,7 +86,7 @@ from app.schemas.teams import TeamOut, TeamSeasonRecordOut
 from app.services.dls import dls_g50_for_category, dls_par_score
 from app.services.site_pages import default_site_page_body, merge_site_page_body_with_defaults
 from app.services.seo_redirects import normalise_public_path
-from app.services.season_rosters import match_team_players
+from app.services.season_rosters import match_eligible_players
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -1269,27 +1269,9 @@ def public_match_eligible_players(match_id: int, db: Session = Depends(get_db)) 
     match = db.get(Match, match_id)
     if match is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
-    players_by_side = {
-        team_id: {player.id: player for player in match_team_players(db, match, team_id)}
-        for team_id in (match.home_team_id, match.away_team_id)
-    }
-    recorded = list(db.execute(
-        select(MatchDaySquadPlayer.player_id, MatchDaySquadPlayer.team_id)
-        .where(MatchDaySquadPlayer.match_id == match_id)
-    ).all())
-    recorded.extend(db.execute(
-        select(MatchPlayerStat.player_id, MatchPlayerStat.team_id)
-        .where(MatchPlayerStat.match_id == match_id)
-    ).all())
-    for player_id, team_id in recorded:
-        if team_id in players_by_side and player_id not in players_by_side[team_id]:
-            player = db.get(Player, player_id)
-            if player is not None:
-                players_by_side[team_id][player_id] = player
     return [
         PlayerOut.model_validate(player).model_copy(update={"team_id": team_id})
-        for team_id, players in players_by_side.items()
-        for player in sorted(players.values(), key=lambda player: player.full_name)
+        for team_id, player in match_eligible_players(db, match)
     ]
 
 

@@ -130,7 +130,7 @@ from app.schemas.players import (
 from app.schemas.teams import TeamBulkArchiveIn, TeamCreate, TeamOut, TeamUpdate
 from app.services.audit import write_audit
 from app.services.cricket_overs import normalize_cricket_overs
-from app.services.season_rosters import player_can_represent_match_team
+from app.services.season_rosters import match_eligible_players, player_can_represent_match_team
 from app.services.dls import (
     cricket_overs_to_balls,
     dls_g50_for_category,
@@ -4756,6 +4756,28 @@ def admin_match_day_squad(
     return _match_squad_out(db, match)
 
 
+@router.get("/matches/{match_id}/eligible-players", response_model=list[PlayerOut])
+def admin_match_eligible_players(
+    match_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(get_current_user),
+) -> list[PlayerOut]:
+    match = db.get(Match, match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Match not found"})
+    _assert_can_open_match_workbench(db, match_id, actor)
+    eligible: list[PlayerOut] = []
+    for team_id, player in match_eligible_players(db, match, include_standby=True):
+        registration = db.get(SeasonPlayer, (match.season_id, player.id)) if match.season_id else None
+        eligible.append(PlayerOut.model_validate(player).model_copy(update={
+            "team_id": team_id,
+            "season_roster_role": (
+                registration.role if registration is not None and registration.team_id == team_id else None
+            ),
+        }))
+    return eligible
+
+
 @router.put("/matches/{match_id}/squads", response_model=MatchSquadOut)
 def admin_save_match_day_squad(
     match_id: int,
@@ -4834,6 +4856,9 @@ def admin_save_match_day_squad(
 
     db.execute(delete(MatchDaySquadPlayer).where(MatchDaySquadPlayer.match_id == match_id))
     for team_id, player_id, role, lineup_order, is_captain, is_wicketkeeper in normalized:
+        player = db.get(Player, player_id)
+        if player is not None and player.status == "inactive":
+            player.status = "active"
         db.add(
             MatchDaySquadPlayer(
                 match_id=match_id,

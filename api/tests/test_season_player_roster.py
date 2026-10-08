@@ -5,7 +5,11 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.v1.admin_routes import _assert_live_player, _validate_squad_player, admin_get_season_players, admin_save_season_players
+from app.api.v1 import admin_routes
+from app.api.v1.admin_routes import (
+    _assert_live_player, _validate_squad_player, admin_get_season_players,
+    admin_match_eligible_players, admin_save_match_day_squad, admin_save_season_players,
+)
 from app.api.v1.public_routes import get_player, public_match_eligible_players, team_season_players
 from app.db.base import Base
 from app.models.audit import AuditLog
@@ -15,9 +19,10 @@ from app.models.player import Player
 from app.models.team import Team
 from app.models.user import User
 from app.schemas.seasons import SeasonPlayerRosterIn
+from app.schemas.matches import MatchSquadSaveIn
 
 
-def test_season_roster_shows_registered_players_and_keeps_other_players() -> None:
+def test_season_roster_shows_registered_players_and_keeps_other_players(monkeypatch: pytest.MonkeyPatch) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine, tables=[
         League.__table__, Season.__table__, Team.__table__, Player.__table__, SeasonTeam.__table__,
@@ -85,12 +90,34 @@ def test_season_roster_shows_registered_players_and_keeps_other_players() -> Non
             eligible = public_match_eligible_players(match.id, db)
             guest = next(player for player in eligible if player.id == outsider.id)
             assert guest.team_id == team.id
+            assert standby[0] not in {player.id for player in eligible}
+            user.role = "competition_manager"
+            admin_eligible = admin_match_eligible_players(match.id, db, user)
+            reserve = next(player for player in admin_eligible if player.id == standby[0])
+            assert reserve.season_roster_role == "standby"
+            assert reserve.status == "inactive"
             _validate_squad_player(db, match, team.id, outsider.id)
             _assert_live_player(db, match, outsider.id, team.id)
             with pytest.raises(HTTPException):
                 _validate_squad_player(db, match, other.id, outsider.id)
+            _validate_squad_player(db, match, team.id, standby[0])
             with pytest.raises(HTTPException):
-                _validate_squad_player(db, match, team.id, standby[0])
+                _validate_squad_player(db, match, team.id, players[20].id)
+
+            monkeypatch.setattr(admin_routes, "_begin_scoring_write", lambda *_: match)
+            monkeypatch.setattr(admin_routes, "_reconcile_live_scorecard", lambda *_: None)
+            saved_squad = admin_save_match_day_squad(match.id, MatchSquadSaveIn.model_validate({
+                "teams": [{"team_id": team.id, "players": [
+                    {"player_id": standby[0], "role": "playing_xi"},
+                ]}],
+            }), None, None, db, user)
+            assert saved_squad.teams[0].players[0].player_id == standby[0]
+            assert db.get(Player, standby[0]).status == "active"
+            assert db.get(Player, standby[0]).team_id == team.id
+            assert db.get(SeasonPlayer, (season.id, standby[0])).role == "standby"
+            assert standby[0] in {player.id for player in public_match_eligible_players(match.id, db)}
+            assert standby[0] not in {player.id for player in team_season_players("club", season.id, db)}
+            _assert_live_player(db, match, standby[0], team.id, {standby[0]})
             with pytest.raises(HTTPException) as double_assignment:
                 admin_save_season_players(season.id, other.id, SeasonPlayerRosterIn(
                     registered_player_ids=[outsider.id],
