@@ -1267,7 +1267,7 @@ export function LiveScorePanel({
     queryKey: ['public-live-match-squads', matchId],
     queryFn: () => fetchJson<MatchSquad>(`/public/matches/${matchId}/squads`),
     enabled: Number.isFinite(matchId),
-    refetchInterval: isLive ? 3_000 : false,
+    refetchInterval: isLive ? 30_000 : false,
     retry: 1,
   })
 

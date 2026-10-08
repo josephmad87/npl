@@ -4229,6 +4229,7 @@ def _assignment_out(row: MatchScorerAssignment) -> MatchScorerAssignmentOut:
 
 @router.get("/scorer/matches", response_model=list[MatchDetailOut])
 def scorer_assigned_matches(
+    match_id: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
     actor: User = Depends(get_current_user),
 ) -> list[MatchDetailOut]:
@@ -4260,6 +4261,8 @@ def scorer_assigned_matches(
             detail={"code": "forbidden", "message": "Scorer access required."},
         )
 
+    if match_id is not None:
+        stmt = stmt.where(Match.id == match_id)
     matches = db.scalars(stmt).unique().all()
     return [_match_detail_for_actor(db, match, actor) for match in matches]
 

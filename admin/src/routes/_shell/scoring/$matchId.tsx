@@ -953,16 +953,14 @@ function LiveScoringPage() {
   }, [deliveryOutbox, mid])
 
   const matchesQ = useQuery({
-    queryKey: ['admin', 'scorer', 'matches'],
-    queryFn: () => adminGet<MatchDto[]>('/admin/scorer/matches'),
-    refetchInterval: 15000,
+    queryKey: ['admin', 'scorer', 'matches', mid],
+    queryFn: () => adminGet<MatchDto[]>(`/admin/scorer/matches?match_id=${mid}`),
+    enabled: Number.isFinite(mid),
+    refetchInterval: 30000,
     retry: 1,
   })
 
-  const match = useMemo(
-    () => (matchesQ.data ?? []).find((row) => row.id === mid) ?? null,
-    [matchesQ.data, mid],
-  )
+  const match = matchesQ.data?.find((row) => row.id === mid) ?? null
   const currentMatchId = match?.id
   const currentHomeTeamId = match?.home_team_id
   const currentAwayTeamId = match?.away_team_id
@@ -1111,6 +1109,7 @@ function LiveScoringPage() {
   )
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [outboxFlushing, setOutboxFlushing] = useState(false)
+  const [outboxPaused, setOutboxPaused] = useState(false)
   const outboxFlushingRef = useRef(false)
   const [requestEditOpen, setRequestEditOpen] = useState(false)
   const [requestEditReason, setRequestEditReason] = useState('')
@@ -1842,50 +1841,12 @@ function LiveScoringPage() {
   }
 
   const ballMutation = useMutation({
-    mutationFn: (payload: BallSubmitPayload) =>
-      adminPost<LiveBallEventDto>(
-        `/admin/matches/${mid}/live/balls`,
-        payload.body,
-        { headers: scoringWriteHeaders() },
-      ),
-    onSuccess: (created, payload) => {
-      setActionError(null)
-      applyAcceptedBallUi(created, payload, true)
-      queryClient.setQueryData<LiveScoreStateDto>(
-        ['admin', 'matches', mid, 'live'],
-        (current) => {
-          if (!current) return current
-          const updated = appendOptimisticBall(current, payload, 0)
-          if (updated === current) {
-            return { ...current, scoring_version: created.score_version ?? current.scoring_version }
-          }
-          return {
-            ...updated,
-            events: [...updated.events.slice(0, -1), created],
-            summaries: updated.summaries.map((summary) =>
-              summary.innings === created.innings ? { ...summary, last_event: created } : summary,
-            ),
-            scoring_version: created.score_version ?? current.scoring_version,
-          }
-        },
-      )
-      // The confirmed ball is already in the local score. The regular refresh
-      // reconciles with the server without keeping the score button busy.
-      void queryClient.invalidateQueries({
-        queryKey: ['admin', 'matches', mid, 'live'],
-        refetchType: 'none',
-      })
+    mutationFn: async (payload: BallSubmitPayload) => {
+      // Accept the delivery locally first. The outbox sends it in order without
+      // holding the scoring controls open while the network responds.
+      queueBallForDelivery(payload, null)
     },
-    onError: (error: Error, payload) => {
-      if (error instanceof ApiError && error.status < 500) {
-        setActionError(error.message)
-        return
-      }
-      queueBallForDelivery(payload, error.message)
-      setActionError(
-        `Connection interrupted: the ball is safely queued on this device and will sync automatically. ${error.message}`,
-      )
-    },
+    onError: (error: Error) => setActionError(error.message),
   })
 
   const undoMutation = useMutation({
@@ -2220,6 +2181,25 @@ function LiveScoringPage() {
             },
           )
           version = saved.score_version ?? version + 1
+          const current = queryClient.getQueryData<LiveScoreStateDto>([
+            'admin', 'matches', mid, 'live',
+          ])
+          if (current?.events.at(-1)?.client_event_id === entry.id) {
+            lastHydratedEventKeyRef.current = `${saved.innings}:${saved.sequence_number}:${saved.updated_at}`
+          }
+          queryClient.setQueryData<LiveScoreStateDto>(
+            ['admin', 'matches', mid, 'live'],
+            (state) => state && ({
+              ...state,
+              events: state.events.map((event) => event.client_event_id === entry.id ? saved : event),
+              summaries: state.summaries.map((summary) =>
+                summary.last_event?.client_event_id === entry.id
+                  ? { ...summary, last_event: saved }
+                  : summary,
+              ),
+              scoring_version: version,
+            }),
+          )
           const remaining = removeScoringBall(outboxRef.current, entry.id)
           outboxRef.current = remaining
           saveScoringOutbox(mid, remaining)
@@ -2234,8 +2214,13 @@ function LiveScoringPage() {
           setActionError(
             error instanceof ApiError && (error.status === 409 || error.status === 428)
               ? `Scoring paused: ${message} Resolve session ownership before retrying the queued deliveries.`
-              : `Queued deliveries remain safe on this device. Sync stopped: ${message}`,
+              : error instanceof ApiError && error.status < 500
+                ? `Scoring paused: ${message}`
+                : 'Connection interrupted. Your recorded balls are saved on this device and will retry automatically.',
           )
+          if (error instanceof ApiError && error.status < 500 && error.status !== 429) {
+            setOutboxPaused(true)
+          }
           break
         }
       }
@@ -2243,29 +2228,41 @@ function LiveScoringPage() {
         setActionError(null)
       }
     } catch (error) {
+      const first = outboxRef.current[0]
+      if (first) {
+        const pending = markScoringAttempt(
+          outboxRef.current,
+          first.id,
+          error instanceof Error ? error.message : 'Connection interrupted',
+        )
+        outboxRef.current = pending
+        saveScoringOutbox(mid, pending)
+        setDeliveryOutbox(pending)
+      }
       setActionError(
-        `Queued deliveries remain safe on this device. Reconnection check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'Connection interrupted. Your recorded balls are saved on this device and will retry automatically.',
       )
     } finally {
       outboxFlushingRef.current = false
       setOutboxFlushing(false)
-      await queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: ['admin', 'matches', mid, 'live'],
-      })
-      await queryClient.invalidateQueries({
-        queryKey: ['admin', 'scorer', 'matches'],
       })
     }
   }, [isOnline, mid, queryClient, scoringSessionQ.data?.session_token])
 
   useEffect(() => {
-    if (isOnline && deliveryOutbox.length > 0 && scoringSessionQ.data?.session_token) {
-      void flushDeliveryOutbox()
-    }
+    if (!isOnline || deliveryOutbox.length === 0 || !scoringSessionQ.data?.session_token || outboxFlushing || outboxPaused) return
+    const attempts = deliveryOutbox[0]?.attempts ?? 0
+    const delay = attempts ? Math.min(30_000, 2_000 * 2 ** Math.min(attempts - 1, 4)) : 0
+    const timer = globalThis.setTimeout(() => void flushDeliveryOutbox(), delay)
+    return () => globalThis.clearTimeout(timer)
   }, [
-    deliveryOutbox.length,
+    deliveryOutbox,
     flushDeliveryOutbox,
     isOnline,
+    outboxFlushing,
+    outboxPaused,
     scoringSessionQ.data?.session_token,
   ])
 
@@ -2419,6 +2416,10 @@ function LiveScoringPage() {
     },
     newBatterId?: number | null,
   ) => {
+    if (outboxPaused) {
+      setActionError('Scoring is paused while queued deliveries need attention. Resolve the scoring message and tap Sync before recording another ball.')
+      return
+    }
     if (isOnline && !scoringSessionQ.data?.session_token) {
       setActionError(
         scoringSessionQ.error instanceof ApiError && scoringSessionQ.error.status === 409
@@ -2515,14 +2516,15 @@ function LiveScoringPage() {
 
     if (!isOnline || outboxRef.current.length > 0) {
       queueBallForDelivery(payload, isOnline ? null : 'Device offline')
-      setActionError(
-        isOnline
-          ? 'This ball is queued behind earlier deliveries and will sync in order.'
-          : 'Offline: this ball is saved on this device. You can keep scoring and it will sync after reconnection.',
-      )
+      if (!isOnline) {
+        setActionError('Offline: this ball is saved on this device. You can keep scoring and it will sync after reconnection.')
+      } else if (!outboxPaused) {
+        setActionError(null)
+      }
       return
     }
 
+    setActionError(null)
     void ballMutation.mutate(payload)
   }
 
@@ -5038,7 +5040,9 @@ function LiveScoringPage() {
               {!isOnline
                 ? `Offline — ${deliveryOutbox.length} ${deliveryOutbox.length === 1 ? 'ball' : 'balls'} safely queued`
                 : deliveryOutbox.length > 0
-                  ? `${deliveryOutbox.length} ${deliveryOutbox.length === 1 ? 'ball is' : 'balls are'} syncing`
+                  ? outboxPaused
+                    ? `${deliveryOutbox.length} ${deliveryOutbox.length === 1 ? 'ball needs' : 'balls need'} attention`
+                    : `${deliveryOutbox.length} ${deliveryOutbox.length === 1 ? 'ball is' : 'balls are'} syncing`
                   : ballMutation.isPending || outboxFlushing
                     ? 'Saving ball…'
                     : 'Live score is connected'}
@@ -5047,7 +5051,9 @@ function LiveScoringPage() {
               {!isOnline
                 ? 'Keep scoring normally. Deliveries are stored durably on this device and upload in order after reconnection.'
                 : deliveryOutbox.length > 0
-                  ? 'Safe retry IDs prevent a delivery from being added twice.'
+                  ? outboxPaused
+                    ? 'Check the scoring message below, then tap Sync to retry.'
+                    : 'Deliveries upload in order. Safe retry IDs prevent a ball from being added twice.'
                   : lastSavedAt
                     ? `Last ball saved at ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`
                     : 'Each recorded ball is saved to the match centre immediately.'}
@@ -5059,7 +5065,10 @@ function LiveScoringPage() {
             type="button"
             className="btn-primary btn--with-icon"
             disabled={!isOnline || outboxFlushing || !scoringSessionQ.data?.session_token}
-            onClick={() => void flushDeliveryOutbox()}
+            onClick={() => {
+              setOutboxPaused(false)
+              void flushDeliveryOutbox()
+            }}
           >
             <CloudUpload size={18} aria-hidden />
             {outboxFlushing ? 'Syncing…' : `Sync ${deliveryOutbox.length} queued`}
@@ -6353,6 +6362,8 @@ function LiveScoringPage() {
               onClick={() => void undoMutation.mutate()}
               disabled={
                 ballMutation.isPending ||
+                deliveryOutbox.length > 0 ||
+                outboxFlushing ||
                 undoMutation.isPending ||
                 (liveQ.data?.events.length ?? 0) === 0
               }
@@ -7287,7 +7298,7 @@ function LiveScoringPage() {
               type="button"
               className="btn-primary"
               onClick={() => endCurrentInnings()}
-              disabled={ballMutation.isPending || undoMutation.isPending}
+              disabled={ballMutation.isPending || deliveryOutbox.length > 0 || outboxFlushing || undoMutation.isPending}
             >
               End innings
             </button>
