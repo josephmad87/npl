@@ -931,6 +931,28 @@
   overflow: hidden;
 }
 
+.hero-carousel-dots {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.hero-carousel-dot {
+  border: 0;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+  cursor: pointer;
+  padding: 0;
+}
+
+.hero-carousel-dot.is-active {
+  background: var(--color-highlight);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
