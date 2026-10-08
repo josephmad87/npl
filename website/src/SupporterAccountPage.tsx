@@ -76,7 +76,10 @@ function AuthPanel({ title, subtitle }: { title: string; subtitle: string }) {
     }
     const validationErrors = validateSupporterAuth(mode, fields)
     setFieldErrors(validationErrors)
-    const firstInvalidField = Object.keys(validationErrors)[0]
+    const fieldOrder: (keyof SupporterAuthFields)[] = mode === 'register'
+      ? ['display_name', 'phone', 'email', 'password', 'accept_terms', 'accept_privacy']
+      : ['email', 'password']
+    const firstInvalidField = fieldOrder.find((field) => validationErrors[field])
     if (firstInvalidField) {
       setError('Please correct the highlighted fields.')
       const input = formRef.current?.elements.namedItem(firstInvalidField)
