@@ -1907,8 +1907,8 @@ def admin_save_season_players(
     players = db.scalars(select(Player).where(Player.id.in_(ids))).all() if ids else []
     if len(players) != len(ids):
         raise HTTPException(status_code=400, detail={"code": "validation", "message": "One or more selected players were not found."})
-    if any(player.status != "active" for player in players):
-        raise HTTPException(status_code=400, detail={"code": "validation", "message": "Activate selected players before adding them to the season roster."})
+    if any(player.status not in {"active", "inactive"} for player in players):
+        raise HTTPException(status_code=400, detail={"code": "validation", "message": "Injured players cannot be added to the season roster."})
     assigned_elsewhere = db.scalar(
         select(SeasonPlayer).where(
             SeasonPlayer.season_id == season_id,
@@ -1929,10 +1929,17 @@ def admin_save_season_players(
         + [SeasonPlayer(season_id=season_id, team_id=team_id, player_id=pid, role="standby")
            for pid in body.standby_player_ids]
     )
+    registered_ids = set(body.registered_player_ids)
+    activated = 0
+    for player in players:
+        if player.id in registered_ids and player.status == "inactive":
+            player.status = "active"
+            activated += 1
     db.commit()
     write_audit(
         db, actor_user_id=actor.id, action="save_player_roster", entity_type="season", entity_id=season_id,
-        summary=f"{team.name}: {len(body.registered_player_ids)} registered and {len(body.standby_player_ids)} standby for {season.name}",
+        summary=(f"{team.name}: {len(body.registered_player_ids)} registered and "
+                 f"{len(body.standby_player_ids)} standby for {season.name}; {activated} player(s) activated"),
     )
     db.commit()
     return admin_get_season_players(season_id, team_id, db, actor)

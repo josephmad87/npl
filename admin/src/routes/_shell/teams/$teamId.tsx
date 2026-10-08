@@ -120,6 +120,8 @@ function SeasonPlayerEditor({ season, teamId, players, teams }: {
         standby_player_ids: standbyIds,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'season-player-roster', season.id, teamId] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'players'] })
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'season-player-search'] })
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not save player roster')
     } finally {
@@ -130,7 +132,7 @@ function SeasonPlayerEditor({ season, teamId, players, teams }: {
   return (
     <section className="team-hub-section" aria-label={`${season.name} player roster`}>
       <h3 className="team-hub-section__title">{season.name} player roster</h3>
-      <p className="muted">Search players from any club and assign them to this season roster. Their original club stays unchanged. Choose up to 15 registered players and 5 standby players; only registered players appear on the public club squad. Selected players must be active.</p>
+      <p className="muted">Search players from any club and assign them to this season roster. Their original club stays unchanged. Choose up to 15 registered players and 5 standby players. Saving an inactive player as Registered activates their profile and shows them on the public club squad; an inactive Standby stays hidden until promoted.</p>
       <p><strong>{registeredIds.length}/15 registered · {standbyIds.length}/5 standby</strong></p>
       {rosterQ.isLoading ? <p className="muted">Loading roster…</p> : null}
       {rosterQ.isError ? <p className="login-error">{rosterQ.error.message}</p> : null}
@@ -157,8 +159,8 @@ function SeasonPlayerEditor({ season, teamId, players, teams }: {
                   onChange={(event) => setRoles((current) => ({ ...current, [player.id]: event.target.value as SeasonPlayerRole }))}
                 >
                   <option value="">Not taking part</option>
-                  <option value="registered" disabled={player.status !== 'active'}>Registered</option>
-                  <option value="standby" disabled={player.status !== 'active'}>Standby</option>
+                  <option value="registered" disabled={player.status !== 'active' && player.status !== 'inactive'}>Registered</option>
+                  <option value="standby" disabled={player.status !== 'active' && player.status !== 'inactive'}>Standby</option>
                 </select></td>
               </tr>
             ))}</tbody>
