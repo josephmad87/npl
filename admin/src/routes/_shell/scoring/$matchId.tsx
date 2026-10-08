@@ -1026,6 +1026,24 @@ function LiveScoringPage() {
     () => new Map((playersQ.data ?? []).map((player) => [player.id, player] as const)),
     [playersQ.data],
   )
+  const squadFlagsByPlayerId = useMemo(
+    () => new Map((squadQ.data?.teams ?? []).flatMap((team) => team.players.map((player) => [
+      player.player_id,
+      { captain: player.is_captain, wicketkeeper: player.is_wicketkeeper },
+    ] as const))),
+    [squadQ.data],
+  )
+  const matchPlayerName = (playerId: number | null | undefined) => {
+    const flags = playerId ? squadFlagsByPlayerId.get(playerId) : undefined
+    return `${flags?.captain ? '© ' : ''}${flags?.wicketkeeper ? '† ' : ''}${playerName(playerById, playerId)}`
+  }
+  const dismissalFielderName = (playerId: number | null | undefined) =>
+    `${playerId && squadFlagsByPlayerId.get(playerId)?.wicketkeeper ? '† ' : ''}${playerName(playerById, playerId)}`
+  const keeperDismissalText = (text: string, fielderId: number | null | undefined) => {
+    if (!fielderId || !squadFlagsByPlayerId.get(fielderId)?.wicketkeeper) return text
+    const name = playerName(playerById, fielderId)
+    return text.includes(`† ${name}`) ? text : text.replace(name, `† ${name}`)
+  }
 
   const [innings, setInnings] = useState(1)
   const [battingTeamId, setBattingTeamId] = useState<number | ''>('')
@@ -1037,6 +1055,8 @@ function LiveScoringPage() {
   const [overNote, setOverNote] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
   const [playerRoles, setPlayerRoles] = useState<PlayerRoleMap>({})
+  const [captainByTeam, setCaptainByTeam] = useState<Record<number, number | undefined>>({})
+  const [wicketkeeperByTeam, setWicketkeeperByTeam] = useState<Record<number, number | undefined>>({})
   const [squadDirty, setSquadDirty] = useState(false)
   const [wicketOpen, setWicketOpen] = useState(false)
   const [wicketDeliveryType, setWicketDeliveryType] = useState<WicketDeliveryType>('legal')
@@ -1207,12 +1227,18 @@ function LiveScoringPage() {
     if (!squadQ.data || squadDirty) return
 
     const next: PlayerRoleMap = {}
+    const nextCaptains: Record<number, number> = {}
+    const nextWicketkeepers: Record<number, number> = {}
     for (const team of squadQ.data.teams) {
       for (const player of team.players) {
         next[player.player_id] = player.role
+        if (player.is_captain) nextCaptains[team.team_id] = player.player_id
+        if (player.is_wicketkeeper) nextWicketkeepers[team.team_id] = player.player_id
       }
     }
     setPlayerRoles(next)
+    setCaptainByTeam(nextCaptains)
+    setWicketkeeperByTeam(nextWicketkeepers)
   }, [squadDirty, squadQ.data])
 
   useEffect(() => {
@@ -1607,8 +1633,8 @@ function LiveScoringPage() {
               player_id: player.id,
               role: playerRoles[player.id] as MatchSquadRole,
               lineup_order: index + 1,
-              is_captain: false,
-              is_wicketkeeper: false,
+              is_captain: captainByTeam[team.id] === player.id,
+              is_wicketkeeper: wicketkeeperByTeam[team.id] === player.id,
             })),
           }
         }),
@@ -2599,8 +2625,8 @@ function LiveScoringPage() {
       dismissalText.trim() ||
       suggestedDismissal(
         wicketType,
-        playerName(playerById, bowlerPlayerId || null),
-        fielderId ? playerName(playerById, fielderId) : '',
+        matchPlayerName(bowlerPlayerId || null),
+        fielderId ? dismissalFielderName(fielderId) : '',
       )
 
     if (wicketType === 'non_striker_left_early') {
@@ -2741,9 +2767,9 @@ function LiveScoringPage() {
     matchTeams.every((team) =>
       Boolean(squadQ.data?.teams.find((savedTeam) => savedTeam.team_id === team.id)?.players.length),
     )
-  const strikerName = playerName(playerById, strikerPlayerId || null)
-  const nonStrikerName = playerName(playerById, nonStrikerPlayerId || null)
-  const bowlerName = playerName(playerById, bowlerPlayerId || null)
+  const strikerName = matchPlayerName(strikerPlayerId || null)
+  const nonStrikerName = matchPlayerName(nonStrikerPlayerId || null)
+  const bowlerName = matchPlayerName(bowlerPlayerId || null)
   const newOverBowlerOptions = bowlingPlayers.filter(
     (player) => player.id !== previousBowlerPlayerId,
   )
@@ -2751,7 +2777,7 @@ function LiveScoringPage() {
   const suggestedDismissalText = suggestedDismissal(
     wicketType,
     bowlerName,
-    fielderPlayerId ? playerName(playerById, fielderPlayerId) : '',
+    fielderPlayerId ? dismissalFielderName(fielderPlayerId) : '',
   )
   const resolvedDismissalText = dismissalTextTouched
     ? dismissalText
@@ -5209,6 +5235,7 @@ function LiveScoringPage() {
               Select up to 11 playing XI and up to 4 ordinary substitutes per team.
               Season reserves can be selected for either role. An inactive reserve becomes
               active when the match day squad is saved.
+              Choose one captain (©) and one wicketkeeper (†) from each Playing XI.
               Concussion substitutes can be added during a live match and are eligible to
               bat, bowl and field as soon as the squad is saved.
             </p>
@@ -5261,12 +5288,16 @@ function LiveScoringPage() {
                       <tr>
                         <th>Player</th>
                         <th>Match day role</th>
+                        <th>Captain ©</th>
+                        <th>Wicketkeeper †</th>
                       </tr>
                     </thead>
                     <tbody>
                       {teamPlayers.map((player) => (
                         <tr key={player.id}>
                           <td>
+                            {captainByTeam[team.id] === player.id ? '© ' : ''}
+                            {wicketkeeperByTeam[team.id] === player.id ? '† ' : ''}
                             {player.full_name}
                             {player.season_roster_role === 'standby' ? (
                               <span className="muted"> · Reserve</span>
@@ -5282,6 +5313,14 @@ function LiveScoringPage() {
                                   ...current,
                                   [player.id]: value,
                                 }))
+                                if (value !== 'playing_xi') {
+                                  setCaptainByTeam((current) => current[team.id] === player.id
+                                    ? { ...current, [team.id]: undefined }
+                                    : current)
+                                  setWicketkeeperByTeam((current) => current[team.id] === player.id
+                                    ? { ...current, [team.id]: undefined }
+                                    : current)
+                                }
                                 setSquadDirty(true)
                               }}
                             >
@@ -5290,6 +5329,36 @@ function LiveScoringPage() {
                               <option value="substitute">Substitute</option>
                               <option value="concussion_substitute">Concussion substitute</option>
                             </select>
+                          </td>
+                          <td>
+                            <input
+                              type="checkbox"
+                              aria-label={`${player.full_name} captain for ${team.name}`}
+                              checked={captainByTeam[team.id] === player.id}
+                              disabled={playerRoles[player.id] !== 'playing_xi'}
+                              onChange={(event) => {
+                                setCaptainByTeam((current) => ({
+                                  ...current,
+                                  [team.id]: event.target.checked ? player.id : undefined,
+                                }))
+                                setSquadDirty(true)
+                              }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="checkbox"
+                              aria-label={`${player.full_name} wicketkeeper for ${team.name}`}
+                              checked={wicketkeeperByTeam[team.id] === player.id}
+                              disabled={playerRoles[player.id] !== 'playing_xi'}
+                              onChange={(event) => {
+                                setWicketkeeperByTeam((current) => ({
+                                  ...current,
+                                  [team.id]: event.target.checked ? player.id : undefined,
+                                }))
+                                setSquadDirty(true)
+                              }}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -5332,8 +5401,8 @@ function LiveScoringPage() {
                   <div>
                     <span>Delivery</span>
                     <strong>
-                      {playerName(playerById, selectedCommentaryEvent.bowler_player_id)} to{' '}
-                      {playerName(playerById, selectedCommentaryEvent.striker_player_id)}
+                      {matchPlayerName(selectedCommentaryEvent.bowler_player_id)} to{' '}
+                      {matchPlayerName(selectedCommentaryEvent.striker_player_id)}
                     </strong>
                   </div>
                   <div>
@@ -5432,8 +5501,8 @@ function LiveScoringPage() {
                       <span>
                         <strong>
                           {event.over_number}.{event.ball_number}{' '}
-                          {playerName(playerById, event.bowler_player_id)} to{' '}
-                          {playerName(playerById, event.striker_player_id)}
+                          {matchPlayerName(event.bowler_player_id)} to{' '}
+                          {matchPlayerName(event.striker_player_id)}
                         </strong>
                         <small>
                           {event.commentary?.trim() || 'No public commentary yet'}
@@ -5478,8 +5547,13 @@ function LiveScoringPage() {
                   <tbody>
                     {commentaryScorecard.batters.map((row) => (
                       <tr key={row.playerId}>
-                        <td>{playerName(playerById, row.playerId)}</td>
-                        <td>{row.dismissal}</td>
+                        <td>{matchPlayerName(row.playerId)}</td>
+                        <td>
+                          {keeperDismissalText(
+                            row.dismissal,
+                            commentaryInningsEvents.find((event) => event.wicket_player_id === row.playerId)?.fielder_player_id,
+                          )}
+                        </td>
                         <td><strong>{row.runs}</strong></td>
                         <td>{row.balls}</td>
                         <td>{row.fours}</td>
@@ -5521,7 +5595,7 @@ function LiveScoringPage() {
                   ? commentaryFallOfWickets
                       .map(
                         (row) =>
-                          `${row.wicket}-${row.runs} (${playerName(playerById, row.playerId)}, ${row.over})`,
+                          `${row.wicket}-${row.runs} (${matchPlayerName(row.playerId)}, ${row.over})`,
                       )
                       .join(', ')
                   : 'None'}
@@ -5540,7 +5614,7 @@ function LiveScoringPage() {
                   <tbody>
                     {commentaryScorecard.bowlers.map((row) => (
                       <tr key={row.playerId}>
-                        <td>{playerName(playerById, row.playerId)}</td>
+                        <td>{matchPlayerName(row.playerId)}</td>
                         <td>{Math.floor(row.legalBalls / 6)}.{row.legalBalls % 6}</td>
                         <td>{row.runs}</td>
                         <td><strong>{row.wickets}</strong></td>
@@ -5834,7 +5908,7 @@ function LiveScoringPage() {
                 {activeScoringBatters.map((batter) => (
                   <tr key={batter.playerId} className={batter.playerId === strikerPlayerId ? 'is-active' : ''}>
                     <th scope="row">
-                      {playerName(playerById, batter.playerId)}
+                      {matchPlayerName(batter.playerId)}
                       {batter.playerId === strikerPlayerId ? <span aria-label="striker"> *</span> : null}
                     </th>
                     <td>{batter.runs}</td>
@@ -6579,11 +6653,11 @@ function LiveScoringPage() {
                           {overSummary.batters.map((batter, index) => (
                             <div key={`${batter.playerId ?? 'unknown'}-${index}`} className="live-scorer-ball-panel__over-summary-batter">
                               <span>
-                                {playerName(playerById, batter.playerId)}* <strong>{batter.runs} ({batter.balls})</strong>
+                                {matchPlayerName(batter.playerId)}* <strong>{batter.runs} ({batter.balls})</strong>
                               </span>
                               {index === 0 && completedOverBowler ? (
                                 <strong className="live-scorer-ball-panel__over-summary-bowler-inline">
-                                  {playerName(playerById, completedOverBowler.playerId)}{' '}
+                                  {matchPlayerName(completedOverBowler.playerId)}{' '}
                                   {oversLabel(completedOverBowler.legalBalls)}–{completedOverBowler.maidens}–{completedOverBowler.runs}–{completedOverBowler.wickets}
                                 </strong>
                               ) : null}
@@ -6606,8 +6680,8 @@ function LiveScoringPage() {
                           {event.is_dead_ball && RETIREMENT_DISMISSALS.has(event.wicket_type ?? '')
                             ? 'No ball'
                             : `${event.over_number}.${event.ball_number}`}{' '}
-                          {playerName(playerById, event.bowler_player_id)} to{' '}
-                          {playerName(playerById, event.striker_player_id)}
+                          {matchPlayerName(event.bowler_player_id)} to{' '}
+                          {matchPlayerName(event.striker_player_id)}
                         </strong>
                         <span>
                           {liveEventLabel(event)}
@@ -6801,7 +6875,7 @@ function LiveScoringPage() {
                       <span className="live-scorer-over-summary__batters-header">BATSMEN</span>
                       {completedOverSummary.batters.map((batter, index) => (
                         <div key={`${batter.playerId ?? 'unknown'}-${index}`} className="live-scorer-over-summary__batter">
-                          <span>{playerName(playerById, batter.playerId)}*</span>
+                          <span>{matchPlayerName(batter.playerId)}*</span>
                           <strong>{batter.runs} ({batter.balls})</strong>
                         </div>
                       ))}
@@ -6815,7 +6889,7 @@ function LiveScoringPage() {
                       {completedOverSummary.bowlers.map((bowler) => (
                         <Fragment key={bowler.playerId}>
                           <strong className="live-scorer-over-summary__bowler-name">
-                            {playerName(playerById, bowler.playerId)}
+                            {matchPlayerName(bowler.playerId)}
                           </strong>
                           <strong className="live-scorer-over-summary__bowler-figure">
                             {oversLabel(bowler.legalBalls)}
@@ -7295,11 +7369,11 @@ function LiveScoringPage() {
               <ul className="live-scorer-checklist">
                 {reviewFieldingEvents.map((event) => (
                   <li key={event.id}>
-                    {event.innings}.{event.over_number}.{event.ball_number}: {dismissalLabel(event.wicket_type)} · out: {playerName(playerById, event.wicket_player_id)}
+                    {event.innings}.{event.over_number}.{event.ball_number}: {dismissalLabel(event.wicket_type)} · out: {matchPlayerName(event.wicket_player_id)}
                     {event.wicket_type === 'caught_and_bowled'
-                      ? ` · catch: ${playerName(playerById, event.bowler_player_id)}`
+                      ? ` · catch: ${matchPlayerName(event.bowler_player_id)}`
                       : event.fielder_player_id
-                        ? ` · fielder: ${playerName(playerById, event.fielder_player_id)}`
+                        ? ` · fielder: ${dismissalFielderName(event.fielder_player_id)}`
                         : ''}
                   </li>
                 ))}
@@ -7815,18 +7889,15 @@ function LiveScoringPage() {
                       <strong>{event.innings}.{event.over_number}.{event.ball_number}</strong>
                       <div className="muted">Event #{event.sequence_number}</div>
                     </td>
-                    <td>{playerName(playerById, event.striker_player_id)}</td>
-                    <td>{playerName(playerById, event.non_striker_player_id)}</td>
-                    <td>{playerName(playerById, event.bowler_player_id)}</td>
+                    <td>{matchPlayerName(event.striker_player_id)}</td>
+                    <td>{matchPlayerName(event.non_striker_player_id)}</td>
+                    <td>{matchPlayerName(event.bowler_player_id)}</td>
                     <td>{liveEventLabel(event)}</td>
                     <td>
                       {event.wicket_type
-                        ? `${dismissalLabel(event.wicket_type)} · out: ${playerName(
-                            playerById,
-                            event.wicket_player_id,
-                          )}${
+                        ? `${dismissalLabel(event.wicket_type)} · out: ${matchPlayerName(event.wicket_player_id)}${
                             event.fielder_player_id
-                              ? ` · fielder: ${playerName(playerById, event.fielder_player_id)}`
+                              ? ` · fielder: ${dismissalFielderName(event.fielder_player_id)}`
                               : ''
                           }${event.wicket_end ? ` · end: ${event.wicket_end.replace('_', '-')}` : ''}${
                             event.batters_crossed ? ' · crossed' : ''

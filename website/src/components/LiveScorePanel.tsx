@@ -309,6 +309,30 @@ function playerName(playerById: Map<number, PublicPlayer>, playerId: number | nu
   return playerById.get(playerId)?.full_name ?? `#${playerId}`
 }
 
+type MatchPlayerFlags = { captain: boolean; wicketkeeper: boolean }
+
+function markedPlayerName(
+  playerById: Map<number, PublicPlayer>,
+  flagsByPlayerId: Map<number, MatchPlayerFlags>,
+  playerId: number | null | undefined,
+): string {
+  const flags = playerId ? flagsByPlayerId.get(playerId) : undefined
+  return `${flags?.captain ? '© ' : ''}${flags?.wicketkeeper ? '† ' : ''}${playerName(playerById, playerId)}`
+}
+
+function keeperDismissalText(
+  dismissal: string | null | undefined,
+  event: LiveBallEvent | undefined,
+  keeperIds: Set<number>,
+  playerById: Map<number, PublicPlayer>,
+): string {
+  const text = formatDismissalDisplay(dismissal)
+  const fielderId = event?.fielder_player_id
+  if (!fielderId || !keeperIds.has(fielderId)) return text
+  const name = playerName(playerById, fielderId)
+  return text.includes(`† ${name}`) ? text : text.replace(name, `† ${name}`)
+}
+
 function playerBattingStyle(playerById: Map<number, PublicPlayer>, playerId: number): string {
   return playerById.get(playerId)?.batting_style?.trim() ?? ''
 }
@@ -524,18 +548,22 @@ function tokenClass(token: string): string {
   return ''
 }
 
-function deliveryDetail(event: LiveBallEvent, playerById: Map<number, PublicPlayer>): string {
+function deliveryDetail(event: LiveBallEvent, playerById: Map<number, PublicPlayer>, keeperIds: Set<number>): string {
   if (event.commentary?.trim()) return event.commentary.trim()
 
   if (event.wicket_type) {
     const outName = playerName(playerById, event.wicket_player_id)
-    const fielder = event.fielder_player_id ? playerName(playerById, event.fielder_player_id) : ''
+    const fielder = event.fielder_player_id
+      ? `${keeperIds.has(event.fielder_player_id) ? '† ' : ''}${playerName(playerById, event.fielder_player_id)}`
+      : ''
     const dismissal = dismissalLabel(event.wicket_type)
     const fielderText = fielder ? `, fielder: ${fielder}` : ''
     const replacement = event.replacement_player_id ? ` New batter: ${playerName(playerById, event.replacement_player_id)}.` : ''
     const endText = event.wicket_end ? `, ${event.wicket_end.replace('_', '-')} end` : ''
     const crossedText = event.batters_crossed ? ', batters crossed' : ''
-    return event.dismissal_text?.trim() || `${outName} is out ${dismissal}${fielderText}${endText}${crossedText}.${replacement}`
+    return event.dismissal_text?.trim()
+      ? keeperDismissalText(event.dismissal_text, event, keeperIds, playerById)
+      : `${outName} is out ${dismissal}${fielderText}${endText}${crossedText}.${replacement}`
   }
 
   const result = deliveryResultText(event)
@@ -614,6 +642,8 @@ function postBallActiveBatterIds(lastEvent: LiveBallEvent | undefined, legalBall
 function computeMiniDashboard(
   state: LiveScoreState | undefined,
   playerById: Map<number, PublicPlayer>,
+  flagsByPlayerId: Map<number, MatchPlayerFlags>,
+  keeperIds: Set<number>,
   targetInnings?: number | null,
 ): InningsDashboard {
   const summaries = state?.summaries ?? []
@@ -782,14 +812,14 @@ function computeMiniDashboard(
       inningsWickets += 1
       group.wickets += 1
       partnershipWickets += 1
-      const outName = playerName(playerById, event.wicket_player_id)
+      const outName = markedPlayerName(playerById, flagsByPlayerId, event.wicket_player_id)
       const outRuns = event.wicket_player_id ? batterStats.get(event.wicket_player_id)?.runs ?? 0 : 0
       const outBalls = event.wicket_player_id ? batterStats.get(event.wicket_player_id)?.balls ?? 0 : 0
       const outStat = event.wicket_player_id ? batterStats.get(event.wicket_player_id) : null
       if (outStat) {
         outStat.isOut = true
         outStat.dismissal = event.dismissal_text?.trim()
-          ? formatDismissalDisplay(event.dismissal_text)
+          ? keeperDismissalText(event.dismissal_text, event, keeperIds, playerById)
           : dismissalLabel(event.wicket_type)
       }
       lastBatText = `${outName} ${outRuns} (${outBalls}b)`
@@ -802,9 +832,9 @@ function computeMiniDashboard(
 
     wormPoints.push({ over: wormOverFromBalls(legalBalls), runs: inningsRuns })
 
-    const striker = playerName(playerById, event.striker_player_id)
-    const nonStriker = event.non_striker_player_id ? playerName(playerById, event.non_striker_player_id) : ''
-    const bowlerName = playerName(playerById, event.bowler_player_id)
+    const striker = markedPlayerName(playerById, flagsByPlayerId, event.striker_player_id)
+    const nonStriker = event.non_striker_player_id ? markedPlayerName(playerById, flagsByPlayerId, event.non_striker_player_id) : ''
+    const bowlerName = markedPlayerName(playerById, flagsByPlayerId, event.bowler_player_id)
     const token = deliveryToken(event)
     group.deliveries.push({
       event,
@@ -812,7 +842,7 @@ function computeMiniDashboard(
       token,
       tokenClass: tokenClass(token),
       header: `${bowlerName} to ${striker}, ${deliveryResultText(event)}`,
-      detail: deliveryDetail(event, playerById),
+      detail: deliveryDetail(event, playerById, keeperIds),
     })
     group.scoreText = `${inningsRuns}/${inningsWickets}`
     group.battersText = [
@@ -1237,6 +1267,7 @@ export function LiveScorePanel({
     queryKey: ['public-live-match-squads', matchId],
     queryFn: () => fetchJson<MatchSquad>(`/public/matches/${matchId}/squads`),
     enabled: Number.isFinite(matchId),
+    refetchInterval: isLive ? 3_000 : false,
     retry: 1,
   })
 
@@ -1260,6 +1291,20 @@ export function LiveScorePanel({
     [playersQ.data],
   )
 
+  const squadFlagsByPlayerId = useMemo(
+    () => new Map((squadQ.data?.teams ?? []).flatMap((team) => team.players.map((player) => [
+      player.player_id,
+      { captain: player.is_captain, wicketkeeper: player.is_wicketkeeper },
+    ] as const))),
+    [squadQ.data],
+  )
+  const keeperIds = useMemo(
+    () => new Set([...squadFlagsByPlayerId].filter(([, flags]) => flags.wicketkeeper).map(([id]) => id)),
+    [squadFlagsByPlayerId],
+  )
+  const matchPlayerName = (playerId: number | null | undefined) =>
+    markedPlayerName(playerById, squadFlagsByPlayerId, playerId)
+
   const teamNames = useMemo(
     () => ({
       [homeTeamId]: teamById.get(homeTeamId)?.name ?? homeName,
@@ -1269,13 +1314,13 @@ export function LiveScorePanel({
   )
 
   const dashboard = useMemo(
-    () => computeMiniDashboard(liveQ.data, playerById),
-    [liveQ.data, playerById],
+    () => computeMiniDashboard(liveQ.data, playerById, squadFlagsByPlayerId, keeperIds),
+    [liveQ.data, playerById, squadFlagsByPlayerId, keeperIds],
   )
 
   const inningsDashboards = useMemo(
-    () => (liveQ.data?.summaries ?? []).map((summary) => computeMiniDashboard(liveQ.data, playerById, summary.innings)),
-    [liveQ.data, playerById],
+    () => (liveQ.data?.summaries ?? []).map((summary) => computeMiniDashboard(liveQ.data, playerById, squadFlagsByPlayerId, keeperIds, summary.innings)),
+    [liveQ.data, playerById, squadFlagsByPlayerId, keeperIds],
   )
 
   const activeSummary = dashboard.summary
@@ -1485,7 +1530,7 @@ export function LiveScorePanel({
             {currentBatters.map((stat, index) => (
               <tr key={stat.playerId}>
                 <td>
-                  {playerName(playerById, stat.playerId)}{index === 0 ? '*' : ''}
+                  {matchPlayerName(stat.playerId)}{index === 0 ? '*' : ''}
                   {playerBattingStyle(playerById, stat.playerId) ? (
                     <small>{playerBattingStyle(playerById, stat.playerId)}</small>
                   ) : null}
@@ -1519,7 +1564,7 @@ export function LiveScorePanel({
             {(dashboard.currentBowlers.length ? dashboard.currentBowlers : dashboard.bowlers.slice(-2)).map((stat) => (
               <tr key={stat.playerId}>
                 <td>
-                  {playerName(playerById, stat.playerId)}
+                  {matchPlayerName(stat.playerId)}
                   {playerBowlingStyle(playerById, stat.playerId) ? (
                     <small>{playerBowlingStyle(playerById, stat.playerId)}</small>
                   ) : null}
@@ -1614,7 +1659,7 @@ export function LiveScorePanel({
                   return (
                     <div key={partnership.key} className="live-score-panel__partnership-row">
                       <div className="live-score-panel__partnership-batter">
-                        <strong>{playerName(playerById, partnership.batterOne.playerId)}</strong>
+                        <strong>{matchPlayerName(partnership.batterOne.playerId)}</strong>
                         <small>
                           {partnership.batterOne.runs} ({partnership.batterOne.balls})
                         </small>
@@ -1638,7 +1683,7 @@ export function LiveScorePanel({
                       </div>
                       <div className="live-score-panel__partnership-batter is-right">
                         <strong>
-                          {batterTwo ? playerName(playerById, batterTwo.playerId) : '—'}
+                          {batterTwo ? matchPlayerName(batterTwo.playerId) : '—'}
                         </strong>
                         <small>
                           {batterTwo ? `${batterTwo.runs} (${batterTwo.balls})` : '—'}
@@ -1888,7 +1933,7 @@ export function LiveScorePanel({
                     </span>
                     {expanded ? (
                       <span className="live-score-panel__over-cell-details">
-                        <span><strong>Bowler:</strong> {playerName(playerById, bowlerId)}</span>
+                        <span><strong>Bowler:</strong> {matchPlayerName(bowlerId)}</span>
                         <span className="live-score-panel__over-deliveries">
                           {[...point.group.deliveries]
                             .sort((a, b) => a.event.sequence_number - b.event.sequence_number)
@@ -2193,7 +2238,7 @@ export function LiveScorePanel({
                   <tbody>
                     {inningsDashboard.batters.map((stat) => (
                       <tr key={stat.playerId}>
-                        <td>{playerName(playerById, stat.playerId)}</td>
+                        <td>{matchPlayerName(stat.playerId)}</td>
                         <td>{stat.isOut ? formatDismissalDisplay(stat.dismissal) : 'not out'}</td>
                         <td>{stat.runs}</td>
                         <td>{stat.balls}</td>
@@ -2224,7 +2269,7 @@ export function LiveScorePanel({
                 <p className="live-score-panel__scorecard-note">
                   <strong>Yet to bat:</strong>{' '}
                   {didNotBatPlayers
-                    .map((row) => playerName(playerById, row.player_id))
+                    .map((row) => matchPlayerName(row.player_id))
                     .join(', ')}
                 </p>
               ) : null}
@@ -2234,7 +2279,7 @@ export function LiveScorePanel({
                   ? fallOfWickets
                       .map(
                         (row) =>
-                          `${row.wicket}-${row.score} (${playerName(playerById, row.playerId)}, ${row.over})`,
+                          `${row.wicket}-${row.score} (${matchPlayerName(row.playerId)}, ${row.over})`,
                       )
                       .join(', ')
                   : 'None'}
@@ -2273,7 +2318,7 @@ export function LiveScorePanel({
                   <tbody>
                     {inningsDashboard.bowlers.map((stat) => (
                       <tr key={stat.playerId}>
-                        <td>{playerName(playerById, stat.playerId)}</td>
+                        <td>{matchPlayerName(stat.playerId)}</td>
                         <td>{oversLabelFromBalls(stat.balls)}</td>
                         <td>{stat.maidens}</td>
                         <td>{stat.runs}</td>
@@ -2317,10 +2362,9 @@ export function LiveScorePanel({
                 {playing.map((row) => (
                   <li key={row.player_id}>
                     <span>
-                      <strong>{playerName(playerById, row.player_id)}</strong>
+                      <strong>{matchPlayerName(row.player_id)}</strong>
                       <small>{playerById.get(row.player_id)?.role?.trim() || 'Player'}</small>
                     </span>
-                    <small>{[row.is_captain ? 'C' : '', row.is_wicketkeeper ? 'WK' : ''].filter(Boolean).join(' · ')}</small>
                   </li>
                 ))}
               </ol>
@@ -2328,7 +2372,7 @@ export function LiveScorePanel({
             {substitutes.length > 0 ? (
               <div className="live-score-panel__substitutes">
                 <h4>Substitutes</h4>
-                <p>{substitutes.map((row) => playerName(playerById, row.player_id)).join(', ')}</p>
+                <p>{substitutes.map((row) => matchPlayerName(row.player_id)).join(', ')}</p>
               </div>
             ) : null}
           </section>

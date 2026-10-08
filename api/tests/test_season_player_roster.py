@@ -108,10 +108,27 @@ def test_season_roster_shows_registered_players_and_keeps_other_players(monkeypa
             monkeypatch.setattr(admin_routes, "_reconcile_live_scorecard", lambda *_: None)
             saved_squad = admin_save_match_day_squad(match.id, MatchSquadSaveIn.model_validate({
                 "teams": [{"team_id": team.id, "players": [
-                    {"player_id": standby[0], "role": "playing_xi"},
+                    {"player_id": standby[0], "role": "playing_xi", "is_captain": True, "is_wicketkeeper": True},
                 ]}],
             }), None, None, db, user)
             assert saved_squad.teams[0].players[0].player_id == standby[0]
+            assert saved_squad.teams[0].players[0].is_captain
+            assert saved_squad.teams[0].players[0].is_wicketkeeper
+            with pytest.raises(HTTPException) as multiple_captains:
+                admin_save_match_day_squad(match.id, MatchSquadSaveIn.model_validate({
+                    "teams": [{"team_id": team.id, "players": [
+                        {"player_id": standby[0], "role": "playing_xi", "is_captain": True},
+                        {"player_id": players[0].id, "role": "playing_xi", "is_captain": True},
+                    ]}],
+                }), None, None, db, user)
+            assert multiple_captains.value.status_code == 400
+            with pytest.raises(HTTPException) as substitute_keeper:
+                admin_save_match_day_squad(match.id, MatchSquadSaveIn.model_validate({
+                    "teams": [{"team_id": team.id, "players": [
+                        {"player_id": standby[0], "role": "substitute", "is_wicketkeeper": True},
+                    ]}],
+                }), None, None, db, user)
+            assert substitute_keeper.value.status_code == 400
             assert db.get(Player, standby[0]).status == "active"
             assert db.get(Player, standby[0]).team_id == team.id
             assert db.get(SeasonPlayer, (season.id, standby[0])).role == "standby"
