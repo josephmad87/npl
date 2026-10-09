@@ -12,6 +12,7 @@ import { SponsorMarquee } from './components/SponsorMarquee'
 import { SeoHead } from './components/SeoHead'
 import type { ArticleLite, MatchLite, TeamLite } from './lib/hooks'
 import { formatCategoryLabel } from './lib/formatters'
+import { editorialGalleryPhotos } from './lib/editorialGallery'
 import { imageCdnSrcSet, imageCdnUrl } from './lib/imageCdn'
 import { matchSeoPath } from './lib/matchUrls'
 import { fetchJson, resolveMediaUrl } from './lib/publicApi'
@@ -624,7 +625,10 @@ function App() {
   const spotlightPlayers = homepage?.spotlight_players ?? EMPTY_SPOTLIGHT_PLAYERS
   const gallery = homepage?.gallery ?? EMPTY_GALLERY
   const galleryPhotos = useMemo(
-    () => gallery.filter((item) => item.media_type === 'image'),
+    () => [
+      ...editorialGalleryPhotos,
+      ...gallery.filter((item) => item.media_type === 'image'),
+    ],
     [gallery],
   )
   const sponsors = homepage?.sponsors ?? EMPTY_SPONSORS
