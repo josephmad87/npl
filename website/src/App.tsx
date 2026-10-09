@@ -30,6 +30,15 @@ type PublicSponsor = {
   team_name: string | null
 }
 
+const innBucksSponsor: PublicSponsor = {
+  id: -1,
+  name: 'InnBucks',
+  image_url: '/innbucks-logo.png',
+  link_url: null,
+  team_id: null,
+  team_name: null,
+}
+
 type HomepagePayload = {
   generated_at: string
   news: ArticleLite[]
@@ -674,7 +683,16 @@ function App() {
     retry: 1,
   })
 
-  const homepageSponsors = sponsors.filter((sponsor) => sponsor.team_id == null)
+  const homepageSponsors = sponsors
+    .filter((sponsor) => sponsor.team_id == null)
+    .map((sponsor) =>
+      sponsor.name.trim().toLowerCase() === 'innbucks'
+        ? { ...sponsor, image_url: innBucksSponsor.image_url }
+        : sponsor,
+    )
+  if (!homepageSponsors.some((sponsor) => sponsor.name.trim().toLowerCase() === 'innbucks')) {
+    homepageSponsors.push(innBucksSponsor)
+  }
 
   const [heroSelection, setHeroSelection] = useState({ storyIds: '', index: 0 })
   const prefetchedHeroImages = useRef(new Map<number, HTMLImageElement>())
