@@ -33,6 +33,7 @@ import {
   loadScoringOutbox,
   markScoringAttempt,
   removeScoringBall,
+  replaceQueuedScoringBall,
   saveScoringOutbox,
   type QueuedBallPayload,
   type ScoringOutboxEntry,
@@ -106,6 +107,7 @@ type ShortRunDelivery = 'bat' | 'wide' | 'no_ball_bat' | 'bye' | 'leg_bye' | 'no
 
 type EditingBallDraft = {
   eventId: number
+  clientEventId: string | null
   body: LiveBallEventInput
 }
 
@@ -717,6 +719,16 @@ function appendOptimisticBall(
   }
 }
 
+function withQueuedBalls(
+  state: LiveScoreStateDto,
+  entries: ScoringOutboxEntry[],
+): LiveScoreStateDto {
+  return entries.reduce(
+    (current, entry, index) => appendOptimisticBall(current, entry.payload, index),
+    state,
+  )
+}
+
 function suggestedDismissal(
   wicketType: string,
   bowlerName: string,
@@ -1110,6 +1122,7 @@ function LiveScoringPage() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
   const [outboxFlushing, setOutboxFlushing] = useState(false)
   const [outboxPaused, setOutboxPaused] = useState(false)
+  const [queueCorrectionPending, setQueueCorrectionPending] = useState(false)
   const outboxFlushingRef = useRef(false)
   const [requestEditOpen, setRequestEditOpen] = useState(false)
   const [requestEditReason, setRequestEditReason] = useState('')
@@ -2315,12 +2328,114 @@ function LiveScoringPage() {
     )
   }
 
-  const saveEditingBall = () => {
+  const saveEditingBall = async () => {
     if (!editingBall) return
+    const queuedId = editingBall.eventId < 0 ? editingBall.clientEventId : null
+    if (queuedId) {
+      if (outboxFlushingRef.current) {
+        setEditBallError('Wait for the current Sync attempt to finish, then save the correction.')
+        return
+      }
+      setQueueCorrectionPending(true)
+      try {
+        const authoritative = await adminGet<LiveScoreStateDto>(`/admin/matches/${mid}/live`)
+        if (authoritative.events.some((event) => event.client_event_id === queuedId)) {
+          setEditBallError('This ball has already reached the server. Tap Sync to clear the queued copy, then reopen the saved ball.')
+          setOutboxPaused(false)
+          void flushDeliveryOutbox()
+          return
+        }
+        if (!outboxRef.current.some((entry) => entry.id === queuedId)) {
+          throw new Error('This ball is no longer queued. Refresh the score and open the delivery again.')
+        }
+        const previousOverBowlerIds = new Set(
+          authoritative.events
+            .filter((event) =>
+              event.innings === editingBall.body.innings &&
+              event.over_number === editingBall.body.over_number - 1 &&
+              !event.is_dead_ball,
+            )
+            .map((event) => event.bowler_player_id),
+        )
+        if (previousOverBowlerIds.has(editingBall.body.bowler_player_id)) {
+          setEditBallError('Choose a different bowler. A bowler cannot bowl consecutive overs.')
+          return
+        }
+        const next = replaceQueuedScoringBall(outboxRef.current, queuedId, editingBall.body)
+        outboxRef.current = next
+        saveScoringOutbox(mid, next)
+        setDeliveryOutbox(next)
+        queryClient.setQueryData(['admin', 'matches', mid, 'live'], withQueuedBalls(authoritative, next))
+        if (editingBall.body.innings === innings) {
+          setBowlerPlayerId(editingBall.body.bowler_player_id)
+        }
+        setEditingBall(null)
+        setEditBallError(null)
+        setActionError(null)
+        setOutboxPaused(false)
+        void flushDeliveryOutbox()
+      } catch (error) {
+        setEditBallError(error instanceof Error ? error.message : 'Could not update the queued ball.')
+      } finally {
+        setQueueCorrectionPending(false)
+      }
+      return
+    }
+    if (editingBall.eventId < 0) {
+      setEditBallError('This queued ball is no longer available. Refresh the score and open it again.')
+      return
+    }
     void editBallMutation.mutate(editingBall)
   }
 
-  const deleteRecordedBall = (event: LiveBallEventDto) => {
+  const deleteRecordedBall = async (event: LiveBallEventDto) => {
+    const queuedId = event.id < 0 ? event.client_event_id : null
+    if (queuedId) {
+      const queuedIndex = outboxRef.current.findIndex((entry) => entry.id === queuedId)
+      if (queuedIndex < 0) {
+        setActionError('This queued ball is no longer available. Refresh the score and try again.')
+        return
+      }
+      if (queuedIndex !== outboxRef.current.length - 1) {
+        setActionError('Remove later queued balls first, so the delivery order and strike stay correct.')
+        return
+      }
+      if (outboxFlushingRef.current) {
+        setActionError('Wait for the current Sync attempt to finish before removing this ball.')
+        return
+      }
+      if (!window.confirm('Remove this unsynced ball from this device? It has not reached the match scorecard.')) return
+      setQueueCorrectionPending(true)
+      try {
+        const authoritative = await adminGet<LiveScoreStateDto>(`/admin/matches/${mid}/live`)
+        if (authoritative.events.some((saved) => saved.client_event_id === queuedId)) {
+          setActionError('This ball has already reached the server. Tap Sync to clear the queued copy, then delete the saved ball.')
+          setOutboxPaused(false)
+          void flushDeliveryOutbox()
+          return
+        }
+        const next = removeScoringBall(outboxRef.current, queuedId)
+        outboxRef.current = next
+        saveScoringOutbox(mid, next)
+        setDeliveryOutbox(next)
+        queryClient.setQueryData(['admin', 'matches', mid, 'live'], withQueuedBalls(authoritative, next))
+        setEditingBall(null)
+        restorePreBallState(event)
+        setBowlerPlayerId('')
+        setPlayerControlsOpen(true)
+        setOutboxPaused(false)
+        setActionError('Queued ball removed. Choose the correct bowler before recording it again.')
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : 'Could not remove the queued ball.')
+      } finally {
+        setQueueCorrectionPending(false)
+      }
+      return
+    }
+    if (event.id < 0) {
+      setActionError('This queued ball is no longer available. Refresh the score and try again.')
+      return
+    }
     const ok = window.confirm(
       `Delete recorded ball ${event.innings}.${event.over_number}.${event.ball_number}? This will recalculate live score and the official scorecard if already finalized.`,
     )
@@ -2332,6 +2447,7 @@ function LiveScoringPage() {
     setEditBallError(null)
     setEditingBall({
       eventId: event.id,
+      clientEventId: event.id < 0 ? event.client_event_id : null,
       body: eventToLiveBallInput(event),
     })
     setActiveScorerPanel('corrections')
@@ -2918,6 +3034,9 @@ function LiveScoringPage() {
   const allLiveEvents = [...(liveQ.data?.events ?? [])].sort(
     (a, b) => a.sequence_number - b.sequence_number || a.id - b.id,
   )
+  const firstQueuedEvent = allLiveEvents.find(
+    (event) => event.id < 0 && event.client_event_id === deliveryOutbox[0]?.id,
+  )
   const scoringInningsEvents = allLiveEvents.filter((event) => event.innings === innings)
   const scoringScorecard = liveInningsScorecard(scoringInningsEvents)
   const activeScoringBatters = [...new Set([strikerPlayerId, nonStrikerPlayerId])]
@@ -3205,6 +3324,11 @@ function LiveScoringPage() {
         }
         .live-scorer-sync-banner p {
           margin: 0.15rem 0 0;
+        }
+        .live-scorer-sync-banner__actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
         }
         .live-scorer-page .catalog-card-grid {
           display: grid;
@@ -5074,13 +5198,28 @@ function LiveScoringPage() {
                     ? `Last ball saved at ${lastSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`
                     : 'Each recorded ball is saved to the match centre immediately.'}
             </p>
+            {outboxPaused && deliveryOutbox[0]?.lastError ? (
+              <p role="alert">{deliveryOutbox[0].lastError}</p>
+            ) : null}
           </div>
         </div>
         {deliveryOutbox.length > 0 ? (
+          <div className="live-scorer-sync-banner__actions">
+          {outboxPaused && firstQueuedEvent ? (
+            <button
+              type="button"
+              className="btn-primary btn--with-icon"
+              onClick={() => beginEditingBall(firstQueuedEvent)}
+              disabled={outboxFlushing || queueCorrectionPending}
+            >
+              <Pencil size={18} aria-hidden />
+              Fix queued ball
+            </button>
+          ) : null}
           <button
             type="button"
-            className="btn-primary btn--with-icon"
-            disabled={!isOnline || outboxFlushing || !scoringSessionQ.data?.session_token}
+            className={`${outboxPaused ? 'btn-ghost' : 'btn-primary'} btn--with-icon`}
+            disabled={!isOnline || outboxFlushing || queueCorrectionPending || !scoringSessionQ.data?.session_token}
             onClick={() => {
               setOutboxPaused(false)
               void flushDeliveryOutbox()
@@ -5089,6 +5228,7 @@ function LiveScoringPage() {
             <CloudUpload size={18} aria-hidden />
             {outboxFlushing ? 'Syncing…' : `Sync ${deliveryOutbox.length} queued`}
           </button>
+          </div>
         ) : null}
       </aside> : null}
 
@@ -7526,9 +7666,13 @@ function LiveScoringPage() {
         <section className="team-hub-section">
           <div className="team-hub-section-head">
             <div className="team-hub-section-head__lead">
-              <h2 className="team-hub-section__title">Correct recorded ball</h2>
+              <h2 className="team-hub-section__title">
+                {editingBall.eventId < 0 ? 'Correct queued ball' : 'Correct recorded ball'}
+              </h2>
               <p className="muted">
-                Edit the saved ball event. The backend will recalculate live score labels, fielding stats, and the official scorecard if this match was already finalized.
+                {editingBall.eventId < 0
+                  ? 'This delivery is saved on this device but has not reached the server. Choose the correct bowler and save to retry Sync. Later queued balls in this over using the same bowler will be updated too.'
+                  : 'Edit the saved ball event. The backend will recalculate live score labels, fielding stats, and the official scorecard if this match was already finalized.'}
               </p>
             </div>
           </div>
@@ -7589,7 +7733,7 @@ function LiveScoringPage() {
                 value={editingBall.body.bowler_player_id}
                 onChange={(event) => updateEditingBall('bowler_player_id', Number(event.target.value))}
               >
-                {playersForTeam(editingBall.body.bowling_team_id).map((player) => (
+                {scoringPlayersForTeam(editingBall.body.bowling_team_id).map((player) => (
                   <option key={player.id} value={player.id}>
                     {player.full_name}
                   </option>
@@ -7843,16 +7987,16 @@ function LiveScoringPage() {
             <button
               type="button"
               className="btn-primary"
-              onClick={saveEditingBall}
-              disabled={editBallMutation.isPending}
+              onClick={() => void saveEditingBall()}
+              disabled={editBallMutation.isPending || queueCorrectionPending || outboxFlushing}
             >
-              Save correction
+              {queueCorrectionPending ? 'Updating…' : editingBall.eventId < 0 ? 'Save and sync' : 'Save correction'}
             </button>
             <button
               type="button"
               className="btn-ghost"
               onClick={() => setEditingBall(null)}
-              disabled={editBallMutation.isPending}
+              disabled={editBallMutation.isPending || queueCorrectionPending}
             >
               Cancel edit
             </button>
@@ -7914,7 +8058,9 @@ function LiveScoringPage() {
                   <tr key={event.id}>
                     <td>
                       <strong>{event.innings}.{event.over_number}.{event.ball_number}</strong>
-                      <div className="muted">Event #{event.sequence_number}</div>
+                      <div className="muted">
+                        {event.id < 0 ? 'Queued on this device' : `Event #${event.sequence_number}`}
+                      </div>
                     </td>
                     <td>{matchPlayerName(event.striker_player_id)}</td>
                     <td>{matchPlayerName(event.non_striker_player_id)}</td>
@@ -7939,15 +8085,15 @@ function LiveScoringPage() {
                             type="button"
                             className="btn-ghost"
                             onClick={() => beginEditingBall(event)}
-                            disabled={editBallMutation.isPending || deleteBallMutation.isPending}
+                            disabled={editBallMutation.isPending || deleteBallMutation.isPending || queueCorrectionPending || outboxFlushing}
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             className="btn-ghost"
-                            onClick={() => deleteRecordedBall(event)}
-                            disabled={editBallMutation.isPending || deleteBallMutation.isPending}
+                            onClick={() => void deleteRecordedBall(event)}
+                            disabled={editBallMutation.isPending || deleteBallMutation.isPending || queueCorrectionPending || outboxFlushing}
                           >
                             Delete
                           </button>

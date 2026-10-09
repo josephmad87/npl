@@ -106,3 +106,46 @@ export function removeScoringBall(
 ): ScoringOutboxEntry[] {
   return entries.filter((entry) => entry.id !== id)
 }
+
+export function replaceQueuedScoringBall(
+  entries: ScoringOutboxEntry[],
+  id: string,
+  body: LiveBallEventInput,
+): ScoringOutboxEntry[] {
+  const targetIndex = entries.findIndex((entry) => entry.id === id)
+  if (targetIndex < 0) return entries
+
+  const original = entries[targetIndex].payload.body
+  const bowlerChanged = body.bowler_player_id !== original.bowler_player_id
+  return entries.map((entry, index) => {
+    if (index === targetIndex) {
+      return {
+        ...entry,
+        payload: {
+          ...entry.payload,
+          body: { ...body, client_event_id: id },
+        },
+        attempts: 0,
+        lastError: null,
+      }
+    }
+    if (
+      !bowlerChanged ||
+      index < targetIndex ||
+      entry.payload.body.innings !== original.innings ||
+      entry.payload.body.over_number !== original.over_number ||
+      entry.payload.body.bowler_player_id !== original.bowler_player_id
+    ) {
+      return entry
+    }
+    return {
+      ...entry,
+      payload: {
+        ...entry.payload,
+        body: { ...entry.payload.body, bowler_player_id: body.bowler_player_id },
+      },
+      attempts: 0,
+      lastError: null,
+    }
+  })
+}
