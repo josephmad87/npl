@@ -68,8 +68,6 @@ export function SiteFooter() {
             <Link to="/mens">Mens Hub</Link>
             <Link to="/women">Women Hub</Link>
             <Link to="/youth">Youth Hub</Link>
-            <Link to="/fixtures">All Fixtures</Link>
-            <Link to="/results">All Results</Link>
           </nav>
 
           <nav className="site-footer-col" aria-label="Media and updates">
@@ -86,7 +84,6 @@ export function SiteFooter() {
             <h3>{support.heading}</h3>
             <Link to="/about-us">About Us</Link>
             <Link to="/safeguarding">Safeguarding</Link>
-            <Link to="/scorecard-corrections">Scorecard Corrections</Link>
             <Link to="/contact-us">Contact Us</Link>
             <Link to="/support">Support</Link>
           </nav>

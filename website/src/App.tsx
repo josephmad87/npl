@@ -467,27 +467,25 @@ function teamOutcome(match: HomeSpotlightMatch, teamId: number): TeamFormCode {
 function teamResultLine(
   match: HomeSpotlightMatch | undefined,
   teamId: number,
-  teamsMap: Record<number, { name?: string | null }>,
 ): string {
   if (!match) return 'No recent result yet'
 
   const outcome = teamOutcome(match, teamId)
-  const opponent = opponentName(teamId, match, teamsMap)
-  const margin = match.result?.margin_text?.trim()
+  const margin = match.result?.margin_text?.trim().match(/^(?:won|lost) by (.+)$/i)?.[1]
 
   if (outcome === 'W') {
-    return `Beat ${opponent}${margin ? ` · ${margin}` : ''}`
+    return margin ? `Won by ${margin}` : 'Won'
   }
 
   if (outcome === 'L') {
-    return `Lost to ${opponent}${margin ? ` · ${margin}` : ''}`
+    return margin ? `Lost by ${margin}` : 'Lost'
   }
 
   if (outcome === 'T') {
-    return `Tied with ${opponent}${margin ? ` · ${margin}` : ''}`
+    return 'Tied'
   }
 
-  return `No result vs ${opponent}`
+  return 'No result'
 }
 
 function categoryFixturesHref(category: string | null | undefined): string {
@@ -1304,9 +1302,13 @@ useEffect(() => {
                   {teamResultLine(
                     spotlightLatestResult,
                     selectedSpotlightTeam.id,
-                    teamsMap,
                   )}
                 </strong>
+                {spotlightLatestResult ? (
+                  <p>
+                    vs {opponentName(selectedSpotlightTeam.id, spotlightLatestResult, teamsMap)}
+                  </p>
+                ) : null}
                 <p>
                   {spotlightLatestResult?.result?.score_summary ??
                     'Results will appear once published.'}
