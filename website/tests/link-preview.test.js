@@ -257,13 +257,22 @@ test('article HTML includes editorial metadata, schema, breadcrumbs and crawlabl
   }
 
   const response = await handler(
-    new Request('https://npl.co.zw/news/final-report'),
+    new Request('https://npl.co.zw/news/final-report?v=2026-09-01T08%3A00%3A00Z', {
+      headers: { 'user-agent': 'WhatsApp/2.26.1' },
+    }),
     htmlContext(),
   )
   const html = await response.text()
 
   assert.equal(response.status, 200)
   assert.match(html, /<title>NPL final report \| National Premier League<\/title>/)
+  assert.match(html, /<link rel="canonical" href="https:\/\/npl\.co\.zw\/news\/final-report"/)
+  assert.match(html, /<meta property="og:url" content="https:\/\/npl\.co\.zw\/news\/final-report\?v=2026-09-01T08%3A00%3A00Z"/)
+  assert.match(
+    html,
+    /<meta property="og:image" content="https:\/\/npl\.co\.zw\/\.netlify\/images\?url=https%3A%2F%2Fadmin\.npl\.co\.zw%2Fuploads%2Ffinal\.webp&amp;w=1200&amp;fm=jpg&amp;q=82"/,
+  )
+  assert.match(html, /<meta property="og:image:type" content="image\/jpeg"/)
   assert.match(html, /"@type":"NewsArticle"/)
   assert.match(html, /"@type":"BreadcrumbList"/)
   assert.match(html, /data-npl-edge-prerender/)

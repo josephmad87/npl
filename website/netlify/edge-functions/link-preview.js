@@ -197,7 +197,7 @@ function absoluteUrl(raw, requestUrl) {
   return new URL(DEFAULT_IMAGE_PATH, requestUrl).toString()
 }
 
-function merchandiseShareImage(raw, requestUrl) {
+function optimisedShareImage(raw, requestUrl) {
   const source = typeof raw === 'string' ? raw.trim() : ''
   if (!source) {
     return new URL(DEFAULT_IMAGE_PATH, requestUrl).toString()
@@ -307,10 +307,8 @@ async function previewForNews(slug, request) {
           DEFAULT_DESCRIPTION,
       ) ||
       DEFAULT_DESCRIPTION,
-    image: absoluteUrl(
-      article.featured_image_url || article.body_image_url,
-      request.url,
-    ),
+    image: optimisedShareImage(article.featured_image_url || article.body_image_url, request.url),
+    imageType: article.featured_image_url || article.body_image_url ? 'image/jpeg' : undefined,
     type: 'article',
     entityKind: 'article',
     entity: article,
@@ -1099,7 +1097,7 @@ async function previewForMerchandiseProduct(productId, request) {
   return {
     title: name,
     description,
-    image: merchandiseShareImage(product.image_url, request.url),
+    image: optimisedShareImage(product.image_url, request.url),
     imageType: product.image_url ? 'image/jpeg' : undefined,
     type: 'product',
     entityKind: 'product',
@@ -1269,8 +1267,13 @@ function metaTags(preview, request) {
   const robots = preview.notFound || isInternalSearch || isNonProduction
     ? 'noindex,follow'
     : 'index,follow,max-image-preview:large'
+  const previewVersion = preview.entityKind === 'article'
+    ? url.searchParams.get('v')
+    : null
   url.search = ''
   url.hash = ''
+  const shareUrl = new URL(url.href)
+  if (previewVersion) shareUrl.searchParams.set('v', previewVersion)
   const title = preview.title.includes(SITE_NAME)
     ? preview.title
     : `${preview.title} | ${SITE_NAME}`
@@ -1295,7 +1298,7 @@ function metaTags(preview, request) {
 <meta property="og:image:secure_url" content="${escapeHtml(image)}" />
 ${imageType ? `<meta property="og:image:type" content="${escapeHtml(imageType)}" />` : ''}
 <meta property="og:image:alt" content="${escapeHtml(title)}" />
-<meta property="og:url" content="${escapeHtml(url.href)}" />
+<meta property="og:url" content="${escapeHtml(shareUrl.href)}" />
 
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="${escapeHtml(title)}" />

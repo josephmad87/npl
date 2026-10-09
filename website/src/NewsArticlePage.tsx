@@ -103,6 +103,15 @@ export default function NewsArticlePage() {
 
   const heroImage = resolveMediaUrl(article?.featured_image_url)
   const bodyImage = resolveMediaUrl(article?.body_image_url)
+  const storyShareUrl = article
+    ? new URL(`/news/${article.slug}`, window.location.origin)
+    : null
+  if (storyShareUrl && article) {
+    storyShareUrl.searchParams.set(
+      'v',
+      article.updated_at || article.published_at || article.created_at || String(article.id),
+    )
+  }
 
   const sidebarNews = recentNews
     .filter((item) => item.slug !== slug)
@@ -227,6 +236,7 @@ export default function NewsArticlePage() {
               <SocialShareButtons
                 title={article.title}
                 text={articleShareText}
+                url={storyShareUrl?.toString()}
               />
             </div>
 
