@@ -20,6 +20,7 @@ import { Spinner } from './components/Spinner'
 import { TeamCard } from './components/TeamCard'
 import type { CompetitionCategory } from './lib/competitionCategories'
 import { formatCategoryLabel, formatMatchDate } from './lib/formatters'
+import { editorialGalleryPhotos } from './lib/editorialGallery'
 import { matchSeoPath } from './lib/matchUrls'
 import {
   type ArticleLite,
@@ -1051,10 +1052,11 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
     retry: 1,
   })
   const [active, setActive] = useState<GalleryItem | null>(null)
-  const activeIndex = active ? data.findIndex((item) => item.id === active.id) : -1
+  const galleryItems = mediaType === 'video' ? data : [...editorialGalleryPhotos, ...data]
+  const activeIndex = active ? galleryItems.findIndex((item) => item.id === active.id) : -1
   const showAdjacent = (offset: number) => {
-    if (activeIndex < 0 || data.length < 2) return
-    setActive(data[(activeIndex + offset + data.length) % data.length])
+    if (activeIndex < 0 || galleryItems.length < 2) return
+    setActive(galleryItems[(activeIndex + offset + galleryItems.length) % galleryItems.length])
   }
 
   return (
@@ -1070,16 +1072,16 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
             </nav>
           </header>
           {isLoading ? <Spinner label="Loading gallery…" /> : null}
-          {isError ? <ErrorNotice message="Could not load gallery." /> : null}
-          {!isLoading && !isError && data.length === 0 ? (
+          {isError ? <ErrorNotice message={galleryItems.length ? 'Some gallery items could not load.' : 'Could not load gallery.'} /> : null}
+          {!isLoading && !isError && galleryItems.length === 0 ? (
             <EmptyState
               title="Nothing here yet"
               description="New images and clips will show up as they are published."
             />
           ) : null}
-          {!isLoading && !isError && data.length > 0 ? (
+          {galleryItems.length > 0 ? (
             <div className="gallery-wall" aria-label="Gallery items">
-              {data.map((item, index) => (
+              {galleryItems.map((item, index) => (
                 <GalleryWallTile key={item.id} item={item} priority={index === 0} onOpen={setActive} />
               ))}
             </div>
@@ -1089,8 +1091,8 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
       <GalleryLightbox
         active={active}
         onClose={() => setActive(null)}
-        onPrevious={data.length > 1 ? () => showAdjacent(-1) : undefined}
-        onNext={data.length > 1 ? () => showAdjacent(1) : undefined}
+        onPrevious={galleryItems.length > 1 ? () => showAdjacent(-1) : undefined}
+        onNext={galleryItems.length > 1 ? () => showAdjacent(1) : undefined}
       />
     </>
   )
