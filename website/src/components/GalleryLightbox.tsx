@@ -13,9 +13,13 @@ export type GalleryLightboxItem = {
 export function GalleryLightbox({
   active,
   onClose,
+  onPrevious,
+  onNext,
 }: {
   active: GalleryLightboxItem | null
   onClose: () => void
+  onPrevious?: () => void
+  onNext?: () => void
 }) {
   if (!active) return null
 
@@ -47,7 +51,7 @@ export function GalleryLightbox({
     )
 
   return (
-    <MediaLightbox key={active.id} open onClose={onClose} title={active.title} ariaLabel={active.title}>
+    <MediaLightbox key={active.id} open onClose={onClose} onPrevious={onPrevious} onNext={onNext} title={active.title} ariaLabel={active.title}>
       {media}
     </MediaLightbox>
   )

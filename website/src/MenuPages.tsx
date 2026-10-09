@@ -1,12 +1,12 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useRouterState, useSearch } from '@tanstack/react-router'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import nplLogoUrl from './assets/logo-optimized.png'
 import { EmptyState } from './components/EmptyState'
 import { ErrorNotice } from './components/ErrorNotice'
 import { LeagueSeasonHub } from './components/LeagueSeasonHub'
-import { GalleryCard } from './components/GalleryCard'
 import { GalleryLightbox } from './components/GalleryLightbox'
+import { GalleryWallTile } from './components/GalleryWallTile'
 import { MatchCard } from './components/MatchCard'
 import { MatchCarousel } from './components/MatchCarousel'
 import { FixturesListing } from './components/FixturesListing'
@@ -652,6 +652,7 @@ function NewsImage({ article, priority = false, compact = false }: { article: Ar
 function NewsListPage() {
   const { q } = useSearch({ from: '/news' })
   const navigate = useNavigate({ from: '/news' })
+  const contentQ = useSitePageContent('news')
   const [topic, setTopic] = useState<NewsTopic>('all')
   const [moreDisplay, setMoreDisplay] = useState({ scope: '', count: 9 })
   const trimmed = q.trim()
@@ -686,9 +687,15 @@ function NewsListPage() {
   const moreCount = moreDisplay.scope === moreScope ? moreDisplay.count : 9
 
   return (
+    <>
+      <PageHero
+        fullWidth
+        title={contentQ.data?.title || 'News'}
+        subtitle={contentQ.data?.subtitle}
+        imageUrl={resolveMediaUrl(news[0]?.featured_image_url)}
+      />
     <main className="container">
       <section className="menu-page news-page">
-        <h1 className="npl-sr-only">News</h1>
         <div className="news-page__toolbar">
           <div className="news-page__topics" role="group" aria-label="Filter news stories">
             {NEWS_TOPICS.map((item) => (
@@ -788,6 +795,7 @@ function NewsListPage() {
         ) : null}
       </section>
     </main>
+    </>
   )
 }
 
@@ -1027,6 +1035,13 @@ function SearchResultsPageImpl() {
 
 function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
   const filter = mediaType ? `&media_type=${mediaType}` : ''
+  const contentQ = useSitePageContent('gallery')
+  const heroTitle = mediaType ? `${formatCategoryLabel(mediaType)}s` : contentQ.data?.title || 'Gallery'
+  const heroSubtitle = mediaType
+    ? mediaType === 'image'
+      ? 'Photos from matches, events, and behind the scenes'
+      : 'Match highlights and event coverage'
+    : contentQ.data?.subtitle || 'Photos and video from across the National Premier League'
   const { data = [], isLoading, isError } = useQuery({
     queryKey: ['gallery-page', mediaType ?? 'all'],
     queryFn: () =>
@@ -1036,45 +1051,24 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
     retry: 1,
   })
   const [active, setActive] = useState<GalleryItem | null>(null)
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const contentQ = useSitePageContent('gallery')
-  const galleryContent = managedSection(contentQ.data, 'gallery', 'Gallery')
-  const heroTitle = mediaType ? `${formatCategoryLabel(mediaType)}s` : contentQ.data?.title || 'Gallery'
-  const heroSubtitle = mediaType
-    ? mediaType === 'image'
-      ? 'Photos from matches, events, and behind the scenes'
-      : 'Match highlights and event coverage'
-    : contentQ.data?.subtitle || 'Photos and video from across the National Premier League'
+  const activeIndex = active ? data.findIndex((item) => item.id === active.id) : -1
+  const showAdjacent = (offset: number) => {
+    if (activeIndex < 0 || data.length < 2) return
+    setActive(data[(activeIndex + offset + data.length) % data.length])
+  }
 
   return (
     <>
       <PageHero variant="siteLogo" title={heroTitle} subtitle={heroSubtitle} />
-    <main className="container">
+      <main className="container">
         <section className="menu-page gallery-page">
-          <SectionHeader
-            title={galleryContent.heading}
-            description={<ManagedSiteHtml html={galleryContent.body_html} />}
-          />
-          <nav className="gallery-subnav" aria-label="Gallery categories">
-            <Link
-              to="/gallery"
-              className={`gallery-subnav__link${pathname === '/gallery' ? ' is-active' : ''}`}
-            >
-              All
-            </Link>
-            <Link
-              to="/gallery/images"
-              className={`gallery-subnav__link${pathname === '/gallery/images' ? ' is-active' : ''}`}
-            >
-              Images
-            </Link>
-            <Link
-              to="/gallery/video"
-              className={`gallery-subnav__link${pathname === '/gallery/video' ? ' is-active' : ''}`}
-            >
-              Video
-            </Link>
-          </nav>
+          <header className="gallery-page__header">
+            <nav className="gallery-subnav" aria-label="Gallery categories">
+              <Link to="/gallery" className={`gallery-subnav__link${!mediaType ? ' is-active' : ''}`} aria-current={!mediaType ? 'page' : undefined}>All</Link>
+              <Link to="/gallery/images" className={`gallery-subnav__link${mediaType === 'image' ? ' is-active' : ''}`} aria-current={mediaType === 'image' ? 'page' : undefined}>Photos</Link>
+              <Link to="/gallery/video" className={`gallery-subnav__link${mediaType === 'video' ? ' is-active' : ''}`} aria-current={mediaType === 'video' ? 'page' : undefined}>Videos</Link>
+            </nav>
+          </header>
           {isLoading ? <Spinner label="Loading gallery…" /> : null}
           {isError ? <ErrorNotice message="Could not load gallery." /> : null}
           {!isLoading && !isError && data.length === 0 ? (
@@ -1084,15 +1078,20 @@ function GalleryPageImpl({ mediaType }: { mediaType?: 'image' | 'video' }) {
             />
           ) : null}
           {!isLoading && !isError && data.length > 0 ? (
-        <div className="home-grid home-grid--gallery">
-          {data.map((item) => (
-            <GalleryCard key={item.id} item={item} onOpen={setActive} />
-          ))}
-        </div>
+            <div className="gallery-wall" aria-label="Gallery items">
+              {data.map((item, index) => (
+                <GalleryWallTile key={item.id} item={item} priority={index === 0} onOpen={setActive} />
+              ))}
+            </div>
           ) : null}
-      </section>
+        </section>
       </main>
-      <GalleryLightbox active={active} onClose={() => setActive(null)} />
+      <GalleryLightbox
+        active={active}
+        onClose={() => setActive(null)}
+        onPrevious={data.length > 1 ? () => showAdjacent(-1) : undefined}
+        onNext={data.length > 1 ? () => showAdjacent(1) : undefined}
+      />
     </>
   )
 }

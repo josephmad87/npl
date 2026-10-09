@@ -3,6 +3,8 @@ import { useEffect, type ReactNode } from 'react'
 type MediaLightboxProps = {
   open: boolean
   onClose: () => void
+  onPrevious?: () => void
+  onNext?: () => void
   /** Shown under the media (e.g. gallery title). */
   title?: string | null
   /** Accessible name when `title` is empty. */
@@ -14,15 +16,17 @@ type MediaLightboxProps = {
  * Full-viewport media viewer: near-opaque backdrop, full-width stage, × close (top-right).
  * Use for any image or video opened modally (gallery, hero, etc.).
  */
-export function MediaLightbox({ open, onClose, title, ariaLabel, children }: MediaLightboxProps) {
+export function MediaLightbox({ open, onClose, onPrevious, onNext, title, ariaLabel, children }: MediaLightboxProps) {
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft') onPrevious?.()
+      if (e.key === 'ArrowRight') onNext?.()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open, onClose, onPrevious, onNext])
 
   useEffect(() => {
     if (!open) return
@@ -62,6 +66,12 @@ export function MediaLightbox({ open, onClose, title, ariaLabel, children }: Med
             </span>
           </button>
           <div className="media-lightbox__stage">{children}</div>
+          {onPrevious ? (
+            <button type="button" className="media-lightbox__nav media-lightbox__nav--previous" onClick={onPrevious} aria-label="Previous gallery item">‹</button>
+          ) : null}
+          {onNext ? (
+            <button type="button" className="media-lightbox__nav media-lightbox__nav--next" onClick={onNext} aria-label="Next gallery item">›</button>
+          ) : null}
         </div>
         {title?.trim() ? <p className="media-lightbox__title">{title.trim()}</p> : null}
       </div>

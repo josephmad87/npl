@@ -623,6 +623,10 @@ function App() {
   const spotlightTeams = homepage?.spotlight_teams ?? EMPTY_SPOTLIGHT_TEAMS
   const spotlightPlayers = homepage?.spotlight_players ?? EMPTY_SPOTLIGHT_PLAYERS
   const gallery = homepage?.gallery ?? EMPTY_GALLERY
+  const galleryPhotos = useMemo(
+    () => gallery.filter((item) => item.media_type === 'image'),
+    [gallery],
+  )
   const sponsors = homepage?.sponsors ?? EMPTY_SPONSORS
   const teamsMap = useMemo(
     () =>
@@ -672,6 +676,7 @@ function App() {
   const prefetchedHeroImages = useRef(new Map<number, HTMLImageElement>())
   const [galleryActive, setGalleryActive] = useState<GalleryItem | null>(null)
   const [galleryWindowIndex, setGalleryWindowIndex] = useState(0)
+  const [galleryPaused, setGalleryPaused] = useState(false)
   const [spotlightNow, setSpotlightNow] = useState(() => Date.now())
   const [fixtureTab, setFixtureTab] = useState<HomeFixtureTab>('matchday')
   const [fixtureCategory, setFixtureCategory] =
@@ -953,22 +958,25 @@ const selectedSpotlightTeam = useMemo(() => {
   }, [heroStoryIds, heroSlides.length])
 
 const galleryShowcaseItems = useMemo(() => {
-  if (gallery.length <= 4) return gallery
+  if (galleryPhotos.length <= 4) return galleryPhotos
 
   return Array.from({ length: 4 }, (_, index) => {
-    return gallery[(galleryWindowIndex + index) % gallery.length]
+    return galleryPhotos[(galleryWindowIndex + index) % galleryPhotos.length]
   })
-}, [gallery, galleryWindowIndex])
+}, [galleryPhotos, galleryWindowIndex])
 
 useEffect(() => {
-  if (gallery.length <= 4) return
+  if (galleryPhotos.length <= 4 || galleryPaused) return
+  if (globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
   const timer = globalThis.setInterval(() => {
-    setGalleryWindowIndex((current) => (current + 1) % gallery.length)
-  }, 5 * 60 * 1000)
+    if (document.visibilityState === 'visible') {
+      setGalleryWindowIndex((current) => (current + 1) % galleryPhotos.length)
+    }
+  }, 8000)
 
   return () => globalThis.clearInterval(timer)
-}, [gallery.length])
+}, [galleryPhotos.length, galleryPaused])
   
   return (
     <>
@@ -1380,12 +1388,27 @@ useEffect(() => {
         description={<ManagedSiteHtml html={tvContent.body_html} />}
       />
 
-  <section className="home-section home-gallery-wall">
+  <section
+    id="home-gallery"
+    className="home-section home-gallery-wall"
+    onMouseEnter={() => setGalleryPaused(true)}
+    onMouseLeave={() => setGalleryPaused(false)}
+    onFocusCapture={() => setGalleryPaused(true)}
+    onBlurCapture={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setGalleryPaused(false)
+    }}
+  >
   <SectionHeader
     title={galleryContent.heading}
     linkTo="/gallery"
-    description={<ManagedSiteHtml html={galleryContent.body_html} />}
   />
+
+  {galleryPhotos.length > 4 ? (
+    <div className="home-gallery-wall__controls" aria-label="Gallery preview controls">
+      <button type="button" aria-label="Previous photos" onClick={() => setGalleryWindowIndex((current) => (current - 1 + galleryPhotos.length) % galleryPhotos.length)}>‹</button>
+      <button type="button" aria-label="Next photos" onClick={() => setGalleryWindowIndex((current) => (current + 1) % galleryPhotos.length)}>›</button>
+    </div>
+  ) : null}
 
   <div className="home-gallery-wall__grid">
     {galleryShowcaseItems.map((item, index) => {
