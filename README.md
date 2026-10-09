@@ -228,7 +228,10 @@ The system shall allow admin users to sign in securely.
 
 #### Requirements
 
-- Admin users shall log in using email and password
+- Admin users shall log in using email, password, and a time-based authenticator code
+- Admin users without MFA shall enroll an authenticator before the system issues a session token
+- The system shall issue single-use recovery codes when MFA enrollment is completed
+- Authenticator secrets shall be encrypted at rest and recovery codes shall be stored as keyed hashes
 - Passwords shall be securely hashed
 - Session handling shall use secure token-based authentication
 - Access tokens and refresh tokens should be supported
@@ -724,6 +727,9 @@ The home page should support:
 ### Auth
 
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/mfa/enroll`
+- `POST /api/v1/auth/mfa/confirm-enrollment`
+- `POST /api/v1/auth/mfa/verify`
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`

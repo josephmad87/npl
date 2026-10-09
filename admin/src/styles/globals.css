@@ -2531,6 +2531,10 @@ table.data-table button.sort {
   box-shadow: var(--shadow);
 }
 
+.login-card--wide {
+  width: min(620px, 100%);
+}
+
 .login-card h1 {
   margin: 0 0 0.35rem;
   font-size: 1.45rem;
@@ -2572,6 +2576,109 @@ table.data-table button.sort {
   color: var(--danger);
   font-size: 0.85rem;
   margin-bottom: 0.75rem;
+}
+
+.mfa-login__heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.mfa-login__heading > svg {
+  flex: 0 0 auto;
+  color: var(--accent-mid);
+}
+
+.mfa-login__heading h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+}
+
+.mfa-login__heading p {
+  margin: 0;
+}
+
+.mfa-login__back {
+  display: block;
+  margin: 1rem auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.mfa-enrollment {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+  margin-bottom: 1.25rem;
+}
+
+.mfa-enrollment img {
+  width: 180px;
+  height: 180px;
+  padding: 0.5rem;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.mfa-enrollment ol {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  color: var(--text-muted);
+}
+
+.mfa-enrollment__label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.mfa-enrollment__secret {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
+.mfa-recovery-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+
+.mfa-recovery-codes code {
+  color: var(--text);
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+}
+
+.mfa-recovery-codes__copy {
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 560px) {
+  .mfa-enrollment {
+    grid-template-columns: 1fr;
+  }
+
+  .mfa-enrollment img {
+    justify-self: center;
+  }
+
+  .mfa-recovery-codes {
+    grid-template-columns: 1fr;
+  }
 }
 
 .muted {
