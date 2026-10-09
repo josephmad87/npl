@@ -315,9 +315,10 @@ function markedPlayerName(
   playerById: Map<number, PublicPlayer>,
   flagsByPlayerId: Map<number, MatchPlayerFlags>,
   playerId: number | null | undefined,
+  showCaptain = true,
 ): string {
   const flags = playerId ? flagsByPlayerId.get(playerId) : undefined
-  return `${flags?.captain ? '© ' : ''}${flags?.wicketkeeper ? '† ' : ''}${playerName(playerById, playerId)}`
+  return `${showCaptain && flags?.captain ? '© ' : ''}${flags?.wicketkeeper ? '† ' : ''}${playerName(playerById, playerId)}`
 }
 
 function keeperDismissalText(
@@ -834,7 +835,7 @@ function computeMiniDashboard(
 
     const striker = markedPlayerName(playerById, flagsByPlayerId, event.striker_player_id)
     const nonStriker = event.non_striker_player_id ? markedPlayerName(playerById, flagsByPlayerId, event.non_striker_player_id) : ''
-    const bowlerName = markedPlayerName(playerById, flagsByPlayerId, event.bowler_player_id)
+    const bowlerName = markedPlayerName(playerById, flagsByPlayerId, event.bowler_player_id, false)
     const token = deliveryToken(event)
     group.deliveries.push({
       event,
@@ -1304,6 +1305,8 @@ export function LiveScorePanel({
   )
   const matchPlayerName = (playerId: number | null | undefined) =>
     markedPlayerName(playerById, squadFlagsByPlayerId, playerId)
+  const matchBowlerName = (playerId: number | null | undefined) =>
+    markedPlayerName(playerById, squadFlagsByPlayerId, playerId, false)
 
   const teamNames = useMemo(
     () => ({
@@ -1564,7 +1567,7 @@ export function LiveScorePanel({
             {(dashboard.currentBowlers.length ? dashboard.currentBowlers : dashboard.bowlers.slice(-2)).map((stat) => (
               <tr key={stat.playerId}>
                 <td>
-                  {matchPlayerName(stat.playerId)}
+                  {matchBowlerName(stat.playerId)}
                   {playerBowlingStyle(playerById, stat.playerId) ? (
                     <small>{playerBowlingStyle(playerById, stat.playerId)}</small>
                   ) : null}
@@ -1933,7 +1936,7 @@ export function LiveScorePanel({
                     </span>
                     {expanded ? (
                       <span className="live-score-panel__over-cell-details">
-                        <span><strong>Bowler:</strong> {matchPlayerName(bowlerId)}</span>
+                        <span><strong>Bowler:</strong> {matchBowlerName(bowlerId)}</span>
                         <span className="live-score-panel__over-deliveries">
                           {[...point.group.deliveries]
                             .sort((a, b) => a.event.sequence_number - b.event.sequence_number)
@@ -2318,7 +2321,7 @@ export function LiveScorePanel({
                   <tbody>
                     {inningsDashboard.bowlers.map((stat) => (
                       <tr key={stat.playerId}>
-                        <td>{matchPlayerName(stat.playerId)}</td>
+                        <td>{matchBowlerName(stat.playerId)}</td>
                         <td>{oversLabelFromBalls(stat.balls)}</td>
                         <td>{stat.maidens}</td>
                         <td>{stat.runs}</td>

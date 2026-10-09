@@ -66,7 +66,7 @@ export function dismissalValueFromKind(
 
 export function formatDismissalDisplay(dismissal: string | null | undefined): string {
   if (!dismissal?.trim()) return '—'
-  return dismissal.trim()
+  return dismissal.trim().replace(/©\s+/g, '')
 }
 
 /** Normalize cricket overs input to one decimal (balls digit 0–5). */

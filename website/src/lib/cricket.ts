@@ -38,7 +38,7 @@ export function countsBattingInnings(
 export function formatDismissalDisplay(dismissal: string | null | undefined): string {
   if (!dismissal?.trim()) return '—'
 
-  const value = dismissal.trim()
+  const value = dismissal.trim().replace(/©\s+/g, '')
   const legacyFielderDismissal = value.match(
     /^(caught(?:\s*(?:&|and)\s*bowled)?|stumped|run out)\s*(?:[·•,:-]\s*)?fielder\s*:\s*(.+)$/i,
   )

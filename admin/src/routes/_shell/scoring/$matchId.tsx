@@ -23,7 +23,7 @@ import type {
 import { adminGet, adminPost, scorerUploadMatchPhoto } from '@/lib/admin-client'
 import { ApiError, apiFetch } from '@/lib/api'
 import { getSession } from '@/lib/session'
-import { oversFieldToBalls } from '@/lib/cricket'
+import { formatDismissalDisplay, oversFieldToBalls } from '@/lib/cricket'
 import { formatFixtureWhen } from '@/lib/fixture-start-time'
 import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -825,7 +825,9 @@ function liveInningsScorecard(events: LiveBallEventDto[]) {
         sixes: 0,
         dismissal: 'not out',
       }
-      dismissed.dismissal = event.dismissal_text?.trim() || dismissalLabel(event.wicket_type)
+      dismissed.dismissal = event.dismissal_text?.trim()
+        ? formatDismissalDisplay(event.dismissal_text)
+        : dismissalLabel(event.wicket_type)
       batterRows.set(dismissed.playerId, dismissed)
     }
 
@@ -1047,12 +1049,15 @@ function LiveScoringPage() {
     const flags = playerId ? squadFlagsByPlayerId.get(playerId) : undefined
     return `${flags?.captain ? '© ' : ''}${flags?.wicketkeeper ? '† ' : ''}${playerName(playerById, playerId)}`
   }
+  const matchBowlerName = (playerId: number | null | undefined) =>
+    playerName(playerById, playerId)
   const dismissalFielderName = (playerId: number | null | undefined) =>
     `${playerId && squadFlagsByPlayerId.get(playerId)?.wicketkeeper ? '† ' : ''}${playerName(playerById, playerId)}`
   const keeperDismissalText = (text: string, fielderId: number | null | undefined) => {
-    if (!fielderId || !squadFlagsByPlayerId.get(fielderId)?.wicketkeeper) return text
+    const cleaned = formatDismissalDisplay(text)
+    if (!fielderId || !squadFlagsByPlayerId.get(fielderId)?.wicketkeeper) return cleaned
     const name = playerName(playerById, fielderId)
-    return text.includes(`† ${name}`) ? text : text.replace(name, `† ${name}`)
+    return cleaned.includes(`† ${name}`) ? cleaned : cleaned.replace(name, `† ${name}`)
   }
 
   const [innings, setInnings] = useState(1)
@@ -2330,6 +2335,15 @@ function LiveScoringPage() {
 
   const saveEditingBall = async () => {
     if (!editingBall) return
+    const correctedBall = {
+      ...editingBall,
+      body: {
+        ...editingBall.body,
+        dismissal_text: editingBall.body.dismissal_text?.trim()
+          ? formatDismissalDisplay(editingBall.body.dismissal_text)
+          : null,
+      },
+    }
     const queuedId = editingBall.eventId < 0 ? editingBall.clientEventId : null
     if (queuedId) {
       if (outboxFlushingRef.current) {
@@ -2361,7 +2375,7 @@ function LiveScoringPage() {
           setEditBallError('Choose a different bowler. A bowler cannot bowl consecutive overs.')
           return
         }
-        const next = replaceQueuedScoringBall(outboxRef.current, queuedId, editingBall.body)
+        const next = replaceQueuedScoringBall(outboxRef.current, queuedId, correctedBall.body)
         outboxRef.current = next
         saveScoringOutbox(mid, next)
         setDeliveryOutbox(next)
@@ -2385,7 +2399,7 @@ function LiveScoringPage() {
       setEditBallError('This queued ball is no longer available. Refresh the score and open it again.')
       return
     }
-    void editBallMutation.mutate(editingBall)
+    void editBallMutation.mutate(correctedBall)
   }
 
   const deleteRecordedBall = async (event: LiveBallEventDto) => {
@@ -2448,7 +2462,12 @@ function LiveScoringPage() {
     setEditingBall({
       eventId: event.id,
       clientEventId: event.id < 0 ? event.client_event_id : null,
-      body: eventToLiveBallInput(event),
+      body: {
+        ...eventToLiveBallInput(event),
+        dismissal_text: event.dismissal_text?.trim()
+          ? formatDismissalDisplay(event.dismissal_text)
+          : null,
+      },
     })
     setActiveScorerPanel('corrections')
   }
@@ -2739,13 +2758,14 @@ function LiveScoringPage() {
       return
     }
 
-    const finalDismissalText =
+    const finalDismissalText = formatDismissalDisplay(
       dismissalText.trim() ||
       suggestedDismissal(
         wicketType,
-        matchPlayerName(bowlerPlayerId || null),
+        matchBowlerName(bowlerPlayerId || null),
         fielderId ? dismissalFielderName(fielderId) : '',
-      )
+      ),
+    )
 
     if (wicketType === 'non_striker_left_early') {
       if (playerOut !== nonStrikerPlayerId) {
@@ -2887,7 +2907,7 @@ function LiveScoringPage() {
     )
   const strikerName = matchPlayerName(strikerPlayerId || null)
   const nonStrikerName = matchPlayerName(nonStrikerPlayerId || null)
-  const bowlerName = matchPlayerName(bowlerPlayerId || null)
+  const bowlerName = matchBowlerName(bowlerPlayerId || null)
   const newOverBowlerOptions = bowlingPlayers.filter(
     (player) => player.id !== previousBowlerPlayerId,
   )
@@ -2898,7 +2918,7 @@ function LiveScoringPage() {
     fielderPlayerId ? dismissalFielderName(fielderPlayerId) : '',
   )
   const resolvedDismissalText = dismissalTextTouched
-    ? dismissalText
+    ? dismissalText.trim() ? formatDismissalDisplay(dismissalText) : ''
     : suggestedDismissalText
   const allScoringPanels: Array<{
     id: ScorerPanel
@@ -5566,7 +5586,7 @@ function LiveScoringPage() {
                   <div>
                     <span>Delivery</span>
                     <strong>
-                      {matchPlayerName(selectedCommentaryEvent.bowler_player_id)} to{' '}
+                      {matchBowlerName(selectedCommentaryEvent.bowler_player_id)} to{' '}
                       {matchPlayerName(selectedCommentaryEvent.striker_player_id)}
                     </strong>
                   </div>
@@ -5666,7 +5686,7 @@ function LiveScoringPage() {
                       <span>
                         <strong>
                           {event.over_number}.{event.ball_number}{' '}
-                          {matchPlayerName(event.bowler_player_id)} to{' '}
+                          {matchBowlerName(event.bowler_player_id)} to{' '}
                           {matchPlayerName(event.striker_player_id)}
                         </strong>
                         <small>
@@ -5779,7 +5799,7 @@ function LiveScoringPage() {
                   <tbody>
                     {commentaryScorecard.bowlers.map((row) => (
                       <tr key={row.playerId}>
-                        <td>{matchPlayerName(row.playerId)}</td>
+                        <td>{matchBowlerName(row.playerId)}</td>
                         <td>{Math.floor(row.legalBalls / 6)}.{row.legalBalls % 6}</td>
                         <td>{row.runs}</td>
                         <td><strong>{row.wickets}</strong></td>
@@ -6824,7 +6844,7 @@ function LiveScoringPage() {
                               </span>
                               {index === 0 && completedOverBowler ? (
                                 <strong className="live-scorer-ball-panel__over-summary-bowler-inline">
-                                  {matchPlayerName(completedOverBowler.playerId)}{' '}
+                                  {matchBowlerName(completedOverBowler.playerId)}{' '}
                                   {oversLabel(completedOverBowler.legalBalls)}–{completedOverBowler.maidens}–{completedOverBowler.runs}–{completedOverBowler.wickets}
                                 </strong>
                               ) : null}
@@ -6847,12 +6867,12 @@ function LiveScoringPage() {
                           {event.is_dead_ball && RETIREMENT_DISMISSALS.has(event.wicket_type ?? '')
                             ? 'No ball'
                             : `${event.over_number}.${event.ball_number}`}{' '}
-                          {matchPlayerName(event.bowler_player_id)} to{' '}
+                          {matchBowlerName(event.bowler_player_id)} to{' '}
                           {matchPlayerName(event.striker_player_id)}
                         </strong>
                         <span>
                           {liveEventLabel(event)}
-                          {event.dismissal_text ? ` · ${event.dismissal_text}` : ''}
+                          {event.dismissal_text ? ` · ${formatDismissalDisplay(event.dismissal_text)}` : ''}
                         </span>
                         {event.notes ? <small>{event.notes}</small> : null}
                       </span>
@@ -7056,7 +7076,7 @@ function LiveScoringPage() {
                       {completedOverSummary.bowlers.map((bowler) => (
                         <Fragment key={bowler.playerId}>
                           <strong className="live-scorer-over-summary__bowler-name">
-                            {matchPlayerName(bowler.playerId)}
+                            {matchBowlerName(bowler.playerId)}
                           </strong>
                           <strong className="live-scorer-over-summary__bowler-figure">
                             {oversLabel(bowler.legalBalls)}
@@ -7538,7 +7558,7 @@ function LiveScoringPage() {
                   <li key={event.id}>
                     {event.innings}.{event.over_number}.{event.ball_number}: {dismissalLabel(event.wicket_type)} · out: {matchPlayerName(event.wicket_player_id)}
                     {event.wicket_type === 'caught_and_bowled'
-                      ? ` · catch: ${matchPlayerName(event.bowler_player_id)}`
+                      ? ` · catch: ${matchBowlerName(event.bowler_player_id)}`
                       : event.fielder_player_id
                         ? ` · fielder: ${dismissalFielderName(event.fielder_player_id)}`
                         : ''}
@@ -8064,7 +8084,7 @@ function LiveScoringPage() {
                     </td>
                     <td>{matchPlayerName(event.striker_player_id)}</td>
                     <td>{matchPlayerName(event.non_striker_player_id)}</td>
-                    <td>{matchPlayerName(event.bowler_player_id)}</td>
+                    <td>{matchBowlerName(event.bowler_player_id)}</td>
                     <td>{liveEventLabel(event)}</td>
                     <td>
                       {event.wicket_type
@@ -8077,7 +8097,7 @@ function LiveScoringPage() {
                           }`
                         : '—'}
                     </td>
-                    <td>{event.notes ?? event.dismissal_text ?? '—'}</td>
+                    <td>{event.notes ?? formatDismissalDisplay(event.dismissal_text)}</td>
                     {effectiveScorerPanel === 'corrections' ? (
                       <td>
                         <div className="catalog-toolbar">
