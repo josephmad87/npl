@@ -1443,7 +1443,6 @@ useEffect(() => {
 
       <SponsorMarquee
         title={partnersContent.heading}
-        description={<ManagedSiteHtml html={partnersContent.body_html} />}
         sponsors={homepageSponsors}
       />
 

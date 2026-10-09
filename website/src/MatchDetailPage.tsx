@@ -790,13 +790,14 @@ export default function MatchDetailPage() {
   }, [data])
 
   const displayStatus = publicDisplayMatchStatus(data?.status, data?.match_date)
+  const isCompletedMatch = data?.status === 'completed'
 
   const showResultBlock =
     data != null && (data.result != null || playerStats.length > 0)
   const playersLoading = matchPlayersQ.isLoading
 
   const canShowFanPlayerVote =
-    data?.status === 'completed' && data.result != null && playerStats.length > 0
+    isCompletedMatch && data?.result != null && playerStats.length > 0
 
   const fanVoteQ = useQuery({
     queryKey: ['fan-player-vote', matchId, Boolean(supporterSession)],
@@ -845,10 +846,10 @@ export default function MatchDetailPage() {
   }
 
   const showTopPerformers =
-    data?.status === 'completed' && topPerformerCards.length > 0
+    isCompletedMatch && topPerformerCards.length > 0
 
   const showPlayerMatchup =
-    data?.status === 'completed' &&
+    !isCompletedMatch &&
     playerMatchupOptions.home.length > 0 &&
     playerMatchupOptions.away.length > 0
   const isLiveMatch = String(data?.status ?? '').toLowerCase() === 'live'
@@ -981,7 +982,7 @@ export default function MatchDetailPage() {
             />
           ) : null}
 
-          {!isLiveMatch && data.stream_available ? (
+          {!isLiveMatch && !isCompletedMatch && data.stream_available ? (
             <MatchStreamPanel
               matchId={data.id}
               streamLabel={data.stream_label}
@@ -1176,12 +1177,6 @@ export default function MatchDetailPage() {
                     Match impact
                   </p>
                   <h2 id="top-performers-title">{topPerformersContent.heading}</h2>
-                  <ManagedSiteHtml html={topPerformersContent.body_html} />
-                  {data.result?.top_performers ? (
-                    <p className="match-centre-top-performers__summary">
-                      {data.result.top_performers}
-                    </p>
-                  ) : null}
                 </div>
               </div>
 
