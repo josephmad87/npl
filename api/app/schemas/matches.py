@@ -1,11 +1,16 @@
 from datetime import date, datetime
 from decimal import Decimal
+import re
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.common import ORMModel
 from app.services.match_toss import normalize_toss_summary
+
+
+def dismissal_without_captain_mark(value: str | None) -> str | None:
+    return re.sub(r"©\s+", "", value.strip()) if value is not None else None
 
 
 class MatchBase(BaseModel):
@@ -114,6 +119,11 @@ class MatchPlayerStatIn(BaseModel):
     run_outs: int = Field(default=0, ge=0)
     notes: str | None = None
 
+    @field_validator("dismissal")
+    @classmethod
+    def normalize_dismissal(cls, value: str | None) -> str | None:
+        return dismissal_without_captain_mark(value)
+
 
 class MatchPlayerStatOut(ORMModel):
     id: int
@@ -136,6 +146,11 @@ class MatchPlayerStatOut(ORMModel):
     stumpings: int
     run_outs: int
     notes: str | None
+
+    @field_validator("dismissal")
+    @classmethod
+    def normalize_dismissal(cls, value: str | None) -> str | None:
+        return dismissal_without_captain_mark(value)
 
 
 class FanPlayerMatchVoteIn(BaseModel):
@@ -344,6 +359,11 @@ class LiveBallEventIn(BaseModel):
     dismissal_text: str | None = Field(default=None, max_length=255)
     notes: str | None = None
 
+    @field_validator("dismissal_text")
+    @classmethod
+    def normalize_dismissal_text(cls, value: str | None) -> str | None:
+        return dismissal_without_captain_mark(value)
+
 
 class LiveBallCommentaryIn(BaseModel):
     commentary: str | None = Field(default=None, max_length=4000)
@@ -390,6 +410,11 @@ class LiveBallEventOut(ORMModel):
     created_at: datetime
     updated_at: datetime
     score_version: int | None = None
+
+    @field_validator("dismissal_text")
+    @classmethod
+    def normalize_dismissal_text(cls, value: str | None) -> str | None:
+        return dismissal_without_captain_mark(value)
 
 
 class LiveScoreInningsSummaryOut(BaseModel):

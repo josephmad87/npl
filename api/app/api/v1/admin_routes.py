@@ -72,6 +72,7 @@ from app.schemas.seasons import (
     SeasonCreate, SeasonOut, SeasonPlayerRosterIn, SeasonPlayerRosterOut, SeasonPublicOut, SeasonUpdate,
 )
 from app.schemas.matches import (
+    dismissal_without_captain_mark,
     LiveBallCommentaryIn,
     LiveBallEventIn,
     LiveBallEventOut,
@@ -5635,7 +5636,7 @@ def _dismissal_text_for_live_event(
     player_names: dict[int, str],
 ) -> str:
     if event.dismissal_text and event.dismissal_text.strip():
-        return event.dismissal_text.strip()
+        return dismissal_without_captain_mark(event.dismissal_text) or ""
 
     wicket_type = (event.wicket_type or "").strip().lower()
     bowler_name = player_names.get(event.bowler_player_id, f"#{event.bowler_player_id}")

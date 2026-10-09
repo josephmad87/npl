@@ -24,6 +24,7 @@ from app.schemas.matches import (
     LiveScoreStateOut,
     MatchDetailOut,
     MatchLiveSetupIn,
+    MatchPlayerStatIn,
     MatchSquadPlayerIn,
 )
 from app.services.dls import (
@@ -67,6 +68,27 @@ def test_live_ball_accepts_client_event_id_for_safe_retry() -> None:
     )
 
     assert body.client_event_id == "4c281c7f-7097-4d95-bb0a-72bd5f53d1a6"
+
+
+def test_dismissal_inputs_keep_keeper_mark_but_remove_captain_mark() -> None:
+    ball = LiveBallEventIn(
+        innings=1,
+        over_number=0,
+        ball_number=1,
+        batting_team_id=1,
+        bowling_team_id=2,
+        striker_player_id=10,
+        bowler_player_id=20,
+        dismissal_text="c † Keeper b © Captain Bowler",
+    )
+    scorecard = MatchPlayerStatIn(
+        player_id=10,
+        team_id=1,
+        dismissal="c † Keeper b © Captain Bowler",
+    )
+
+    assert ball.dismissal_text == "c † Keeper b Captain Bowler"
+    assert scorecard.dismissal == "c † Keeper b Captain Bowler"
 
 
 def test_live_ball_allows_an_umpire_miscount_beyond_twelve_deliveries() -> None:
@@ -682,6 +704,17 @@ def test_final_scorecard_dismissal_prefers_dedicated_how_out_text() -> None:
     )
 
     assert dismissal == "Caught · fielder: T. Ncube"
+
+
+def test_existing_live_dismissal_removes_captain_mark_on_reconciliation() -> None:
+    event = SimpleNamespace(
+        dismissal_text="c † Keeper b © Captain Bowler",
+        wicket_type="caught",
+        bowler_player_id=20,
+        fielder_player_id=21,
+    )
+
+    assert _dismissal_text_for_live_event(event, {}) == "c † Keeper b Captain Bowler"
 
 
 def test_final_scorecard_dismissal_ignores_over_note_without_ball_commentary() -> None:
