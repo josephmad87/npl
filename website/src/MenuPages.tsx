@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import nplLogoUrl from './assets/logo-optimized.png'
@@ -14,6 +14,7 @@ import { NewsCard } from './components/NewsCard'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { PageHero } from './components/PageHero'
 import { ResponsiveImage } from './components/ResponsiveImage'
+import { StoryCarouselControls } from './components/StoryCarouselControls'
 import LiveScoresPageImpl from './LiveScoresPage'
 import { SectionHeader } from './components/SectionHeader'
 import { Spinner } from './components/Spinner'
@@ -635,16 +636,16 @@ function newsDate(article: ArticleLite) {
   return formatMatchDate(article.published_at ?? article.created_at).replace(/^[A-Za-z]+,\s*/, '')
 }
 
-function NewsImage({ article, priority = false, compact = false }: { article: ArticleLite; priority?: boolean; compact?: boolean }) {
+function NewsImage({ article, priority = false }: { article: ArticleLite; priority?: boolean }) {
   const image = resolveMediaUrl(article.featured_image_url)
   if (!image) return null
   return (
     <ResponsiveImage
       src={image}
       alt=""
-      widths={compact ? [160, 240, 360] : [320, 640, 960, 1280]}
-      sizes={compact ? '(max-width: 640px) 112px, 180px' : '(max-width: 880px) 100vw, 65vw'}
-      fallbackWidth={compact ? 240 : 960}
+      widths={[320, 640, 960, 1280]}
+      sizes="(max-width: 720px) 100vw, 50vw"
+      fallbackWidth={960}
       priority={priority}
     />
   )
@@ -653,11 +654,13 @@ function NewsImage({ article, priority = false, compact = false }: { article: Ar
 function NewsListPage() {
   const { q } = useSearch({ from: '/news' })
   const navigate = useNavigate({ from: '/news' })
-  const contentQ = useSitePageContent('news')
   const [topic, setTopic] = useState<NewsTopic>('all')
-  const [moreDisplay, setMoreDisplay] = useState({ scope: '', count: 9 })
+  const [month, setMonth] = useState('')
+  const [year, setYear] = useState('')
+  const [activeHero, setActiveHero] = useState(0)
+  const [moreDisplay, setMoreDisplay] = useState({ scope: '', count: 6 })
   const trimmed = q.trim()
-  const moreScope = `${topic}:${trimmed.toLowerCase()}`
+  const moreScope = `${topic}:${month}:${year}:${trimmed.toLowerCase()}`
   const { data: news = [], isLoading, isError } = useQuery({
     queryKey: ['news-list'],
     queryFn: async () =>
@@ -666,50 +669,76 @@ function NewsListPage() {
       ),
     retry: 1,
   })
+  const { data: recentNews = [] } = useRecentNews(5)
+  const sortedNews = useMemo(() => [...news].sort((a, b) =>
+    Date.parse(b.published_at ?? b.created_at ?? '') - Date.parse(a.published_at ?? a.created_at ?? ''),
+  ), [news])
+  const heroSlides = recentNews.length ? recentNews.slice(0, 5) : sortedNews.slice(0, 5)
+  const heroStoryIds = heroSlides.map((article) => article.id).join(',')
+  const currentHeroIndex = heroSlides.length ? activeHero % heroSlides.length : 0
+  const hero = heroSlides[currentHeroIndex]
+  const heroTitleSize = hero && hero.title.length > 105
+    ? ' news-page-hero__title--extra-long'
+    : hero && hero.title.length > 75
+      ? ' news-page-hero__title--long'
+      : ''
+  const years = useMemo(() => [...new Set(news.map((article) => (article.published_at ?? article.created_at ?? '').slice(0, 4)).filter((value) => /^\d{4}$/.test(value)))].sort((a, b) => b.localeCompare(a)), [news])
+
+  useEffect(() => {
+    if (heroSlides.length < 2) return
+    const timer = globalThis.setInterval(() => {
+      if (document.visibilityState === 'visible') setActiveHero((current) => (current + 1) % heroSlides.length)
+    }, 5000)
+    return () => globalThis.clearInterval(timer)
+  }, [heroStoryIds, heroSlides.length, currentHeroIndex])
+
   const visibleNews = useMemo(() => {
     const query = trimmed.toLowerCase()
-    return news
+    return sortedNews
       .filter((article) => {
+        const articleDate = article.published_at ?? article.created_at ?? ''
         const matchesTopic =
           topic === 'all' ||
           (topic === 't20' ? isT20Story(article) : article.category?.toLowerCase() === topic)
+        const matchesMonth = !month || articleDate.slice(5, 7) === month
+        const matchesYear = !year || articleDate.slice(0, 4) === year
         const matchesQuery =
           !query ||
           [article.title, article.excerpt, article.category, ...(article.tags ?? [])]
             .filter(Boolean)
             .some((value) => value?.toLowerCase().includes(query))
-        return matchesTopic && matchesQuery
+        return matchesTopic && matchesMonth && matchesYear && matchesQuery
       })
-      .sort((a, b) => Date.parse(b.published_at ?? b.created_at ?? '') - Date.parse(a.published_at ?? a.created_at ?? ''))
-  }, [news, topic, trimmed])
-  const lead = visibleNews[0]
-  const recent = visibleNews.slice(1, 4)
-  const more = visibleNews.slice(4)
-  const moreCount = moreDisplay.scope === moreScope ? moreDisplay.count : 9
+  }, [sortedNews, topic, month, year, trimmed])
+  const moreCount = moreDisplay.scope === moreScope ? moreDisplay.count : 6
+
+  const clearFilters = () => {
+    setTopic('all')
+    setMonth('')
+    setYear('')
+    void navigate({ search: { q: '' }, replace: true })
+  }
 
   return (
     <>
-      <PageHero
-        fullWidth
-        title={contentQ.data?.title || 'News'}
-        subtitle={contentQ.data?.subtitle}
-        imageUrl={resolveMediaUrl(news[0]?.featured_image_url)}
-      />
+      <section className="news-page-hero" aria-label="Featured news stories">
+          {hero?.featured_image_url ? <NewsImage article={hero} priority /> : null}
+          <div className="news-page-hero__overlay">
+            <h2 className={`news-page-hero__title${heroTitleSize}`}>
+              {hero ? <Link to="/news/$slug" params={{ slug: hero.slug }}>{hero.title}</Link> : isError ? 'Latest stories are temporarily unavailable' : 'Latest cricket stories'}
+            </h2>
+          </div>
+          <StoryCarouselControls slides={heroSlides} currentIndex={currentHeroIndex} onSelect={setActiveHero} />
+      </section>
     <main className="container">
       <section className="menu-page news-page">
+        <div className="news-page__heading"><h1>News Hub</h1></div>
         <div className="news-page__toolbar">
-          <div className="news-page__topics" role="group" aria-label="Filter news stories">
-            {NEWS_TOPICS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                aria-pressed={topic === item.id}
-                onClick={() => setTopic(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+          <span className="news-page__filter-label">Filter by</span>
+          <label className="news-page__filter"><span className="npl-sr-only">Month</span><select value={month} onChange={(event) => setMonth(event.target.value)}><option value="">Month</option>{Array.from({ length: 12 }, (_, index) => <option key={index} value={String(index + 1).padStart(2, '0')}>{new Date(2020, index, 1).toLocaleString('en', { month: 'long' })}</option>)}</select></label>
+          <label className="news-page__filter"><span className="npl-sr-only">Year</span><select value={year} onChange={(event) => setYear(event.target.value)}><option value="">Year</option>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <label className="news-page__filter"><span className="npl-sr-only">Category</span><select value={topic} onChange={(event) => setTopic(event.target.value as NewsTopic)}>{NEWS_TOPICS.map((item) => <option key={item.id} value={item.id}>{item.id === 'all' ? 'Category' : item.label}</option>)}</select></label>
+          <button className="news-page__clear" type="button" onClick={clearFilters}>Clear all</button>
           <label className="news-page__search" htmlFor="news-search">
             <span className="npl-sr-only">Search stories</span>
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -729,68 +758,30 @@ function NewsListPage() {
         </div>
         {isLoading ? <Spinner label="Loading news…" /> : null}
         {isError ? <ErrorNotice message="Could not load news." /> : null}
-        {!isLoading && !isError && !lead ? (
+        {!isLoading && !isError && visibleNews.length === 0 ? (
           <EmptyState
-            title={trimmed || topic !== 'all' ? 'No stories match your selection' : 'No published articles yet'}
-            description={trimmed || topic !== 'all' ? 'Try another topic or clear your search.' : 'New stories will appear here once published.'}
+            title={trimmed || topic !== 'all' || month || year ? 'No stories match your selection' : 'No published articles yet'}
+            description={trimmed || topic !== 'all' || month || year ? 'Try another filter or clear your search.' : 'New stories will appear here once published.'}
           />
         ) : null}
-        {!isLoading && !isError && lead ? (
+        {!isLoading && !isError && visibleNews.length ? (
           <>
-            <div className="news-page__section-title"><h2>{trimmed ? `Search results · ${visibleNews.length}` : topic === 'all' ? 'Latest coverage' : `${NEWS_TOPICS.find((item) => item.id === topic)?.label} coverage`}</h2></div>
-            <div className={`news-page__top${recent.length ? '' : ' news-page__top--solo'}`}>
-              <Link to="/news/$slug" params={{ slug: lead.slug }} className={`news-page__lead${lead.featured_image_url ? '' : ' news-page__lead--text'}`}>
-                <NewsImage article={lead} priority />
-                <div className="news-page__lead-copy">
-                  <span className="news-page__kicker">{newsKicker(lead)}</span>
-                  <h3>{lead.title}</h3>
-                  {lead.excerpt ? <p>{lead.excerpt}</p> : null}
-                  <span className="news-page__meta">{newsDate(lead)} · Read story →</span>
-                </div>
-              </Link>
-              {recent.length ? (
-                <aside className="news-page__recent" aria-label="Recent stories">
-                  <h3>RECENT STORIES</h3>
-                  {recent.map((article) => (
-                    <Link key={article.id} to="/news/$slug" params={{ slug: article.slug }} className={`news-page__recent-story${article.featured_image_url ? '' : ' news-page__recent-story--text'}`}>
-                      <div>
-                        <span className="news-page__kicker">{newsKicker(article)}</span>
-                        <h4>{article.title}</h4>
-                        <span className="news-page__meta">{newsDate(article)}</span>
-                      </div>
-                      <NewsImage article={article} compact />
-                    </Link>
-                  ))}
-                </aside>
-              ) : null}
+            <div className="news-page__results-heading"><h2>{trimmed || topic !== 'all' || month || year ? `${visibleNews.length} stories found` : 'Latest stories'}</h2></div>
+            <div className="news-page__feed" id="news-stories">
+              {visibleNews.slice(0, moreCount).map((article) => (
+                <Link key={article.id} to="/news/$slug" params={{ slug: article.slug }} className={`news-page__card${article.featured_image_url ? '' : ' news-page__card--text'}`}>
+                  <NewsImage article={article} />
+                  <div className="news-page__card-copy">
+                    <span className="news-page__kicker">{newsKicker(article)}</span>
+                    <h3>{article.title}</h3>
+                    {article.excerpt ? <p>{article.excerpt}</p> : null}
+                    <span className="news-page__meta">{newsDate(article)}</span>
+                  </div>
+                </Link>
+              ))}
             </div>
-            {more.length ? (
-              <>
-                <div className="news-page__section-title news-page__section-title--more"><h2>More stories</h2></div>
-                <div className="news-page__feed" id="news-more-stories">
-                  {more.slice(0, moreCount).map((article) => (
-                    <Link key={article.id} to="/news/$slug" params={{ slug: article.slug }} className={`news-page__feed-story${article.featured_image_url ? '' : ' news-page__feed-story--text'}`}>
-                      <NewsImage article={article} compact />
-                      <div>
-                        <span className="news-page__kicker">{newsKicker(article)}</span>
-                        <h3>{article.title}</h3>
-                        {article.excerpt ? <p>{article.excerpt}</p> : null}
-                        <span className="news-page__meta">{newsDate(article)} · Read story →</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-                {moreCount < more.length ? (
-                  <button
-                    className="news-page__view-more"
-                    type="button"
-                    aria-controls="news-more-stories"
-                    onClick={() => setMoreDisplay({ scope: moreScope, count: moreCount + 6 })}
-                  >
-                    View more
-                  </button>
-                ) : null}
-              </>
+            {moreCount < visibleNews.length ? (
+              <button className="news-page__view-more" type="button" aria-controls="news-stories" onClick={() => setMoreDisplay({ scope: moreScope, count: moreCount + 6 })}>Load more</button>
             ) : null}
           </>
         ) : null}
