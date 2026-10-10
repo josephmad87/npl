@@ -1,5 +1,8 @@
 import pytest
+import runpy
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import get_args
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -10,7 +13,7 @@ from app.db.session import get_db
 from app.models.audit import AuditLog
 from app.models.site_page_content import SitePageContent
 from app.models.user import User
-from app.schemas.site_page_content import SitePageBody
+from app.schemas.site_page_content import SitePageBody, SitePageSlug
 from app.services.site_pages import (
     DEFAULT_SITE_PAGES,
     default_site_page_body,
@@ -65,6 +68,16 @@ def test_all_managed_pages_have_complete_defaults() -> None:
         assert page.intro_html
         assert page.sections
         assert len({section.id for section in page.sections}) == len(page.sections)
+
+
+def test_database_constraint_allows_every_managed_page() -> None:
+    migration = runpy.run_path(
+        str(
+            Path(__file__).parents[1]
+            / "alembic/versions/20261010_0049_managed_site_page_slugs.py"
+        )
+    )
+    assert set(migration["SITE_PAGE_SLUGS"]) == set(get_args(SitePageSlug))
 
 
 def test_duplicate_section_ids_are_rejected() -> None:
