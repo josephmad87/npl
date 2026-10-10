@@ -11,7 +11,7 @@ import { ResponsiveImage } from './components/ResponsiveImage'
 import { StoryCarouselControls } from './components/StoryCarouselControls'
 import { SponsorMarquee } from './components/SponsorMarquee'
 import { SeoHead } from './components/SeoHead'
-import type { ArticleLite, MatchLite, TeamLite } from './lib/hooks'
+import { type ArticleLite, type MatchLite, type TeamLite, useLatestHeroNews } from './lib/hooks'
 import { formatCategoryLabel } from './lib/formatters'
 import { editorialGalleryPhotos } from './lib/editorialGallery'
 import { imageCdnSrcSet, imageCdnUrl } from './lib/imageCdn'
@@ -617,13 +617,7 @@ function App() {
     data: heroNews,
     isLoading: isHeroNewsLoading,
     isError: isHeroNewsError,
-  } = useQuery({
-    queryKey: ['homepage-news'],
-    queryFn: () => fetchJson<ArticleLite[]>('/public/homepage-news'),
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-    retry: 1,
-  })
+  } = useLatestHeroNews()
   const newsArticles = heroNews ?? homepage?.news ?? EMPTY_NEWS
   const isNewsLoading = isHeroNewsLoading && isHomepageLoading
   const isNewsError = isHeroNewsError && isHomepageError

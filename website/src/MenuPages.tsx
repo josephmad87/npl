@@ -28,6 +28,7 @@ import {
   type MatchLite,
   type TeamLite,
   useFeaturedTeams,
+  useLatestHeroNews,
   useLatestResults,
   useRecentNews,
   useTeamsMap,
@@ -657,7 +658,7 @@ function NewsListPage() {
   const [topic, setTopic] = useState<NewsTopic>('all')
   const [month, setMonth] = useState('')
   const [year, setYear] = useState('')
-  const [activeHero, setActiveHero] = useState(0)
+  const [heroSelection, setHeroSelection] = useState({ storyIds: '', index: 0 })
   const [moreDisplay, setMoreDisplay] = useState({ scope: '', count: 6 })
   const trimmed = q.trim()
   const moreScope = `${topic}:${month}:${year}:${trimmed.toLowerCase()}`
@@ -669,13 +670,15 @@ function NewsListPage() {
       ),
     retry: 1,
   })
-  const { data: recentNews = [] } = useRecentNews(5)
+  const { data: recentNews = [] } = useLatestHeroNews()
   const sortedNews = useMemo(() => [...news].sort((a, b) =>
     Date.parse(b.published_at ?? b.created_at ?? '') - Date.parse(a.published_at ?? a.created_at ?? ''),
   ), [news])
   const heroSlides = recentNews.length ? recentNews.slice(0, 5) : sortedNews.slice(0, 5)
   const heroStoryIds = heroSlides.map((article) => article.id).join(',')
-  const currentHeroIndex = heroSlides.length ? activeHero % heroSlides.length : 0
+  const currentHeroIndex = heroSlides.length && heroSelection.storyIds === heroStoryIds
+    ? heroSelection.index % heroSlides.length
+    : 0
   const hero = heroSlides[currentHeroIndex]
   const heroTitleSize = hero && hero.title.length > 105
     ? ' news-page-hero__title--extra-long'
@@ -687,7 +690,13 @@ function NewsListPage() {
   useEffect(() => {
     if (heroSlides.length < 2) return
     const timer = globalThis.setInterval(() => {
-      if (document.visibilityState === 'visible') setActiveHero((current) => (current + 1) % heroSlides.length)
+      if (document.visibilityState !== 'visible') return
+      setHeroSelection((current) => ({
+        storyIds: heroStoryIds,
+        index: current.storyIds === heroStoryIds
+          ? (current.index + 1) % heroSlides.length
+          : 1,
+      }))
     }, 5000)
     return () => globalThis.clearInterval(timer)
   }, [heroStoryIds, heroSlides.length, currentHeroIndex])
@@ -728,7 +737,7 @@ function NewsListPage() {
               {hero ? <Link to="/news/$slug" params={{ slug: hero.slug }}>{hero.title}</Link> : isError ? 'Latest stories are temporarily unavailable' : 'Latest cricket stories'}
             </h2>
           </div>
-          <StoryCarouselControls slides={heroSlides} currentIndex={currentHeroIndex} onSelect={setActiveHero} />
+          <StoryCarouselControls slides={heroSlides} currentIndex={currentHeroIndex} onSelect={(index) => setHeroSelection({ storyIds: heroStoryIds, index })} />
       </section>
     <main className="container">
       <section className="menu-page news-page">
