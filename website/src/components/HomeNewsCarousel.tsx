@@ -1,8 +1,8 @@
-import type { ReactNode, RefObject } from 'react'
+import type { RefObject } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { preferredScrollBehavior } from '@npl/ui/accessibility'
-import { formatMatchDate, formatNewsHighlightsDate } from '../lib/formatters'
+import { formatMatchDate } from '../lib/formatters'
 import type { ArticleLite } from '../lib/hooks'
 import { resolveMediaUrl } from '../lib/publicApi'
 import { ResponsiveImage } from './ResponsiveImage'
@@ -128,12 +128,10 @@ export function HomeNewsCarousel({
   articles,
   isLoading = false,
   title = 'News',
-  description,
 }: {
   articles: ArticleLite[]
   isLoading?: boolean
   title?: string
-  description?: ReactNode
 }) {
   const [activeFilter, setActiveFilter] = useState('all')
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -160,8 +158,6 @@ export function HomeNewsCarousel({
     el.scrollBy({ left: direction * step, behavior: preferredScrollBehavior() })
   }, [])
 
-  const subtitle = `${formatNewsHighlightsDate()} News Highlights`
-
   return (
     <section className="home-news-carousel-section" aria-labelledby="home-news-heading">
       <header className="home-news-carousel__header">
@@ -171,8 +167,6 @@ export function HomeNewsCarousel({
           </h2>
           <span className="home-news-carousel__title-rule" aria-hidden="true" />
         </div>
-        <p className="home-news-carousel__subtitle">{subtitle}</p>
-        {description ? <div className="home-news-carousel__description">{description}</div> : null}
       </header>
 
       <div className="home-news-carousel__toolbar">

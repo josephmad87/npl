@@ -8,6 +8,7 @@ import { HomeNewsCarousel } from './components/HomeNewsCarousel'
 import { SectionHeader } from './components/SectionHeader'
 import { NplTvSection } from './components/NplTvSection'
 import { ResponsiveImage } from './components/ResponsiveImage'
+import { StoryCarouselControls } from './components/StoryCarouselControls'
 import { SponsorMarquee } from './components/SponsorMarquee'
 import { SeoHead } from './components/SeoHead'
 import type { ArticleLite, MatchLite, TeamLite } from './lib/hooks'
@@ -966,6 +967,7 @@ const selectedSpotlightTeam = useMemo(() => {
     if (heroSlides.length < 2) return
 
     const timer = globalThis.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
       setHeroSelection((current) => ({
         storyIds: heroStoryIds,
         index: current.storyIds === heroStoryIds
@@ -975,7 +977,7 @@ const selectedSpotlightTeam = useMemo(() => {
     }, 5000)
 
     return () => globalThis.clearInterval(timer)
-  }, [heroStoryIds, heroSlides.length])
+  }, [heroStoryIds, heroSlides.length, currentSlideIndex])
 
 const galleryShowcaseItems = useMemo(() => {
   if (galleryPhotos.length <= 4) return galleryPhotos
@@ -1010,7 +1012,6 @@ useEffect(() => {
         {isNewsLoading ? (
           <article className="hero-slide hero-slide--loading is-active" aria-busy="true">
             <div className="hero-slide-overlay">
-              <p className="hero-slide-eyebrow">{newsContent.heading}</p>
               <h1>Loading latest news…</h1>
             </div>
           </article>
@@ -1032,50 +1033,22 @@ useEffect(() => {
               ) : null}
 
               <div className="hero-slide-overlay">
-                <p className="hero-slide-eyebrow">{newsContent.heading}</p>
-                <h1>{activeHeroSlide.title}</h1>
-                <p>
-                  {activeHeroSlide.excerpt ??
-                    'Catch up on the latest match analysis and updates.'}
-                </p>
-
-                {activeHeroSlide.slug ? (
-                  <Link
-                    to="/news/$slug"
-                    params={{ slug: activeHeroSlide.slug }}
-                    className="hero-readmore-btn"
-                  >
-                    Read More
-                  </Link>
-                ) : null}
+                <h1>
+                  {activeHeroSlide.slug ? (
+                    <Link to="/news/$slug" params={{ slug: activeHeroSlide.slug }} className="hero-slide-title-link">
+                      {activeHeroSlide.title}
+                    </Link>
+                  ) : activeHeroSlide.title}
+                </h1>
               </div>
             </article>
 
-            {heroSlides.length > 1 ? (
-              <div className="hero-carousel-dots" role="group" aria-label="Choose news story">
-                {heroSlides.map((slide, index) => (
-                  <button
-                    key={slide.id}
-                    type="button"
-                    className={`hero-carousel-dot${index === currentSlideIndex ? ' is-active' : ''}`}
-                    aria-label={`Show story ${index + 1}: ${slide.title}`}
-                    aria-current={index === currentSlideIndex ? 'true' : undefined}
-                    onClick={() => setHeroSelection({ storyIds: heroStoryIds, index })}
-                  />
-                ))}
-              </div>
-            ) : null}
+            <StoryCarouselControls slides={heroSlides} currentIndex={currentSlideIndex} onSelect={(index) => setHeroSelection({ storyIds: heroStoryIds, index })} />
           </>
         ) : (
           <article className="hero-slide is-active">
             <div className="hero-slide-overlay">
-              <p className="hero-slide-eyebrow">{newsContent.heading}</p>
               <h1>{isNewsError ? 'Latest news is temporarily unavailable' : 'No published news yet'}</h1>
-              <p>
-                {isNewsError
-                  ? 'Please refresh the page or try again shortly.'
-                  : 'Add and publish a news article with a featured image to populate this carousel.'}
-              </p>
             </div>
           </article>
         )}
@@ -1219,7 +1192,6 @@ useEffect(() => {
         articles={newsArticles}
         isLoading={isNewsLoading}
         title={newsContent.heading}
-        description={<ManagedSiteHtml html={newsContent.body_html} />}
       />
 
       {selectedSpotlightTeam ? (
