@@ -2533,6 +2533,8 @@ def admin_create_news(
     actor: User = Depends(require_content_writer),
 ) -> Article:
     article = Article(**body.model_dump())
+    if article.status == "published" and article.published_at is None:
+        article.published_at = datetime.now(timezone.utc)
     db.add(article)
     try:
         db.commit()

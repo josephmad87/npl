@@ -76,12 +76,10 @@ async def security_headers(request: Request, call_next):
             request.url.path.endswith("/live")
             or request.url.path.endswith("/fan-player-vote")
             or "/merchandise/order-tracking/" in request.url.path
+            or request.url.path == f"{public_prefix}/homepage-news"
         ):
             response.headers["Cache-Control"] = "no-store"
-        elif request.url.path in {
-            f"{public_prefix}/homepage",
-            f"{public_prefix}/homepage-news",
-        }:
+        elif request.url.path == f"{public_prefix}/homepage":
             response.headers["Cache-Control"] = "public, max-age=30, s-maxage=60, stale-while-revalidate=300"
         elif request.url.path in {
             f"{public_prefix}/navigation",

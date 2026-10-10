@@ -368,7 +368,7 @@ def _latest_homepage_news(db: Session) -> list[HomepageArticleOut]:
                 Article.created_at,
             ),
         )
-        .order_by(Article.published_at.desc().nullslast(), Article.created_at.desc())
+        .order_by(func.coalesce(Article.published_at, Article.created_at).desc(), Article.id.desc())
         .limit(5),
     ).mappings()
     return [HomepageArticleOut.model_validate(dict(row)) for row in rows]
@@ -1340,7 +1340,7 @@ def list_news(
     if q:
         like = f"%{q}%"
         stmt = stmt.where(or_(Article.title.ilike(like), Article.slug.ilike(like), Article.excerpt.ilike(like)))
-    stmt = stmt.order_by(Article.published_at.desc().nullslast(), Article.created_at.desc())
+    stmt = stmt.order_by(func.coalesce(Article.published_at, Article.created_at).desc(), Article.id.desc())
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
     items = [ArticleOut.model_validate(r) for r in rows]
     return to_paginated(items, total, page_params.page, page_params.page_size).model_dump()

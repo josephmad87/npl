@@ -1,5 +1,6 @@
 import asyncio
 from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from starlette.requests import Request
 from starlette.responses import Response
@@ -11,13 +12,17 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app, security_headers
+from app.api.v1.admin_routes import admin_create_news
 from app.models.article import Article
+from app.models.audit import AuditLog
 from app.models.gallery import GalleryItem
 from app.models.league import League, Season
 from app.models.match import Match, MatchPlayerStat, MatchResult
 from app.models.player import Player
 from app.models.sponsor import Sponsor
 from app.models.team import Team
+from app.models.user import User
+from app.schemas.articles import ArticleCreate
 from app.schemas.homepage import HomepageArticleOut, HomepageMatchOut
 
 
@@ -60,8 +65,74 @@ def test_homepage_and_live_cache_policies() -> None:
     assert homepage.headers["cache-control"] == (
         "public, max-age=30, s-maxage=60, stale-while-revalidate=300"
     )
-    assert homepage_news.headers["cache-control"] == homepage.headers["cache-control"]
+    assert homepage_news.headers["cache-control"] == "no-store"
     assert live.headers["cache-control"] == "no-store"
+
+
+def test_newly_published_story_replaces_oldest_hero_story() -> None:
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(
+        engine,
+        tables=[User.__table__, Article.__table__, AuditLog.__table__],
+    )
+    testing_session = sessionmaker(bind=engine)
+    now = datetime.now(timezone.utc)
+
+    with testing_session() as session:
+        actor = User(email="editor@example.test", hashed_password="unused", role="editor")
+        session.add(actor)
+        session.add_all(
+            Article(
+                title=f"News {index}",
+                slug=f"news-{index}",
+                status="published",
+                published_at=now - timedelta(days=index + 1),
+            )
+            for index in range(5)
+        )
+        session.add(
+            Article(
+                title="Earlier story without a publication date",
+                slug="earlier-story-without-date",
+                status="published",
+                created_at=now - timedelta(minutes=30),
+            ),
+        )
+        session.commit()
+
+        new_story = admin_create_news(
+            ArticleCreate(title="New story", slug="new-story", status="published"),
+            session,
+            SimpleNamespace(id=actor.id),
+        )
+        assert new_story.published_at is not None
+
+        session.add(Article(title="Unpublished story", slug="unpublished-story", status="draft"))
+        session.commit()
+
+    def override_db():
+        with testing_session() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = override_db
+    try:
+        hero_response = TestClient(app).get("/api/v1/public/homepage-news")
+        news_response = TestClient(app).get("/api/v1/public/news?page=1&page_size=5")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        engine.dispose()
+
+    assert hero_response.status_code == 200
+    assert [story["title"] for story in hero_response.json()] == [
+        "New story", "Earlier story without a publication date", "News 0", "News 1", "News 2",
+    ]
+    assert [story["title"] for story in news_response.json()["items"]] == [
+        "New story", "Earlier story without a publication date", "News 0", "News 1", "News 2",
+    ]
 
 
 def test_compact_homepage_endpoint_excludes_heavy_fields() -> None:

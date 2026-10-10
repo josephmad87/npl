@@ -173,6 +173,17 @@ export function useRecentNews(limit = 6, category?: string) {
   })
 }
 
+export function useLatestHeroNews() {
+  return useQuery({
+    queryKey: ['latest-hero-news'],
+    queryFn: () => fetchJson<ArticleLite[]>('/public/homepage-news'),
+    staleTime: 0,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+  })
+}
+
 export function useUpcomingFixtures(category?: string, limit = 6) {
   const suffix = category ? `&category=${encodeURIComponent(category)}` : ''
   return useQuery({
