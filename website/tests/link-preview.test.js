@@ -204,6 +204,69 @@ test('WhatsApp receives an optimised main product image in Open Graph metadata',
   )
 })
 
+test('merchandise pages publish their actual variant prices as Product offers', async (context) => {
+  const originalFetch = globalThis.fetch
+  context.after(() => {
+    globalThis.fetch = originalFetch
+  })
+  const products = {
+    69: {
+      id: 69,
+      name: 'Takashinga Flame Jersey',
+      price_text: '',
+      variants: [
+        { label: 'Maroon', price_text: 'USD $15', price_minor: null, currency: 'USD', stock_quantity: null, status: 'active' },
+        { label: 'Gold', price_text: 'USD $15', price_minor: null, currency: 'USD', stock_quantity: 0, allow_backorder: false, status: 'active' },
+      ],
+    },
+    34: {
+      id: 34,
+      name: 'Takashinga Flame Reversible Bucket Hat',
+      price_text: 'USD $8',
+      variants: [
+        { label: 'Maroon', price_text: 'USD $8', price_minor: null, currency: 'USD', stock_quantity: 4, status: 'active' },
+        { label: 'Gold', price_text: 'USD $8', price_minor: null, currency: 'USD', stock_quantity: null, status: 'inactive' },
+      ],
+    },
+  }
+  globalThis.fetch = async (rawUrl) => {
+    const id = Number(String(rawUrl).match(/\/public\/merchandise\/(\d+)$/)?.[1])
+    return Response.json(products[id])
+  }
+
+  for (const [path, expectedPrice, expectedCount] of [
+    ['/merchandise/takashinga-flame-jersey-69', '15.00', 2],
+    ['/merchandise/takashinga-flame-reversible-bucket-hat-34', '8.00', 1],
+  ]) {
+    const response = await handler(new Request(`https://npl.co.zw${path}`), htmlContext())
+    const html = await response.text()
+    const items = [...html.matchAll(/<script type="application\/ld\+json" data-npl-edge-jsonld>(.*?)<\/script>/gs)]
+      .map((match) => JSON.parse(match[1]))
+    const product = items.find((item) => item['@type'] === 'Product')
+    assert.ok(product, `missing Product markup for ${path}`)
+    assert.equal(product.offers.length, expectedCount)
+    assert.ok(product.offers.every((offer) => offer['@type'] === 'Offer' && offer.price === expectedPrice && offer.priceCurrency === 'USD' && offer.url === `https://npl.co.zw${path}`))
+    if (expectedCount === 2) assert.equal(product.offers[1].availability, 'https://schema.org/OutOfStock')
+  }
+})
+
+test('unpriced merchandise does not publish an invalid Product snippet', async (context) => {
+  const originalFetch = globalThis.fetch
+  context.after(() => {
+    globalThis.fetch = originalFetch
+  })
+  globalThis.fetch = async () => Response.json({
+    id: 90,
+    name: 'Unpriced shirt',
+    price_text: '',
+    variants: [{ price_text: 'Contact us', price_minor: null, currency: 'USD', status: 'active' }],
+  })
+
+  const response = await handler(new Request('https://npl.co.zw/merchandise/unpriced-shirt-90'), htmlContext())
+  const html = await response.text()
+  assert.doesNotMatch(html, /"@type":"Product"/)
+})
+
 test('registered historical slugs redirect directly to the current URL', async (context) => {
   const originalFetch = globalThis.fetch
   context.after(() => {

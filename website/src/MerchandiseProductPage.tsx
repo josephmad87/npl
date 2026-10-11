@@ -15,6 +15,7 @@ import { fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { recordFanEngagement } from './lib/supporterApi'
 import { managedSection, useSitePageContent } from './lib/siteContent'
 import { ManagedSiteHtml } from './components/ManagedSiteHtml'
+import { productOffers } from './lib/productOffers.js'
 
 export default function MerchandiseProductPage() {
   const { productId } = useParams({ from: '/merchandise/$productId' })
@@ -43,6 +44,8 @@ export default function MerchandiseProductPage() {
 
   const activeImageUrl = images[activeImage] ?? images[0] ?? null
   const canonicalPath = `/merchandise/${productId}`
+  const canonicalUrl = new URL(canonicalPath, window.location.origin).toString()
+  const offers = productOffers(product, canonicalUrl)
   const description =
     product.description?.replace(/\s+/g, ' ').trim().slice(0, 160) ||
     `Buy ${product.name} from NPL Zimbabwe.`
@@ -62,10 +65,12 @@ export default function MerchandiseProductPage() {
         breadcrumbs={breadcrumbs}
         structuredData={{
           '@context': 'https://schema.org',
-          '@type': 'Product',
+          '@type': offers.length ? 'Product' : 'WebPage',
+          url: canonicalUrl,
           name: product.name,
           description,
           image: images.map((image) => resolveMediaUrl(image) ?? image),
+          ...(offers.length ? { offers } : {}),
         }}
       />
       <section className="merchandise-product-page">
