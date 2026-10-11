@@ -183,6 +183,29 @@ export function aggregateForPlayer(matches: MatchLite[], playerId: number) {
 
 export type TourneyKpi = { label: string; value: string | number }
 
+export type DeliveryCounts = {
+  ones: number
+  twos: number
+  threes: number
+  dots: number
+  balls_faced: number
+  boundaries: number
+  partnerships_50: number
+  partnerships_100: number
+}
+
+export type SeasonDeliveryStats = {
+  recorded_match_count: number
+  tournament: DeliveryCounts
+  teams: Record<number, DeliveryCounts>
+  players: Record<number, DeliveryCounts>
+}
+
+export const emptyDeliveryCounts = (): DeliveryCounts => ({
+  ones: 0, twos: 0, threes: 0, dots: 0, balls_faced: 0,
+  boundaries: 0, partnerships_50: 0, partnerships_100: 0,
+})
+
 function aggregateExtrasFromMatches(
   matches: MatchLite[],
   teamId?: number,
@@ -220,6 +243,7 @@ function kpisFromMaps(
   bowling: Map<number, BowlingAgg>,
   matchCount: number,
   extras: number,
+  delivery: DeliveryCounts | null = null,
 ): TourneyKpi[] {
   let runs = 0
   let ballsFaced = 0
@@ -254,9 +278,10 @@ function kpisFromMaps(
   }
 
   const boundaryRuns = fours * 4 + sixes * 6
-  const runFrom1s2s3s = Math.max(0, runs - boundaryRuns)
-  const estDots = Math.max(0, ballsFaced - runFrom1s2s3s - fours - sixes)
-  const dotPct = ballsFaced > 0 ? (estDots / ballsFaced) * 100 : 0
+  const deliveryBalls = delivery?.balls_faced ?? 0
+  const dotPct = deliveryBalls > 0 ? ((delivery?.dots ?? 0) / deliveryBalls) * 100 : null
+  const dotFrequency = delivery?.dots ? `1 in ${(deliveryBalls / delivery.dots).toFixed(1)}` : '—'
+  const boundaryFrequency = delivery?.boundaries ? `1 in ${(deliveryBalls / delivery.boundaries).toFixed(1)}` : '—'
   const boundaryPct = runs > 0 ? (boundaryRuns / runs) * 100 : 0
 
   return [
@@ -265,20 +290,20 @@ function kpisFromMaps(
     { label: 'Runs', value: runs },
     { label: 'Wickets', value: wk },
     { label: 'Balls', value: Math.round(ballsFaced) },
-    { label: 'Ones', value: '—' },
-    { label: 'Twos', value: '—' },
-    { label: 'Threes', value: '—' },
+    { label: 'Ones', value: delivery?.ones ?? '—' },
+    { label: 'Twos', value: delivery?.twos ?? '—' },
+    { label: 'Threes', value: delivery?.threes ?? '—' },
     { label: 'Fours', value: fours },
     { label: 'Sixes', value: sixes },
     { label: "50's", value: c50 },
     { label: "100's", value: c100 },
-    { label: '50+ partnership', value: '—' },
-    { label: '100+ partnership', value: '—' },
+    { label: '50+ partnership', value: delivery?.partnerships_50 ?? '—' },
+    { label: '100+ partnership', value: delivery?.partnerships_100 ?? '—' },
     { label: 'Maidens', value: maid },
-    { label: 'Dot balls (est.)', value: Math.round(estDots) },
-    { label: 'Dot ball %', value: dotPct.toFixed(2) },
-    { label: 'DB freq.', value: '—' },
-    { label: 'Bdry freq.', value: '—' },
+    { label: 'Dot balls', value: delivery?.dots ?? '—' },
+    { label: 'Dot ball %', value: dotPct?.toFixed(2) ?? '—' },
+    { label: 'DB freq.', value: dotFrequency },
+    { label: 'Bdry freq.', value: boundaryFrequency },
     { label: 'Boundary %', value: runs > 0 ? boundaryPct.toFixed(2) : '—' },
     { label: 'Extras', value: extras },
     { label: 'Catches', value: catches },
@@ -288,22 +313,22 @@ function kpisFromMaps(
   ]
 }
 
-export function kpiTournamentList(matches: MatchLite[]): TourneyKpi[] {
+export function kpiTournamentList(matches: MatchLite[], delivery: DeliveryCounts | null = null): TourneyKpi[] {
   const { batting, bowling, matchCount } = aggregateTournament(matches)
   const extras = aggregateExtrasFromMatches(matches)
-  return kpisFromMaps(batting, bowling, matchCount, extras)
+  return kpisFromMaps(batting, bowling, matchCount, extras, delivery)
 }
 
-export function kpiTeamList(matches: MatchLite[], teamId: number): TourneyKpi[] {
+export function kpiTeamList(matches: MatchLite[], teamId: number, delivery: DeliveryCounts | null = null): TourneyKpi[] {
   const { batting, bowling, matchCount } = aggregateForTeam(matches, teamId)
   const extras = aggregateExtrasFromMatches(matches, teamId)
-  return kpisFromMaps(batting, bowling, matchCount, extras)
+  return kpisFromMaps(batting, bowling, matchCount, extras, delivery)
 }
 
-export function kpiPlayerList(matches: MatchLite[], playerId: number): TourneyKpi[] {
+export function kpiPlayerList(matches: MatchLite[], playerId: number, delivery: DeliveryCounts | null = null): TourneyKpi[] {
   const { batting, bowling, matchCount } = aggregateForPlayer(matches, playerId)
   const extras = aggregateExtrasFromMatches(matches, undefined, playerId)
-  return kpisFromMaps(batting, bowling, matchCount, extras)
+  return kpisFromMaps(batting, bowling, matchCount, extras, delivery)
 }
 
 function battingAverage(b: BattingAgg): string {

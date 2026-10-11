@@ -633,6 +633,7 @@ export function LeagueSeasonHub({
                 <div className="league-season-stats">
                   <SectionHeader title={statsContent.heading} description={<ManagedSiteHtml html={statsContent.body_html} />} />
                   <LeagueStatsPanel
+                    seasonId={seasonId ?? 0}
                     resultMatches={resultMatches}
                     teamIds={teamIds}
                     teamsMap={teamsMap}
