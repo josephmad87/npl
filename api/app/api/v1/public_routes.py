@@ -87,6 +87,7 @@ from app.services.dls import dls_g50_for_category, dls_par_score
 from app.services.site_pages import default_site_page_body, merge_site_page_body_with_defaults
 from app.services.seo_redirects import normalise_public_path
 from app.services.season_rosters import match_eligible_players
+from app.services.season_delivery_stats import summarize_season_deliveries
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -902,6 +903,58 @@ def get_season(league_slug: str, season_slug: str, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Season not found"})
     base = SeasonSummaryOut.model_validate(season).model_dump()
     return SeasonPublicOut.model_validate({**base, "team_ids": _season_team_ids(db, season.id)})
+
+
+@router.get("/seasons/{season_id}/stats-details", response_model=dict)
+def season_stats_details(season_id: int, db: Session = Depends(get_db)) -> dict:
+    """Season squad names and compact figures from completed match deliveries."""
+    season = db.get(Season, season_id)
+    if season is None or season.status == "archived":
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Season not found"})
+
+    completed = (
+        Match.season_id == season_id,
+        Match.status == "completed",
+        Match.is_published.is_(True),
+    )
+    roster_ids = set(db.scalars(
+        select(SeasonPlayer.player_id)
+        .join(Player, Player.id == SeasonPlayer.player_id)
+        .join(SeasonTeam, (SeasonTeam.season_id == SeasonPlayer.season_id) & (SeasonTeam.team_id == SeasonPlayer.team_id))
+        .where(
+            SeasonPlayer.season_id == season_id,
+            SeasonPlayer.role.in_(("registered", "standby")),
+            Player.status.in_(("active", "inactive")),
+        ),
+    ).all())
+    recorded_ids = set(db.scalars(
+        select(MatchPlayerStat.player_id)
+        .join(Match, Match.id == MatchPlayerStat.match_id)
+        .where(*completed),
+    ).all())
+    profile_ids = roster_ids | recorded_ids
+    profiles = list(db.scalars(
+        select(Player).where(Player.id.in_(profile_ids)).order_by(Player.full_name, Player.id),
+    ).all()) if profile_ids else []
+    events = db.scalars(
+        select(MatchBallEvent)
+        .join(Match, Match.id == MatchBallEvent.match_id)
+        .where(*completed)
+        .order_by(MatchBallEvent.match_id, MatchBallEvent.innings, MatchBallEvent.sequence_number, MatchBallEvent.id),
+    ).all()
+    return {
+        "players": [
+            {
+                "id": player.id,
+                "full_name": player.full_name,
+                "team_id": player.team_id,
+                "profile_photo_url": player.profile_photo_url,
+            }
+            for player in profiles
+        ],
+        "eligible_player_ids": sorted(roster_ids or recorded_ids),
+        "delivery_stats": summarize_season_deliveries(events),
+    }
 
 
 @router.get("/fixtures", response_model=dict)

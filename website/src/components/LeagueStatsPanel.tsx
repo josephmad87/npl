@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { EmptyState } from './EmptyState'
+import { ErrorNotice } from './ErrorNotice'
+import { Spinner } from './Spinner'
 import type { MatchLite, TeamLite } from '../lib/hooks'
-import { fetchAllPaginatedList } from '../lib/publicApi'
+import { fetchJson } from '../lib/publicApi'
 import { playerPlaceholderSrc, resolvePlayerPhotoSrc } from '../lib/playerPhotoSrc'
 import { managedSection, useSitePageContent } from '../lib/siteContent'
 import { ManagedSiteHtml } from './ManagedSiteHtml'
@@ -12,12 +14,19 @@ import {
   kpiPlayerList,
   kpiTeamList,
   kpiTournamentList,
+  emptyDeliveryCounts,
+  type SeasonDeliveryStats,
   type BattingTableRow,
   type BowlingTableRow,
   topPerformers,
 } from '../lib/leagueStatsBuild'
 
 type Pl = { id: number; full_name: string; team_id: number; profile_photo_url: string | null }
+type SeasonStatsDetails = {
+  players: Pl[]
+  eligible_player_ids: number[]
+  delivery_stats: SeasonDeliveryStats
+}
 
 
 const STAT_PAGE_SIZE = 15
@@ -90,27 +99,11 @@ function StatsPager({
 
 
 
-function useSeasonPlayerNames(teamIds: number[]) {
+function useSeasonStatsDetails(seasonId: number) {
   return useQuery({
-    queryKey: ['season-players', teamIds.join(',')],
-    queryFn: async () => {
-      if (teamIds.length === 0) return new Map<number, Pl>()
-      const rows = await Promise.all(
-        teamIds.map((tid) =>
-          fetchAllPaginatedList<Pl>((page) =>
-            `/public/players?page=${page}&page_size=100&team_id=${tid}&include_inactive=true`,
-          ),
-        ),
-      )
-      const m = new Map<number, Pl>()
-      for (const list of rows) {
-        for (const p of list) {
-          m.set(p.id, p)
-        }
-      }
-      return m
-    },
-    enabled: teamIds.length > 0,
+    queryKey: ['season-stats-details', seasonId],
+    queryFn: () => fetchJson<SeasonStatsDetails>(`/public/seasons/${seasonId}/stats-details`),
+    enabled: seasonId > 0,
     retry: 1,
   })
 }
@@ -152,17 +145,25 @@ function isTeamCaptain(
 }
 
 export function LeagueStatsPanel({
+  seasonId,
   resultMatches,
   teamIds,
   teamsMap,
 }: {
+  seasonId: number
   resultMatches: MatchLite[]
   teamIds: number[]
   teamsMap: Record<number, TeamLite>
 }) {
   const contentQ = useSitePageContent('league-season')
   const topPerformersContent = managedSection(contentQ.data, 'top-performers', 'Top Performers')
-  const { data: playerById = new Map<number, Pl>() } = useSeasonPlayerNames(teamIds)
+  const statsDetailsQ = useSeasonStatsDetails(seasonId)
+  const playerById = useMemo(
+    () => new Map((statsDetailsQ.data?.players ?? []).map((player) => [player.id, player])),
+    [statsDetailsQ.data],
+  )
+  const deliveryStats = statsDetailsQ.data?.delivery_stats
+  const hasRecordedDeliveries = (deliveryStats?.recorded_match_count ?? 0) > 0
   const [scope, setScope] = useState<Scope>('tournament')
   const [teamId, setTeamId] = useState<number | null>(() => teamIds[0] ?? null)
   const [playerId, setPlayerId] = useState<number | null>(null)
@@ -173,8 +174,11 @@ export function LeagueStatsPanel({
   const [bowlingStatsPage, setBowlingStatsPage] = useState(0)
 
   const playerOptions = useMemo(() => {
-    return [...playerById.values()].sort((a, b) => a.full_name.localeCompare(b.full_name))
-  }, [playerById])
+    return (statsDetailsQ.data?.eligible_player_ids ?? [])
+      .map((id) => playerById.get(id))
+      .filter((player): player is Pl => player != null)
+      .sort((a, b) => a.full_name.localeCompare(b.full_name))
+  }, [playerById, statsDetailsQ.data])
 
   const effectiveTeamId = useMemo(() => {
     if (teamIds.length === 0) return null
@@ -192,16 +196,17 @@ export function LeagueStatsPanel({
   }, [scope, playerId, playerOptions])
 
   const kpiList = useMemo(() => {
-    if (scope === 'tournament') return kpiTournamentList(resultMatches)
+    const recorded = hasRecordedDeliveries ? deliveryStats : null
+    if (scope === 'tournament') return kpiTournamentList(resultMatches, recorded?.tournament)
     if (scope === 'team' && effectiveTeamId != null) {
-      return kpiTeamList(resultMatches, effectiveTeamId)
+      return kpiTeamList(resultMatches, effectiveTeamId, recorded?.teams[effectiveTeamId] ?? (recorded ? emptyDeliveryCounts() : null))
     }
     if (scope === 'player' && effectivePlayerId != null) {
-      return kpiPlayerList(resultMatches, effectivePlayerId)
+      return kpiPlayerList(resultMatches, effectivePlayerId, recorded?.players[effectivePlayerId] ?? (recorded ? emptyDeliveryCounts() : null))
     }
     if (scope === 'player') return []
-    return kpiTournamentList(resultMatches)
-  }, [resultMatches, scope, effectiveTeamId, effectivePlayerId])
+    return kpiTournamentList(resultMatches, recorded?.tournament)
+  }, [resultMatches, scope, effectiveTeamId, effectivePlayerId, deliveryStats, hasRecordedDeliveries])
 
   const tops = useMemo(() => topPerformers(resultMatches), [resultMatches])
  const allBatRows = useMemo(
@@ -256,6 +261,12 @@ const battingPage = pagedStats(batRows, battingStatsPage)
 const bowlingPage = pagedStats(bowlRows, bowlingStatsPage)
   if (resultMatches.length === 0) {
     return <EmptyState title="No match statistics for this season yet" />
+  }
+  if (statsDetailsQ.isPending) {
+    return <Spinner label="Loading season statistics..." />
+  }
+  if (statsDetailsQ.isError) {
+    return <ErrorNotice message="Could not load season statistics. Please try again." />
   }
 
   return (
