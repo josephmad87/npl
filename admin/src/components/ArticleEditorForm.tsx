@@ -136,11 +136,15 @@ export function ArticleEditorForm({
     { label: 'At least one internal-search tag', ready: parseTagsInput(tagsInput) !== null },
   ]
 
-  const handleSubmit = () => {
+  const handleSubmit = (nextStatus = status) => {
     const t = title.trim()
-    const s = slug.trim()
-    if (!t || !s) {
-      setLocalError('Title and slug are required.')
+    const s = slug.trim() || (mode === 'create' ? slugify(t) : '')
+    if (!t) {
+      setLocalError('Enter a title before saving the story.')
+      return
+    }
+    if (!s) {
+      setLocalError('Enter a URL slug, or use a title with letters or numbers to generate one.')
       return
     }
     setLocalError(null)
@@ -154,7 +158,7 @@ export function ArticleEditorForm({
       body_image_url: bodyImageUrl.trim() || null,
       body_image_caption: bodyImageCaption.trim() || null,
       author_name: authorName.trim() || null,
-      status,
+      status: nextStatus,
       category: normalizeCompetitionCategory(category),
       tags: parseTagsInput(tagsInput),
       seo_title: seoTitle.trim() || null,
@@ -162,8 +166,11 @@ export function ArticleEditorForm({
     })
   }
 
-  const submitLabel =
-    mode === 'create' ? 'Create article' : 'Update article'
+  const submitLabel = status === 'draft'
+    ? 'Save draft'
+    : status === 'published'
+      ? mode === 'create' ? 'Publish article' : 'Save changes'
+      : mode === 'create' ? 'Create article' : 'Update article'
   const displayError = error ?? localError
 
   return (
@@ -233,14 +240,27 @@ export function ArticleEditorForm({
             </button>
             <button
               type="button"
-              className="btn-primary btn--with-icon"
-              onClick={handleSubmit}
+              className={`${status === 'draft' ? 'btn-ghost' : 'btn-primary'} btn--with-icon`}
+              onClick={() => handleSubmit()}
               disabled={isSubmitting}
             >
               <Save size={15} strokeWidth={2} aria-hidden />
-              {submitLabel}
+              {isSubmitting ? 'Saving…' : submitLabel}
             </button>
           </div>
+          {status === 'draft' ? (
+            <button
+              type="button"
+              className="btn-primary article-editor__publish-now"
+              onClick={() => handleSubmit('published')}
+              disabled={isSubmitting}
+            >
+              Publish now
+            </button>
+          ) : null}
+          {displayError ? (
+            <p className="login-error article-editor__error" role="alert">{displayError}</p>
+          ) : null}
         </div>
 
         <div className="article-editor__panel">
@@ -253,8 +273,12 @@ export function ArticleEditorForm({
             className="inline-edit__control article-editor__control"
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
+            placeholder={mode === 'create' ? 'Generated from the title if left blank' : undefined}
             autoComplete="off"
           />
+          {mode === 'create' ? (
+            <p className="muted article-editor__hint">Leave blank to generate the URL from the title.</p>
+          ) : null}
           <button
             type="button"
             className="btn-ghost"
@@ -389,9 +413,6 @@ export function ArticleEditorForm({
         </div>
       </aside>
 
-      {displayError ? (
-        <p className="login-error article-editor__error">{displayError}</p>
-      ) : null}
     </div>
   )
 }
