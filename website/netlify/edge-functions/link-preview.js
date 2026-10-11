@@ -1,3 +1,5 @@
+import { productOffers } from '../../src/lib/productOffers.js'
+
 const SITE_NAME = 'National Premier League'
 const DEFAULT_DESCRIPTION =
   'Latest fixtures, results, scorecards, news and standings from the National Premier League.'
@@ -1465,15 +1467,17 @@ function entityStructuredData(preview, request) {
     }
   }
   if (preview.entityKind === 'product') {
+    const offers = productOffers(entity, url.toString())
     return {
       ...common,
-      '@type': 'Product',
+      '@type': offers.length ? 'Product' : 'WebPage',
       name: cleanText(entity.name) || preview.title,
       description: preview.description,
       image: [entity.image_url, entity.image_url_2, entity.image_url_3]
         .filter(Boolean)
         .map((image) => absoluteUrl(image, request.url)),
       category: cleanText(entity.category) || undefined,
+      ...(offers.length ? { offers } : {}),
     }
   }
   if (preview.entityKind === 'managed-page') {
