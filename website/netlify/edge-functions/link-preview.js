@@ -95,6 +95,10 @@ const STATIC_PAGE_PREVIEWS = {
     title: 'Search NPL Zimbabwe',
     description: 'Search NPL Zimbabwe teams, players, fixtures, results and news.',
   },
+  '/youth': {
+    title: 'Youth Cricket',
+    description: 'Explore NPL Zimbabwe youth cricket, including U13 and U15 competitions, teams, fixtures, results and seasons.',
+  },
 }
 
 function hasKnownRouteShape(pathname) {
@@ -412,6 +416,18 @@ async function legacySeoRedirect(request) {
     return url
   }
 
+  const legacyLeagueName = url.pathname.match(/^\/leagues\/([^/]+)$/)?.[1]
+  if (legacyLeagueName) {
+    try {
+      if (seoSlug(decodeURIComponent(legacyLeagueName)) === 'npl-mens') {
+        url.pathname = '/leagues/npl-super-40'
+        return url
+      }
+    } catch {
+      // Leave malformed paths to the normal not-found response.
+    }
+  }
+
   const singularAliases = [
     [/^\/team\/([^/]+)$/, '/teams/'],
     [/^\/player\/([^/]+)$/, '/players/'],
@@ -473,7 +489,11 @@ async function legacySeoRedirect(request) {
   const categorySeasonMatch = url.pathname.match(/^\/(mens|women|youth)\/seasons$/)
   const leagueSlug = cleanText(url.searchParams.get('leagueSlug'))
   if (categorySeasonMatch && leagueSlug) {
-    url.pathname = `/leagues/${encodeURIComponent(leagueSlug.toLowerCase() === 'wnpl' ? 'womens-npl' : leagueSlug)}`
+    const legacyLeagueSlugs = new Map([
+      ['wnpl', 'womens-npl'],
+      ['npl-mens', 'npl-super-40'],
+    ])
+    url.pathname = `/leagues/${encodeURIComponent(legacyLeagueSlugs.get(seoSlug(leagueSlug)) || leagueSlug)}`
     url.searchParams.delete('leagueSlug')
     return url
   }
@@ -1038,15 +1058,25 @@ async function previewForPlayer(slug, request) {
   }
   if (!player) return defaultPreview(request)
 
+  const team = await fetchTeamById(player.blast_2026_team_id || player.team_id)
+  const teamName = cleanText(team?.name)
+  const careerStats = [
+    player.matches_played > 0 ? `${player.matches_played} matches` : '',
+    player.runs_scored > 0 ? `${player.runs_scored} runs` : '',
+    player.wickets_taken > 0 ? `${player.wickets_taken} wickets` : '',
+    player.catches > 0 ? `${player.catches} catches` : '',
+  ].filter(Boolean)
+
   return {
     title: player.full_name || SITE_NAME,
     description:
       truncate(
         [
+          `${player.full_name} cricket player profile`,
+          teamName,
           player.role,
           player.batting_style,
           player.bowling_style,
-          player.team_name,
         ]
           .filter(Boolean)
           .join(' · '),
@@ -1054,7 +1084,13 @@ async function previewForPlayer(slug, request) {
     image: absoluteUrl(player.profile_photo_url, request.url),
     type: 'profile',
     entityKind: 'player',
-    entity: player,
+    entity: { ...player, team_name: teamName, team_slug: cleanText(team?.slug) },
+    content: [
+      cleanText(player.bio),
+      teamName ? `${player.full_name} plays for ${teamName}.` : '',
+      careerStats.length ? `Career record: ${careerStats.join(', ')}.` : '',
+      cleanText(player.debut_info),
+    ].filter(Boolean).join(' '),
   }
 }
 
@@ -1256,6 +1292,7 @@ async function buildPreview(request) {
       ...defaultPreview(request),
       title: `${category} ${section}`,
       description: `${category} NPL Zimbabwe ${section.toLowerCase()}, competition information and club cricket updates.`,
+      ...STATIC_PAGE_PREVIEWS[url.pathname],
     }
   }
 
@@ -1600,9 +1637,22 @@ function prerenderedContent(preview, request) {
       return `<li>${content}</li>`
     })
     .join('')
+  const categoryRoot = /^\/(mens|women|youth)$/.test(url.pathname)
+  const categoryLinks = categoryRoot
+    ? [
+        [`${url.pathname}/fixtures`, 'Fixtures'],
+        [`${url.pathname}/results`, 'Results'],
+        [`${url.pathname}/teams`, 'Teams'],
+        [`${url.pathname}/seasons`, 'Seasons'],
+      ]
+    : []
+  const teamLink = preview.entityKind === 'player' && preview.entity?.team_slug
+    ? [[`/teams/${encodeURIComponent(preview.entity.team_slug)}`, `${preview.entity.team_name} team profile`]]
+    : []
   const related = [
-    ['/fixtures', 'Fixtures'],
-    ['/results', 'Results'],
+    ...categoryLinks,
+    ...teamLink,
+    ...(!categoryRoot ? [['/fixtures', 'Fixtures'], ['/results', 'Results']] : []),
     ['/news', 'News'],
     ['/competition', 'Competition information'],
   ].filter(([path]) => path !== url.pathname)

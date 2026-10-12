@@ -151,6 +151,8 @@ test('older club and league names redirect to existing canonical pages', async (
       '/leagues/NPL%20T20%20Blast/seasons/Men%27s%20NPL%20Blast%202026',
       '/leagues/npl-t20-blast/seasons/mens-t20-blast-2026',
     ],
+    ['/mens/seasons?leagueSlug=NPL+Men%27s', '/leagues/npl-super-40'],
+    ['/leagues/NPL%20Men%27s', '/leagues/npl-super-40'],
   ]
 
   for (const [source, target] of aliases) {
@@ -161,6 +163,56 @@ test('older club and league names redirect to existing canonical pages', async (
     assert.equal(response.status, 301, source)
     assert.equal(response.headers.get('location'), `https://npl.co.zw${target}`, source)
   }
+})
+
+test('player preview exposes club and actual career record to crawlers', async (context) => {
+  const originalFetch = globalThis.fetch
+  context.after(() => {
+    globalThis.fetch = originalFetch
+  })
+  globalThis.fetch = async (rawUrl) => {
+    const path = new URL(String(rawUrl)).pathname
+    if (path.endsWith('/public/players/sample-player')) {
+      return Response.json({
+        full_name: 'Sample Player',
+        team_id: 1,
+        role: 'Bowler',
+        matches_played: 9,
+        runs_scored: 85,
+        wickets_taken: 2,
+        catches: 3,
+      })
+    }
+    if (path.endsWith('/public/teams')) {
+      return Response.json({ items: [{ id: 1, name: 'Old Hararians', slug: 'old-hararians' }], total: 1 })
+    }
+    throw new Error(`Unexpected request: ${path}`)
+  }
+
+  const response = await handler(
+    new Request('https://npl.co.zw/players/sample-player'),
+    htmlContext(),
+  )
+  const html = await response.text()
+  assert.equal(response.status, 200)
+  assert.match(html, /Sample Player plays for Old Hararians/)
+  assert.match(html, /Career record: 9 matches, 85 runs, 2 wickets, 3 catches/)
+  assert.match(html, /href="\/teams\/old-hararians"/)
+  assert.match(html, /"affiliation":\{"@type":"SportsTeam","name":"Old Hararians"\}/)
+})
+
+test('youth hub serves its competition context and routes in initial HTML', async () => {
+  const response = await handler(
+    new Request('https://npl.co.zw/youth'),
+    htmlContext(),
+  )
+  const html = await response.text()
+  assert.equal(response.status, 200)
+  assert.match(html, /U13 and U15 competitions/)
+  assert.match(html, /href="\/youth\/fixtures"/)
+  assert.match(html, /href="\/youth\/results"/)
+  assert.match(html, /href="\/youth\/teams"/)
+  assert.match(html, /href="\/youth\/seasons"/)
 })
 
 test('numeric merchandise URLs redirect to a descriptive canonical path', async (context) => {
