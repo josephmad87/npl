@@ -137,6 +137,32 @@ test('legacy route aliases use permanent redirects', async () => {
   assert.equal(response.headers.get('location'), 'https://npl.co.zw/merchandise')
 })
 
+test('older club and league names redirect to existing canonical pages', async () => {
+  const aliases = [
+    ['/teams/Takashinga%20Patriots%202', '/teams/takashinga-patriots-2'],
+    ['/teams/Amakhosi%201%20Cricket%20Club', '/teams/amakhosi-1'],
+    ['/teams/Eastern%20Titans', '/teams/eastern-titans'],
+    ['/teams/Mbizo%20Cricket%20Club', '/teams/mbizo'],
+    ['/teams/Queens%20Cricket%20Club', '/teams/queens-mens'],
+    ['/teams/Rimuka%20Cricket%20Club', '/teams/rimuka'],
+    ['/teams/Takashinga%20Patriots%201', '/teams/takashinga-patriots-1'],
+    ['/women/seasons?leagueSlug=wnpl', '/leagues/womens-npl'],
+    [
+      '/leagues/NPL%20T20%20Blast/seasons/Men%27s%20NPL%20Blast%202026',
+      '/leagues/npl-t20-blast/seasons/mens-t20-blast-2026',
+    ],
+  ]
+
+  for (const [source, target] of aliases) {
+    const response = await handler(
+      new Request(`https://npl.co.zw${source}`),
+      htmlContext(),
+    )
+    assert.equal(response.status, 301, source)
+    assert.equal(response.headers.get('location'), `https://npl.co.zw${target}`, source)
+  }
+})
+
 test('numeric merchandise URLs redirect to a descriptive canonical path', async (context) => {
   const originalFetch = globalThis.fetch
   context.after(() => {
@@ -383,6 +409,39 @@ test('sitemap emits lastmod for dated editorial and managed content', async (con
     sitemap,
     /<loc>https:\/\/npl\.co\.zw\/safeguarding<\/loc><lastmod>2026-08-30T09:00:00\.000Z<\/lastmod>/,
   )
+})
+
+test('sitemap never reports scheduled dates as page modifications', async (context) => {
+  const originalFetch = globalThis.fetch
+  context.after(() => {
+    globalThis.fetch = originalFetch
+  })
+  globalThis.fetch = async (rawUrl) => {
+    const path = new URL(String(rawUrl)).pathname
+    if (path.endsWith('/public/fixtures')) {
+      return Response.json({ items: [{ ...match, match_date: '2099-01-01' }], total: 1 })
+    }
+    if (path.endsWith('/public/leagues')) {
+      return Response.json({ items: [{ slug: 'npl-super-40' }], total: 1 })
+    }
+    if (path.endsWith('/public/leagues/npl-super-40/seasons')) {
+      return Response.json({
+        items: [{ slug: 'mens-super-40-2026', start_date: '2099-01-01', end_date: '2099-12-31' }],
+        total: 1,
+      })
+    }
+    if (path.endsWith('/public/news')) {
+      return Response.json({ items: [{ slug: 'future-story', updated_at: '2099-01-01T00:00:00Z' }], total: 1 })
+    }
+    return Response.json({ items: [], total: 0 })
+  }
+
+  const response = await handler(new Request('https://npl.co.zw/sitemap.xml'), htmlContext())
+  const sitemap = await response.text()
+  assert.match(sitemap, /<loc>https:\/\/npl\.co\.zw\/fixtures<\/loc><\/url>/)
+  assert.match(sitemap, /<loc>https:\/\/npl\.co\.zw\/news\/future-story<\/loc><\/url>/)
+  assert.match(sitemap, /<loc>https:\/\/npl\.co\.zw\/leagues\/npl-super-40\/seasons\/mens-super-40-2026<\/loc><\/url>/)
+  assert.doesNotMatch(sitemap, /<lastmod>2099-/)
 })
 
 test('managed information pages are rendered with editable public content', async (context) => {

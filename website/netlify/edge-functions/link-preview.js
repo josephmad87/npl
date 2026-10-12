@@ -404,6 +404,7 @@ async function legacySeoRedirect(request) {
     ['/scores', '/live'],
     ['/shop', '/merchandise'],
     ['/merch', '/merchandise'],
+    ['/leagues/wnpl', '/leagues/womens-npl'],
   ])
   const staticTarget = staticAliases.get(url.pathname)
   if (staticTarget) {
@@ -424,6 +425,46 @@ async function legacySeoRedirect(request) {
     }
   }
 
+  // Older links used club display names instead of the current profile slugs.
+  const teamSegment = url.pathname.match(/^\/teams\/([^/]+)$/)?.[1]
+  if (teamSegment) {
+    let legacyName = ''
+    try {
+      legacyName = seoSlug(decodeURIComponent(teamSegment))
+    } catch {
+      // An invalid escape sequence cannot identify a known club.
+    }
+    const teamAliases = new Map([
+      ['amakhosi-1-cricket-club', 'amakhosi-1'],
+      ['amakhosi-2-cricket-club', 'amakhosi-2'],
+      ['eastern-titans', 'eastern-titans'],
+      ['mbizo-cricket-club', 'mbizo'],
+      ['queens-cricket-club', 'queens-mens'],
+      ['rimuka-cricket-club', 'rimuka'],
+      ['takashinga-patriots-1', 'takashinga-patriots-1'],
+      ['takashinga-patriots-2', 'takashinga-patriots-2'],
+    ])
+    const canonicalSlug = teamAliases.get(legacyName)
+    if (canonicalSlug && url.pathname !== `/teams/${canonicalSlug}`) {
+      url.pathname = `/teams/${canonicalSlug}`
+      return url
+    }
+  }
+
+  const legacySeason = url.pathname.match(/^\/leagues\/([^/]+)\/seasons\/([^/]+)$/)
+  if (legacySeason) {
+    try {
+      const leagueName = seoSlug(decodeURIComponent(legacySeason[1]))
+      const seasonName = seoSlug(decodeURIComponent(legacySeason[2]))
+      if (leagueName === 'npl-t20-blast' && seasonName === 'mens-npl-blast-2026') {
+        url.pathname = '/leagues/npl-t20-blast/seasons/mens-t20-blast-2026'
+        return url
+      }
+    } catch {
+      // Leave malformed paths to the normal not-found response.
+    }
+  }
+
   if (url.pathname === '/ladies' || url.pathname.startsWith('/ladies/')) {
     url.pathname = url.pathname.replace(/^\/ladies(?=\/|$)/, '/women')
     return url
@@ -432,7 +473,7 @@ async function legacySeoRedirect(request) {
   const categorySeasonMatch = url.pathname.match(/^\/(mens|women|youth)\/seasons$/)
   const leagueSlug = cleanText(url.searchParams.get('leagueSlug'))
   if (categorySeasonMatch && leagueSlug) {
-    url.pathname = `/leagues/${encodeURIComponent(leagueSlug)}`
+    url.pathname = `/leagues/${encodeURIComponent(leagueSlug.toLowerCase() === 'wnpl' ? 'womens-npl' : leagueSlug)}`
     url.searchParams.delete('leagueSlug')
     return url
   }
@@ -523,7 +564,9 @@ function xmlEscape(value) {
 function sitemapLastmod(value) {
   if (!value) return ''
   const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString()
+  return Number.isNaN(parsed.getTime()) || parsed.getTime() > Date.now()
+    ? ''
+    : parsed.toISOString()
 }
 
 function sitemapUrl(origin, path, lastmod = '') {
@@ -596,15 +639,15 @@ async function sitemapResponse(request) {
     }
   }
   for (const match of fixtures) {
-    addPath('/fixtures', match.updated_at || match.match_date)
+    addPath('/fixtures', match.updated_at)
   }
   for (const match of results) {
-    addPath('/results', match.updated_at || match.match_date)
+    addPath('/results', match.updated_at)
   }
   for (const match of [...fixtures, ...results]) {
     const { homeName, awayName } = await resolvedMatchTeamNames(match)
     const path = matchSeoPath(match, homeName, awayName)
-    if (path) addPath(path, match.updated_at || match.match_date)
+    if (path) addPath(path, match.updated_at)
   }
 
   const leaguesWithSlugs = leagues.filter((league) => seoSlug(league.slug))
@@ -619,7 +662,7 @@ async function sitemapResponse(request) {
       if (seoSlug(season.slug)) {
         addPath(
           `/leagues/${encodeURIComponent(league.slug)}/seasons/${encodeURIComponent(season.slug)}`,
-          season.updated_at || season.end_date || season.start_date,
+          season.updated_at,
         )
       }
     }
