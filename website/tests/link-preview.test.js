@@ -137,6 +137,32 @@ test('legacy route aliases use permanent redirects', async () => {
   assert.equal(response.headers.get('location'), 'https://npl.co.zw/merchandise')
 })
 
+test('older club and league names redirect to existing canonical pages', async () => {
+  const aliases = [
+    ['/teams/Takashinga%20Patriots%202', '/teams/takashinga-patriots-2'],
+    ['/teams/Amakhosi%201%20Cricket%20Club', '/teams/amakhosi-1'],
+    ['/teams/Eastern%20Titans', '/teams/eastern-titans'],
+    ['/teams/Mbizo%20Cricket%20Club', '/teams/mbizo'],
+    ['/teams/Queens%20Cricket%20Club', '/teams/queens-mens'],
+    ['/teams/Rimuka%20Cricket%20Club', '/teams/rimuka'],
+    ['/teams/Takashinga%20Patriots%201', '/teams/takashinga-patriots-1'],
+    ['/women/seasons?leagueSlug=wnpl', '/leagues/womens-npl'],
+    [
+      '/leagues/NPL%20T20%20Blast/seasons/Men%27s%20NPL%20Blast%202026',
+      '/leagues/npl-t20-blast/seasons/mens-t20-blast-2026',
+    ],
+  ]
+
+  for (const [source, target] of aliases) {
+    const response = await handler(
+      new Request(`https://npl.co.zw${source}`),
+      htmlContext(),
+    )
+    assert.equal(response.status, 301, source)
+    assert.equal(response.headers.get('location'), `https://npl.co.zw${target}`, source)
+  }
+})
+
 test('numeric merchandise URLs redirect to a descriptive canonical path', async (context) => {
   const originalFetch = globalThis.fetch
   context.after(() => {
