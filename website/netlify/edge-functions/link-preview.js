@@ -523,7 +523,9 @@ function xmlEscape(value) {
 function sitemapLastmod(value) {
   if (!value) return ''
   const parsed = new Date(value)
-  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString()
+  return Number.isNaN(parsed.getTime()) || parsed.getTime() > Date.now()
+    ? ''
+    : parsed.toISOString()
 }
 
 function sitemapUrl(origin, path, lastmod = '') {
@@ -596,15 +598,15 @@ async function sitemapResponse(request) {
     }
   }
   for (const match of fixtures) {
-    addPath('/fixtures', match.updated_at || match.match_date)
+    addPath('/fixtures', match.updated_at)
   }
   for (const match of results) {
-    addPath('/results', match.updated_at || match.match_date)
+    addPath('/results', match.updated_at)
   }
   for (const match of [...fixtures, ...results]) {
     const { homeName, awayName } = await resolvedMatchTeamNames(match)
     const path = matchSeoPath(match, homeName, awayName)
-    if (path) addPath(path, match.updated_at || match.match_date)
+    if (path) addPath(path, match.updated_at)
   }
 
   const leaguesWithSlugs = leagues.filter((league) => seoSlug(league.slug))
@@ -619,7 +621,7 @@ async function sitemapResponse(request) {
       if (seoSlug(season.slug)) {
         addPath(
           `/leagues/${encodeURIComponent(league.slug)}/seasons/${encodeURIComponent(season.slug)}`,
-          season.updated_at || season.end_date || season.start_date,
+          season.updated_at,
         )
       }
     }
