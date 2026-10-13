@@ -177,6 +177,7 @@ function ArticleDetailPage() {
               <section
                 className="article-view__body"
                 aria-label="Article body"
+                tabIndex={safeBody.includes('<table') ? 0 : undefined}
                 dangerouslySetInnerHTML={{ __html: safeBody }}
               />
             ) : (

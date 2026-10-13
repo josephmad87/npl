@@ -264,6 +264,8 @@ export default function NewsArticlePage() {
                 {article.body ? (
                   <section
                     className="article-body"
+                    tabIndex={article.body.includes('<table') ? 0 : undefined}
+                    aria-label={article.body.includes('<table') ? 'Story content with scrollable table' : undefined}
                     dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.body) }}
                   />
                 ) : article.excerpt ? null : (

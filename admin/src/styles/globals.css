@@ -2800,6 +2800,57 @@ table.data-table button.sort {
   margin: 0 0.2rem;
 }
 
+.rich-text-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.rich-text-table-toolbar__rows,
+.rich-text-table-toolbar__style {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font: 600 0.75rem/1.2 var(--font-display);
+}
+
+.rich-text-table-toolbar__rows input,
+.rich-text-table-toolbar__style select {
+  min-height: 2rem;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+  padding: 0.25rem 0.4rem;
+}
+
+.rich-text-table-toolbar__rows input {
+  width: 3.5rem;
+}
+
+.rich-text-table-toolbar__rows input:focus-visible,
+.rich-text-table-toolbar__style select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rich-text-table-toolbar__align-label,
+.rich-text-table-toolbar__hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.rich-text-table-toolbar__hint {
+  flex-basis: 100%;
+}
+
 .rich-text-editor__content .tiptap,
 .rich-text-editor__content .ProseMirror {
   min-height: 22rem;
@@ -2808,6 +2859,11 @@ table.data-table button.sort {
   color: var(--text);
   font-size: 0.98rem;
   line-height: 1.65;
+}
+
+.rich-text-editor__content {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 
 .rich-text-editor__content .tiptap p,
@@ -3198,6 +3254,94 @@ video.article-view__hero-img {
   color: var(--text);
   font-size: 1rem;
   line-height: 1.7;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.article-view__body:focus-visible {
+  outline: 3px solid var(--accent-mid);
+  outline-offset: 3px;
+}
+
+.rich-text-editor__content table,
+.article-view__body table {
+  width: max-content;
+  min-width: 100%;
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-collapse: collapse;
+  background: var(--bg-panel);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+}
+
+.rich-text-editor__content table th,
+.rich-text-editor__content table td,
+.article-view__body table th,
+.article-view__body table td {
+  padding: 0.65rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.rich-text-editor__content table :is(th, td)[align='center'],
+.article-view__body table :is(th, td)[align='center'] {
+  text-align: center;
+}
+
+.rich-text-editor__content table :is(th, td)[align='right'],
+.article-view__body table :is(th, td)[align='right'] {
+  text-align: right;
+}
+
+.rich-text-editor__content table th,
+.article-view__body table th {
+  background: var(--bg-muted);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.rich-text-editor__content table p,
+.article-view__body table p {
+  margin: 0;
+}
+
+.rich-text-editor__content table.story-table--striped tbody tr:nth-child(even),
+.article-view__body table.story-table--striped tbody tr:nth-child(even) {
+  background: var(--bg-elevated);
+}
+
+.rich-text-editor__content table.story-table--compact th,
+.rich-text-editor__content table.story-table--compact td,
+.article-view__body table.story-table--compact th,
+.article-view__body table.story-table--compact td {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.86rem;
+}
+
+.rich-text-editor__content table.story-table--minimal,
+.article-view__body table.story-table--minimal {
+  border: 0;
+}
+
+.rich-text-editor__content table.story-table--minimal th,
+.rich-text-editor__content table.story-table--minimal td,
+.article-view__body table.story-table--minimal th,
+.article-view__body table.story-table--minimal td {
+  border-bottom: 0;
+}
+
+.rich-text-editor__content table.story-table--minimal tr:first-child > th,
+.article-view__body table.story-table--minimal tr:first-child > th {
+  border-bottom: 2px solid var(--border);
+  background: transparent;
+}
+
+.rich-text-editor__content table .selectedCell {
+  background: var(--accent-soft);
 }
 
 .article-view__body h2,
