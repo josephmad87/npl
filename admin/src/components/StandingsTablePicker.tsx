@@ -6,7 +6,7 @@ import {
   computeSeasonStandings,
   sortStandingsDesc,
 } from '../../../website/src/lib/leagueSeasonAggregates'
-import type { MatchLite } from '../../../website/src/lib/hooks'
+import type { MatchLite } from '../../../website/src/lib/match-types'
 import { storyTableVariants, type StoryTableVariant } from './StoryTableExtensions'
 import {
   buildStandingsSnapshotHtml,

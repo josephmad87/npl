@@ -1,4 +1,4 @@
-import type { MatchLite } from './hooks'
+import type { MatchLite } from './match-types'
 import { countsBattingInnings } from './cricket'
 import { sumTeamExtras } from './match-extras'
 
