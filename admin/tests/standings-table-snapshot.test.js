@@ -9,7 +9,7 @@ test('standings snapshot keeps original ranks and escapes selected team names', 
     root: fileURLToPath(new URL('..', import.meta.url)),
     cacheDir: '/private/tmp/story-standings-vite-cache',
     optimizeDeps: { noDiscovery: true, include: [] },
-    server: { middlewareMode: true },
+    server: { middlewareMode: true, hmr: false },
     appType: 'custom',
   })
   try {

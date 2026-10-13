@@ -37,6 +37,7 @@ import {
   type StoryTableVariant,
 } from '@/components/StoryTableExtensions'
 import { StandingsTablePicker } from '@/components/StandingsTablePicker'
+import { continueWritingAfterTable } from '@/components/storyTableExit'
 
 type RichTextEditorProps = {
   initialHtml: string
@@ -80,6 +81,7 @@ function Toolbar({
     const rows = boundedCount(teamRows, 8, 30)
     setTeamRows(String(rows))
     editor.chain().focus().insertContent(standingsTableHtml(rows)).run()
+    continueWritingAfterTable(editor)
   }
 
   const insertBlankTable = () => {
@@ -88,6 +90,7 @@ function Toolbar({
     setBlankRows(String(rows))
     setBlankColumns(String(cols))
     editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run()
+    continueWritingAfterTable(editor)
   }
 
   const setLink = () => {
@@ -354,6 +357,9 @@ function Toolbar({
         {tableState.inTable ? (
           <>
             <span className="rich-text-toolbar__sep" aria-hidden />
+            <button type="button" className="rich-text-toolbar__btn rich-text-table-toolbar__continue" onClick={() => continueWritingAfterTable(editor)}>
+              Continue writing below table
+            </button>
             <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addRowBefore().run()}>
               Row above
             </button>
@@ -494,6 +500,7 @@ export function RichTextEditor({
         <StandingsTablePicker
           onInsert={(html) => {
             editor.chain().focus().insertContent(html).run()
+            continueWritingAfterTable(editor)
             setStandingsPickerOpen(false)
           }}
           onCancel={() => setStandingsPickerOpen(false)}
