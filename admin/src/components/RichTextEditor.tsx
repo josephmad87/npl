@@ -26,7 +26,7 @@ import {
   Underline as UnderlineIcon,
   Undo2,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   StoryTable,
   StoryTableCell,
@@ -500,32 +500,48 @@ export function RichTextEditor({
   const [standingsPickerOpen, setStandingsPickerOpen] = useState(false)
   const standingsDialogRef = useRef<HTMLDialogElement>(null)
   const standingsInsertionRef = useRef<{ from: number; to: number; doc: object } | null>(null)
+  const onHtmlChangeRef = useRef(onHtmlChange)
+  useEffect(() => {
+    onHtmlChangeRef.current = onHtmlChange
+  }, [onHtmlChange])
+  // Tiptap compares these references after each parent render. Recreating them
+  // makes it reconfigure the editor after every keystroke and can move the selection.
+  const extensions = useMemo(
+    () => [
+      StarterKit.configure({
+        heading: { levels: [2, 3, 4] },
+        link: false,
+        underline: false,
+      }),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        defaultProtocol: 'https',
+      }),
+      Placeholder.configure({ placeholder }),
+      TextAlign.configure({
+        types: ['heading', 'paragraph'],
+      }),
+      ...(enableTables ? [StoryTable.configure({ View: null }), StoryTableRow, StoryTableHeader, StoryTableCell] : []),
+    ],
+    [enableTables, placeholder],
+  )
+  const editorProps = useMemo(
+    () => ({
+      handleClick: (view: Parameters<typeof handleStoryTableGapClick>[0], _position: number, event: MouseEvent) =>
+        enableTables && handleStoryTableGapClick(view, event),
+    }),
+    [enableTables],
+  )
   const editor = useEditor(
     {
-      extensions: [
-        StarterKit.configure({
-          heading: { levels: [2, 3, 4] },
-        }),
-        Underline,
-        Link.configure({
-          openOnClick: false,
-          autolink: true,
-          defaultProtocol: 'https',
-        }),
-        Placeholder.configure({ placeholder }),
-        TextAlign.configure({
-          types: ['heading', 'paragraph'],
-        }),
-        ...(enableTables ? [StoryTable.configure({ View: null }), StoryTableRow, StoryTableHeader, StoryTableCell] : []),
-      ],
+      extensions,
       content: initialHtml?.trim() ? initialHtml : '<p></p>',
       editable: !disabled,
-      editorProps: {
-        handleClick: (view, _position, event) =>
-          enableTables && handleStoryTableGapClick(view, event),
-      },
+      editorProps,
       onUpdate: ({ editor: ed }) => {
-        onHtmlChange(ed.getHTML())
+        onHtmlChangeRef.current(ed.getHTML())
       },
     },
     [],
