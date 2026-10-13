@@ -26,7 +26,7 @@ import {
   Underline as UnderlineIcon,
   Undo2,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   StoryTable,
   StoryTableCell,
@@ -38,6 +38,7 @@ import {
 } from '@/components/StoryTableExtensions'
 import { StandingsTablePicker } from '@/components/StandingsTablePicker'
 import { continueWritingAfterTable, continueWritingBeforeTable } from '@/components/storyTableExit'
+import { handleStoryTableGapClick } from '@/components/storyTableGap'
 
 type RichTextEditorProps = {
   initialHtml: string
@@ -47,12 +48,25 @@ type RichTextEditorProps = {
   enableTables?: boolean
 }
 
-function isAlignActive(editor: Editor, align: 'left' | 'center' | 'right') {
-  return editor.isActive({ textAlign: align })
-}
-
 function boundedCount(value: string, fallback: number, max: number): number {
   return Math.min(max, Math.max(1, Number.parseInt(value, 10) || fallback))
+}
+
+/** After inserting a table, start editing its first cell, as in a document editor. */
+function focusInsertedTable(editor: Editor, insertionFrom: number) {
+  let firstCellPosition: number | null = null
+  editor.state.doc.forEach((node, position) => {
+    if (firstCellPosition !== null || node.type.name !== 'table' || position < insertionFrom - 1) return
+
+    let content = node
+    let cursor = position
+    while (!content.isTextblock && content.firstChild) {
+      content = content.firstChild
+      cursor += 1
+    }
+    if (content.isTextblock) firstCellPosition = cursor + 1
+  })
+  if (firstCellPosition !== null) editor.chain().setTextSelection(firstCellPosition).focus().run()
 }
 
 function Toolbar({
@@ -76,14 +90,33 @@ function Toolbar({
         : 'standard',
       canMergeCells: enableTables && current.can().mergeCells(),
       canSplitCell: enableTables && current.can().splitCell(),
+      bold: current.isActive('bold'),
+      italic: current.isActive('italic'),
+      underline: current.isActive('underline'),
+      strike: current.isActive('strike'),
+      heading2: current.isActive('heading', { level: 2 }),
+      heading3: current.isActive('heading', { level: 3 }),
+      paragraph: current.isActive('paragraph'),
+      bulletList: current.isActive('bulletList'),
+      orderedList: current.isActive('orderedList'),
+      blockquote: current.isActive('blockquote'),
+      codeBlock: current.isActive('codeBlock'),
+      alignLeft: current.isActive({ textAlign: 'left' }),
+      alignCenter: current.isActive({ textAlign: 'center' }),
+      alignRight: current.isActive({ textAlign: 'right' }),
+      link: current.isActive('link'),
+      canUndo: current.can().undo(),
+      canRedo: current.can().redo(),
     }),
   })
 
   const insertStandingsTable = () => {
     const rows = boundedCount(teamRows, 8, 30)
     setTeamRows(String(rows))
-    editor.chain().focus().insertContent(standingsTableHtml(rows)).run()
-    continueWritingAfterTable(editor)
+    const insertionFrom = editor.state.selection.from
+    if (editor.chain().focus().insertContent(standingsTableHtml(rows)).run()) {
+      focusInsertedTable(editor, insertionFrom)
+    }
   }
 
   const insertBlankTable = () => {
@@ -92,7 +125,6 @@ function Toolbar({
     setBlankRows(String(rows))
     setBlankColumns(String(cols))
     editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run()
-    continueWritingAfterTable(editor)
   }
 
   const setLink = () => {
@@ -115,7 +147,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('bold') ? 'true' : 'false'}
+        data-active={tableState.bold ? 'true' : 'false'}
         aria-label="Bold"
         title="Bold"
         onClick={() => editor.chain().focus().toggleBold().run()}
@@ -126,7 +158,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('italic') ? 'true' : 'false'}
+        data-active={tableState.italic ? 'true' : 'false'}
         aria-label="Italic"
         title="Italic"
         onClick={() => editor.chain().focus().toggleItalic().run()}
@@ -137,7 +169,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('underline') ? 'true' : 'false'}
+        data-active={tableState.underline ? 'true' : 'false'}
         aria-label="Underline"
         title="Underline"
         onClick={() => editor.chain().focus().toggleUnderline().run()}
@@ -147,7 +179,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('strike') ? 'true' : 'false'}
+        data-active={tableState.strike ? 'true' : 'false'}
         aria-label="Strikethrough"
         title="Strikethrough"
         onClick={() => editor.chain().focus().toggleStrike().run()}
@@ -158,7 +190,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('heading', { level: 2 }) ? 'true' : 'false'}
+        data-active={tableState.heading2 ? 'true' : 'false'}
         aria-label="Heading 2"
         title="Heading 2"
         onClick={() =>
@@ -170,7 +202,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('heading', { level: 3 }) ? 'true' : 'false'}
+        data-active={tableState.heading3 ? 'true' : 'false'}
         aria-label="Heading 3"
         title="Heading 3"
         onClick={() =>
@@ -182,7 +214,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('paragraph') ? 'true' : 'false'}
+        data-active={tableState.paragraph ? 'true' : 'false'}
         aria-label="Paragraph"
         title="Paragraph"
         onClick={() => editor.chain().focus().setParagraph().run()}
@@ -193,7 +225,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('bulletList') ? 'true' : 'false'}
+        data-active={tableState.bulletList ? 'true' : 'false'}
         aria-label="Bullet list"
         title="Bullet list"
         onClick={() => editor.chain().focus().toggleBulletList().run()}
@@ -203,7 +235,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('orderedList') ? 'true' : 'false'}
+        data-active={tableState.orderedList ? 'true' : 'false'}
         aria-label="Numbered list"
         title="Numbered list"
         onClick={() => editor.chain().focus().toggleOrderedList().run()}
@@ -213,7 +245,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('blockquote') ? 'true' : 'false'}
+        data-active={tableState.blockquote ? 'true' : 'false'}
         aria-label="Block quote"
         title="Block quote"
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
@@ -223,7 +255,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={editor.isActive('codeBlock') ? 'true' : 'false'}
+        data-active={tableState.codeBlock ? 'true' : 'false'}
         aria-label="Code block"
         title="Code block"
         onClick={() => editor.chain().focus().toggleCodeBlock().run()}
@@ -234,7 +266,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={isAlignActive(editor, 'left') ? 'true' : 'false'}
+        data-active={tableState.alignLeft ? 'true' : 'false'}
         aria-label="Align left"
         title="Align left"
         onClick={() => editor.chain().focus().setTextAlign('left').run()}
@@ -244,7 +276,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={isAlignActive(editor, 'center') ? 'true' : 'false'}
+        data-active={tableState.alignCenter ? 'true' : 'false'}
         aria-label="Align centre"
         title="Align centre"
         onClick={() => editor.chain().focus().setTextAlign('center').run()}
@@ -254,7 +286,7 @@ function Toolbar({
       <button
         type="button"
         className="rich-text-toolbar__btn rich-text-toolbar__btn--icon"
-        data-active={isAlignActive(editor, 'right') ? 'true' : 'false'}
+        data-active={tableState.alignRight ? 'true' : 'false'}
         aria-label="Align right"
         title="Align right"
         onClick={() => editor.chain().focus().setTextAlign('right').run()}
@@ -277,7 +309,7 @@ function Toolbar({
         aria-label="Remove link"
         title="Remove link"
         onClick={() => editor.chain().focus().unsetLink().run()}
-        disabled={!editor.isActive('link')}
+        disabled={!tableState.link}
       >
         <Link2Off size={iconSize} strokeWidth={2} aria-hidden />
       </button>
@@ -296,7 +328,7 @@ function Toolbar({
         aria-label="Undo"
         title="Undo"
         onClick={() => editor.chain().focus().undo().run()}
-        disabled={!editor.can().undo()}
+        disabled={!tableState.canUndo}
       >
         <Undo2 size={iconSize} strokeWidth={2} aria-hidden />
       </button>
@@ -306,7 +338,7 @@ function Toolbar({
         aria-label="Redo"
         title="Redo"
         onClick={() => editor.chain().focus().redo().run()}
-        disabled={!editor.can().redo()}
+        disabled={!tableState.canRedo}
       >
         <Redo2 size={iconSize} strokeWidth={2} aria-hidden />
       </button>
@@ -466,6 +498,8 @@ export function RichTextEditor({
   enableTables = false,
 }: RichTextEditorProps) {
   const [standingsPickerOpen, setStandingsPickerOpen] = useState(false)
+  const standingsDialogRef = useRef<HTMLDialogElement>(null)
+  const standingsInsertionRef = useRef<{ from: number; to: number; doc: object } | null>(null)
   const editor = useEditor(
     {
       extensions: [
@@ -486,6 +520,10 @@ export function RichTextEditor({
       ],
       content: initialHtml?.trim() ? initialHtml : '<p></p>',
       editable: !disabled,
+      editorProps: {
+        handleClick: (view, _position, event) =>
+          enableTables && handleStoryTableGapClick(view, event),
+      },
       onUpdate: ({ editor: ed }) => {
         onHtmlChange(ed.getHTML())
       },
@@ -497,6 +535,13 @@ export function RichTextEditor({
     if (!editor || disabled) return
     onHtmlChange(editor.getHTML())
   }, [editor, disabled, onHtmlChange])
+
+  useEffect(() => {
+    const dialog = standingsDialogRef.current
+    if (!dialog) return
+    if (standingsPickerOpen && !disabled && !dialog.open) dialog.showModal()
+    if ((!standingsPickerOpen || disabled) && dialog.open) dialog.close()
+  }, [standingsPickerOpen, disabled, editor])
 
   if (!editor) {
     return <div className="rich-text-editor rich-text-editor--loading muted" />
@@ -510,18 +555,46 @@ export function RichTextEditor({
         <Toolbar
           editor={editor}
           enableTables={enableTables}
-          onOpenStandingsPicker={() => setStandingsPickerOpen(true)}
+          onOpenStandingsPicker={() => {
+            const selection = editor.state.selection
+            standingsInsertionRef.current = {
+              from: selection.from,
+              to: selection.to,
+              doc: editor.state.doc,
+            }
+            setStandingsPickerOpen(true)
+          }}
         />
       )}
-      {enableTables && standingsPickerOpen && !disabled ? (
-        <StandingsTablePicker
-          onInsert={(html) => {
-            editor.chain().focus().insertContent(html).run()
-            continueWritingAfterTable(editor)
+      {enableTables && !disabled ? (
+        <dialog
+          ref={standingsDialogRef}
+          className="rich-text-editor__standings-dialog"
+          aria-label="Insert current standings"
+          onClose={() => {
+            standingsInsertionRef.current = null
             setStandingsPickerOpen(false)
           }}
-          onCancel={() => setStandingsPickerOpen(false)}
-        />
+        >
+          {standingsPickerOpen ? (
+            <StandingsTablePicker
+              onInsert={(html) => {
+                const saved = standingsInsertionRef.current
+                const canRestore = saved?.doc === editor.state.doc
+                const insertionFrom = canRestore ? saved.from : editor.state.selection.from
+                const chain = editor.chain().focus()
+                if (canRestore) chain.setTextSelection({ from: saved.from, to: saved.to })
+                if (chain.insertContent(html).run()) focusInsertedTable(editor, insertionFrom)
+                standingsInsertionRef.current = null
+                setStandingsPickerOpen(false)
+              }}
+              onCancel={() => {
+                standingsInsertionRef.current = null
+                setStandingsPickerOpen(false)
+              }}
+            />
+          ) : null}
+        </dialog>
       ) : null}
       <EditorContent editor={editor} className="rich-text-editor__content" />
     </div>
