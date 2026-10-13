@@ -2851,6 +2851,12 @@ table.data-table button.sort {
   flex-basis: 100%;
 }
 
+.rich-text-table-toolbar__continue {
+  color: var(--accent);
+  border-color: rgba(191, 73, 39, 0.45);
+  background: rgba(191, 73, 39, 0.12);
+}
+
 .rich-text-editor__content .tiptap,
 .rich-text-editor__content .ProseMirror {
   min-height: 22rem;
@@ -2869,6 +2875,10 @@ table.data-table button.sort {
 .rich-text-editor__content .tiptap p,
 .rich-text-editor__content .ProseMirror p {
   margin: 0.4em 0;
+}
+
+.rich-text-editor__content .ProseMirror > table + p {
+  min-height: 1.65em;
 }
 
 .rich-text-editor__content .tiptap h2,
