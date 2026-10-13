@@ -9,6 +9,7 @@ const schema = new Schema({
   nodes: {
     doc: { content: 'block+' },
     paragraph: { content: 'text*', group: 'block' },
+    heading: { content: 'text*', group: 'block' },
     text: { group: 'inline' },
     table: { content: 'tableRow+', group: 'block' },
     tableRow: { content: 'tableCell+' },
@@ -37,7 +38,7 @@ function stateInsideTable(doc) {
   return EditorState.create({ doc, selection: TextSelection.create(doc, cellParagraphPos) })
 }
 
-test('continue below a saved table focuses existing story text without duplicating it', async () => {
+test('moving above and below a saved table preserves story text and places the cursor', async () => {
   const server = await createServer({
     configFile: false,
     root: fileURLToPath(new URL('..', import.meta.url)),
@@ -47,7 +48,7 @@ test('continue below a saved table focuses existing story text without duplicati
     appType: 'custom',
   })
   try {
-    const { createTableExitTransaction } = await server.ssrLoadModule('/src/components/storyTableExit.ts')
+    const { createTableExitTransaction, createTableBeforeTransaction } = await server.ssrLoadModule('/src/components/storyTableExit.ts')
 
     const saved = storyDoc(true)
     const savedTransaction = createTableExitTransaction(stateInsideTable(saved))
@@ -76,6 +77,40 @@ test('continue below a saved table focuses existing story text without duplicati
       selection: NodeSelection.create(saved, 0),
     })
     assert.equal(createTableExitTransaction(tableSelected).selection.from, saved.firstChild.nodeSize + 1)
+
+    const tableFirstTransaction = createTableBeforeTransaction(stateInsideTable(tableOnly))
+    assert.ok(tableFirstTransaction)
+    assert.equal(tableFirstTransaction.doc.childCount, 2)
+    assert.equal(tableFirstTransaction.doc.firstChild.type.name, 'paragraph')
+    assert.equal(tableFirstTransaction.selection.from, 1)
+
+    const lead = schema.nodes.paragraph.create(null, schema.text('Earlier story text'))
+    const withLead = schema.nodes.doc.create(null, [lead, saved.firstChild, saved.lastChild])
+    const leadTransaction = createTableBeforeTransaction(EditorState.create({
+      doc: withLead,
+      selection: TextSelection.create(withLead, lead.nodeSize + 4),
+    }))
+    assert.ok(leadTransaction)
+    assert.equal(leadTransaction.doc.childCount, 3)
+    assert.equal(leadTransaction.doc.firstChild.textContent, 'Earlier story text')
+    assert.equal(leadTransaction.doc.lastChild.textContent, 'Rest of the story')
+    assert.equal(leadTransaction.selection.from, lead.nodeSize - 1)
+
+    const heading = schema.nodes.heading.create(null, schema.text('Standings'))
+    const afterHeading = schema.nodes.doc.create(null, [heading, saved.firstChild, saved.lastChild])
+    const headingTransaction = createTableBeforeTransaction(EditorState.create({
+      doc: afterHeading,
+      selection: TextSelection.create(afterHeading, heading.nodeSize + 4),
+    }))
+    assert.ok(headingTransaction)
+    assert.equal(headingTransaction.doc.childCount, 4)
+    assert.equal(headingTransaction.doc.child(1).type.name, 'paragraph')
+    assert.equal(headingTransaction.doc.child(1).textContent, '')
+    assert.equal(headingTransaction.doc.lastChild.textContent, 'Rest of the story')
+    assert.equal(headingTransaction.selection.from, heading.nodeSize + 1)
+
+    assert.equal(createTableBeforeTransaction(outside), null)
+    assert.equal(createTableBeforeTransaction(tableSelected).selection.from, 1)
   } finally {
     await server.close()
   }
