@@ -2741,6 +2741,22 @@ table.data-table button.sort {
   border: 1px dashed var(--border);
 }
 
+.rich-text-editor__standings-dialog {
+  width: min(52rem, calc(100vw - 2rem));
+  max-height: min(85vh, 48rem);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.rich-text-editor__standings-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+}
+
 .rich-text-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -2899,6 +2915,16 @@ table.data-table button.sort {
   color: var(--text);
   font-size: 0.98rem;
   line-height: 1.65;
+}
+
+.rich-text-editor__content .ProseMirror {
+  cursor: text;
+  caret-color: var(--accent-mid);
+}
+
+.rich-text-editor__content .ProseMirror ::selection {
+  background: rgba(255, 186, 92, 0.45);
+  color: var(--text);
 }
 
 .rich-text-editor__content {
