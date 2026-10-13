@@ -10,7 +10,7 @@ from starlette.requests import Request
 
 from app.core.config import Settings
 from app.main import app
-from app.schemas.articles import ArticleCreate, ArticleOut
+from app.schemas.articles import ArticleCreate, ArticleOut, ArticleUpdate
 from app.schemas.matches import MatchCreate
 from app.schemas.site_page_content import SitePageBody
 from app.services.rate_limit import check_rate_limit, clear_rate_limits
@@ -76,6 +76,47 @@ def test_rich_html_is_sanitised_on_input_and_legacy_output() -> None:
     )
     assert "script" not in page.intro_html
     assert "javascript:" not in page.sections[0].body_html
+
+
+@pytest.mark.parametrize(
+    "table_class",
+    [
+        "story-table--standard",
+        "story-table--striped",
+        "story-table--compact",
+        "story-table--minimal",
+    ],
+)
+def test_story_table_formatting_survives_article_round_trip(table_class: str) -> None:
+    raw = (
+        f'<table class="story-table {table_class} arbitrary" style="color:red">'
+        '<caption>Points</caption><thead><tr><th scope="col">Team</th></tr></thead>'
+        '<tbody><tr><td class="arbitrary" style="display:none" align="right" '
+        'onclick="alert(1)">A<script>alert(1)</script></td></tr>'
+        '<tr><td>B</td></tr></tbody></table>'
+    )
+    expected = (
+        f'<table class="story-table {table_class}">'
+        '<caption>Points</caption><thead><tr><th scope="col">Team</th></tr></thead>'
+        '<tbody><tr><td align="right">A</td></tr><tr><td>B</td></tr></tbody></table>'
+    )
+
+    created = ArticleCreate(title="League standings", slug="league-standings", body=raw)
+    assert created.body == expected
+
+    updated = ArticleUpdate(body=created.body)
+    assert updated.body == expected
+
+    published = ArticleOut.model_validate(
+        {
+            "id": 1,
+            **created.model_dump(),
+            "body": updated.body,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+        },
+    )
+    assert published.body == expected
 
 
 def test_production_settings_reject_placeholders() -> None:

@@ -3,7 +3,7 @@ import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import TextAlign from '@tiptap/extension-text-align'
 import Underline from '@tiptap/extension-underline'
-import { EditorContent, useEditor } from '@tiptap/react'
+import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import {
   AlignCenter,
@@ -26,20 +26,70 @@ import {
   Underline as UnderlineIcon,
   Undo2,
 } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import {
+  StoryTable,
+  StoryTableCell,
+  StoryTableHeader,
+  StoryTableRow,
+  standingsTableHtml,
+  storyTableVariants,
+  type StoryTableVariant,
+} from '@/components/StoryTableExtensions'
+import { StandingsTablePicker } from '@/components/StandingsTablePicker'
 
 type RichTextEditorProps = {
   initialHtml: string
   onHtmlChange: (html: string) => void
   disabled?: boolean
   placeholder?: string
+  enableTables?: boolean
 }
 
 function isAlignActive(editor: Editor, align: 'left' | 'center' | 'right') {
   return editor.isActive({ textAlign: align })
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function boundedCount(value: string, fallback: number, max: number): number {
+  return Math.min(max, Math.max(1, Number.parseInt(value, 10) || fallback))
+}
+
+function Toolbar({
+  editor,
+  enableTables,
+  onOpenStandingsPicker,
+}: {
+  editor: Editor
+  enableTables: boolean
+  onOpenStandingsPicker: () => void
+}) {
+  const [teamRows, setTeamRows] = useState('8')
+  const [blankRows, setBlankRows] = useState('4')
+  const [blankColumns, setBlankColumns] = useState('3')
+  const tableState = useEditorState({
+    editor,
+    selector: ({ editor: current }) => ({
+      inTable: enableTables && current.isActive('table'),
+      variant: enableTables
+        ? (current.getAttributes('table').variant as StoryTableVariant | undefined) ?? 'standard'
+        : 'standard',
+    }),
+  })
+
+  const insertStandingsTable = () => {
+    const rows = boundedCount(teamRows, 8, 30)
+    setTeamRows(String(rows))
+    editor.chain().focus().insertContent(standingsTableHtml(rows)).run()
+  }
+
+  const insertBlankTable = () => {
+    const rows = boundedCount(blankRows, 4, 30)
+    const cols = boundedCount(blankColumns, 3, 12)
+    setBlankRows(String(rows))
+    setBlankColumns(String(cols))
+    editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run()
+  }
+
   const setLink = () => {
     const prev = editor.getAttributes('link').href as string | undefined
     const next = globalThis.prompt('Link URL', prev ?? 'https://')
@@ -55,6 +105,7 @@ function Toolbar({ editor }: { editor: Editor }) {
   const iconSize = 16
 
   return (
+    <>
     <div className="rich-text-toolbar" role="toolbar" aria-label="Formatting">
       <button
         type="button"
@@ -255,6 +306,132 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Redo2 size={iconSize} strokeWidth={2} aria-hidden />
       </button>
     </div>
+    {enableTables ? (
+      <div className="rich-text-table-toolbar" role="toolbar" aria-label="Story tables">
+        <label className="rich-text-table-toolbar__rows">
+          Rows
+          <input
+            type="number"
+            min="1"
+            max="30"
+            value={blankRows}
+            onChange={(event) => setBlankRows(event.target.value)}
+            aria-label="Number of table rows"
+          />
+        </label>
+        <label className="rich-text-table-toolbar__rows">
+          Columns
+          <input
+            type="number"
+            min="1"
+            max="12"
+            value={blankColumns}
+            onChange={(event) => setBlankColumns(event.target.value)}
+            aria-label="Number of table columns"
+          />
+        </label>
+        <button type="button" className="rich-text-toolbar__btn" onClick={insertBlankTable}>
+          Insert table
+        </button>
+        <span className="rich-text-toolbar__sep" aria-hidden />
+        <label className="rich-text-table-toolbar__rows">
+          Team rows
+          <input
+            type="number"
+            min="1"
+            max="30"
+            value={teamRows}
+            onChange={(event) => setTeamRows(event.target.value)}
+            aria-label="Number of blank standings rows"
+          />
+        </label>
+        <button type="button" className="rich-text-toolbar__btn" onClick={insertStandingsTable}>
+          Insert blank standings table
+        </button>
+        <button type="button" className="rich-text-toolbar__btn" onClick={onOpenStandingsPicker}>
+          Import current standings
+        </button>
+        {tableState.inTable ? (
+          <>
+            <span className="rich-text-toolbar__sep" aria-hidden />
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addRowBefore().run()}>
+              Row above
+            </button>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addRowAfter().run()}>
+              Row below
+            </button>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().deleteRow().run()}>
+              Remove row
+            </button>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addColumnBefore().run()}>
+              Column left
+            </button>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addColumnAfter().run()}>
+              Column right
+            </button>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().deleteColumn().run()}>
+              Remove column
+            </button>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
+              Toggle header row
+            </button>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().toggleHeaderColumn().run()}>
+              Toggle header column
+            </button>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().toggleHeaderCell().run()}>
+              Toggle header cell
+            </button>
+            <button
+              type="button"
+              className="rich-text-toolbar__btn"
+              onClick={() => editor.chain().focus().mergeCells().run()}
+              disabled={!editor.can().mergeCells()}
+            >
+              Merge cells
+            </button>
+            <button
+              type="button"
+              className="rich-text-toolbar__btn"
+              onClick={() => editor.chain().focus().splitCell().run()}
+              disabled={!editor.can().splitCell()}
+            >
+              Split cell
+            </button>
+            <label className="rich-text-table-toolbar__style">
+              Style
+              <select
+                value={tableState.variant}
+                onChange={(event) => editor.chain().focus().updateAttributes('table', { variant: event.target.value }).run()}
+                aria-label="Table style"
+              >
+                {storyTableVariants.map((variant) => (
+                  <option key={variant} value={variant}>
+                    {variant.charAt(0).toUpperCase() + variant.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <span className="rich-text-table-toolbar__align-label">Cell</span>
+            {(['left', 'center', 'right'] as const).map((align) => (
+              <button
+                key={align}
+                type="button"
+                className="rich-text-toolbar__btn"
+                onClick={() => editor.chain().focus().setCellAttribute('align', align).run()}
+                aria-label={`Align cell ${align}`}
+              >
+                {align.charAt(0).toUpperCase() + align.slice(1)}
+              </button>
+            ))}
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().deleteTable().run()}>
+              Delete table
+            </button>
+            <span className="rich-text-table-toolbar__hint">Click a row, then remove it to leave that team out.</span>
+          </>
+        ) : null}
+      </div>
+    ) : null}
+    </>
   )
 }
 
@@ -263,7 +440,9 @@ export function RichTextEditor({
   onHtmlChange,
   disabled = false,
   placeholder = 'Write your article…',
+  enableTables = false,
 }: RichTextEditorProps) {
+  const [standingsPickerOpen, setStandingsPickerOpen] = useState(false)
   const editor = useEditor(
     {
       extensions: [
@@ -280,6 +459,7 @@ export function RichTextEditor({
         TextAlign.configure({
           types: ['heading', 'paragraph'],
         }),
+        ...(enableTables ? [StoryTable.configure({ View: null }), StoryTableRow, StoryTableHeader, StoryTableCell] : []),
       ],
       content: initialHtml?.trim() ? initialHtml : '<p></p>',
       editable: !disabled,
@@ -303,7 +483,22 @@ export function RichTextEditor({
     <div
       className={`rich-text-editor${disabled ? ' rich-text-editor--disabled' : ''}`}
     >
-      {disabled ? null : <Toolbar editor={editor} />}
+      {disabled ? null : (
+        <Toolbar
+          editor={editor}
+          enableTables={enableTables}
+          onOpenStandingsPicker={() => setStandingsPickerOpen(true)}
+        />
+      )}
+      {enableTables && standingsPickerOpen && !disabled ? (
+        <StandingsTablePicker
+          onInsert={(html) => {
+            editor.chain().focus().insertContent(html).run()
+            setStandingsPickerOpen(false)
+          }}
+          onCancel={() => setStandingsPickerOpen(false)}
+        />
+      ) : null}
       <EditorContent editor={editor} className="rich-text-editor__content" />
     </div>
   )

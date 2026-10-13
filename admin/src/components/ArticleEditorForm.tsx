@@ -196,6 +196,7 @@ export function ArticleEditorForm({
           initialHtml={initial.body ?? ''}
           onHtmlChange={setBodyHtml}
           disabled={isSubmitting}
+          enableTables
         />
       </div>
 
