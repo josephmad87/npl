@@ -2810,6 +2810,36 @@ table.data-table button.sort {
   background: var(--bg-elevated);
 }
 
+.rich-text-table-toolbar__details {
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.rich-text-table-toolbar__details summary {
+  width: fit-content;
+  padding: 0.3rem 0.4rem;
+  border-radius: 7px;
+  color: var(--text-muted);
+  font: 600 0.75rem/1.2 var(--font-display);
+  cursor: pointer;
+}
+
+.rich-text-table-toolbar__details summary:hover {
+  color: var(--text);
+}
+
+.rich-text-table-toolbar__actions {
+  display: none;
+}
+
+.rich-text-table-toolbar__details[open] > .rich-text-table-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding-top: 0.35rem;
+}
+
 .rich-text-table-toolbar__rows,
 .rich-text-table-toolbar__style {
   display: inline-flex;
@@ -2833,6 +2863,10 @@ table.data-table button.sort {
 
 .rich-text-table-toolbar__rows input {
   width: 3.5rem;
+}
+
+.rich-text-table-toolbar__style select {
+  min-width: 6.8rem;
 }
 
 .rich-text-table-toolbar__rows input:focus-visible,

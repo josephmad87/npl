@@ -37,7 +37,7 @@ import {
   type StoryTableVariant,
 } from '@/components/StoryTableExtensions'
 import { StandingsTablePicker } from '@/components/StandingsTablePicker'
-import { continueWritingAfterTable } from '@/components/storyTableExit'
+import { continueWritingAfterTable, continueWritingBeforeTable } from '@/components/storyTableExit'
 
 type RichTextEditorProps = {
   initialHtml: string
@@ -74,6 +74,8 @@ function Toolbar({
       variant: enableTables
         ? (current.getAttributes('table').variant as StoryTableVariant | undefined) ?? 'standard'
         : 'standard',
+      canMergeCells: enableTables && current.can().mergeCells(),
+      canSplitCell: enableTables && current.can().splitCell(),
     }),
   })
 
@@ -354,44 +356,57 @@ function Toolbar({
         <button type="button" className="rich-text-toolbar__btn" onClick={onOpenStandingsPicker}>
           Import current standings
         </button>
-        {tableState.inTable ? (
-          <>
-            <span className="rich-text-toolbar__sep" aria-hidden />
-            <button type="button" className="rich-text-toolbar__btn rich-text-table-toolbar__continue" onClick={() => continueWritingAfterTable(editor)}>
-              Continue writing below table
-            </button>
-            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addRowBefore().run()}>
+        <button
+          type="button"
+          className="rich-text-toolbar__btn rich-text-table-toolbar__continue"
+          onClick={() => continueWritingBeforeTable(editor)}
+          disabled={!tableState.inTable}
+        >
+          Write above table
+        </button>
+        <button
+          type="button"
+          className="rich-text-toolbar__btn rich-text-table-toolbar__continue"
+          onClick={() => continueWritingAfterTable(editor)}
+          disabled={!tableState.inTable}
+        >
+          Continue writing below table
+        </button>
+        <details className="rich-text-table-toolbar__details">
+          <summary>Table editing tools</summary>
+          <div className="rich-text-table-toolbar__actions" role="group" aria-label="Table editing actions">
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addRowBefore().run()} disabled={!tableState.inTable}>
               Row above
             </button>
-            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addRowAfter().run()}>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addRowAfter().run()} disabled={!tableState.inTable}>
               Row below
             </button>
-            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().deleteRow().run()}>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().deleteRow().run()} disabled={!tableState.inTable}>
               Remove row
             </button>
-            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addColumnBefore().run()}>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addColumnBefore().run()} disabled={!tableState.inTable}>
               Column left
             </button>
-            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addColumnAfter().run()}>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().addColumnAfter().run()} disabled={!tableState.inTable}>
               Column right
             </button>
-            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().deleteColumn().run()}>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().deleteColumn().run()} disabled={!tableState.inTable}>
               Remove column
             </button>
-            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().toggleHeaderRow().run()} disabled={!tableState.inTable}>
               Toggle header row
             </button>
-            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().toggleHeaderColumn().run()}>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().toggleHeaderColumn().run()} disabled={!tableState.inTable}>
               Toggle header column
             </button>
-            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().toggleHeaderCell().run()}>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().toggleHeaderCell().run()} disabled={!tableState.inTable}>
               Toggle header cell
             </button>
             <button
               type="button"
               className="rich-text-toolbar__btn"
               onClick={() => editor.chain().focus().mergeCells().run()}
-              disabled={!editor.can().mergeCells()}
+              disabled={!tableState.canMergeCells}
             >
               Merge cells
             </button>
@@ -399,7 +414,7 @@ function Toolbar({
               type="button"
               className="rich-text-toolbar__btn"
               onClick={() => editor.chain().focus().splitCell().run()}
-              disabled={!editor.can().splitCell()}
+              disabled={!tableState.canSplitCell}
             >
               Split cell
             </button>
@@ -409,6 +424,7 @@ function Toolbar({
                 value={tableState.variant}
                 onChange={(event) => editor.chain().focus().updateAttributes('table', { variant: event.target.value }).run()}
                 aria-label="Table style"
+                disabled={!tableState.inTable}
               >
                 {storyTableVariants.map((variant) => (
                   <option key={variant} value={variant}>
@@ -425,16 +441,17 @@ function Toolbar({
                 className="rich-text-toolbar__btn"
                 onClick={() => editor.chain().focus().setCellAttribute('align', align).run()}
                 aria-label={`Align cell ${align}`}
+                disabled={!tableState.inTable}
               >
                 {align.charAt(0).toUpperCase() + align.slice(1)}
               </button>
             ))}
-            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().deleteTable().run()}>
+            <button type="button" className="rich-text-toolbar__btn" onClick={() => editor.chain().focus().deleteTable().run()} disabled={!tableState.inTable}>
               Delete table
             </button>
             <span className="rich-text-table-toolbar__hint">Click a row, then remove it to leave that team out.</span>
-          </>
-        ) : null}
+          </div>
+        </details>
       </div>
     ) : null}
     </>
