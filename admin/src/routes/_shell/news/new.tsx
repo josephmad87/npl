@@ -42,7 +42,7 @@ function NewArticlePage() {
         tags: values.tags,
         seo_title: values.seo_title,
         seo_description: values.seo_description,
-        published_at: null,
+        published_at: values.published_at,
         related_entities: null,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'news'] })

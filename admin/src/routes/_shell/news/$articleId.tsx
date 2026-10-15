@@ -1,10 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { SquarePen } from 'lucide-react'
-import { useState } from 'react'
+import { SquarePen, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { ArticleDto } from '@/lib/api-types'
 import { sanitizeArticleHtml } from '@/lib/sanitizeArticleHtml'
-import { adminGet, adminPatch } from '@/lib/admin-client'
+import { adminDelete, adminGet, adminPatch } from '@/lib/admin-client'
+import {
+  formatArticlePublicationTime,
+  getArticleDisplayStatus,
+} from '@/lib/article-publication'
 import {
   ArticleEditorForm,
   type ArticleEditorValues,
@@ -35,9 +39,17 @@ function ArticleDetailPage() {
   const article = articleQ.data
   const isEditing = mode === 'edit'
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
   const [heroFailedFor, setHeroFailedFor] = useState<string | null>(null)
   const [bodyImageFailedFor, setBodyImageFailedFor] = useState<string | null>(null)
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const goView = () => {
     if (!article) return
@@ -82,6 +94,7 @@ function ArticleDetailPage() {
         tags: values.tags,
         seo_title: values.seo_title,
         seo_description: values.seo_description,
+        published_at: values.published_at,
       })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'news'] })
       await queryClient.invalidateQueries({ queryKey: ['admin', 'news', aid] })
@@ -90,6 +103,26 @@ function ArticleDetailPage() {
       setSaveError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!article || !Number.isFinite(aid) || deleting || submitting) return
+    const confirmed = window.confirm(
+      `Permanently delete “${article.title}”? This removes the story from the admin and public site and cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    setDeleteError(null)
+    setDeleting(true)
+    try {
+      await adminDelete(`/admin/news/${aid}`)
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'news'], exact: true })
+      await navigate({ to: '/news' })
+      queryClient.removeQueries({ queryKey: ['admin', 'news', aid], exact: true })
+    } catch (e: unknown) {
+      setDeleteError(e instanceof Error ? e.message : 'Delete failed')
+      setDeleting(false)
     }
   }
 
@@ -113,6 +146,7 @@ function ArticleDetailPage() {
   const bodyImgSrc = resolveAdminMediaUrl(article.body_image_url)
   const showHero = Boolean(heroSrc && heroFailedFor !== heroSrc)
   const showBodyImage = Boolean(bodyImgSrc && bodyImageFailedFor !== bodyImgSrc)
+  const displayStatus = getArticleDisplayStatus(article, now)
 
   return (
     <>
@@ -122,11 +156,21 @@ function ArticleDetailPage() {
         actions={
           <>
             <BackNavLink to="/news">News</BackNavLink>
+            <button
+              type="button"
+              className="btn-danger btn--with-icon"
+              onClick={() => void remove()}
+              disabled={submitting || deleting}
+            >
+              <Trash2 size={18} strokeWidth={2} aria-hidden />
+              {deleting ? 'Deleting…' : 'Delete story'}
+            </button>
             {!isEditing ? (
               <button
                 type="button"
                 className="btn-primary btn--with-icon"
                 onClick={beginEdit}
+                disabled={deleting}
               >
                 <SquarePen size={18} strokeWidth={2} aria-hidden />
                 Edit article
@@ -135,6 +179,7 @@ function ArticleDetailPage() {
           </>
         }
       />
+      {deleteError ? <p className="login-error" role="alert">{deleteError}</p> : null}
       {isEditing ? (
         <ArticleEditorForm
           key={article.id}
@@ -201,24 +246,14 @@ function ArticleDetailPage() {
                   value: String(article.updated_at).slice(0, 19),
                 },
                 {
-                  label: 'Published',
+                  label: displayStatus === 'scheduled' ? 'Goes live (Zimbabwe time)' : 'Published (Zimbabwe time)',
                   value: article.published_at
-                    ? String(article.published_at).slice(0, 19)
+                    ? formatArticlePublicationTime(article.published_at)
                     : '—',
                 },
                 {
                   label: 'Status',
-                  value: (
-                    <StatusBadge
-                      status={
-                        article.status as
-                          | 'draft'
-                          | 'scheduled'
-                          | 'published'
-                          | 'archived'
-                      }
-                    />
-                  ),
+                  value: <StatusBadge status={displayStatus} />,
                 },
                 { label: 'Slug', value: article.slug },
                 { label: 'SEO title', value: article.seo_title ?? '—' },

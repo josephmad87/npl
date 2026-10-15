@@ -12,36 +12,26 @@ import { PageHeader } from '@/components/PageHeader'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useListViewMode } from '@/hooks/useListViewMode'
 import { resolveAdminMediaUrl } from '@/lib/media-url'
+import {
+  formatArticlePublicationTime,
+  getArticleDisplayStatus,
+} from '@/lib/article-publication'
 
 export const Route = createFileRoute('/_shell/news/')({
   component: NewsPage,
 })
 
-const columns: ColumnDef<ArticleDto, unknown>[] = [
-  { accessorKey: 'title', header: 'Title' },
-  { accessorKey: 'category', header: 'Category' },
-  { accessorKey: 'author_name', header: 'Author' },
-  {
-    accessorKey: 'status',
-    header: 'Status',
-    cell: ({ getValue }) => (
-      <StatusBadge
-        status={
-          getValue() as
-            | 'draft'
-            | 'scheduled'
-            | 'published'
-            | 'archived'
-        }
-      />
-    ),
-  },
-  {
-    accessorKey: 'updated_at',
-    header: 'Updated',
-    cell: ({ getValue }) => String(getValue()).slice(0, 10),
-  },
-]
+function articleSearchText(article: ArticleDto, now: number): string {
+  return [
+    article.title,
+    article.slug,
+    article.category,
+    article.author_name,
+    getArticleDisplayStatus(article, now),
+    article.published_at ? formatArticlePublicationTime(article.published_at) : null,
+    article.updated_at,
+  ].filter(Boolean).join(' ')
+}
 
 type NewsCardMediaProps = {
   imageUrl: string | null
@@ -92,24 +82,55 @@ function NewsPage() {
   const [mode, setMode] = useListViewMode('news')
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
+  const [now, setNow] = useState(() => Date.now())
   const q = useQuery({
     queryKey: ['admin', 'news'],
     queryFn: () => adminListAll<ArticleDto>('/admin/news'),
   })
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const columns = useMemo<ColumnDef<ArticleDto, unknown>[]>(() => [
+    { accessorKey: 'title', header: 'Title' },
+    { accessorKey: 'category', header: 'Category' },
+    { accessorKey: 'author_name', header: 'Author' },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <StatusBadge status={getArticleDisplayStatus(row.original, now)} />
+      ),
+    },
+    {
+      id: 'publication',
+      header: 'Publication (CAT)',
+      cell: ({ row }) => {
+        const article = row.original
+        const status = getArticleDisplayStatus(article, now)
+        return article.published_at && (status === 'scheduled' || status === 'published')
+          ? formatArticlePublicationTime(article.published_at)
+          : '—'
+      },
+    },
+    {
+      accessorKey: 'updated_at',
+      header: 'Updated',
+      cell: ({ getValue }) => String(getValue()).slice(0, 10),
+    },
+  ], [now])
 
   const data = q.data ?? []
   const queryFilteredData = useMemo(() => {
     const source = q.data ?? []
     const needle = searchQuery.trim().toLowerCase()
     if (!needle) return source
-    return source.filter((r) =>
-      [r.title, r.slug, r.category, r.author_name, r.status, r.updated_at]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(needle),
+    return source.filter((article) =>
+      articleSearchText(article, now).toLowerCase().includes(needle),
     )
-  }, [q.data, searchQuery])
+  }, [q.data, searchQuery, now])
 
   return (
     <>
@@ -149,11 +170,7 @@ function NewsPage() {
         <CatalogFilterGrid
           items={data}
           getKey={(r) => r.id}
-          getSearchText={(r) =>
-            [r.title, r.slug, r.category, r.author_name, r.status, r.updated_at]
-              .filter(Boolean)
-              .join(' ')
-          }
+          getSearchText={(article) => articleSearchText(article, now)}
           searchPlaceholder="Search articles…"
           toolbarLeading={
             <ListViewModeSwitch value={mode} onChange={setMode} />
@@ -162,6 +179,7 @@ function NewsPage() {
           onQueryChange={setSearchQuery}
           renderCard={(a) => {
             const letter = (a.title?.trim().charAt(0) ?? '?').toUpperCase()
+            const displayStatus = getArticleDisplayStatus(a, now)
             return (
               <Link
                 to="/news/$articleId"
@@ -182,18 +200,16 @@ function NewsPage() {
                     <br />
                     {a.author_name ?? '—'} ·{' '}
                     {String(a.updated_at).slice(0, 10)}
+                    {displayStatus === 'scheduled' && a.published_at ? (
+                      <>
+                        <br />
+                        Goes live {formatArticlePublicationTime(a.published_at)}
+                      </>
+                    ) : null}
                   </p>
                 </div>
                 <div className="entity-thumb-card__footer">
-                  <StatusBadge
-                    status={
-                      a.status as
-                        | 'draft'
-                        | 'scheduled'
-                        | 'published'
-                        | 'archived'
-                    }
-                  />
+                  <StatusBadge status={displayStatus} />
                 </div>
               </Link>
             )

@@ -505,6 +505,7 @@ The system shall allow content editors and admins to manage news articles.
 - Editors shall edit article content
 - Editors shall schedule or publish articles
 - Editors shall archive articles
+- Editors shall delete articles after confirming the removal
 - Editors shall upload/select featured images
 - Editors shall assign categories and tags
 - The website shall show article listing pages and article detail pages
@@ -514,7 +515,7 @@ The system shall allow content editors and admins to manage news articles.
 
 - Draft articles shall not be visible publicly
 - Published articles shall be visible on the website
-- Scheduled publishing should be supported if background jobs are enabled
+- Scheduled articles shall become public at the selected Zimbabwe date and time
 - The system should support preview mode for unpublished articles
 
 ---
@@ -771,6 +772,7 @@ The home page should support:
 - `GET /api/v1/public/news/{slug}`
 - `POST /api/v1/admin/news`
 - `PATCH /api/v1/admin/news/{id}`
+- `DELETE /api/v1/admin/news/{id}`
 - `POST /api/v1/admin/news/{id}/publish`
 
 ### Gallery
