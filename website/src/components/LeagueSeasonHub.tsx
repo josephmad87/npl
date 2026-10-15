@@ -15,6 +15,7 @@ import {
   computeSeasonStandings,
   formatRunsOversLine,
   formatStandingsNrr,
+  isRegularSeasonMatch,
   sortStandingsDesc,
 } from '../lib/leagueSeasonAggregates'
 import { type LeagueLite, type MatchLite, useTeamsMap } from '../lib/hooks'
@@ -303,6 +304,10 @@ export function LeagueSeasonHub({
     () => [...(resultsQ.data ?? [])].sort((a, b) => matchTimeValue(b) - matchTimeValue(a)),
     [resultsQ.data],
   )
+  const regularSeasonMatches = useMemo(
+    () => resultMatches.filter(isRegularSeasonMatch),
+    [resultMatches],
+  )
   const visibleResultMatches = useMemo(
     () => resultMatches.slice(0, visibleResultCount),
     [resultMatches, visibleResultCount],
@@ -324,15 +329,15 @@ export function LeagueSeasonHub({
     [adjustmentsQ.data],
   )
   const standingsRows = useMemo(() => {
-  if (teamIds.length === 0) return []
+    if (teamIds.length === 0) return []
 
-  return sortStandingRowsForMode(
-    computeSeasonStandings(resultMatches, teamIds, pointsAdjustments),
-    standingsSort,
-    teamsMap,
-    resultMatches,
-  )
-}, [pointsAdjustments, resultMatches, standingsSort, teamIds, teamsMap])
+    return sortStandingRowsForMode(
+      computeSeasonStandings(regularSeasonMatches, teamIds, pointsAdjustments),
+      standingsSort,
+      teamsMap,
+      regularSeasonMatches,
+    )
+  }, [pointsAdjustments, regularSeasonMatches, standingsSort, teamIds, teamsMap])
 
   if (!leagueSlug) {
     return null
@@ -564,7 +569,7 @@ export function LeagueSeasonHub({
        <tbody>
   {standingsRows.map((row, idx) => {
     const t = teamsMap[row.teamId]
-    const form = teamRecentForm(resultMatches, row.teamId)
+    const form = teamRecentForm(regularSeasonMatches, row.teamId)
 
     return (
       <tr key={row.teamId}>

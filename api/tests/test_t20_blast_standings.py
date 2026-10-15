@@ -5,7 +5,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.v1.admin_routes import _season_standing_team_ids
 from app.db.base import Base
 from app.models.league import League, Season, SeasonTeam
-from app.models.match import Match, MatchPlayerStat, MatchResult
+from app.models.match import DisciplineCase, DisciplineSanction, Match, MatchPlayerStat, MatchResult
 from app.models.player import Player
 from app.models.team import Team
 
@@ -26,6 +26,8 @@ def test_t20_blast_standings_apply_all_playing_condition_points() -> None:
         Match.__table__,
         MatchResult.__table__,
         MatchPlayerStat.__table__,
+        DisciplineCase.__table__,
+        DisciplineSanction.__table__,
     ]
     Base.metadata.create_all(engine, tables=tables)
     sessions = sessionmaker(bind=engine, expire_on_commit=False)
@@ -107,7 +109,7 @@ def test_t20_blast_standings_apply_all_playing_condition_points() -> None:
                 winner_id=None,
                 batting_first_id=home.id,
             )
-            # No result also earns 1 point, and the 200-run batting bonus remains valid.
+            # No result earns 1 point, but does not earn a batting bonus.
             record_match(
                 home_runs=200,
                 away_runs=50,
@@ -117,7 +119,7 @@ def test_t20_blast_standings_apply_all_playing_condition_points() -> None:
             )
             db.commit()
 
-            # Home: tie 1 + batting bonus 1 + no-result 1 + batting bonus 1 = 4.
+            # Home: tie 1 + batting bonus 1 + no-result 1 = 3.
             # Away: win 2 + batting bonus 1 + chase bonus 1 + tie 1 + batting bonus 1 + no-result 1 = 7.
             assert _season_standing_team_ids(db, season.id) == [away.id, home.id]
     finally:
