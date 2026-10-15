@@ -1132,6 +1132,15 @@ def _sync_playoff_fixture_teams(db: Session, season_id: int | None) -> None:
             select(Match).where(
                 Match.season_id == season_id,
                 (Match.home_team_source.is_not(None) | Match.away_team_source.is_not(None)),
+            ),
+        ).all(),
+    )
+    if not fixtures:
+        return
+    reseedable_ids = set(
+        db.scalars(
+            select(Match.id).where(
+                Match.id.in_([fixture.id for fixture in fixtures]),
                 # Seeding may change while the bracket is being prepared, but a
                 # fixture that has started must keep the teams on its scorecard.
                 Match.status == "scheduled",
@@ -1156,11 +1165,14 @@ def _sync_playoff_fixture_teams(db: Session, season_id: int | None) -> None:
             season_id,
             fixture.away_team_source,
         )
-        if home_team_id is not None:
-            fixture.home_team_id = home_team_id
+        can_reseed = fixture.id in reseedable_ids
+        if home_team_id is not None and (can_reseed or fixture.home_team_id == home_team_id):
+            if can_reseed:
+                fixture.home_team_id = home_team_id
             fixture.home_team_placeholder = None
-        if away_team_id is not None:
-            fixture.away_team_id = away_team_id
+        if away_team_id is not None and (can_reseed or fixture.away_team_id == away_team_id):
+            if can_reseed:
+                fixture.away_team_id = away_team_id
             fixture.away_team_placeholder = None
 
 
