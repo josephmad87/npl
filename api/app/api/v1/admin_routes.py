@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -858,16 +858,59 @@ def _assert_match_teams_in_season(db: Session, season_id: int | None, home_id: i
         )
 
 
+def _standings_overs_to_balls(overs: Decimal | int | float | None) -> int:
+    if overs is None or overs <= 0:
+        return 0
+    rounded = Decimal(str(overs)).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    whole = int(rounded)
+    return whole * 6 + min(5, int((rounded - whole) * 10))
+
+
+def _standings_innings_stats(stats: list[MatchPlayerStat], team_id: int) -> tuple[int, int, int, int]:
+    """Runs, batting balls, bowling balls and wickets from entered scorecard rows."""
+    runs = batting_balls = bowling_balls = wickets = 0
+    non_wicket_dismissals = {
+        "not out", "did not bat", "dnb", "retired hurt", "retired not out", "absent", "absent hurt",
+    }
+    for row in stats:
+        if row.team_id != team_id:
+            continue
+        dismissal = (row.dismissal or "").strip().lower()
+        entered_batting = row.batting_order is not None or (
+            dismissal != "did not bat" and (row.runs > 0 or row.balls_faced > 0 or bool(dismissal))
+        )
+        if entered_batting:
+            runs += row.runs
+            batting_balls += row.balls_faced
+            if dismissal and dismissal not in non_wicket_dismissals:
+                wickets += 1
+        if row.bowling_order is not None or (row.overs is not None and row.overs > 0):
+            bowling_balls += _standings_overs_to_balls(row.overs)
+    return runs, batting_balls, bowling_balls, wickets
+
+
+def _standings_nrr(entry: dict[str, int]) -> float:
+    runs_for_rate = entry["runs_for"] * 6 / entry["balls_faced"] if entry["balls_faced"] else 0
+    runs_against_rate = entry["runs_against"] * 6 / entry["balls_bowled"] if entry["balls_bowled"] else 0
+    return runs_for_rate - runs_against_rate
+
+
 def _season_standing_team_ids(db: Session, season_id: int) -> list[int]:
     """Return the current table order for knockout seeding.
 
     The points rules intentionally match the public long standings. Super40
     awards 4/3/2/0 for win/tie/no result/loss; T20 Blast awards 2/1/1/0 plus
-    the documented 200-run batting and chase bonuses. Points, wins and stable
-    team id make the order deterministic while a season is still in progress.
+    the documented 200-run batting and chase bonuses. NRR uses the same
+    scorecard and all-out rules as the public points table.
     """
     team_ids = _season_team_ids(db, season_id)
-    table = {team_id: {"points": 0, "wins": 0} for team_id in team_ids}
+    table = {
+        team_id: {
+            "points": 0, "wins": 0, "losses": 0, "runs_for": 0, "balls_faced": 0,
+            "runs_against": 0, "balls_bowled": 0,
+        }
+        for team_id in team_ids
+    }
     if not table:
         return []
 
@@ -891,36 +934,48 @@ def _season_standing_team_ids(db: Session, season_id: int) -> list[int]:
 
     rows = db.execute(
         select(Match, MatchResult)
-        .join(MatchResult, MatchResult.match_id == Match.id)
+        .outerjoin(MatchResult, MatchResult.match_id == Match.id)
         .where(
             Match.season_id == season_id,
             Match.status == "completed",
+            Match.is_published.is_(True),
             Match.fixture_stage.is_(None),
         )
     ).all()
     for match, result in rows:
         if match.home_team_id not in table or match.away_team_id not in table:
             continue
-        outcome = (result.outcome or "").strip().lower()
-        if outcome == "win" and result.winning_team_id in table:
-            table[result.winning_team_id]["points"] += win_points
-            table[result.winning_team_id]["wins"] += 1
-        elif outcome == "tie":
+        outcome = (result.outcome or "").strip().lower() if result is not None else ""
+        winner_id = result.winning_team_id if result is not None else None
+        if outcome == "tie":
             table[match.home_team_id]["points"] += tie_points
             table[match.away_team_id]["points"] += tie_points
         elif outcome == "no_result":
             table[match.home_team_id]["points"] += no_result_points
             table[match.away_team_id]["points"] += no_result_points
+        elif winner_id in {match.home_team_id, match.away_team_id}:
+            loser_id = match.away_team_id if winner_id == match.home_team_id else match.home_team_id
+            table[winner_id]["points"] += win_points
+            table[winner_id]["wins"] += 1
+            table[loser_id]["losses"] += 1
+        else:
+            table[match.home_team_id]["points"] += no_result_points
+            table[match.away_team_id]["points"] += no_result_points
 
-        if not is_t20_blast:
+        # No-result and unconfirmed results can award points, but they never
+        # contribute batting bonuses or net run rate in the public table.
+        definitive_result = outcome != "no_result" and (
+            outcome == "tie" or winner_id in {match.home_team_id, match.away_team_id}
+        )
+        if not definitive_result:
             continue
 
-        player_runs = dict(
-            db.execute(
-                select(MatchPlayerStat.team_id, func.coalesce(func.sum(MatchPlayerStat.runs), 0))
-                .where(MatchPlayerStat.match_id == match.id)
-                .group_by(MatchPlayerStat.team_id),
-            ).all(),
+        stats = list(db.scalars(select(MatchPlayerStat).where(MatchPlayerStat.match_id == match.id)).all())
+        home_runs, home_batting_balls, home_bowling_balls, home_wickets = _standings_innings_stats(
+            stats, match.home_team_id,
+        )
+        away_runs, away_batting_balls, away_bowling_balls, away_wickets = _standings_innings_stats(
+            stats, match.away_team_id,
         )
         home_extras = sum(
             getattr(result, field)
@@ -940,40 +995,86 @@ def _season_standing_team_ids(db: Session, season_id: int) -> list[int]:
                 "away_extras_leg_byes",
             )
         )
-        home_total = int(player_runs.get(match.home_team_id, 0)) + home_extras
-        away_total = int(player_runs.get(match.away_team_id, 0)) + away_extras
+        home_total = home_runs + home_extras
+        away_total = away_runs + away_extras
 
-        if home_total >= 200:
-            table[match.home_team_id]["points"] += 1
-        if away_total >= 200:
-            table[match.away_team_id]["points"] += 1
+        if is_t20_blast:
+            if home_total >= 200:
+                table[match.home_team_id]["points"] += 1
+            if away_total >= 200:
+                table[match.away_team_id]["points"] += 1
 
-        batting_first = result.batting_first_team_id
-        batting_second = (
-            match.away_team_id
-            if batting_first == match.home_team_id
-            else match.home_team_id
-            if batting_first == match.away_team_id
-            else None
+            batting_first = result.batting_first_team_id
+            batting_second = (
+                match.away_team_id
+                if batting_first == match.home_team_id
+                else match.home_team_id
+                if batting_first == match.away_team_id
+                else None
+            )
+            first_innings_total = (
+                home_total
+                if batting_first == match.home_team_id
+                else away_total
+                if batting_first == match.away_team_id
+                else 0
+            )
+            chase_target = match.revised_target_runs or first_innings_total + 1
+            if (
+                batting_second is not None
+                and result.winning_team_id == batting_second
+                and chase_target >= 200
+            ):
+                table[batting_second]["points"] += 1
+
+        if result.nrr_excluded:
+            continue
+
+        match_text = " ".join((competition_text, match.title or "", match.category or "")).lower()
+        default_allotted_balls = 120 if "t20" in match_text or "twenty20" in match_text else 240
+        home_allotted_balls = _standings_overs_to_balls(result.home_allotted_overs) or default_allotted_balls
+        away_allotted_balls = _standings_overs_to_balls(result.away_allotted_overs) or default_allotted_balls
+        home_balls = away_bowling_balls or home_batting_balls
+        away_balls = home_bowling_balls or away_batting_balls
+        if home_wickets >= 10:
+            home_balls = home_allotted_balls
+        if away_wickets >= 10:
+            away_balls = away_allotted_balls
+
+        home_table = table[match.home_team_id]
+        away_table = table[match.away_team_id]
+        home_table["runs_for"] += home_total
+        home_table["balls_faced"] += home_balls
+        home_table["runs_against"] += away_total
+        home_table["balls_bowled"] += away_balls
+        away_table["runs_for"] += away_total
+        away_table["balls_faced"] += away_balls
+        away_table["runs_against"] += home_total
+        away_table["balls_bowled"] += home_balls
+
+    adjustments = db.execute(
+        select(DisciplineSanction.team_id, func.sum(DisciplineSanction.points_delta))
+        .join(DisciplineCase, DisciplineSanction.case_id == DisciplineCase.id)
+        .join(Match, DisciplineCase.match_id == Match.id)
+        .where(
+            Match.season_id == season_id,
+            DisciplineSanction.team_id.is_not(None),
+            DisciplineSanction.status == "active",
+            DisciplineCase.status.in_(("decided", "appealed", "final")),
+            DisciplineSanction.points_delta != 0,
         )
-        first_innings_total = (
-            home_total
-            if batting_first == match.home_team_id
-            else away_total
-            if batting_first == match.away_team_id
-            else 0
-        )
-        chase_target = match.revised_target_runs or first_innings_total + 1
-        if (
-            batting_second is not None
-            and result.winning_team_id == batting_second
-            and chase_target >= 200
-        ):
-            table[batting_second]["points"] += 1
+        .group_by(DisciplineSanction.team_id),
+    ).all()
+    for team_id, points_delta in adjustments:
+        if team_id in table:
+            table[team_id]["points"] += int(points_delta or 0)
 
     return sorted(
         table,
-        key=lambda team_id: (-table[team_id]["points"], -table[team_id]["wins"], team_id),
+        key=lambda team_id: (
+            -table[team_id]["points"], -_standings_nrr(table[team_id]),
+            -table[team_id]["wins"], table[team_id]["losses"], team_id,
+        ),
     )
 
 
@@ -1031,6 +1132,16 @@ def _sync_playoff_fixture_teams(db: Session, season_id: int | None) -> None:
             select(Match).where(
                 Match.season_id == season_id,
                 (Match.home_team_source.is_not(None) | Match.away_team_source.is_not(None)),
+                # Seeding may change while the bracket is being prepared, but a
+                # fixture that has started must keep the teams on its scorecard.
+                Match.status == "scheduled",
+                Match.scorecard_finalized_at.is_(None),
+                Match.scoring_version == 0,
+                ~Match.result.has(),
+                ~Match.player_stats.any(),
+                ~Match.ball_events.any(),
+                ~Match.match_day_squad_players.any(),
+                ~Match.scoring_sessions.any(),
             ),
         ).all(),
     )

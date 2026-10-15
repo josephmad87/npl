@@ -12,6 +12,7 @@ export type MatchLite = {
   revised_target_runs?: number | null
   toss_info?: string | null
   status?: string
+  fixture_stage?: string | null
   cover_image_url?: string | null
   result?: {
     batting_first_team_id?: number | null

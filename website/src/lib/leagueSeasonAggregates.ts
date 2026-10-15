@@ -20,6 +20,11 @@ export type StandingRow = {
   nrr: number
 }
 
+/** Only league-stage results contribute to the points table and its form. */
+export function isRegularSeasonMatch(match: MatchLite): boolean {
+  return match.fixture_stage == null
+}
+
 function statRows(match: MatchLite): Array<Record<string, unknown>> {
   return Array.isArray(match.player_stats)
     ? (match.player_stats as Array<Record<string, unknown>>)
@@ -460,6 +465,8 @@ export function computeSeasonStandings(
   }
 
   for (const m of matches) {
+    if (!isRegularSeasonMatch(m)) continue
+
     const noResultMatch = isNoResultMatch(m)
 
     if (m.status !== 'completed' && !noResultMatch) continue

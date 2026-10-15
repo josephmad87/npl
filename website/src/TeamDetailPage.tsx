@@ -25,6 +25,7 @@ import {
   ballsToOversLabel,
   computeSeasonStandings,
   formatStandingsNrr,
+  isRegularSeasonMatch,
   oversFieldToBalls,
 } from './lib/leagueSeasonAggregates'
 import { managedSection, useSitePageContent } from './lib/siteContent'
@@ -455,10 +456,11 @@ const teamSeasonSnapshot = useMemo(() => {
       : []
 
   const snapshotMatches = seasonResults.length > 0 ? seasonResults : allResults
+  const regularSeasonMatches = snapshotMatches.filter(isRegularSeasonMatch)
 
   const teamIds = new Set<number>([data.id])
 
-  for (const match of snapshotMatches) {
+  for (const match of regularSeasonMatches) {
     teamIds.add(match.home_team_id)
     teamIds.add(match.away_team_id)
   }
@@ -466,13 +468,13 @@ const teamSeasonSnapshot = useMemo(() => {
   const pointsAdjustments = Object.fromEntries(
     (seasonAdjustmentsQ.data ?? []).map((item) => [item.team_id, item.points_delta]),
   )
-  const row = computeSeasonStandings(snapshotMatches, [...teamIds], pointsAdjustments).find(
+  const row = computeSeasonStandings(regularSeasonMatches, [...teamIds], pointsAdjustments).find(
     (standing) => standing.teamId === data.id,
   )
 
   if (!row || row.played === 0) return null
 
-  const form = [...snapshotMatches]
+  const form = [...regularSeasonMatches]
     .sort((a, b) => matchDateValue(b) - matchDateValue(a))
     .slice(0, 5)
     .map((match) => teamFormCode(match, data.id))
