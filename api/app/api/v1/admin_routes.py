@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, Request, UploadFile, status
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from decimal import Decimal
 
@@ -51,6 +51,7 @@ from app.models.merchandise import (
 )
 from app.models.platform_settings import PlatformSettings
 from app.models.player import Player
+from app.models.seo_redirect import SeoRedirect
 from app.models.site_page_content import SitePageContent
 from app.models.team import Team
 from app.models.user import User
@@ -2518,7 +2519,25 @@ def admin_list_news(
     status_filter: str | None = Query(default=None, alias="status"),
 ) -> dict:
     stmt = select(Article).order_by(Article.updated_at.desc())
-    if status_filter:
+    now = datetime.now(timezone.utc)
+    if status_filter == "scheduled":
+        stmt = stmt.where(
+            or_(
+                and_(Article.status == "scheduled", or_(Article.published_at.is_(None), Article.published_at > now)),
+                and_(
+                    Article.status == "published",
+                    Article.published_at > now,
+                ),
+            )
+        )
+    elif status_filter == "published":
+        stmt = stmt.where(
+            or_(
+                and_(Article.status == "published", or_(Article.published_at.is_(None), Article.published_at <= now)),
+                and_(Article.status == "scheduled", Article.published_at <= now),
+            )
+        )
+    elif status_filter:
         stmt = stmt.where(Article.status == status_filter)
     rows, total = paginate_select(db, stmt, page=page_params.page, page_size=page_params.page_size)
     return to_paginated(
@@ -2596,6 +2615,30 @@ def admin_get_news(
     return article
 
 
+@router.delete("/news/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
+def admin_delete_news(
+    article_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_content_writer),
+) -> None:
+    article = db.get(Article, article_id)
+    if article is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Article not found"})
+    title = article.title
+    article_path = f"/news/{article.slug}"
+    for redirect in db.scalars(
+        select(SeoRedirect).where(
+            or_(SeoRedirect.source_path == article_path, SeoRedirect.target_path == article_path)
+        )
+    ).all():
+        redirect.is_active = False
+    db.delete(article)
+    write_audit(
+        db, actor_user_id=actor.id, action="delete", entity_type="article", entity_id=article_id, summary=title
+    )
+    db.commit()
+
+
 @router.post("/news/{article_id}/publish", response_model=ArticleOut)
 def admin_publish_news(
     article_id: int,
@@ -2606,8 +2649,7 @@ def admin_publish_news(
     if article is None:
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Article not found"})
     article.status = "published"
-    if article.published_at is None:
-        article.published_at = datetime.now(timezone.utc)
+    article.published_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(article)
     write_audit(

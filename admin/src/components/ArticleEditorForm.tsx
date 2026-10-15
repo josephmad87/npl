@@ -8,6 +8,11 @@ import {
 import { CompetitionCategorySelect } from '@/components/CompetitionCategorySelect'
 import { MediaUrlField } from '@/components/MediaUrlField'
 import { RichTextEditor } from '@/components/RichTextEditor'
+import { getArticleDisplayStatus } from '@/lib/article-publication'
+import {
+  validateZimbabwePublicationTime,
+  zimbabwePublicationInput,
+} from '@/lib/scheduled-publication-time'
 
 const STATUSES = ['draft', 'scheduled', 'published', 'archived'] as const
 
@@ -21,6 +26,7 @@ export type ArticleEditorValues = {
   body_image_caption: string | null
   author_name: string | null
   status: (typeof STATUSES)[number]
+  published_at: string | null
   category: CompetitionCategoryValue
   tags: string[] | null
   seo_title: string | null
@@ -57,6 +63,7 @@ function emptyArticleValues(): ArticleEditorValues {
     body_image_caption: null,
     author_name: null,
     status: 'draft',
+    published_at: null,
     category: 'mens',
     tags: null,
     seo_title: null,
@@ -74,7 +81,8 @@ function fromArticle(a: ArticleDto): ArticleEditorValues {
     body_image_url: a.body_image_url ?? null,
     body_image_caption: a.body_image_caption ?? null,
     author_name: a.author_name,
-    status: STATUSES.find((s) => s === a.status) ?? 'draft',
+    status: getArticleDisplayStatus(a),
+    published_at: a.published_at,
     category: normalizeCompetitionCategory(a.category),
     tags: a.tags,
     seo_title: a.seo_title,
@@ -123,6 +131,12 @@ export function ArticleEditorForm({
   const [authorName, setAuthorName] = useState(initial.author_name ?? '')
   const [category, setCategory] = useState<CompetitionCategoryValue>(initial.category)
   const [status, setStatus] = useState<(typeof STATUSES)[number]>(initial.status)
+  const [scheduleDate, setScheduleDate] = useState(
+    () => initial.status === 'scheduled' ? zimbabwePublicationInput(initial.published_at).date : '',
+  )
+  const [scheduleTime, setScheduleTime] = useState(
+    () => initial.status === 'scheduled' ? zimbabwePublicationInput(initial.published_at).time : '',
+  )
   const [tagsInput, setTagsInput] = useState(tagsToInput(initial.tags))
   const [seoTitle, setSeoTitle] = useState(initial.seo_title ?? '')
   const [seoDescription, setSeoDescription] = useState(
@@ -147,6 +161,20 @@ export function ArticleEditorForm({
       setLocalError('Enter a URL slug, or use a title with letters or numbers to generate one.')
       return
     }
+    // Archiving keeps the historical publication date; returning to draft clears it.
+    let publishedAt: string | null = nextStatus === 'archived' ? initial.published_at : null
+    if (nextStatus === 'scheduled') {
+      const schedule = validateZimbabwePublicationTime(scheduleDate, scheduleTime)
+      if (schedule.error) {
+        setLocalError(schedule.error)
+        return
+      }
+      publishedAt = schedule.publishedAt
+    } else if (nextStatus === 'published') {
+      publishedAt = status === 'published' && initial.status === 'published' && initial.published_at
+        ? initial.published_at
+        : new Date().toISOString()
+    }
     setLocalError(null)
     void onSubmit({
       title: t,
@@ -158,7 +186,9 @@ export function ArticleEditorForm({
       body_image_url: bodyImageUrl.trim() || null,
       body_image_caption: bodyImageCaption.trim() || null,
       author_name: authorName.trim() || null,
-      status: nextStatus,
+      // A future publication timestamp makes the public API reveal the story automatically.
+      status: nextStatus === 'scheduled' ? 'published' : nextStatus,
+      published_at: publishedAt,
       category: normalizeCompetitionCategory(category),
       tags: parseTagsInput(tagsInput),
       seo_title: seoTitle.trim() || null,
@@ -168,8 +198,10 @@ export function ArticleEditorForm({
 
   const submitLabel = status === 'draft'
     ? 'Save draft'
+    : status === 'scheduled'
+      ? initial.status === 'scheduled' ? 'Update schedule' : 'Schedule story'
     : status === 'published'
-      ? mode === 'create' ? 'Publish article' : 'Save changes'
+      ? initial.status === 'published' ? 'Save changes' : 'Publish now'
       : mode === 'create' ? 'Create article' : 'Update article'
   const displayError = error ?? localError
 
@@ -220,6 +252,37 @@ export function ArticleEditorForm({
               </option>
             ))}
           </select>
+          {status === 'scheduled' ? (
+            <div aria-describedby="article-schedule-hint">
+              <p id="article-schedule-hint" className="muted article-editor__hint">
+                The story will go live automatically at this Zimbabwe time (CAT, UTC+2).
+              </p>
+              <label className="article-editor__label" htmlFor="article-schedule-date">
+                Go-live date
+              </label>
+              <input
+                id="article-schedule-date"
+                type="date"
+                className="inline-edit__control article-editor__control"
+                value={scheduleDate}
+                onChange={(event) => setScheduleDate(event.target.value)}
+                disabled={isSubmitting}
+                required
+              />
+              <label className="article-editor__label" htmlFor="article-schedule-time">
+                Go-live time (Zimbabwe time)
+              </label>
+              <input
+                id="article-schedule-time"
+                type="time"
+                className="inline-edit__control article-editor__control"
+                value={scheduleTime}
+                onChange={(event) => setScheduleTime(event.target.value)}
+                disabled={isSubmitting}
+                required
+              />
+            </div>
+          ) : null}
           <label className="article-editor__label" htmlFor="article-category">
             Competition category
           </label>
@@ -249,7 +312,7 @@ export function ArticleEditorForm({
               {isSubmitting ? 'Saving…' : submitLabel}
             </button>
           </div>
-          {status === 'draft' ? (
+          {status === 'draft' || status === 'scheduled' ? (
             <button
               type="button"
               className="btn-primary article-editor__publish-now"

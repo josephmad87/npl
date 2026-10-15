@@ -5,7 +5,7 @@ import hmac
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased, joinedload, selectinload
 
@@ -349,8 +349,11 @@ def public_season_standing_adjustments(
 
 def _published_article_filter(stmt: Select) -> Select:
     now = datetime.now(timezone.utc)
-    return stmt.where(Article.status == "published").where(
-        or_(Article.published_at.is_(None), Article.published_at <= now),
+    return stmt.where(Article.status.in_(("published", "scheduled"))).where(
+        or_(
+            Article.published_at <= now,
+            and_(Article.status == "published", Article.published_at.is_(None)),
+        ),
     )
 
 

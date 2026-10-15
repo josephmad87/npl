@@ -2503,6 +2503,26 @@ table.data-table button.sort {
   border-color: rgba(252, 252, 252, 0.22);
 }
 
+.btn-danger {
+  background: var(--npl-error-600);
+  border: 1px solid var(--npl-error-700);
+  color: var(--npl-error-50);
+  border-radius: 999px;
+  padding: 0.55rem 1.15rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--npl-error-700);
+}
+
+.btn-danger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .login-page {
   min-height: 100vh;
   display: grid;
