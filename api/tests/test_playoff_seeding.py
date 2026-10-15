@@ -184,3 +184,54 @@ def test_playoff_sync_only_reseeds_scheduled_unscored_fixtures(db) -> None:
         assert (protected.home_team_id, protected.away_team_id) == (teams[0].id, teams[1].id)
     # The completed Qualifier 1 keeps its participants, so its loser remains Club 1.
     assert next_qualifier.home_team_id == teams[1].id
+
+
+def test_playoff_sync_clears_resolved_placeholder_without_changing_protected_teams(db) -> None:
+    season, teams, players = _season_with_teams(db)
+    user = User(email="bracket-scorer@example.com", hashed_password="test", role="scorer")
+    db.add(user)
+    eliminator = _record_result(
+        db, season, teams[0], teams[1], players[0], players[1],
+        home_runs=90, away_runs=100, winner=teams[1], stage="eliminator",
+    )
+
+    def qualifier(*, away_team_id, with_session):
+        match = Match(
+            season_id=season.id, category="mens", fixture_stage="qualifier_2",
+            home_team_id=teams[2].id, away_team_id=away_team_id,
+            status="scheduled", away_team_source=f"match:{eliminator.id}:winner",
+            away_team_placeholder="Winner Eliminator",
+        )
+        db.add(match)
+        db.flush()
+        if with_session:
+            db.add(MatchScoringSession(
+                match_id=match.id, owner_user_id=user.id,
+                session_token=f"session-{match.id}", device_id=f"device-{match.id}",
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            ))
+        return match
+
+    resolved = qualifier(away_team_id=teams[1].id, with_session=True)
+    mismatched = qualifier(away_team_id=teams[3].id, with_session=True)
+    reseedable = qualifier(away_team_id=teams[3].id, with_session=False)
+    final = Match(
+        season_id=season.id, category="mens", fixture_stage="final",
+        home_team_id=teams[0].id, away_team_id=teams[1].id,
+        status="scheduled", away_team_source=f"match:{resolved.id}:winner",
+        away_team_placeholder="Winner Qualifier 2",
+    )
+    db.add(final)
+    db.flush()
+
+    _sync_playoff_fixture_teams(db, season.id)
+    db.flush()
+
+    assert (resolved.away_team_id, resolved.away_team_placeholder) == (teams[1].id, None)
+    assert (mismatched.away_team_id, mismatched.away_team_placeholder) == (
+        teams[3].id, "Winner Eliminator",
+    )
+    assert (reseedable.away_team_id, reseedable.away_team_placeholder) == (teams[1].id, None)
+    assert (final.away_team_id, final.away_team_placeholder) == (
+        teams[1].id, "Winner Qualifier 2",
+    )
