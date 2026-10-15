@@ -626,7 +626,7 @@ export function LeagueSeasonHub({
       Points: 2 for a win, 1 for a tie or no result, 0 for a loss. In NPL T20 Blast,
       a team that reaches 200 earns one batting bonus point, and a successful chase of
       200 or more earns an additional chase bonus point. Form shows each team’s latest
-      five published results.
+      five regular-season results.
     </p>
   </div>
 )}
