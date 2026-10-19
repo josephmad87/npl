@@ -15,7 +15,6 @@ import { fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { recordFanEngagement } from './lib/supporterApi'
 import { managedSection, useSitePageContent } from './lib/siteContent'
 import { ManagedSiteHtml } from './components/ManagedSiteHtml'
-import { productOffers } from './lib/productOffers.js'
 
 export default function MerchandiseProductPage() {
   const { productId } = useParams({ from: '/merchandise/$productId' })
@@ -45,10 +44,9 @@ export default function MerchandiseProductPage() {
   const activeImageUrl = images[activeImage] ?? images[0] ?? null
   const canonicalPath = `/merchandise/${productId}`
   const canonicalUrl = new URL(canonicalPath, window.location.origin).toString()
-  const offers = productOffers(product, canonicalUrl)
   const description =
     product.description?.replace(/\s+/g, ' ').trim().slice(0, 160) ||
-    `Buy ${product.name} from NPL Zimbabwe.`
+    `Enquire about ${product.name} from NPL Zimbabwe.`
   const breadcrumbs = [
     { name: 'Home', path: '/' },
     { name: 'Merchandise', path: '/merchandise' },
@@ -61,16 +59,16 @@ export default function MerchandiseProductPage() {
         description={description}
         canonicalPath={canonicalPath}
         image={activeImageUrl ? resolveMediaUrl(activeImageUrl) : nplLogoUrl}
-        type="product"
+        type="website"
         breadcrumbs={breadcrumbs}
         structuredData={{
           '@context': 'https://schema.org',
-          '@type': offers.length ? 'Product' : 'WebPage',
+          // Orders are enquiries until NPL confirms stock, payment and delivery.
+          '@type': 'WebPage',
           url: canonicalUrl,
           name: product.name,
           description,
           image: images.map((image) => resolveMediaUrl(image) ?? image),
-          ...(offers.length ? { offers } : {}),
         }}
       />
       <section className="merchandise-product-page">
