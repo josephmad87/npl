@@ -1,5 +1,3 @@
-import { productOffers } from '../../src/lib/productOffers.js'
-
 const SITE_NAME = 'National Premier League'
 const DEFAULT_DESCRIPTION =
   'Latest fixtures, results, scorecards, news and standings from the National Premier League.'
@@ -1173,14 +1171,14 @@ async function previewForMerchandiseProduct(productId, request) {
   const name = cleanText(product.name) || 'Official NPL Merchandise'
   const description =
     truncate(product.description) ||
-    `Shop ${name} from the National Premier League official merchandise collection.`
+    `Enquire about ${name} from the National Premier League official merchandise collection.`
 
   return {
     title: name,
     description,
     image: optimisedShareImage(product.image_url, request.url),
     imageType: product.image_url ? 'image/jpeg' : undefined,
-    type: 'product',
+    type: 'website',
     entityKind: 'product',
     entity: product,
   }
@@ -1547,17 +1545,16 @@ function entityStructuredData(preview, request) {
     }
   }
   if (preview.entityKind === 'product') {
-    const offers = productOffers(entity, url.toString())
     return {
       ...common,
-      '@type': offers.length ? 'Product' : 'WebPage',
+      // Merchandise orders are enquiries; stock and fulfilment are confirmed later.
+      '@type': 'WebPage',
       name: cleanText(entity.name) || preview.title,
       description: preview.description,
       image: [entity.image_url, entity.image_url_2, entity.image_url_3]
         .filter(Boolean)
         .map((image) => absoluteUrl(image, request.url)),
       category: cleanText(entity.category) || undefined,
-      ...(offers.length ? { offers } : {}),
     }
   }
   if (preview.entityKind === 'managed-page') {

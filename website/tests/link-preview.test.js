@@ -282,7 +282,7 @@ test('WhatsApp receives an optimised main product image in Open Graph metadata',
   )
 })
 
-test('merchandise pages publish their actual variant prices as Product offers', async (context) => {
+test('merchandise enquiry pages avoid purchase offers in structured data', async (context) => {
   const originalFetch = globalThis.fetch
   context.after(() => {
     globalThis.fetch = originalFetch
@@ -312,19 +312,18 @@ test('merchandise pages publish their actual variant prices as Product offers', 
     return Response.json(products[id])
   }
 
-  for (const [path, expectedPrice, expectedCount] of [
-    ['/merchandise/takashinga-flame-jersey-69', '15.00', 2],
-    ['/merchandise/takashinga-flame-reversible-bucket-hat-34', '8.00', 1],
+  for (const [path, expectedName] of [
+    ['/merchandise/takashinga-flame-jersey-69', 'Takashinga Flame Jersey'],
+    ['/merchandise/takashinga-flame-reversible-bucket-hat-34', 'Takashinga Flame Reversible Bucket Hat'],
   ]) {
     const response = await handler(new Request(`https://npl.co.zw${path}`), htmlContext())
     const html = await response.text()
     const items = [...html.matchAll(/<script type="application\/ld\+json" data-npl-edge-jsonld>(.*?)<\/script>/gs)]
       .map((match) => JSON.parse(match[1]))
-    const product = items.find((item) => item['@type'] === 'Product')
-    assert.ok(product, `missing Product markup for ${path}`)
-    assert.equal(product.offers.length, expectedCount)
-    assert.ok(product.offers.every((offer) => offer['@type'] === 'Offer' && offer.price === expectedPrice && offer.priceCurrency === 'USD' && offer.url === `https://npl.co.zw${path}`))
-    if (expectedCount === 2) assert.equal(product.offers[1].availability, 'https://schema.org/OutOfStock')
+    const page = items.find((item) => item['@type'] === 'WebPage' && item.url === `https://npl.co.zw${path}`)
+    assert.equal(page?.name, expectedName)
+    assert.ok(items.every((item) => item['@type'] !== 'Product' && !('offers' in item)))
+    assert.match(html, /<meta property="og:type" content="website"/)
   }
 })
 
