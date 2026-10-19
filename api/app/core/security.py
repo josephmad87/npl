@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import secrets
 from typing import Any
 
 import bcrypt
@@ -50,6 +51,17 @@ def create_refresh_token(subject: str, extra_claims: dict[str, Any] | None = Non
         timedelta(days=settings.refresh_token_expire_days),
         settings.secret_key,
     )
+
+
+def create_mfa_challenge_token(subject: str, *, purpose: str) -> str:
+    claims: dict[str, Any] = {
+        "sub": subject,
+        "type": "mfa_challenge",
+        "purpose": purpose,
+        "jti": secrets.token_urlsafe(16),
+    }
+    settings = get_settings()
+    return _encode_token(claims, timedelta(minutes=10), settings.secret_key)
 
 
 def decode_token(token: str) -> dict[str, Any]:

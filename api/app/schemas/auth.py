@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from datetime import datetime
 
@@ -25,12 +25,45 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class MfaRequiredLoginResponse(BaseModel):
+    status: Literal["mfa_required"] = "mfa_required"
+    challenge_token: str
+
+
+class MfaEnrollmentRequiredLoginResponse(BaseModel):
+    status: Literal["mfa_enrollment_required"] = "mfa_enrollment_required"
+    challenge_token: str
+
+
+LoginResponse = MfaRequiredLoginResponse | MfaEnrollmentRequiredLoginResponse
+
+
+class MfaChallengeRequest(BaseModel):
+    challenge_token: str = Field(min_length=10, max_length=4096)
+
+
+class MfaVerificationRequest(MfaChallengeRequest):
+    code: str = Field(min_length=6, max_length=64)
+
+
+class MfaEnrollmentOut(BaseModel):
+    secret: str
+    otpauth_uri: str
+    qr_data_uri: str
+
+
+class MfaEnrollmentConfirmOut(BaseModel):
+    tokens: TokenResponse
+    recovery_codes: list[str]
+
+
 class UserMe(ORMModel):
     id: int
     email: str
     full_name: str | None
     role: str
     is_active: bool
+    mfa_enabled: bool
     created_at: datetime
 
 

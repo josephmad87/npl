@@ -51,7 +51,7 @@ VITE_API_BASE_URL=https://your-api-host.example.com/api/v1
 
 3. **Admin** — From this directory: `npm install`, optional `.env` with `VITE_API_BASE_URL` if the API is not on `http://localhost:8000/api/v1`, then `npm run dev`.
 
-After login, access and refresh tokens are stored in **`sessionStorage`** (`src/lib/session.ts`) and sent as **`Authorization: Bearer`** on API calls (`src/lib/api.ts`).
+Admin sign-in requires authenticator MFA. On the first password login, the app shows a QR code and manual setup key, verifies the first six-digit code, and presents eight single-use recovery codes. Access and refresh tokens are issued only after MFA succeeds, stored in **`sessionStorage`** (`src/lib/session.ts`), and sent as **`Authorization: Bearer`** on API calls (`src/lib/api.ts`).
 
 ## Deployment
 
