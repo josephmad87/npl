@@ -102,7 +102,7 @@ function MyProfilePage() {
       <PageHeader
         title="My profile"
         descriptionAsTooltip
-        description="Update your display name and password. Email and role are managed by an administrator. PATCH /auth/me."
+        description="Review your account security and update your display name or password."
       />
 
       {q.isLoading ? (
@@ -129,6 +129,14 @@ function MyProfilePage() {
                   value: (
                     <StatusBadge
                       status={q.data.is_active ? 'active' : 'inactive'}
+                    />
+                  ),
+                },
+                {
+                  label: 'Two-factor authentication',
+                  value: (
+                    <StatusBadge
+                      status={q.data.mfa_enabled ? 'active' : 'inactive'}
                     />
                   ),
                 },
