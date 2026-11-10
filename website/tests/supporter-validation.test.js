@@ -41,10 +41,10 @@ test('registration validates trimmed display names and phone length', () => {
   for (const display_name of ['', '   ', 'a'.repeat(256)]) {
     assert.ok(validateSupporterAuth('register', { ...valid, display_name }).display_name)
   }
-  for (const phone of ['', '       ', ' 123456 ', '1'.repeat(33)]) {
+  for (const phone of [' 123456 ', '1'.repeat(33)]) {
     assert.ok(validateSupporterAuth('register', { ...valid, phone }).phone)
   }
-  for (const phone of ['1234567', '1'.repeat(32), ' +263 77 123 4567 ']) {
+  for (const phone of ['', '       ', '1234567', '1'.repeat(32), ' +263 77 123 4567 ']) {
     assert.deepEqual(validateSupporterAuth('register', { ...valid, phone }), {})
   }
   assert.deepEqual(validateSupporterAuth('register', { ...valid, display_name: 'a'.repeat(255) }), {})

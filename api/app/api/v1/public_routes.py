@@ -304,6 +304,18 @@ def get_public_site_page(
             updated_at=datetime.now(timezone.utc),
         )
     body = _coerce_public_site_page_body(slug, row.body)
+    if slug == "account-deletion":
+        canonical = next(s for s in default_site_page_body(slug).sections if s.id == "delete-in-app")
+        body = body.model_copy(
+            update={
+                "sections": [
+                    canonical
+                    if section.id == "delete-in-app" and "Privacy and account" in section.body_html
+                    else section
+                    for section in body.sections
+                ]
+            }
+        )
     return SitePageOut(
         slug=slug,
         **body.model_dump(),

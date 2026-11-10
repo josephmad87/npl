@@ -268,3 +268,16 @@ def test_super_admin_can_save_managed_page_content() -> None:
     assert response.json()["title"] == "Help and support"
     assert db.site_pages["support"].body["title"] == "Help and support"
     assert db.audit_rows[-1].entity_type == "site_page_content"
+
+
+def test_old_account_deletion_instructions_match_current_app_flow():
+    from types import SimpleNamespace
+    body = default_site_page_body("account-deletion").model_dump()
+    body["sections"][0]["body_html"] = '<p>Open Privacy and account, then select Delete account.</p>'
+    row = SimpleNamespace(body=body, updated_at=datetime.now(timezone.utc))
+    db = SimpleNamespace(get=lambda *args: row)
+    page = public_routes.get_public_site_page("account-deletion", db)
+    instructions = next(section.body_html for section in page.sections if section.id == "delete-in-app")
+    assert "Open supporter account" in instructions
+    assert "Permanently delete account" in instructions
+    assert "Privacy and account" not in instructions

@@ -530,3 +530,13 @@ test('managed information pages are rendered with editable public content', asyn
   assert.match(html, /Report a concern/)
   assert.match(html, /"dateModified":"2026-09-01T11:00:00Z"/)
 })
+
+
+test('supporter account is a real route but never indexed', async () => {
+  assert.equal(hasKnownRouteShape('/my-npl'), true)
+  const response = await handler(new Request('https://npl.co.zw/my-npl'), htmlContext())
+  assert.equal(response.status, 200)
+  const html = await response.text()
+  assert.match(html, /My NPL/)
+  assert.match(html, /name="robots" content="noindex,follow"/)
+})

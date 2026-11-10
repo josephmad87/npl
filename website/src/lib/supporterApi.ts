@@ -29,7 +29,11 @@ export function setSupporterSession(session: SupporterSession | null) {
   currentSession = session
   if (typeof window !== 'undefined') {
     if (session) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
-    else window.localStorage.removeItem(STORAGE_KEY)
+    else {
+      window.localStorage.removeItem(STORAGE_KEY)
+      window.localStorage.removeItem(ANALYTICS_KEY)
+      window.localStorage.removeItem('npl_consent_analytics_id')
+    }
   }
   listeners.forEach((listener) => listener())
 }

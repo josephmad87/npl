@@ -209,7 +209,9 @@ def test_following_secure_fan_vote_and_notification_idempotency() -> None:
             away = Team(name="Away Club", slug="away-club", category="mens", status="active")
             db.add_all([home, away])
             db.flush()
-            player = Player(full_name="Star Batter", slug="star-batter", team_id=home.id, category="mens", status="active")
+            player = Player(
+                full_name="Star Batter", slug="star-batter", team_id=home.id, category="mens", status="active"
+            )
             db.add(player)
             db.flush()
             match = Match(
@@ -318,10 +320,13 @@ def test_variant_stock_and_private_order_tracking() -> None:
         assert tracked.status_code == 200, tracked.text
         assert tracked.json()["variant_label"] == "Red cap"
         assert tracked.json()["timeline"][0]["status"] == "new"
-        assert client.get(
-            f"/api/v1/public/merchandise/order-tracking/{created['order_number']}",
-            params={"token": "wrong-token-but-long-enough"},
-        ).status_code == 404
+        assert (
+            client.get(
+                f"/api/v1/public/merchandise/order-tracking/{created['order_number']}",
+                params={"token": "wrong-token-but-long-enough"},
+            ).status_code
+            == 404
+        )
         with sessions() as db:
             assert db.get(MerchandiseProductVariant, variant_id).stock_quantity == 0
             order = db.scalar(select(MerchandiseOrder))
@@ -433,6 +438,97 @@ def test_admin_can_update_merchandise_with_variants() -> None:
             assert variant is not None
             assert variant.label == "Medium shirt"
             assert variant.stock_quantity == 8
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        engine.dispose()
+
+
+def test_account_deletion_removes_personal_data_and_revokes_sessions():
+    clear_rate_limits()
+    client, sessions, engine = _client_and_session()
+    try:
+        token = _register(client, sessions)
+        headers = {"Authorization": f"Bearer {token}"}
+        with sessions() as db:
+            account = db.scalar(select(SupporterAccount))
+            account_id = account.id
+            team = Team(name="Followed", slug="followed", category="mens")
+            db.add(team)
+            db.flush()
+            player = Player(full_name="Followed player", slug="followed-player", team_id=team.id, category="mens")
+            db.add(player)
+            db.flush()
+            db.add_all(
+                [
+                    SupporterTeamFollow(supporter_id=account_id, team_id=team.id),
+                    SupporterPlayerFollow(supporter_id=account_id, player_id=player.id),
+                    FanEngagementEvent(supporter_id=account_id, event_type="view", properties={"private": "data"}),
+                    FanNotification(
+                        supporter_id=account_id,
+                        event_type="welcome",
+                        title="Hello",
+                        body="Private message",
+                        scheduled_for=datetime.now(timezone.utc),
+                        idempotency_key="test-delete",
+                    ),
+                    FanPushDevice(
+                        supporter_id=account_id,
+                        provider="expo",
+                        platform="ios",
+                        device_token="private-token",
+                        device_token_hash="a" * 64,
+                        last_seen_at=datetime.now(timezone.utc),
+                    ),
+                ]
+            )
+            db.commit()
+        assert client.delete("/api/v1/supporters/me", headers=headers).status_code == 204
+        assert client.get("/api/v1/supporters/me", headers=headers).status_code == 401
+        assert (
+            client.post(
+                "/api/v1/supporters/auth/login", json={"email": "fan@example.com", "password": "a-strong-fan-password"}
+            ).status_code
+            == 401
+        )
+        with sessions() as db:
+            account = db.get(SupporterAccount, account_id)
+            assert account.phone is None
+            assert not account.is_active
+            assert account.email.endswith("@deleted.invalid")
+            assert account.display_name == "Deleted supporter"
+            assert account.last_login_at is None
+            assert not any([account.marketing_consent, account.push_consent, account.analytics_consent])
+            for model in (
+                SupporterTeamFollow,
+                SupporterPlayerFollow,
+                FanEngagementEvent,
+                FanNotification,
+                FanPushDevice,
+            ):
+                assert db.scalar(select(func.count()).select_from(model).where(model.supporter_id == account_id)) == 0
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        engine.dispose()
+
+
+def test_registration_does_not_require_phone():
+    clear_rate_limits()
+    client, sessions, engine = _client_and_session()
+    try:
+        response = client.post(
+            "/api/v1/supporters/auth/register",
+            json={
+                "email": "optional@example.com",
+                "password": "a-strong-fan-password",
+                "display_name": "Optional",
+                "accept_terms": True,
+                "accept_privacy": True,
+                "policy_version": "2026-09",
+            },
+        )
+        assert response.status_code == 201, response.text
+        with sessions() as db:
+            assert db.scalar(select(SupporterAccount)).phone is None
     finally:
         app.dependency_overrides.pop(get_db, None)
         engine.dispose()
