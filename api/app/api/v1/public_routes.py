@@ -621,6 +621,18 @@ def team_season_players(
     ).all()
     return [PlayerOut.model_validate(player) for player in players]
 
+@router.get("/teams/{slug}/season-squad")
+def team_season_squad(slug: str, season_id: int = Query(), db: Session = Depends(get_db)) -> dict:
+    from app.services.published_squads import season_squad
+
+    team = db.scalar(select(Team).where(Team.slug == slug, Team.status == "active"))
+    if team is None or db.get(Season, season_id) is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Team or season not found"})
+    if db.get(SeasonTeam, (season_id, team.id)) is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Team is not entered in this season"})
+    return season_squad(db, season_id, team.id)
+
+
 @router.get("/teams/{slug}/season-records", response_model=list[TeamSeasonRecordOut])
 def team_season_records(slug: str, db: Session = Depends(get_db)) -> list[TeamSeasonRecordOut]:
     """Wins / losses / no-result counts from completed matches, grouped by season."""
