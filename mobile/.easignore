@@ -42,3 +42,9 @@ yarn-error.*
 
 credentials/
 *.log
+
+# Local tooling and private signing/session files
+.claude/
+credentials/
+credentials.json
+.env.eas-simulator

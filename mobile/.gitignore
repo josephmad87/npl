@@ -39,3 +39,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Local tooling and private signing/session files
+.claude/
+credentials/
+credentials.json
+.env.eas-simulator
