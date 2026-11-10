@@ -24,9 +24,11 @@ function readStoredSession(): SupporterSession | null {
 }
 
 let currentSession = readStoredSession()
+let sessionEpoch = 0
 
-export function setSupporterSession(session: SupporterSession | null) {
+export function setSupporterSession(session: SupporterSession | null, resetCache = true) {
   currentSession = session
+  if (resetCache) sessionEpoch += 1
   if (typeof window !== 'undefined') {
     if (session) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
     else {
@@ -35,6 +37,7 @@ export function setSupporterSession(session: SupporterSession | null) {
       window.localStorage.removeItem('npl_consent_analytics_id')
     }
   }
+  if (resetCache && typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('npl-supporter-session-reset'))
   listeners.forEach((listener) => listener())
 }
 
@@ -75,30 +78,39 @@ async function rawRequest<T>(path: string, init: RequestInit, accessToken?: stri
   return payload as T
 }
 
-let refreshPromise: Promise<SupporterSession> | null = null
+let refreshPromise: { epoch: number; promise: Promise<SupporterSession> } | null = null
 
-async function refreshSession(session: SupporterSession): Promise<SupporterSession> {
+async function refreshSession(session: SupporterSession, epoch: number): Promise<SupporterSession> {
   const token = await rawRequest<{ access_token: string; refresh_token: string }>(
     '/supporters/auth/refresh',
     { method: 'POST', body: JSON.stringify({ refresh_token: session.refreshToken }) },
   )
   const next = { accessToken: token.access_token, refreshToken: token.refresh_token }
-  setSupporterSession(next)
+  if (epoch !== sessionEpoch) throw new Error('Your session changed. Please try again.')
+  setSupporterSession(next, false)
   return next
 }
 
 export async function supporterFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const session = currentSession
+  const epoch = sessionEpoch
   try {
     return await rawRequest<T>(path, init, session?.accessToken)
   } catch (error) {
-    if (!session || !(error instanceof SupporterApiError) || error.status !== 401) throw error
+    if (!session || !(error instanceof SupporterApiError) || error.status !== 401 || epoch !== sessionEpoch) throw error
     try {
-      if (!refreshPromise) refreshPromise = refreshSession(session).finally(() => { refreshPromise = null })
-      const refreshed = await refreshPromise
+      // Another request may already have refreshed this same account.
+      if (currentSession && currentSession !== session) return await rawRequest<T>(path, init, currentSession.accessToken)
+      if (!refreshPromise || refreshPromise.epoch !== epoch) {
+        refreshPromise = { epoch, promise: refreshSession(session, epoch).finally(() => {
+          if (refreshPromise?.epoch === epoch) refreshPromise = null
+        }) }
+      }
+      const refreshed = await refreshPromise.promise
+      if (epoch !== sessionEpoch) throw new Error('Your session changed. Please try again.')
       return await rawRequest<T>(path, init, refreshed.accessToken)
     } catch (refreshError) {
-      setSupporterSession(null)
+      if (epoch === sessionEpoch && refreshError instanceof SupporterApiError && refreshError.status === 401) setSupporterSession(null)
       throw refreshError
     }
   }
