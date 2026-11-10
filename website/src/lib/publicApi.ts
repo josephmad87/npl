@@ -7,7 +7,7 @@ export const getApiBaseUrl = () => {
 }
 
 export async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${getApiBaseUrl()}${path}`)
+  const response = await fetch(`${getApiBaseUrl()}${path}`, { signal: AbortSignal.timeout(15_000) })
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`)
   }

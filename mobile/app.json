@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "NPL Zimbabwe",
+    "slug": "npl-mobile",
+    "version": "1.0.6",
+    "orientation": "portrait",
+    "icon": "./assets/npl-icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "zw.co.npl.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/npl-icon.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "zw.co.npl.mobile"
+    },
+    "web": {
+      "favicon": "./assets/npl-icon.png"
+    },
+    "scheme": "npl",
+    "owner": "cricketmanias-team",
+    "plugins": [
+      "expo-router",
+      "expo-web-browser",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "991ec972-745d-42e1-95b8-04902b93d1ea"
+      }
+    }
+  }
+}

@@ -596,6 +596,8 @@ export default function MatchDetailPage() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['match-detail', matchId],
+    refetchInterval: (query) => query.state.data?.status === 'live' ? 10_000 : false,
+    refetchOnWindowFocus: true,
     queryFn: () => fetchJson<MatchDetail>(`/public/matches/${matchId}`),
     enabled: Boolean(matchId),
     retry: 1,

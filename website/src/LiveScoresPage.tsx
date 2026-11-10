@@ -66,7 +66,10 @@ export default function LiveScoresPage() {
           {fixturesQ.isLoading ? <Spinner label="Loading live scores…" /> : null}
 
           {fixturesQ.isError ? (
-            <ErrorNotice message="Could not load live scores." />
+            <>
+              <ErrorNotice message="Could not refresh live scores. Any displayed matches may be out of date." />
+              <button type="button" onClick={() => void fixturesQ.refetch()} disabled={fixturesQ.isFetching}>Try again</button>
+            </>
           ) : null}
 
           {!fixturesQ.isLoading && !fixturesQ.isError && liveMatches.length === 0 ? (

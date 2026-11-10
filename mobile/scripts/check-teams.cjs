@@ -1,0 +1,28 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+const source = fs.readFileSync(require.resolve('../src/lib/team-data.ts'), 'utf8');
+let pages = [];
+const calls = [];
+const moduleRef = { exports: {} };
+const sandbox = { module: moduleRef, exports: moduleRef.exports, URL, require: id => { if (id === './feed') return { API: 'https://api.test/api/v1' }; throw Error(id); }, fetch: async url => { calls.push(url); const value = pages.shift(); return { ok: true, json: async () => value }; } };
+vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, sandbox);
+const { filterClubs, allPages, mediaUrl, seasonsForClub } = moduleRef.exports;
+(async () => {
+ const clubs = [{ id: 11, name: 'Amakhosi 1 Cricket Club', category: 'mens', home_ground: 'Bulawayo Athletic Club' }, { id: 12, name: 'Amakhosi 2 Cricket Club', category: 'mens', home_ground: 'Bulawayo Athletic Club' }, { id: 54, name: 'Amakhosi Queens', category: 'women' }];
+ assert.deepEqual(Array.from(filterClubs(clubs, 'mens', ' BULAWAYO '), club => club.id), [11, 12]);
+ assert.deepEqual(Array.from(filterClubs(clubs, 'women', 'Amakhosi'), club => club.id), [54]);
+ assert.equal(filterClubs(clubs, 'youth', '').length, 0);
+ assert.deepEqual(Array.from(seasonsForClub([{ id: 7, team_ids: [11] }, { id: 8, team_ids: [54] }], 11), season => season.id), [7]);
+ assert.deepEqual(Array.from(seasonsForClub([{ id: 7, team_ids: [11] }, { id: 8, team_ids: [54] }], 54), season => season.id), [8]);
+ pages = [{ items: [clubs[0]], pages: 2 }, { items: [clubs[1]], pages: 2 }];
+ const result = await allPages('/public/teams?category=mens', new AbortController().signal);
+ assert.deepEqual(Array.from(result, club => club.id), [11, 12]);
+ assert.equal(new URL(calls[1]).searchParams.get('page'), '2');
+ assert.equal(mediaUrl('javascript:alert(1)'), undefined);
+ assert.equal(mediaUrl('/media/team.png'), 'https://api.test/media/team.png');
+ pages = [{ invalid: true }];
+ await assert.rejects(allPages('/public/teams', new AbortController().signal), /response could not be read/);
+ console.log('Team filtering, distinct squads, pagination, media URLs and malformed response checks passed.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

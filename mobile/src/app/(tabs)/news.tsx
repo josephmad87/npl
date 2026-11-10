@@ -1,0 +1,14 @@
+import { ActivityIndicator, FlatList, Image, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native'
+import { Link } from 'expo-router'
+import { useHomeFeed } from '../../lib/use-home-feed'
+import { ScreenHeading } from '../../components/screen-heading'
+import { colors } from '../../theme'
+export default function News() {
+  const { feed, loading, error, refresh } = useHomeFeed(3, 20)
+  return <FlatList style={s.page} contentContainerStyle={s.content} data={feed?.news || []} keyExtractor={article => String(article.id)} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />} ItemSeparatorComponent={() => <View style={s.separator} />}
+    ListHeaderComponent={<View style={s.header}><ScreenHeading label="FROM THE BOUNDARY" title="NPL News" subtitle="Match reports, club stories and league updates." />{error ? <Text accessibilityRole="alert" style={s.caption}>Could not refresh news. Pull down to retry.</Text> : null}{loading && !feed ? <ActivityIndicator color={colors.brand} /> : null}</View>}
+    ListEmptyComponent={!loading ? <Text style={s.caption}>{error ? 'Connect to load news.' : 'The latest league stories will appear here.'}</Text> : undefined}
+    renderItem={({ item, index }) => <Link asChild href={{ pathname: '/page', params: { path: `/news/${encodeURIComponent(item.slug)}`, title: 'NPL News' } }}><Pressable accessibilityRole="link" style={({ pressed }) => [s.story, pressed && { opacity: 0.75 }]}>{item.featured_image_url ? <Image source={{ uri: item.featured_image_url }} style={[s.image, index === 0 && s.leadImage]} accessibilityLabel={item.title} /> : null}<View style={s.body}><Text style={s.label}>{index === 0 ? 'TOP STORY' : 'NPL NEWS'}</Text><Text style={[s.title, index === 0 && s.leadTitle]}>{item.title}</Text><Text style={s.caption} numberOfLines={2}>{item.excerpt}</Text><Text style={s.action}>Read story →</Text></View></Pressable></Link>}
+    ListFooterComponent={<Link href={{ pathname: '/page', params: { path: '/news', title: 'News archive' } }} style={s.archive}>Browse the news archive →</Link>} />
+}
+const s = StyleSheet.create({ page: { flex: 1, backgroundColor: colors.background }, content: { padding: 20, paddingBottom: 40 }, header: { paddingBottom: 24, gap: 12 }, separator: { height: 20 }, story: { backgroundColor: colors.surface, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.line }, image: { width: '100%', height: 160 }, leadImage: { height: 220 }, body: { padding: 18, gap: 10 }, label: { color: colors.brand, fontSize: 10, fontWeight: '700', letterSpacing: 1 }, title: { color: colors.ink, fontSize: 19, lineHeight: 25, fontWeight: '700' }, leadTitle: { fontSize: 23, lineHeight: 29 }, caption: { fontSize: 14, lineHeight: 21, color: colors.muted }, action: { color: colors.brand, fontWeight: '700', paddingTop: 6 }, archive: { color: colors.brand, fontSize: 16, paddingVertical: 24 } })
