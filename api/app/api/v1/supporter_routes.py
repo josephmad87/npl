@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from hashlib import sha256
 import hmac
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import delete, select
@@ -10,7 +11,13 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_supporter, get_optional_supporter
 from app.api.pagination import PageParams, paginate_select, to_paginated
 from app.core.config import get_settings
-from app.core.security import create_access_token, create_refresh_token, decode_token_safe, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token_safe,
+    hash_password,
+    verify_password,
+)
 from app.db.session import get_db
 from app.models.merchandise import MerchandiseOrder
 from app.models.player import Player
@@ -88,7 +95,7 @@ def register_supporter(body: SupporterRegisterIn, db: Session = Depends(get_db))
         email=_normalise_email(body.email),
         hashed_password=hash_password(body.password),
         display_name=body.display_name.strip(),
-        phone=body.phone.strip(),
+        phone=body.phone,
         terms_accepted_at=current,
         privacy_accepted_at=current,
         policy_version=body.policy_version.strip(),
@@ -147,7 +154,9 @@ def refresh_supporter(body: SupporterTokenRefreshIn, db: Session = Depends(get_d
     try:
         supporter_id = int(subject.removeprefix("supporter:"))
     except ValueError as exc:
-        raise HTTPException(status_code=401, detail={"code": "invalid_refresh", "message": "Invalid refresh token."}) from exc
+        raise HTTPException(
+            status_code=401, detail={"code": "invalid_refresh", "message": "Invalid refresh token."}
+        ) from exc
     account = db.get(SupporterAccount, supporter_id)
     if account is None or not account.is_active:
         raise HTTPException(status_code=401, detail={"code": "invalid_refresh", "message": "Invalid refresh token."})
@@ -212,14 +221,20 @@ def delete_supporter_account(
     db: Session = Depends(get_db),
 ) -> Response:
     account.is_active = False
-    account.email = f"deleted-{account.id}-{sha256(account.email.encode()).hexdigest()[:16]}@deleted.invalid"
+    account.email = f"deleted-{account.id}-{secrets.token_hex(16)}@deleted.invalid"
     account.display_name = "Deleted supporter"
+    account.phone = None
+    account.email_verified_at = None
+    account.last_login_at = None
     account.hashed_password = hash_password(sha256(f"{account.id}:{_now().isoformat()}".encode()).hexdigest())
     account.marketing_consent = False
     account.push_consent = False
     account.analytics_consent = False
     account.consent_updated_at = _now()
-    db.execute(delete(FanPushDevice).where(FanPushDevice.supporter_id == account.id))
+    # Retain the anonymous account/consent audit for integrity and transaction history,
+    # but remove non-transactional personal preferences, messages and analytics.
+    for model in (FanPushDevice, SupporterTeamFollow, SupporterPlayerFollow, FanNotification, FanEngagementEvent):
+        db.execute(delete(model).where(model.supporter_id == account.id))
     db.add_all(
         SupporterConsentEvent(
             supporter_id=account.id,
@@ -253,7 +268,9 @@ def supporter_follows(
     ).all()
     return SupporterFollowsOut(
         teams=[
-            SupporterFollowOut(id=team.id, name=team.name, slug=team.slug, image_url=team.logo_url, followed_at=row.created_at)
+            SupporterFollowOut(
+                id=team.id, name=team.name, slug=team.slug, image_url=team.logo_url, followed_at=row.created_at
+            )
             for row, team in team_rows
         ],
         players=[
@@ -287,25 +304,33 @@ def _set_follow(db: Session, *, account_id: int, kind: str, entity_id: int, enab
 
 
 @router.put("/follows/teams/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
-def follow_team(team_id: int, account: SupporterAccount = Depends(get_current_supporter), db: Session = Depends(get_db)) -> Response:
+def follow_team(
+    team_id: int, account: SupporterAccount = Depends(get_current_supporter), db: Session = Depends(get_db)
+) -> Response:
     _set_follow(db, account_id=account.id, kind="team", entity_id=team_id, enabled=True)
     return Response(status_code=204)
 
 
 @router.delete("/follows/teams/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
-def unfollow_team(team_id: int, account: SupporterAccount = Depends(get_current_supporter), db: Session = Depends(get_db)) -> Response:
+def unfollow_team(
+    team_id: int, account: SupporterAccount = Depends(get_current_supporter), db: Session = Depends(get_db)
+) -> Response:
     _set_follow(db, account_id=account.id, kind="team", entity_id=team_id, enabled=False)
     return Response(status_code=204)
 
 
 @router.put("/follows/players/{player_id}", status_code=status.HTTP_204_NO_CONTENT)
-def follow_player(player_id: int, account: SupporterAccount = Depends(get_current_supporter), db: Session = Depends(get_db)) -> Response:
+def follow_player(
+    player_id: int, account: SupporterAccount = Depends(get_current_supporter), db: Session = Depends(get_db)
+) -> Response:
     _set_follow(db, account_id=account.id, kind="player", entity_id=player_id, enabled=True)
     return Response(status_code=204)
 
 
 @router.delete("/follows/players/{player_id}", status_code=status.HTTP_204_NO_CONTENT)
-def unfollow_player(player_id: int, account: SupporterAccount = Depends(get_current_supporter), db: Session = Depends(get_db)) -> Response:
+def unfollow_player(
+    player_id: int, account: SupporterAccount = Depends(get_current_supporter), db: Session = Depends(get_db)
+) -> Response:
     _set_follow(db, account_id=account.id, kind="player", entity_id=player_id, enabled=False)
     return Response(status_code=204)
 
@@ -319,7 +344,10 @@ def register_push_device(
     if not account.push_consent:
         raise HTTPException(
             status_code=400,
-            detail={"code": "push_consent_required", "message": "Enable match notifications before registering a device."},
+            detail={
+                "code": "push_consent_required",
+                "message": "Enable match notifications before registering a device.",
+            },
         )
     token_hash = sha256(body.device_token.encode()).hexdigest()
     current = _now()

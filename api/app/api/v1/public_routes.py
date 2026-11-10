@@ -304,6 +304,18 @@ def get_public_site_page(
             updated_at=datetime.now(timezone.utc),
         )
     body = _coerce_public_site_page_body(slug, row.body)
+    if slug == "account-deletion":
+        canonical = next(s for s in default_site_page_body(slug).sections if s.id == "delete-in-app")
+        body = body.model_copy(
+            update={
+                "sections": [
+                    canonical
+                    if section.id == "delete-in-app" and "Privacy and account" in section.body_html
+                    else section
+                    for section in body.sections
+                ]
+            }
+        )
     return SitePageOut(
         slug=slug,
         **body.model_dump(),
@@ -620,6 +632,18 @@ def team_season_players(
         .order_by(Player.full_name)
     ).all()
     return [PlayerOut.model_validate(player) for player in players]
+
+@router.get("/teams/{slug}/season-squad")
+def team_season_squad(slug: str, season_id: int = Query(), db: Session = Depends(get_db)) -> dict:
+    from app.services.published_squads import season_squad
+
+    team = db.scalar(select(Team).where(Team.slug == slug, Team.status == "active"))
+    if team is None or db.get(Season, season_id) is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Team or season not found"})
+    if db.get(SeasonTeam, (season_id, team.id)) is None:
+        raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Team is not entered in this season"})
+    return season_squad(db, season_id, team.id)
+
 
 @router.get("/teams/{slug}/season-records", response_model=list[TeamSeasonRecordOut])
 def team_season_records(slug: str, db: Session = Depends(get_db)) -> list[TeamSeasonRecordOut]:

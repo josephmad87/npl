@@ -12,7 +12,7 @@ class SupporterRegisterIn(BaseModel):
     email: EmailLike
     password: str = Field(min_length=12, max_length=128)
     display_name: str = Field(min_length=1, max_length=255)
-    phone: str = Field(min_length=7, max_length=32)
+    phone: str | None = Field(default=None, min_length=7, max_length=32)
     accept_terms: bool
     accept_privacy: bool
     policy_version: str = Field(min_length=1, max_length=32)
@@ -26,9 +26,13 @@ class SupporterRegisterIn(BaseModel):
             raise ValueError("The Terms and Privacy Policy must be accepted.")
         return self
 
-    @field_validator("phone")
+    @field_validator("phone", mode="before")
     @classmethod
-    def normalise_phone(cls, value: str) -> str:
+    def normalise_phone(cls, value: str | None) -> str | None:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        if not isinstance(value, str):
+            raise ValueError("Enter a valid phone number.")
         phone = value.strip()
         if len(phone) < 7:
             raise ValueError("Enter a valid phone number.")

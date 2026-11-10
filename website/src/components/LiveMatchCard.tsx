@@ -1,3 +1,4 @@
+import { ScoreFreshness } from './ScoreFreshness'
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchJson, resolveMediaUrl } from '../lib/publicApi'
@@ -129,6 +130,7 @@ export function LiveMatchCard({
         <span>{liveTimeLabel(match)}</span>
       </div>
 
+      <ScoreFreshness updatedAt={liveQ.dataUpdatedAt} failed={liveQ.isError} />
       <div className="live-match-card__teams">
         <TeamBadge name={homeName} logoUrl={home?.logo_url ?? null} />
         <div>
@@ -141,7 +143,7 @@ export function LiveMatchCard({
 
       <div className="live-match-card__score">
         <span>{battingTeamName ?? 'Current score'}</span>
-        <strong>{liveQ.isLoading ? 'Loading…' : scoreLine(summary)}</strong>
+        <strong>{liveQ.isLoading ? 'Loading…' : !liveQ.data && liveQ.isError ? 'Score unavailable' : scoreLine(summary)}</strong>
       </div>
 
       {summary?.last_six?.length ? (

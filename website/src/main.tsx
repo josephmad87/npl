@@ -22,6 +22,11 @@ const queryClient = new QueryClient({
   },
 })
 
+// Account data must never survive a sign-in, sign-out or account switch.
+window.addEventListener('npl-supporter-session-reset', () => {
+  queryClient.removeQueries({ queryKey: ['supporter'] })
+})
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

@@ -1,3 +1,4 @@
+import { ScoreFreshness } from './ScoreFreshness'
 import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -3048,6 +3049,7 @@ export function LiveScorePanel({
         )}
       </div>
 
+      {isLive ? <ScoreFreshness updatedAt={liveQ.dataUpdatedAt} failed={liveQ.isError} /> : null}
       <div className="live-score-panel__tabs" role="tablist" aria-label="Live match tabs">
         {tabs.map((tab) => (
           <button

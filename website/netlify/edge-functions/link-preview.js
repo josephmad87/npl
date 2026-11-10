@@ -39,6 +39,7 @@ const KNOWN_PUBLIC_PATHS = new Set([
   '/safeguarding',
   '/scorecard-corrections',
   '/supporters',
+  '/my-npl',
 ])
 
 const MANAGED_PAGE_SLUGS = new Set([
@@ -57,6 +58,7 @@ const STATIC_PAGE_PREVIEWS = {
     title: SITE_NAME,
     description: DEFAULT_DESCRIPTION,
   },
+  '/my-npl': { title: 'My NPL', description: 'Manage your NPL supporter account, follows and preferences.' },
   '/fixtures': {
     title: 'Cricket Fixtures',
     description: 'Upcoming NPL Zimbabwe cricket fixtures, dates, venues and match details.',
@@ -1344,7 +1346,8 @@ function metaTags(preview, request) {
   const productionHost = ['npl.co.zw', 'www.npl.co.zw'].includes(url.hostname)
   const isNonProduction =
     (deploymentContext && deploymentContext !== 'production') || !productionHost
-  const robots = preview.notFound || isInternalSearch || isNonProduction
+  const isPrivateAccount = url.pathname === '/my-npl'
+  const robots = preview.notFound || isInternalSearch || isNonProduction || isPrivateAccount
     ? 'noindex,follow'
     : 'index,follow,max-image-preview:large'
   const previewVersion = preview.entityKind === 'article'

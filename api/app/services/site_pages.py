@@ -326,12 +326,11 @@ DEFAULT_SITE_PAGES: dict[SitePageSlug, dict[str, object]] = {
                 "id": "delete-in-app",
                 "heading": "Delete an account in the app",
                 "body_html": (
-                    "<ol><li>Sign in to NPL - Zimbabwe.</li><li>Open your profile and "
-                    "choose Privacy and account.</li><li>Select Delete account and "
-                    "review the information shown.</li><li>Confirm the request using "
-                    "the account verification step.</li></ol><p>If you cannot sign "
-                    "in or the in-app option does not work, submit the form on this "
-                    "page.</p>"
+                    "<ol><li>Open My NPL and select Open supporter account.</li>"
+                    "<li>Sign in and scroll to Delete account.</li>"
+                    "<li>Select Delete account, then Permanently delete account.</li></ol>"
+                    "<p>You will see confirmation when deletion completes. If you cannot "
+                    "sign in, use the request form on this page.</p>"
                 ),
             },
             {

@@ -22,7 +22,7 @@ import { type LeagueLite, type MatchLite, useTeamsMap } from '../lib/hooks'
 import { extractList, fetchAllPaginatedList, fetchJson, resolveMediaUrl } from '../lib/publicApi'
 import { managedSection, useSitePageContent } from '../lib/siteContent'
 import { ManagedSiteHtml } from './ManagedSiteHtml'
-import nplT20BlastLogoUrl from '../assets/npl-t20-blast-logo.jpg'
+import nplT20BlastLogoUrl from '../assets/npl-t20-blast-logo-web.jpg'
 
 type LeagueDetail = {
   id: number

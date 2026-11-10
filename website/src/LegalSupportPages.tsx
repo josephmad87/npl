@@ -932,10 +932,9 @@ export function AccountDeletionPage() {
               <section>
                 <h2>Delete an account in the app</h2>
                 <ol>
-                  <li>Sign in to NPL - Zimbabwe.</li>
-                  <li>Open your profile and choose Privacy and account.</li>
-                  <li>Select Delete account and review the information shown.</li>
-                  <li>Confirm the request using the account verification step.</li>
+                  <li>Open My NPL and select Open supporter account.</li>
+                  <li>Sign in and scroll to Delete account.</li>
+                  <li>Select Delete account, then Permanently delete account.</li>
                 </ol>
                 <p>
                   If you cannot sign in, the app is not yet available, or the in-app

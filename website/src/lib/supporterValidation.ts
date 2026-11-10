@@ -42,7 +42,7 @@ export function validateSupporterAuth(mode: SupporterAuthMode, fields: Supporter
     else if (nameLength > 255) errors.display_name = 'Display name must contain no more than 255 characters.'
 
     const phoneLength = characterCount(fields.phone.trim())
-    if (phoneLength < 7 || phoneLength > 32) {
+    if (phoneLength && (phoneLength < 7 || phoneLength > 32)) {
       errors.phone = 'Enter a phone number containing 7 to 32 characters.'
     }
     if (!fields.accept_terms) errors.accept_terms = 'Please accept the Terms to create an account.'
