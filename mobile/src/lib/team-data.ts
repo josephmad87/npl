@@ -14,7 +14,7 @@ export function mediaUrl(value?: string | null) {
 }
 export async function teamRequest<T>(path: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(`${API}${path}`, { signal })
-  if (!response.ok) throw new Error(response.status === 404 ? 'This team is no longer available.' : 'Could not connect to NPL. Please try again.')
+  if (!response.ok) throw new Error(response.status === 404 ? 'This content is no longer available.' : 'Could not connect to NPL. Please try again.')
   return response.json() as Promise<T>
 }
 export async function allPages<T>(path: string, signal: AbortSignal): Promise<T[]> {

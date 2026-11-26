@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "zw.co.npl.mobile",
+      "sha256_cert_fingerprints": ["DC:10:7F:CC:2D:3C:50:F4:B6:0E:06:94:F8:80:9F:E1:E3:19:6B:36:69:B6:69:8B:B4:55:3E:45:12:0F:E0:BA"]
+    }
+  }
+]

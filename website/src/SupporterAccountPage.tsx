@@ -10,6 +10,8 @@ import {
   useSupporterSession,
 } from './lib/supporterApi'
 import { AccountDeletionPanel } from './components/AccountDeletionPanel'
+import { BrowserClubAlerts, stopBrowserClubAlerts } from './components/BrowserClubAlerts'
+import { FollowedClubMatches } from './components/FollowedClubMatches'
 import { SeoHead } from './components/SeoHead'
 import { managedSection, useSitePageContent } from './lib/siteContent'
 import { ManagedSiteHtml } from './components/ManagedSiteHtml'
@@ -182,21 +184,30 @@ export default function SupporterAccountPage() {
   }
   const removeFollow = async (kind: 'team' | 'player', id: number) => {
     await supporterFetch(`/supporters/follows/${kind}s/${id}`, { method: 'DELETE' })
-    await queryClient.invalidateQueries({ queryKey: ['supporter', 'follows'] })
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['supporter', 'follows'] }),
+      queryClient.invalidateQueries({ queryKey: ['supporter', 'followed-matches'] }),
+    ])
+  }
+  const logOut = async () => {
+    await stopBrowserClubAlerts(account?.id).catch(() => undefined)
+    setSupporterSession(null)
   }
 
   return <main className="container supporter-account-page">
     <SeoHead title={pageTitle} description={pageSubtitle} canonicalPath="/my-npl" noIndex />
     {deleted ? <p role="status">Your account has been deleted. Your profile, follows, notification devices and optional activity data have been removed.</p> : null}
-    {!session ? <AuthPanel title={pageTitle} subtitle={pageSubtitle} /> : accountQ.isLoading ? <p>Loading your supporter account…</p> : accountQ.isError || !account ? <section><h1>{pageTitle}</h1><p className="form-error">Could not load your account.</p><button type="button" onClick={() => setSupporterSession(null)}>Sign out</button></section> : <>
-      <header className="supporter-account-page__head"><div><p className="eyebrow">Supporter account</p><h1>{pageTitle}</h1><p>Welcome, {account.display_name} · {account.email}{account.phone ? ` · ${account.phone}` : ''}</p></div><button type="button" className="supporter-link-button" onClick={() => setSupporterSession(null)}>Sign out</button></header>
+    {!session ? <AuthPanel title={pageTitle} subtitle={pageSubtitle} /> : accountQ.isLoading ? <p>Loading your supporter account…</p> : accountQ.isError || !account ? <section><h1>{pageTitle}</h1><p className="form-error">Could not load your account.</p><button type="button" className="supporter-logout-button" onClick={() => void logOut()}>Log out</button></section> : <>
+      <header className="supporter-account-page__head"><div><h1>{pageTitle}</h1><p>Welcome, {account.display_name} · {account.email}{account.phone ? ` · ${account.phone}` : ''}</p></div><button type="button" className="supporter-logout-button" onClick={() => void logOut()}>Log out</button></header>
+      <FollowedClubMatches account={account.id} />
       <div className="supporter-dashboard">
-        <section className="supporter-dashboard__card"><h2>{preferencesContent.heading}</h2><ManagedSiteHtml html={preferencesContent.body_html} /><label className="supporter-form__check"><input type="checkbox" checked={account.push_consent} onChange={(event) => void setPreference('push_consent', event.target.checked)} /><span>Match reminders and results in my supporter inbox</span></label><label className="supporter-form__check"><input type="checkbox" checked={account.marketing_consent} onChange={(event) => void setPreference('marketing_consent', event.target.checked)} /><span>NPL news and supporter offers</span></label><label className="supporter-form__check"><input type="checkbox" checked={account.analytics_consent} onChange={(event) => void setPreference('analytics_consent', event.target.checked)} /><span>Consent-based engagement analytics</span></label><p className="muted">You can change these at any time. These choices control your supporter inbox and optional messages.</p></section>
+        <section className="supporter-dashboard__card"><h2>{preferencesContent.heading}</h2><ManagedSiteHtml html={preferencesContent.body_html} /><BrowserClubAlerts key={account.id} account={account.id} consent={account.push_consent} /><label className="supporter-form__check"><input type="checkbox" checked={account.push_consent} onChange={(event) => void setPreference('push_consent', event.target.checked)} /><span>Match reminders and results in My NPL</span></label><label className="supporter-form__check"><input type="checkbox" checked={account.marketing_consent} onChange={(event) => void setPreference('marketing_consent', event.target.checked)} /><span>NPL news and supporter offers</span></label><label className="supporter-form__check"><input type="checkbox" checked={account.analytics_consent} onChange={(event) => void setPreference('analytics_consent', event.target.checked)} /><span>Consent-based engagement analytics</span></label></section>
         <section className="supporter-dashboard__card"><h2>{followingContent.heading}</h2><ManagedSiteHtml html={followingContent.body_html} /><h3>Teams</h3>{followsQ.data?.teams.length ? <ul>{followsQ.data.teams.map((item) => <li key={item.id}><Link to="/teams/$slug" params={{ slug: item.slug }}>{item.name}</Link><button type="button" onClick={() => void removeFollow('team', item.id)}>Unfollow</button></li>)}</ul> : <p className="muted">No teams followed yet.</p>}<h3>Players</h3>{followsQ.data?.players.length ? <ul>{followsQ.data.players.map((item) => <li key={item.id}><Link to="/players/$slug" params={{ slug: item.slug }}>{item.name}</Link><button type="button" onClick={() => void removeFollow('player', item.id)}>Unfollow</button></li>)}</ul> : <p className="muted">No players followed yet.</p>}</section>
         <section className="supporter-dashboard__card"><h2>{notificationsContent.heading} {unread.length ? <span className="supporter-count">{unread.length} new</span> : null}</h2><ManagedSiteHtml html={notificationsContent.body_html} />{notificationsQ.data?.items.length ? <ul>{notificationsQ.data.items.map((item) => <li key={item.id} className={item.read_at ? '' : 'is-unread'}><div><strong>{item.title}</strong><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString()}</small></div>{!item.read_at ? <button type="button" onClick={() => void markRead(item.id)}>Mark read</button> : null}</li>)}</ul> : <p className="muted">No notifications yet.</p>}</section>
         <section className="supporter-dashboard__card"><h2>{ordersContent.heading}</h2><ManagedSiteHtml html={ordersContent.body_html} />{ordersQ.data?.length ? <ul>{ordersQ.data.map((order) => <li key={order.id}><div><strong>{order.order_number}</strong><p>{order.product_name}</p></div><span>{order.status.replaceAll('_', ' ')} · {order.payment_status}</span></li>)}</ul> : <p className="muted">No account-linked orders yet.</p>}</section>
       </div>
       <AccountDeletionPanel onDeleted={() => {
+        void stopBrowserClubAlerts(account.id).catch(() => undefined)
         setSupporterSession(null)
         queryClient.removeQueries({ queryKey: ['supporter'] })
         setDeleted(true)

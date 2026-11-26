@@ -2,13 +2,14 @@
   "expo": {
     "name": "NPL Zimbabwe",
     "slug": "npl-mobile",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/npl-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "zw.co.npl.mobile",
+      "associatedDomains": ["applinks:npl.co.zw"],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -19,7 +20,16 @@
         "foregroundImage": "./assets/npl-icon.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "zw.co.npl.mobile"
+      "package": "zw.co.npl.mobile",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "npl.co.zw", "pathPrefix": "/matches/" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
+      "blockedPermissions": ["android.permission.READ_CALENDAR", "android.permission.WRITE_CALENDAR"]
     },
     "web": {
       "favicon": "./assets/npl-icon.png"
@@ -28,8 +38,11 @@
     "owner": "cricketmanias-team",
     "plugins": [
       "expo-router",
-      "expo-web-browser",
-      "expo-font"
+      "expo-font",
+      "expo-secure-store",
+      "expo-image",
+      "expo-video",
+      ["expo-notifications", { "defaultChannel": "match-alerts", "color": "#551725" }]
     ],
     "extra": {
       "router": {

@@ -1,4 +1,4 @@
-type Section = 'fixtures' | 'results' | 'stats' | 'standings'
+export type Section = 'fixtures' | 'results' | 'stats' | 'standings' | 'teams'
 
 type SeasonOpt = { id: number; name: string; slug: string }
 type LeagueOpt = { id: number; name: string; slug: string }
@@ -95,8 +95,9 @@ export function LeagueHeroBar({
             [
               ['fixtures', sectionLabels?.fixtures || 'Fixtures'],
               ['results', sectionLabels?.results || 'Results'],
-              ['stats', sectionLabels?.stats || 'Stats'],
               ['standings', sectionLabels?.standings || 'Standings'],
+              ['stats', sectionLabels?.stats || 'Stats'],
+              ['teams', 'Teams'],
             ] as const
           ).map(([key, label]) => (
             <button

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Link } from 'expo-router'
+import { AppLink as Link } from './app-link'
 import { allPages, clubPath, loadClubs, loadSeasonDirectory, seasonsForClub, teamRequest, type Club, type Player, type SeasonRecord } from '../lib/team-data'
 import type { Fixture } from '../lib/feed'
 import { useTeamResource } from '../lib/use-team-resource'

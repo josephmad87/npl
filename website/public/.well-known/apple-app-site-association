@@ -1,0 +1,10 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["5793F88TZX.zw.co.npl.mobile"],
+        "components": [{ "/": "/matches/*" }]
+      }
+    ]
+  }
+}

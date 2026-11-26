@@ -11860,6 +11860,19 @@ table.league-standings-table .league-standings-table__form {
   margin-bottom: 1.5rem;
 }
 
+.supporter-logout-button {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .supporter-dashboard {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -12144,5 +12157,130 @@ table.league-standings-table .league-standings-table__form {
   .match-stream__foot {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+.home-standings,
+.supporter-followed-matches {
+  border-radius: 14px;
+  background: #ffebd5;
+  padding: clamp(1rem, 3vw, 1.75rem);
+}
+
+.home-standings h2,
+.supporter-followed-matches h2 {
+  margin: 0 0 0.65rem;
+}
+
+.home-standings__links,
+.match-centre-share-row--top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.home-standings__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  background: #fff;
+  color: #551725;
+  font-weight: 750;
+}
+
+.live-scores-page__group {
+  margin-top: 1.35rem;
+}
+
+.season-team-list,
+.match-competition-groups {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0;
+}
+
+.season-team-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+}
+
+.season-team-list li,
+.match-competition-group {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.season-team-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem;
+}
+
+.season-team-list img {
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.match-competition-group summary {
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+}
+
+.match-competition-group summary span {
+  margin-inline-start: 0.75rem;
+  color: #564d4d;
+  font-size: 0.9rem;
+}
+
+.match-competition-group__body {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.8rem;
+}
+
+.match-centre-scorecard {
+  scroll-margin-top: 6rem;
+}
+
+.match-centre-scorecard__summary {
+  font-weight: 700;
+  flex-basis: 100%;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-centre .match-centre-scorecard-table {
+  min-width: 32rem;
+  table-layout: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-centre .scorecard-stat-columns__bowler,
+.match-centre .scorecard-stat-columns__batter {
+  width: 26%;
+}
+
+.match-centre .match-centre-scorecard-table :is(th, td):first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: min(10rem, 40vw);
+  background: #fff;
+}
+
+.match-centre .match-centre-scorecard-table th:first-child {
+  background: #f7f3f1;
+}
+
+@media (min-width: 1024px) and (min-height: 650px) {
+  .match-centre-scorecard__head {
+    position: sticky;
+    top: 4.5rem;
+    z-index: 2;
+    padding-block: 0.65rem;
+    background: #fff;
   }
 }

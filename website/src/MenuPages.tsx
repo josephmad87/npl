@@ -7,9 +7,9 @@ import { ErrorNotice } from './components/ErrorNotice'
 import { LeagueSeasonHub } from './components/LeagueSeasonHub'
 import { GalleryLightbox } from './components/GalleryLightbox'
 import { GalleryWallTile } from './components/GalleryWallTile'
-import { MatchCard } from './components/MatchCard'
 import { MatchCarousel } from './components/MatchCarousel'
 import { FixturesListing } from './components/FixturesListing'
+import { MatchCompetitionGroups } from './components/MatchCompetitionGroups'
 import { NewsCard } from './components/NewsCard'
 import { FeaturedTeamsCarousel } from './components/FeaturedTeamsCarousel'
 import { PageHero } from './components/PageHero'
@@ -123,7 +123,6 @@ function CategoryHomePage({ category }: { category: string }) {
 }
 
 const PUBLIC_LIST_PAGE_SIZE = 100
-const RESULTS_PAGE_SIZE = 4
 
 function resultYearLabel(match: MatchLite): string {
   const raw = match.match_date?.slice(0, 4) ?? ''
@@ -187,7 +186,6 @@ function ResultsPageContentStateful({ category }: { category?: string }) {
 
   const [requestedYear, setSelectedYear] = useState('all')
   const [requestedLeague, setSelectedLeague] = useState('all')
-  const [requestedResultsPageIndex, setResultsPageIndex] = useState(0)
 
   const yearTabs = useMemo(() => {
     const years = Array.from(new Set(data.map(resultYearLabel)))
@@ -232,26 +230,6 @@ function ResultsPageContentStateful({ category }: { category?: string }) {
       return true
     })
   }, [data, selectedYear, selectedLeague])
-
-  const resultsPageCount = Math.max(
-    1,
-    Math.ceil(filteredResults.length / RESULTS_PAGE_SIZE),
-  )
-
-  const resultsPageIndex = Math.min(
-    requestedResultsPageIndex,
-    Math.max(0, resultsPageCount - 1),
-  )
-
-  const resultsPageStart = resultsPageIndex * RESULTS_PAGE_SIZE
-
-  const pagedResults = filteredResults.slice(
-    resultsPageStart,
-    resultsPageStart + RESULTS_PAGE_SIZE,
-  )
-
-  const canGoPreviousResults = resultsPageIndex > 0
-  const canGoNextResults = resultsPageIndex < resultsPageCount - 1
 
   return (
     <>
@@ -299,7 +277,6 @@ function ResultsPageContentStateful({ category }: { category?: string }) {
                       onClick={() => {
                         setSelectedYear('all')
                         setSelectedLeague('all')
-                        setResultsPageIndex(0)
                       }}
                     >
                       All
@@ -316,7 +293,6 @@ function ResultsPageContentStateful({ category }: { category?: string }) {
                         onClick={() => {
                           setSelectedYear(year)
                           setSelectedLeague('all')
-                          setResultsPageIndex(0)
                         }}
                       >
                         {year}
@@ -341,7 +317,6 @@ function ResultsPageContentStateful({ category }: { category?: string }) {
                       }`}
                       onClick={() => {
                         setSelectedLeague('all')
-                        setResultsPageIndex(0)
                       }}
                     >
                       All
@@ -357,7 +332,6 @@ function ResultsPageContentStateful({ category }: { category?: string }) {
                         }`}
                         onClick={() => {
                           setSelectedLeague(league)
-                          setResultsPageIndex(0)
                         }}
                       >
                         {league}
@@ -368,68 +342,7 @@ function ResultsPageContentStateful({ category }: { category?: string }) {
               </div>
 
               {filteredResults.length > 0 ? (
-                <>
-                  <div className="results-page__head">
-                    <p>
-                      Showing {resultsPageStart + 1}–
-                      {Math.min(
-                        resultsPageStart + RESULTS_PAGE_SIZE,
-                        filteredResults.length,
-                      )}{' '}
-                      of {filteredResults.length}
-                    </p>
-
-                    {filteredResults.length > RESULTS_PAGE_SIZE ? (
-                      <div
-                        className="results-page__controls"
-                        aria-label="Results pages"
-                      >
-                        <button
-                          type="button"
-                          className="results-page__nav-btn"
-                          onClick={() =>
-                            setResultsPageIndex((current) =>
-                              Math.max(0, current - 1),
-                            )
-                          }
-                          disabled={!canGoPreviousResults}
-                          aria-label="Previous results"
-                        >
-                          ‹
-                        </button>
-
-                        <span>
-                          {resultsPageIndex + 1} / {resultsPageCount}
-                        </span>
-
-                        <button
-                          type="button"
-                          className="results-page__nav-btn"
-                          onClick={() =>
-                            setResultsPageIndex((current) =>
-                              Math.min(resultsPageCount - 1, current + 1),
-                            )
-                          }
-                          disabled={!canGoNextResults}
-                          aria-label="Next results"
-                        >
-                          ›
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="results-page__grid">
-                    {pagedResults.map((match) => (
-                      <MatchCard
-                        key={match.id}
-                        match={match}
-                        teamsMap={teamsMap}
-                        mode="result"
-                      />
-                    ))}
-                  </div>
-                </>
+                <MatchCompetitionGroups key={selectedYear + ':' + selectedLeague} matches={filteredResults} teams={teamsMap} mode="result" />
               ) : (
                 <EmptyState title="No results for this year and league filter" />
               )}

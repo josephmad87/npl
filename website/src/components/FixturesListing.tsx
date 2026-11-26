@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { EmptyState } from './EmptyState'
 import { ErrorNotice } from './ErrorNotice'
-import { MatchCarousel } from './MatchCarousel'
+import { MatchCompetitionGroups } from './MatchCompetitionGroups'
 import { SectionHeader } from './SectionHeader'
 import { Spinner } from './Spinner'
 import type { MatchLite, TeamLite } from '../lib/hooks'
@@ -127,7 +127,7 @@ export function FixturesListing({ category }: FixturesListingProps) {
             <ManagedSiteHtml html={fixturesContent.body_html} />
             {!fixturesLoading && !fixturesError && fixtures.length > 0 ? (
               <p className="fixtures-listing__subtitle">
-                {fixtures.length} scheduled — nearest first · scroll for more
+                {fixtures.length} {fixtures.length === 1 ? 'fixture' : 'fixtures'}
               </p>
             ) : null}
           </div>
@@ -151,14 +151,10 @@ export function FixturesListing({ category }: FixturesListingProps) {
         ) : null}
 
         {!fixturesLoading && !fixturesError && fixtures.length > 0 ? (
-          <MatchCarousel
-            matches={fixtures}
-            teamsMap={teamsMap}
-            mode="fixture"
-            showHeader={false}
-            layout="fixtures-page"
-            filterSlot={teamFilter}
-          />
+          <>
+            <div className="fixtures-listing__filters">{teamFilter}</div>
+            <MatchCompetitionGroups key={selectedTeamId} matches={fixtures} teams={teamsMap} mode="fixture" />
+          </>
         ) : null}
       </section>
 
@@ -186,14 +182,10 @@ export function FixturesListing({ category }: FixturesListingProps) {
         ) : null}
 
         {!resultsQ.isLoading && !resultsQ.isError && latestResults.length > 0 ? (
-          <MatchCarousel
-            title={resultsContent.heading}
-            description={<ManagedSiteHtml html={resultsContent.body_html} />}
-            linkTo={resultsLink}
-            matches={latestResults}
-            teamsMap={teamsMap}
-            mode="result"
-          />
+          <>
+            <SectionHeader title={resultsContent.heading} linkTo={resultsLink} />
+            <MatchCompetitionGroups key={selectedTeamId} matches={latestResults} teams={teamsMap} mode="result" />
+          </>
         ) : null}
       </section>
     </div>

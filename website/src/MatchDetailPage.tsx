@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from '@tanstack/react-router'
 import { preferredScrollBehavior } from '@npl/ui/accessibility'
 import { formatTossSummary } from '@npl/ui/toss-summary'
@@ -8,6 +8,7 @@ import { ErrorNotice } from './components/ErrorNotice'
 import { publicDisplayMatchStatus } from './lib/matchStatus'
 import { InningsScorecardPanels } from './components/InningsScorecardPanels'
 import { SocialShareButtons } from './components/SocialShareButtons'
+import { AddFixtureToCalendar } from './components/AddFixtureToCalendar'
 import { LiveScorePanel } from './components/LiveScorePanel'
 import { MatchStreamPanel } from './components/MatchStreamPanel'
 import { Spinner } from './components/Spinner'
@@ -23,6 +24,7 @@ import {
 import { formatExtrasBreakdown } from './lib/match-extras'
 import { fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { matchSeoPath } from './lib/matchUrls'
+import { matchUrl } from './lib/matchday'
 import { supporterFetch, useSupporterSession } from './lib/supporterApi'
 import { managedSection, useSitePageContent } from './lib/siteContent'
 import { ManagedSiteHtml } from './components/ManagedSiteHtml'
@@ -78,6 +80,7 @@ type MatchDetail = {
   venue: string | null
   match_date: string | null
   start_time: string | null
+  match_overs?: string | number | null
   toss_info: string | null
   umpires: string | null
   description: string | null
@@ -602,6 +605,12 @@ export default function MatchDetailPage() {
     enabled: Boolean(matchId),
     retry: 1,
   })
+  const showScorecard = data?.status === 'completed' && (
+    window.location.hash === '#scorecard' || new URLSearchParams(window.location.search).get('section') === 'scorecard'
+  )
+  useEffect(() => {
+    if (showScorecard) document.getElementById('scorecard')?.scrollIntoView({ block: 'start' })
+  }, [showScorecard, data?.id])
 
   const home = data ? teamsMap[data.home_team_id] : null
   const away = data ? teamsMap[data.away_team_id] : null
@@ -968,7 +977,8 @@ export default function MatchDetailPage() {
         />
         <section className="menu-page match-centre">
           <div className="match-centre-share-row match-centre-share-row--top">
-            <SocialShareButtons title={title} text={shareText} />
+            <SocialShareButtons title={title} text={shareText} url={matchUrl(data.id, isCompletedMatch)} />
+            <AddFixtureToCalendar match={data} title={title} />
           </div>
 
 
@@ -1430,6 +1440,7 @@ export default function MatchDetailPage() {
           ) : null}
 
           <section
+            id="scorecard"
             className="match-centre-scorecard"
             aria-labelledby="match-scorecard-title"
           >
@@ -1437,6 +1448,7 @@ export default function MatchDetailPage() {
               <h2 id="match-scorecard-title" className="match-centre-panel__h">
                 {scorecardContent.heading}
               </h2>
+              {data.result?.score_summary ? <p className="match-centre-scorecard__summary">{data.result.score_summary}</p> : null}
               <ManagedSiteHtml html={scorecardContent.body_html} />
 
               <div
@@ -1453,7 +1465,7 @@ export default function MatchDetailPage() {
                   aria-selected={scorecardInnings === 1}
                   aria-controls="scorecard-panel-1"
                 >
-                  1st innings
+                  {battingFirstTeamId === data.away_team_id ? awayName : homeName}
                 </button>
 
                 <button
@@ -1465,7 +1477,7 @@ export default function MatchDetailPage() {
                   aria-selected={scorecardInnings === 2}
                   aria-controls="scorecard-panel-2"
                 >
-                  2nd innings
+                  {battingFirstTeamId === data.away_team_id ? homeName : awayName}
                 </button>
               </div>
             </div>

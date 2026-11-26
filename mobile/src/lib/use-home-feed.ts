@@ -1,52 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { AppState } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import { Article, Fixture, Team, read } from './feed'
-type Feed = { fixtures: Fixture[]; teams: Team[]; news: Article[]; results: Fixture[]; checkedAt: number }
-export function useHomeFeed(resultLimit = 3, newsLimit = 5) {
-  const CACHE = `npl-public-feed-v4-${resultLimit}-${newsLimit}`
-  const [feed, setFeed] = useState<Feed | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const controller = useRef<AbortController | null>(null)
-  const refresh = useCallback(async () => {
-    controller.current?.abort()
-    const request = new AbortController()
-    controller.current = request
-    const timer = setTimeout(() => request.abort(), 15_000)
-    setLoading(true)
-    try {
-      const [fixtures, teams, news, results] = await Promise.all([
-        read<Fixture>('/public/fixtures?page_size=30', request.signal),
-        read<Team>('/public/teams?page_size=100', request.signal),
-        read<Article>(`/public/news?page_size=${newsLimit}`, request.signal),
-        read<Fixture>(`/public/results?page_size=${resultLimit}`, request.signal),
-      ])
-      if (controller.current !== request) return
-      const next = { fixtures, teams, news, results, checkedAt: Date.now() }
-      setFeed(next); setError(false)
-      await AsyncStorage.setItem(CACHE, JSON.stringify(next)).catch(() => undefined)
-    } catch {
-      if (controller.current === request) setError(true)
-    } finally {
-      clearTimeout(timer)
-      if (controller.current === request) setLoading(false)
-    }
-  }, [resultLimit, newsLimit, CACHE])
-  useEffect(() => {
-    let active = true
-    void AsyncStorage.getItem(CACHE).then(value => {
-      if (active && value) {
-        try { const saved = JSON.parse(value) as Feed
-          if (Array.isArray(saved.fixtures) && Array.isArray(saved.teams) && Array.isArray(saved.news) && Array.isArray(saved.results) && typeof saved.checkedAt === 'number') setFeed(current => current ?? saved)
-        } catch { /* Ignore a damaged cache and use the network. */ }
-      }
-    })
-    // The initial network sync shares loading state with pull-to-refresh.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void refresh()
-    const subscription = AppState.addEventListener('change', state => { if (state === 'active') void refresh() })
-    return () => { active = false; subscription.remove(); controller.current?.abort(); controller.current = null }
-  }, [refresh, CACHE])
-  return { feed, loading, error, refresh }
+import { loadClubs } from './team-data'
+import type { Article, Fixture } from './feed'
+import { usePublic, type Page } from './public-resource'
+import { useTeamResource } from './use-team-resource'
+
+export function useHomeFeed({ includeNews = true, live = false } = {}) {
+  const fixtures = usePublic<Page<Fixture>>('/fixtures?page_size=30', { maxAge: 20_000, poll: live ? 20_000 : 45_000 })
+  const results = usePublic<Page<Fixture>>('/results?page_size=3', { maxAge: 30_000, poll: live ? 30_000 : undefined })
+  const clubs = useTeamResource('clubs-v1', loadClubs, { maxAge: 300_000 })
+  const news = usePublic<Article[]>(includeNews ? '/homepage-news' : null, { maxAge: 30_000 })
+  const refresh = () => Promise.all([fixtures.refresh(), results.refresh(), clubs.refresh(), news.refresh()])
+  return {
+    results: results.data?.items || [],
+    fixtures: fixtures.data?.items || [],
+    teams: clubs.data || [],
+    news: news.data || [],
+    loading: fixtures.loading || results.loading || clubs.loading || news.loading,
+    hasScores: Boolean(fixtures.data || results.data),
+    fixturesCheckedAt: fixtures.checkedAt,
+    fixturesError: fixtures.error,
+    error: fixtures.error || results.error || clubs.error || news.error,
+    refresh,
+  }
 }

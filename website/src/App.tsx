@@ -16,6 +16,7 @@ import { formatCategoryLabel } from './lib/formatters'
 import { editorialGalleryPhotos } from './lib/editorialGallery'
 import { imageCdnSrcSet, imageCdnUrl } from './lib/imageCdn'
 import { matchSeoPath } from './lib/matchUrls'
+import { isUpcomingFixture } from './lib/matchday'
 import { fetchJson, resolveMediaUrl } from './lib/publicApi'
 import { managedSection, useSitePageContent } from './lib/siteContent'
 import { ManagedSiteHtml } from './components/ManagedSiteHtml'
@@ -204,13 +205,6 @@ function isLiveMatch(match: { status?: string | null }): boolean {
   return String(match.status ?? '').toLowerCase() === 'live'
 }
 
-function isTodayMatch(match: {
-  match_date?: string | null
-  start_time?: string | null
-}): boolean {
-  return matchDateKey(match) === localTodayKey()
-}
-
 function categoryGroup(category: string | null | undefined): HomeFixtureCategory {
   const value = String(category ?? '').trim().toLowerCase()
 
@@ -266,57 +260,33 @@ function dateDifferenceFromToday(match: {
 }
 
 function countdownLabel(
-  tab: HomeFixtureTab,
   match: {
     status?: string | null
     match_date?: string | null
     start_time?: string | null
   },
 ): string {
-  if (tab === 'results') return 'Latest result'
+  if (match.status === 'completed') return 'Final'
   if (isLiveMatch(match)) return 'Live now'
 
   const diff = dateDifferenceFromToday(match)
 
-  if (diff == null) return 'Fixture scheduled'
-  if (diff <= 0) return 'Starts today'
-  if (diff === 1) return 'Starts tomorrow'
+  if (diff == null) return 'Upcoming'
+  if (diff <= 0) return 'Upcoming · Today'
+  if (diff === 1) return 'Upcoming · Tomorrow'
 
-  return `Starts in ${diff} days`
-}
-
-function tabMatches(
-  tab: HomeFixtureTab,
-  match: {
-    status?: string | null
-    match_date?: string | null
-    start_time?: string | null
-  },
-): boolean {
-  if (tab === 'matchday') {
-    return isLiveMatch(match) || isTodayMatch(match)
-  }
-
-  if (tab === 'upcoming') {
-    if (isLiveMatch(match) || isTodayMatch(match)) return false
-
-    const diff = dateDifferenceFromToday(match)
-
-    return diff == null || diff > 0
-  }
-
-  return true
+  return 'Upcoming'
 }
 
 function fixtureHubEmptyTitle(tab: HomeFixtureTab): string {
-  if (tab === 'matchday') return 'No matchday action right now'
+  if (tab === 'matchday') return 'No matches published yet'
   if (tab === 'results') return 'No results published yet'
   return 'No upcoming fixtures yet'
 }
 
 function fixtureHubEmptyBody(tab: HomeFixtureTab): string {
   if (tab === 'matchday') {
-    return 'No live or today fixtures are listed. Check Next Up for upcoming matches.'
+    return 'Live matches, confirmed fixtures and results will appear here.'
   }
 
   if (tab === 'results') {
@@ -790,11 +760,16 @@ const selectedSpotlightTeam = useMemo(() => {
   return spotlightTeamCandidates[spotlightSlot % spotlightTeamCandidates.length]
 }, [spotlightSlot, spotlightTeamCandidates])
   
+  const confirmed = useMemo(() => upcomingFixtures
+    .filter(match => categoryMatches(match.category, fixtureCategory) &&
+      (isUpcomingFixture(match) || fixtureTab === 'matchday' && isLiveMatch(match)))
+    .sort((left, right) => Number(isLiveMatch(right)) - Number(isLiveMatch(left)) || matchTimeValue(left) - matchTimeValue(right)),
+  [fixtureCategory, fixtureTab, upcomingFixtures])
+  const showResults = fixtureTab === 'results' || fixtureTab === 'matchday' && confirmed.length === 0
   const fixtureHubMatches = useMemo(() => {
-    const source = fixtureTab === 'results' ? latestResults : upcomingFixtures
+    const source = showResults ? latestResults : confirmed
 
     return source
-      .filter((match) => tabMatches(fixtureTab, match))
       .filter((match) => categoryMatches(match.category, fixtureCategory))
       .slice(0, 12)
       .map((match) => {
@@ -817,15 +792,16 @@ const selectedSpotlightTeam = useMemo(() => {
       })
   }, [
     fixtureCategory,
-    fixtureTab,
+    showResults,
     latestResults,
     liveScoresByMatchId,
     teamsMap,
-    upcomingFixtures,
+    confirmed,
   ])
 
-  const featuredHubMatch = fixtureHubMatches[0] as HomeHubMatch | undefined
-  const fixtureHubMode = fixtureTab === 'results' ? 'result' : 'fixture'
+  const featuredHubMatch = fixtureHubMatches[0]
+  const fixtureHubMode = showResults ? 'result' : 'fixture'
+  const matchListPath = showResults ? '/results' : '/fixtures'
   const fixtureHubTitle =
     fixtureTabs.find((tab) => tab.id === fixtureTab)?.label ?? 'Fixtures'
 
@@ -1051,16 +1027,15 @@ useEffect(() => {
       <section className="home-section home-fixture-hub home-fixture-hub--premium">
         <div className="home-fixture-hub__topline">
           <div>
-            <p className="home-fixture-hub__eyebrow">Match centre</p>
             <h2>{fixtureContent.heading}</h2>
             <ManagedSiteHtml html={fixtureContent.body_html} className="home-fixture-hub__managed-copy" />
           </div>
 
           <Link
-            to={fixtureTab === 'results' ? '/results' : '/fixtures'}
+            to={matchListPath}
             className="home-fixture-hub__main-link"
           >
-            {fixtureTab === 'results' ? 'All results' : 'All fixtures'}
+            {showResults ? 'All results' : 'All fixtures'}
           </Link>
         </div>
 
@@ -1069,7 +1044,7 @@ useEffect(() => {
             {featuredHubMatch ? (
               <>
                 <div className="home-fixture-hub__countdown">
-                  {countdownLabel(fixtureTab, featuredHubMatch)}
+                  {countdownLabel(featuredHubMatch)}
                 </div>
 
                 <div className="home-fixture-hub__teams">
@@ -1083,29 +1058,19 @@ useEffect(() => {
                   <span>{featuredHubMatch.venue || 'Venue TBC'}</span>
                 </div>
 
-                {featuredLiveText ? (
+                {featuredLiveText || featuredHubMatch.result?.score_summary ? (
                   <div className="home-fixture-hub__live-score">
-                    <span>Live score</span>
-                    <strong>{featuredLiveText.score}</strong>
-                    <p>{featuredLiveText.status}</p>
+                    <strong>{featuredLiveText?.score || featuredHubMatch.result?.score_summary}</strong>
+                    {featuredLiveText?.status || featuredHubMatch.result?.margin_text
+                      ? <p>{featuredLiveText?.status || featuredHubMatch.result?.margin_text}</p> : null}
                   </div>
                 ) : null}
 
                 <a
-                  href={
-                    featuredLiveText
-                      ? featuredMatchCentreHref
-                      : fixtureTab === 'results'
-                        ? '/results'
-                        : '/fixtures'
-                  }
+                  href={featuredMatchCentreHref + (featuredHubMatch.status === 'completed' ? '#scorecard' : '')}
                   className="home-fixture-hub__feature-link"
                 >
-                  {featuredLiveText
-                    ? 'Open live scorecard'
-                    : fixtureTab === 'results'
-                      ? 'View results'
-                      : 'View fixtures'}
+                  {featuredHubMatch.status === 'completed' ? 'Open scorecard' : 'Open match centre'}
                 </a>
               </>
             ) : (
@@ -1162,9 +1127,6 @@ useEffect(() => {
               ))}
             </div>
 
-            <p className="home-fixture-hub__hint">
-              Switch tabs and categories to quickly find the games that matter.
-            </p>
           </div>
         </div>
 
@@ -1172,7 +1134,7 @@ useEffect(() => {
           <div className="home-fixture-hub__carousel">
             <MatchCarousel
               title={fixtureHubTitle}
-              linkTo={fixtureTab === 'results' ? '/results' : '/fixtures'}
+              linkTo={matchListPath}
               matches={fixtureHubMatches}
               teamsMap={teamsMap}
               mode={fixtureHubMode}
@@ -1180,6 +1142,16 @@ useEffect(() => {
             />
           </div>
         ) : null}
+      </section>
+
+      <section className="home-section home-standings" aria-labelledby="home-standings-title">
+        <h2 id="home-standings-title">Standings &amp; stats</h2>
+        <div className="home-standings__links">
+          <a href="/leagues/npl-super-40#league-tab-standings">Men’s Super40</a>
+          <a href="/leagues/npl-t20-blast#league-tab-standings">T20 Blast</a>
+          <a href="/leagues/womens-npl#league-tab-standings">Women’s NPL</a>
+          <a href="/leagues/youth-national-premier-league#league-tab-standings">Youth NPL</a>
+        </div>
       </section>
 
       <HomeNewsCarousel

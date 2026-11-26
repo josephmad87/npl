@@ -1,0 +1,13 @@
+{
+  "name": "NPL Zimbabwe",
+  "short_name": "NPL Zimbabwe",
+  "start_url": "/my-npl",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f1ed",
+  "theme_color": "#551725",
+  "icons": [
+    { "src": "/npl-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/npl-icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

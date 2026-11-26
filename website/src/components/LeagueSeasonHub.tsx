@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { EmptyState } from './EmptyState'
 import { ErrorNotice } from './ErrorNotice'
-import { LeagueHeroBar } from './LeagueHeroBar'
+import { LeagueHeroBar, type Section as SeasonSection } from './LeagueHeroBar'
 import { LeagueStatsPanel } from './LeagueStatsPanel'
 import { MatchCard } from './MatchCard'
 import { PageHero } from './PageHero'
@@ -55,7 +56,6 @@ type SeasonDetail = {
 type StandingAdjustment = { team_id: number; points_delta: number }
 
 type StandingSortMode = 'points' | 'nrr' | 'wins' | 'played' | 'form' | 'team'
-type SeasonSection = 'fixtures' | 'results' | 'stats' | 'standings'
 
 type StandingRowItem = ReturnType<typeof computeSeasonStandings>[number]
 
@@ -64,9 +64,7 @@ type MatchResultLike = {
   winning_team_id?: number | null
 }
 
-const SEASON_RESULTS_BATCH_SIZE = 6
-const SEASON_FIXTURES_INITIAL_COUNT = 8
-const SEASON_FIXTURES_BATCH_SIZE = 4
+const MATCHES_PER_BATCH = 5
 
 const standingSortOptions: Array<{ value: StandingSortMode; label: string }> = [
   { value: 'points', label: 'Points' },
@@ -201,9 +199,12 @@ export function LeagueSeasonHub({
 }) {
   const { map: teamsMap } = useTeamsMap()
   const [selectedSeasonSlug, setSelectedSeasonSlug] = useState<string | null>(null)
-  const [section, setSection] = useState<SeasonSection>('fixtures')
-  const [visibleResultCount, setVisibleResultCount] = useState(SEASON_RESULTS_BATCH_SIZE)
-  const [visibleFixtureCount, setVisibleFixtureCount] = useState(SEASON_FIXTURES_INITIAL_COUNT)
+  const [section, setSection] = useState<SeasonSection>(() => {
+    const fromLink = window.location.hash.replace('#league-tab-', '')
+    return fromLink === 'results' || fromLink === 'standings' || fromLink === 'stats' || fromLink === 'teams' ? fromLink : 'fixtures'
+  })
+  const [visibleResultCount, setVisibleResultCount] = useState(MATCHES_PER_BATCH)
+  const [visibleFixtureCount, setVisibleFixtureCount] = useState(MATCHES_PER_BATCH)
 
   const [standingsSort, setStandingsSort] = useState<StandingSortMode>('points')
   const contentQ = useSitePageContent('league-season')
@@ -385,8 +386,8 @@ export function LeagueSeasonHub({
           selectedSeasonSlug={activeSeasonSlug}
           selectedLeagueSlug={leagueSlug}
           onSeasonSlugChange={(s) => {
-            setVisibleResultCount(SEASON_RESULTS_BATCH_SIZE)
-            setVisibleFixtureCount(SEASON_FIXTURES_INITIAL_COUNT)
+            setVisibleResultCount(MATCHES_PER_BATCH)
+            setVisibleFixtureCount(MATCHES_PER_BATCH)
             if (onSeasonSlugNavigate) {
               onSeasonSlugNavigate(s)
             } else {
@@ -480,10 +481,10 @@ export function LeagueSeasonHub({
                         type="button"
                         className="league-season-results__load-more"
                         onClick={() => {
-                          setVisibleFixtureCount((current) => current + SEASON_FIXTURES_BATCH_SIZE)
+                          setVisibleFixtureCount((current) => current + MATCHES_PER_BATCH)
                         }}
                       >
-                        Load More
+                        Show 5 more fixtures
                       </button>
                     ) : null}
                   </div>
@@ -513,14 +514,25 @@ export function LeagueSeasonHub({
                         type="button"
                         className="league-season-results__load-more"
                         onClick={() => {
-                          setVisibleResultCount((current) => current + SEASON_RESULTS_BATCH_SIZE)
+                          setVisibleResultCount((current) => current + MATCHES_PER_BATCH)
                         }}
                       >
-                        Load More
+                        Show 5 more results
                       </button>
                     ) : null}
                   </div>
                 )
+              ) : section === 'teams' ? (
+                teamIds.length ? <ul className="season-team-list">
+                  {teamIds.map(id => {
+                    const team = teamsMap[id]
+                    const logo = resolveMediaUrl(team?.logo_url)
+                    return <li key={id}>
+                      {logo ? <img src={logo} alt="" loading="lazy" width={36} height={36} /> : null}
+                      {team?.slug ? <Link to="/teams/$slug" params={{ slug: team.slug }}>{team.name}</Link> : teamDisplayName(teamsMap, id)}
+                    </li>
+                  })}
+                </ul> : <EmptyState title="No teams are registered for this season." />
               ) : section === 'standings' ? (
                 resultsQ.isLoading ? (
                   <Spinner label="Loading standings..." />

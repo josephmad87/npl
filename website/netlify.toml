@@ -3,6 +3,10 @@ command = "npm run build"
 publish = "dist"
 edge_functions = "netlify/edge-functions"
 
+[context.production.environment]
+VITE_API_BASE_URL = "https://npl-dbd64439b135.herokuapp.com/api/v1"
+VITE_APP_ENV = "production"
+
 [context.deploy-preview.environment]
 VITE_APP_ENV = "preview"
 
@@ -39,6 +43,12 @@ for = "/index.html"
 
   [headers.values]
   Cache-Control = "no-cache"
+
+[[headers]]
+for = "/.well-known/*"
+
+  [headers.values]
+  Content-Type = "application/json"
 
 [[redirects]]
 from = "/*"

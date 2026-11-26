@@ -4,7 +4,8 @@ import { Link, useLocalSearchParams } from 'expo-router'
 import { colors } from '../theme'
 import { clubPath, divisionLabel, teamRequest, type Club } from '../lib/team-data'
 import { useTeamResource } from '../lib/use-team-resource'
-import { BackLink, ProfileFollow, ResourceState, TeamEmblem } from '../components/team-ui'
+import { BackLink, ResourceState, TeamEmblem } from '../components/team-ui'
+import { FollowButton } from '../components/follow-button'
 import { TeamMatches, TeamSquad, TeamStats } from '../components/team-panels'
 type Section = 'Overview' | 'Squad' | 'Matches' | 'Stats'
 const sections: Section[] = ['Overview', 'Squad', 'Matches', 'Stats']
@@ -18,7 +19,7 @@ export default function TeamProfileScreen() {
     <BackLink label="Teams" fallback="/account/teams" />
     {!club || error ? <ResourceState loading={loading && !club} error={error} retry={() => void refresh()} /> : null}
     {club ? <>
-      <View style={s.identity}><View style={s.top}><TeamEmblem name={club.name} uri={club.logo_url} size={72} /><Text style={s.division}>{club.category === 'youth' ? 'YOUTH CRICKET' : `${divisionLabel(club.category).toUpperCase()}’S CRICKET`}</Text></View><Text accessibilityRole="header" style={s.title}>{club.name}</Text>{club.home_ground_location ? <Text style={s.location}>{club.home_ground_location}</Text> : null}<ProfileFollow slug={club.slug} /></View>
+      <View style={s.identity}><View style={s.top}><TeamEmblem name={club.name} uri={club.logo_url} size={72} /><Text style={s.division}>{club.category === 'youth' ? 'YOUTH CRICKET' : `${divisionLabel(club.category).toUpperCase()}’S CRICKET`}</Text></View><Text accessibilityRole="header" style={s.title}>{club.name}</Text>{club.home_ground_location ? <Text style={s.location}>{club.home_ground_location}</Text> : null}<FollowButton kind="team" id={club.id} /></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabs}>{sections.map(value => <Pressable key={value} accessibilityRole="tab" accessibilityState={{ selected: section === value }} onPress={() => setSection(value)} style={[s.tab, section === value && s.activeTab]}><Text style={[s.tabText, section === value && s.activeText]}>{value}</Text></Pressable>)}</ScrollView>
       {section === 'Overview' ? <View style={s.section}><Text accessibilityRole="header" style={s.heading}>Club information</Text><View style={s.facts}><Text style={s.label}>HOME GROUND</Text><Text style={s.fact}>{club.home_ground_name || club.home_ground || 'Not yet published'}</Text><View style={s.factPair}>{[['CAPTAIN', club.captain], ['COACH', club.coach]].map(([label, value]) => <View key={label} style={s.factPart}><Text style={s.label}>{label}</Text><Text style={s.fact}>{value || 'Not yet published'}</Text></View>)}</View></View>{club.description ? <Text style={s.description}>{club.description.replace(/<[^>]*>/g, '')}</Text> : null}<Pressable accessibilityRole="button" onPress={() => setSection('Squad')} style={s.squad}><View style={s.squadText}><Text style={s.fact}>Meet the squad</Text><Text style={s.location}>Players, roles and profiles</Text></View><Text style={s.arrow}>›</Text></Pressable><Text style={s.note}>Club details from published NPL records</Text></View> : section === 'Squad' ? <TeamSquad club={club} /> : section === 'Matches' ? <TeamMatches club={club} /> : <TeamStats club={club} />}
       <Link href="/account/teams" style={s.directory}>Browse all teams →</Link>
