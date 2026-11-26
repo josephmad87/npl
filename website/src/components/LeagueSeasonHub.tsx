@@ -571,11 +571,11 @@ export function LeagueSeasonHub({
     <th scope="col">NR</th>
     <th scope="col">For</th>
     <th scope="col">Against</th>
-    <th scope="col">NRR</th>
     <th scope="col">Bat BP</th>
     <th scope="col">Chase BP</th>
-    <th scope="col">Pts</th>
     <th scope="col">Form</th>
+    <th scope="col">Pts</th>
+    <th scope="col">NRR</th>
   </tr>
 </thead>
        <tbody>
@@ -600,10 +600,8 @@ export function LeagueSeasonHub({
         <td className="league-standings-table__ro">
           {formatRunsOversLine(row.runsAgainst, row.ballsBowled)}
         </td>
-        <td>{formatStandingsNrr(row.nrr)}</td>
         <td>{row.battingBonusPoints}</td>
         <td>{row.chaseBonusPoints}</td>
-        <td className="league-standings-table__pts">{row.points}</td>
         <td className="league-standings-table__form">
           {form.length > 0 ? (
             form.map((item, formIndex) => (
@@ -627,6 +625,8 @@ export function LeagueSeasonHub({
             <span className="league-form-empty">—</span>
           )}
         </td>
+        <td className="league-standings-table__pts">{row.points}</td>
+        <td>{formatStandingsNrr(row.nrr)}</td>
       </tr>
     )
   })}

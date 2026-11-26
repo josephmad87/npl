@@ -141,11 +141,12 @@ function SeasonAnalysis({ leaguePath, season, section, clubs }: {
     <Text accessibilityRole="header" style={ui.heading}>{section === 'standings' ? 'Points table' : 'Player stats'}</Text>
     <LoadState loading={!ready && !error} error={error} retry={retry} />
     {ready && section === 'standings' ? standings.length ? <>
-      <NativeTable columns={['Team', 'P', 'W', 'Pts', 'NRR', 'L', 'T', 'NR', 'BP']} rows={standings.map((row, index) => {
+      <NativeTable columns={['Team', 'P', 'W', 'L', 'T', 'NR', 'BP', 'Pts', 'NRR']} rows={standings.map((row, index) => {
         const club = clubsById.get(row.teamId)
         return { id: row.teamId, path: club ? '/teams/' + club.slug : undefined,
           cells: [String(index + 1) + '  ' + (club?.short_name || club?.name || 'Team ' + row.teamId),
-            ...[row.played, row.won, row.points, formatStandingsNrr(row.nrr), row.lost, row.tied, row.nr, row.battingBonusPoints + row.chaseBonusPoints].map(String)] }
+            ...[row.played, row.won, row.lost, row.tied, row.nr, row.battingBonusPoints + row.chaseBonusPoints,
+              row.points, formatStandingsNrr(row.nrr)].map(String)] }
       })} />
       <Text style={ui.muted}>P Played · W Won · Pts Points · NRR Net run rate. Swipe the table for further columns.</Text>
     </> : <Text style={ui.muted}>No teams are registered for this season.</Text> : null}
