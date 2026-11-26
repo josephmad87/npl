@@ -86,7 +86,7 @@ function SeasonTeams({ leaguePath, season, clubs, loading, error, retry }: {
       empty={resource.data && !resource.data.team_ids.length ? 'No teams are registered for this season.' : undefined} />
     {teams.length ? <View style={s.grid}>
       {teams.map(club => <SiteLink key={club.id} path={'/teams/' + club.slug} asChild push>
-        <Pressable accessibilityRole="link" style={[ui.panel, s.club]}>
+        <Pressable accessibilityRole="link" style={StyleSheet.flatten([ui.panel, s.club])}>
           <TeamEmblem name={club.name} uri={club.logo_url} size={32} />
           <Text style={[ui.rowTitle, s.clubName]}>{club.short_name || club.name}</Text>
         </Pressable>

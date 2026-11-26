@@ -89,7 +89,7 @@ export function SearchScreen({ initialQuery, initialFilter }: { initialQuery: st
     {data?.groups.filter(group => group.items.length).map(group => <View key={group.label} style={s.group}>
       <Text accessibilityRole="header" style={ui.heading}>{group.label}</Text>
       <View style={ui.menu}>
-        {group.items.map(item => <SiteLink key={item.id} path={item.path} asChild push><Pressable accessibilityRole="link" style={[ui.row, s.result]}>
+        {group.items.map(item => <SiteLink key={item.id} path={item.path} asChild push><Pressable accessibilityRole="link" style={StyleSheet.flatten([ui.row, s.result])}>
           {item.image ? <TeamEmblem name={item.title} uri={item.image} size={36} /> : null}
           <View style={s.fill}><Text style={ui.rowTitle}>{item.title}</Text>{item.detail ? <Text style={ui.muted}>{item.detail}</Text> : null}</View>
           <Text style={ui.link} accessible={false}>›</Text>

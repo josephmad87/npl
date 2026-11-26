@@ -1,4 +1,4 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Image, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { colors } from '../theme'
@@ -14,9 +14,9 @@ export function AppHeader() {
         <View style={s.wordmark}><Text style={s.title}>NPL ZIMBABWE</Text><Text style={s.subtitle}>NATIONAL PREMIER LEAGUE</Text></View>
       </Pressable>
       <SiteLink path="/search" asChild push>
-        <Pressable accessibilityRole="button" accessibilityLabel="Search app" style={({ pressed }) => [s.iconButton, pressed && s.pressed]}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Search app" style={s.iconButton}>
           <View style={s.lens}><View style={s.handle} /></View>
-        </Pressable>
+        </TouchableOpacity>
       </SiteLink>
       <Pressable accessibilityRole="button" accessibilityLabel="Open My NPL" onPress={() => router.navigate('/account')} style={({ pressed }) => [s.iconButton, pressed && s.pressed]}>
         <View style={s.personHead} /><View style={s.personBody} />

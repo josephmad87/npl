@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
+import { FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { SiteLink } from '../components/app-link'
 import { ResourceState } from '../components/team-ui'
@@ -32,7 +32,7 @@ export function CompetitionRow({ league, teams, section }: { league: Tournament;
   const context = match && [date, [match.home_team_id, match.away_team_id].map(id =>
     shortTeamName(matchName(match, teams, id))).join(' vs ')].filter(Boolean).join(' · ')
   return <SiteLink path={'/leagues/' + league.slug} section={section} asChild push>
-    <Pressable accessibilityRole="link" style={({ pressed }) => [s.card, pressed && s.pressed]}>
+    <TouchableOpacity accessibilityRole="link" style={s.card}>
       <View style={s.cardRow}>
         {label ? <View style={s.badge}><Text style={s.badgeText}>{label.badge}</Text></View> : null}
         <View style={s.details}>
@@ -42,7 +42,7 @@ export function CompetitionRow({ league, teams, section }: { league: Tournament;
         <Text style={s.arrow} accessible={false}>›</Text>
       </View>
       {context ? <Text style={s.context}>{mode === 'results' ? 'Latest · ' : 'Next · '}{context}</Text> : null}
-    </Pressable>
+    </TouchableOpacity>
   </SiteLink>
 }
 
@@ -92,7 +92,6 @@ export const tournamentStyles = StyleSheet.create({
   subtitle: { color: colors.muted, fontSize: 13 },
   name: { fontSize: 16, fontWeight: '700', color: colors.ink },
   context: { paddingTop: 7, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line, color: colors.muted, fontSize: 12 },
-  pressed: { opacity: 0.72 },
   arrow: { fontSize: 22, color: colors.brand },
   action: { minHeight: 46, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', padding: 10 },
   actionText: { color: colors.brand, fontWeight: '800' },

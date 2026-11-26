@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { SiteLink } from './app-link'
 import { TeamEmblem } from './team-ui'
 import { chaseEquation, teamScore } from '../lib/match-score'
@@ -44,7 +44,7 @@ export function MatchCard({ match, teams, featured = false, compact = false, det
   const innings = playing ? live?.summaries ?? [] : []
   const current = innings.find(value => value.innings === live?.current_innings) ?? innings.at(-1)
   const first = innings.find(value => value.innings === 1)
-  const chase = current?.innings === 2 && current.legal_balls !== undefined && (first || live?.revised_target_runs != null)
+  const chase = current?.innings === 2 && current.wickets < 10 && current.legal_balls !== undefined && (first || live?.revised_target_runs != null)
     ? chaseEquation(live?.revised_target_runs ?? ((first?.runs ?? 0) + 1), current.runs, current.legal_balls, live?.match_overs ?? match.match_overs)
     : undefined
   const outcome = winner && finished
@@ -94,10 +94,9 @@ export function MatchCard({ match, teams, featured = false, compact = false, det
   </View>
   if (detail) return content
   return <SiteLink path={'/matches/' + match.id} section={finished ? 'scorecard' : undefined} asChild push>
-    <Pressable accessibilityRole="link" accessibilityLabel={teamsForMatch.map(id => matchName(match, teams, id)).join(' versus ') + '. ' + [statusLabel, date, outcome].filter(Boolean).join('. ') + (finished ? '. Open scorecard.' : '. Open match centre.')}
-      style={({ pressed }) => pressed && s.pressed}>
+    <TouchableOpacity accessibilityRole="link" accessibilityLabel={teamsForMatch.map(id => matchName(match, teams, id)).join(' versus ') + '. ' + [statusLabel, date, outcome].filter(Boolean).join('. ') + (finished ? '. Open scorecard.' : '. Open match centre.')}>
       {content}
-    </Pressable>
+    </TouchableOpacity>
   </SiteLink>
 }
 
@@ -133,5 +132,4 @@ const s = StyleSheet.create({
   balls: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5 },
   ball: { minWidth: 25, textAlign: 'center', paddingVertical: 4, paddingHorizontal: 4, backgroundColor: colors.brandTint, color: colors.ink, borderRadius: 6, overflow: 'hidden', fontWeight: '700', fontSize: 11 },
   wicket: { backgroundColor: '#fce5e1', color: colors.danger },
-  pressed: { opacity: 0.83 },
 })

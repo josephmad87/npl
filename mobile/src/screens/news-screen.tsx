@@ -55,7 +55,7 @@ function NewsList({ items, hasMore, loadingMore, moreError, more, loading, error
 export function StoryCard({ story, compact }: { story: Story; compact?: boolean }) {
   const date = formatDate(story.published_at || story.created_at, true)
   return <SiteLink path={'/news/' + story.slug} asChild>
-    <Pressable accessibilityRole="link" style={[ui.panel, compact && s.compact]}>
+    <Pressable accessibilityRole="link" style={StyleSheet.flatten([ui.panel, compact && s.compact])}>
       {story.featured_image_url ? <View style={compact ? s.thumbnail : undefined}><MediaImage source={story.featured_image_url} aspect={compact ? 1.16 : 1.85} /></View> : null}
       <View style={s.fill}>
         <Text style={compact ? ui.rowTitle : ui.heading}>{story.title}</Text>
