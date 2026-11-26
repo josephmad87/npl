@@ -231,6 +231,17 @@ def test_following_secure_fan_vote_and_notification_idempotency() -> None:
         assert client.put(f"/api/v1/supporters/follows/teams/{home_id}", headers=headers).status_code == 204
         follows = client.get("/api/v1/supporters/follows", headers=headers).json()
         assert [team["name"] for team in follows["teams"]] == ["Home Club"]
+        assert client.get("/api/v1/supporters/followed-matches").status_code == 401
+        followed = client.get("/api/v1/supporters/followed-matches", headers=headers)
+        assert followed.status_code == 200
+        assert [item["id"] for item in followed.json()["upcoming"]] == [match_id]
+        assert followed.json()["recent"] == []
+        device = client.post("/api/v1/supporters/devices", headers=headers, json={
+            "provider": "expo", "platform": "ios", "device_token": "ExpoPushToken[simulated_device]",
+        })
+        assert device.status_code == 200
+        assert "device_token" not in device.json()
+        assert [row["id"] for row in client.get("/api/v1/supporters/devices", headers=headers).json()] == [device.json()["id"]]
 
         with sessions() as db:
             assert queue_fan_match_notifications(db, now=now) == 1
@@ -266,6 +277,9 @@ def test_following_secure_fan_vote_and_notification_idempotency() -> None:
         )
         assert vote.status_code == 200, vote.text
         assert vote.json()["voter_player_id"] == player_id
+        followed = client.get("/api/v1/supporters/followed-matches", headers=headers).json()
+        assert followed["upcoming"] == []
+        assert [item["id"] for item in followed["recent"]] == [match_id]
         with sessions() as db:
             assert db.scalar(select(func.count()).select_from(FanPlayerMatchVote)) == 1
             assert queue_fan_match_notifications(db, now=now) == 1

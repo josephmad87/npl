@@ -90,7 +90,7 @@ class SupporterFollowsOut(BaseModel):
 
 
 class FanPushDeviceIn(BaseModel):
-    provider: str = Field(pattern="^(fcm|apns|web)$")
+    provider: str = Field(pattern="^(fcm|apns|expo|web)$")
     platform: str = Field(pattern="^(ios|android|web)$")
     device_token: str = Field(min_length=16, max_length=4096)
 

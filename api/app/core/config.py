@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     # If unset, rows remain in the in-app notification inbox/outbox.
     fan_push_gateway_url: str | None = None
     fan_push_gateway_token: str | None = None
+    fan_notification_worker_enabled: bool = False
+    fan_expo_push_enabled: bool = False
+    fan_expo_access_token: str | None = None
+    fan_web_push_public_key: str | None = None
+    fan_web_push_private_key: str | None = None
+    fan_web_push_contact: str = "https://npl.co.zw/support"
 
     @field_validator("app_environment")
     @classmethod
@@ -79,6 +85,8 @@ class Settings(BaseSettings):
 
         if bool(self.fan_push_gateway_url) != bool(self.fan_push_gateway_token):
             raise ValueError("FAN_PUSH_GATEWAY_URL and FAN_PUSH_GATEWAY_TOKEN must be set together")
+        if bool(self.fan_web_push_public_key) != bool(self.fan_web_push_private_key):
+            raise ValueError("FAN_WEB_PUSH_PUBLIC_KEY and FAN_WEB_PUSH_PRIVATE_KEY must be set together")
 
         if self.app_environment not in {"staging", "production"}:
             return self

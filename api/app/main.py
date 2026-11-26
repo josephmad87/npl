@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager, suppress
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -12,11 +15,38 @@ from starlette.staticfiles import StaticFiles
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.observability import configure_error_monitoring
-from app.db.session import engine
+from app.db.session import SessionLocal, engine
+from app.services.fan_notifications import dispatch_fan_notifications, queue_fan_match_notifications
 from app.services.rate_limit import check_rate_limit
 
 settings = get_settings()
 configure_error_monitoring(settings)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    def process_alerts():
+        with SessionLocal() as db:
+            queue_fan_match_notifications(db)
+            dispatch_fan_notifications(db, settings)
+
+    async def process_regularly():
+        while True:
+            try:
+                await asyncio.to_thread(process_alerts)
+            except Exception:
+                logging.getLogger(__name__).exception("Could not process supporter match alerts")
+            await asyncio.sleep(600)
+
+    worker = asyncio.create_task(process_regularly()) if settings.fan_notification_worker_enabled else None
+    try:
+        yield
+    finally:
+        if worker:
+            worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await worker
+
 
 app = FastAPI(
     title=settings.app_name,
@@ -25,6 +55,7 @@ app = FastAPI(
     openapi_url=None if settings.app_environment == "production" else f"{settings.api_v1_prefix}/openapi.json",
     docs_url=None if settings.app_environment == "production" else f"{settings.api_v1_prefix}/docs",
     redoc_url=None if settings.app_environment == "production" else f"{settings.api_v1_prefix}/redoc",
+    lifespan=lifespan,
 )
 
 _cors = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
@@ -49,6 +80,8 @@ async def security_headers(request: Request, call_next):
                 check_rate_limit(request, scope="supporter-register", limit=5, window_seconds=60 * 60)
             elif path == f"{prefix}/supporters/auth/login":
                 check_rate_limit(request, scope="supporter-login", limit=20, window_seconds=15 * 60)
+            elif path == f"{prefix}/supporters/devices":
+                check_rate_limit(request, scope="supporter-device", limit=30, window_seconds=15 * 60)
             elif path == f"{prefix}/supporters/engagement":
                 check_rate_limit(request, scope="fan-engagement", limit=120, window_seconds=60)
         response = await call_next(request)

@@ -1,15 +1,18 @@
 from datetime import datetime, timezone
 from hashlib import sha256
 import hmac
+import json
 import secrets
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.deps import get_current_supporter, get_optional_supporter
 from app.api.pagination import PageParams, paginate_select, to_paginated
+from app.api.v1.public_routes import _public_match_detail
 from app.core.config import get_settings
 from app.core.security import (
     create_access_token,
@@ -19,6 +22,8 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import get_db
+from app.models.league import Season
+from app.models.match import Match
 from app.models.merchandise import MerchandiseOrder
 from app.models.player import Player
 from app.models.supporter import (
@@ -46,6 +51,7 @@ from app.schemas.supporters import (
     SupporterTokenOut,
     SupporterTokenRefreshIn,
 )
+from app.services.fan_push import expo_push_token, web_push_subscription
 
 router = APIRouter(prefix="/supporters", tags=["supporters"])
 DUMMY_PASSWORD_HASH = "$2b$12$VJp5D0ojQ2kQiN1lCyUG0.qHHQ0WWCOmc5GWzqVJibhdMb4RiAGMK"
@@ -335,6 +341,67 @@ def unfollow_player(
     return Response(status_code=204)
 
 
+@router.get("/followed-matches", response_model=dict)
+def followed_matches(
+    response: Response,
+    account: SupporterAccount = Depends(get_current_supporter),
+    db: Session = Depends(get_db),
+) -> dict:
+    response.headers["Cache-Control"] = "private, no-store"
+    followed = select(SupporterTeamFollow.team_id).where(SupporterTeamFollow.supporter_id == account.id)
+    base = (
+        select(Match)
+        .options(
+            joinedload(Match.home_team),
+            joinedload(Match.away_team),
+            joinedload(Match.season).joinedload(Season.league),
+            joinedload(Match.result),
+            selectinload(Match.player_stats),
+        )
+        .where(
+            Match.is_published.is_(True),
+            or_(Match.home_team_id.in_(followed), Match.away_team_id.in_(followed)),
+        )
+    )
+    now = _now()
+    today = now.astimezone(ZoneInfo("Africa/Harare")).date()
+    upcoming = db.scalars(
+        base.where(
+            Match.status == "scheduled",
+            or_(Match.match_date >= today, and_(Match.match_date.is_(None), Match.start_time >= now)),
+        )
+        .order_by(Match.match_date.asc().nullslast(), Match.start_time.asc().nullslast(), Match.id)
+        .limit(3)
+    ).all()
+    recent = db.scalars(
+        base.where(Match.status == "completed")
+        .order_by(Match.match_date.desc().nullslast(), Match.id.desc())
+        .limit(3)
+    ).all()
+    return {
+        "upcoming": [_public_match_detail(db, match) for match in upcoming],
+        "recent": [_public_match_detail(db, match) for match in recent],
+    }
+
+
+@router.get("/device-settings")
+def device_settings() -> dict:
+    settings = get_settings()
+    return {
+        "expo_enabled": settings.fan_notification_worker_enabled and settings.fan_expo_push_enabled,
+        "web_public_key": settings.fan_web_push_public_key if settings.fan_notification_worker_enabled else None,
+    }
+
+
+@router.get("/devices", response_model=list[FanPushDeviceOut])
+def supporter_devices(
+    account: SupporterAccount = Depends(get_current_supporter), db: Session = Depends(get_db)
+) -> list[FanPushDevice]:
+    return list(
+        db.scalars(select(FanPushDevice).where(FanPushDevice.supporter_id == account.id, FanPushDevice.enabled.is_(True))).all()
+    )
+
+
 @router.post("/devices", response_model=FanPushDeviceOut)
 def register_push_device(
     body: FanPushDeviceIn,
@@ -349,7 +416,15 @@ def register_push_device(
                 "message": "Enable match notifications before registering a device.",
             },
         )
-    token_hash = sha256(body.device_token.encode()).hexdigest()
+    private_token = body.device_token
+    if body.provider == "expo" and (body.platform == "web" or not expo_push_token(private_token)):
+        raise HTTPException(status_code=422, detail="Invalid mobile notification registration.")
+    if body.provider == "web":
+        subscription = web_push_subscription(private_token)
+        if body.platform != "web" or subscription is None:
+            raise HTTPException(status_code=422, detail="Invalid browser notification registration.")
+        private_token = json.dumps(subscription, sort_keys=True, separators=(",", ":"))
+    token_hash = sha256(private_token.encode()).hexdigest()
     current = _now()
     device = db.scalar(select(FanPushDevice).where(FanPushDevice.device_token_hash == token_hash))
     if device is None:
@@ -357,7 +432,7 @@ def register_push_device(
             supporter_id=account.id,
             provider=body.provider,
             platform=body.platform,
-            device_token=body.device_token,
+            device_token=private_token,
             device_token_hash=token_hash,
             last_seen_at=current,
         )
@@ -366,7 +441,7 @@ def register_push_device(
         device.supporter_id = account.id
         device.provider = body.provider
         device.platform = body.platform
-        device.device_token = body.device_token
+        device.device_token = private_token
         device.enabled = True
         device.last_seen_at = current
         device.last_error = None
